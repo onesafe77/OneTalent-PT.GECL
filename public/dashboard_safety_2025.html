@@ -1,28 +1,88 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STATISTIK KESELAMATAN PT GECL 2025</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); padding: 1.5rem; margin-bottom: 2rem; }
-        .chart-container { position: relative; height: 300px; width: 100%; }
-        .input-group { display: flex; flex-direction: column; gap: 0.5rem; }
-        .input-label { font-size: 0.875rem; font-weight: 600; color: #475569; }
-        .input-field { padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; }
-        .btn { padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-        .btn-primary { background-color: #ef4444; color: white; }
-        .btn-primary:hover { background-color: #dc2626; }
-        .btn-secondary { background-color: #e2e8f0; color: #475569; }
-        .btn-secondary:hover { background-color: #cbd5e1; }
-        .stat-icon { width: 48px; height: 48px; margin-right: 1rem; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .input-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .input-field {
+            padding: 0.5rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: #ef4444;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #dc2626;
+        }
+
+        .btn-secondary {
+            background-color: #e2e8f0;
+            color: #475569;
+        }
+
+        .btn-secondary:hover {
+            background-color: #cbd5e1;
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            margin-right: 1rem;
+        }
     </style>
 </head>
+
 <body class="p-6">
 
     <!-- Header -->
@@ -35,14 +95,18 @@
             </div>
             <!-- Logos placeholder -->
             <div class="flex gap-2">
-                 <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">GECL</div>
-                 <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">PAMA</div>
+                <div
+                    class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">
+                    GECL</div>
+                <div
+                    class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-500">
+                    PAMA</div>
             </div>
         </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        
+
         <!-- Left Column: Charts -->
         <div class="lg:col-span-3 space-y-8">
 
@@ -50,12 +114,17 @@
             <div class="card bg-slate-50 border border-slate-200">
                 <div class="flex justify-between items-center mb-4 cursor-pointer" onclick="toggleElement('mh-panel')">
                     <h3 class="font-bold text-gray-700 flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-500" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
                         INPUT GLOBAL & MANHOURS (MH)
                     </h3>
                     <span class="text-xs text-blue-500 hover:underline">Show/Hide</span>
                 </div>
-                <div id="mh-panel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all" style="display:none;">
+                <div id="mh-panel" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all"
+                    style="display:none;">
                     <div class="input-group">
                         <label class="input-label">Bulan</label>
                         <select id="mh_month" class="input-field"></select>
@@ -64,7 +133,7 @@
                         <label class="input-label">Manpower</label>
                         <input type="number" id="mh_manpower" class="input-field" value="100">
                     </div>
-                     <div class="input-group">
+                    <div class="input-group">
                         <label class="input-label">Hari Kerja (Override)</label>
                         <input type="number" id="mh_days" class="input-field" placeholder="Default Calendar">
                     </div>
@@ -75,16 +144,17 @@
                             <span class="text-sm">Ya, Kabisat</span>
                         </div>
                     </div>
-                     <div class="input-group">
+                    <div class="input-group">
                         <label class="input-label">Jam/Hari (Adv)</label>
                         <input type="number" id="hours_per_day" class="input-field" value="11">
                     </div>
-                     <div class="input-group">
+                    <div class="input-group">
                         <label class="input-label">Faktor MH (Adv)</label>
                         <input type="number" id="factor_mh" class="input-field" step="0.01" value="0.85">
                     </div>
                     <div class="col-span-full flex justify-end gap-2 mt-2">
-                        <button onclick="saveMH()" class="btn btn-primary bg-blue-600 hover:bg-blue-700">Update MH</button>
+                        <button onclick="saveMH()" class="btn btn-primary bg-blue-600 hover:bg-blue-700">Update
+                            MH</button>
                     </div>
                 </div>
             </div>
@@ -92,8 +162,13 @@
             <!-- TIFR Section -->
             <div class="card relative">
                 <!-- Input Toggle -->
-                <button onclick="toggleElement('tifr-input')" class="absolute top-4 right-4 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <button onclick="toggleElement('tifr-input')"
+                    class="absolute top-4 right-4 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
                     Edit Data
                 </button>
 
@@ -112,7 +187,7 @@
                             <input type="number" id="tr_value" class="input-field" step="0.01">
                         </div>
                         <div class="input-group pb-2">
-                             <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                            <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
                                 <input type="checkbox" id="mode_ytd_tifr" class="w-4 h-4 text-red-600 rounded">
                                 Mode YTD
                             </label>
@@ -122,7 +197,9 @@
                 </div>
 
                 <div class="flex items-start mb-6">
-                    <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-lg mr-4 shadow-sm border border-green-200">1</div>
+                    <div
+                        class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-lg mr-4 shadow-sm border border-green-200">
+                        1</div>
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">TIFR (Total Injury Frequency Rate)</h2>
                         <div class="h-1 w-20 bg-gradient-to-r from-red-500 to-transparent rounded mt-1"></div>
@@ -130,9 +207,11 @@
                 </div>
                 <div class="flex gap-4">
                     <div class="hidden md:flex flex-col items-center justify-center w-24">
-                         <!-- Icon Placeholder -->
-                        <svg xmlns="http://www.w3.org/2000/svg" class="text-orange-600 w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        <!-- Icon Placeholder -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="text-orange-600 w-16 h-16" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                         </svg>
                     </div>
                     <div class="chart-container">
@@ -143,12 +222,18 @@
 
             <!-- Fatigue FR Section -->
             <div class="card relative">
-                <button onclick="toggleElement('fatigue-input')" class="absolute top-4 right-4 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <button onclick="toggleElement('fatigue-input')"
+                    class="absolute top-4 right-4 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
                     Edit Data
                 </button>
-                
-                <div id="fatigue-input" class="mb-4 bg-orange-50 p-4 rounded-lg border border-orange-100" style="display:none;">
+
+                <div id="fatigue-input" class="mb-4 bg-orange-50 p-4 rounded-lg border border-orange-100"
+                    style="display:none;">
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
                         <div class="input-group">
                             <label class="input-label">Bulan</label>
@@ -159,26 +244,31 @@
                             <input type="number" id="fatigue_incidents" class="input-field">
                         </div>
                         <div class="input-group pb-2">
-                             <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                            <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
                                 <input type="checkbox" id="mode_ytd_fatigue" class="w-4 h-4 text-orange-600 rounded">
                                 Mode YTD
                             </label>
                         </div>
-                        <button onclick="saveFatigue()" class="btn btn-primary bg-orange-500 hover:bg-orange-600 h-10">Simpan Fatigue</button>
+                        <button onclick="saveFatigue()"
+                            class="btn btn-primary bg-orange-500 hover:bg-orange-600 h-10">Simpan Fatigue</button>
                     </div>
                 </div>
 
                 <div class="flex items-start mb-6">
-                    <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-lg mr-4 shadow-sm border border-green-200">2</div>
+                    <div
+                        class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-lg mr-4 shadow-sm border border-green-200">
+                        2</div>
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">Fatigue FR</h2>
                         <div class="h-1 w-20 bg-gradient-to-r from-orange-500 to-transparent rounded mt-1"></div>
                     </div>
                 </div>
                 <div class="flex gap-4">
-                     <div class="hidden md:flex flex-col items-center justify-center w-24">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="text-red-700 w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    <div class="hidden md:flex flex-col items-center justify-center w-24">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="text-red-700 w-16 h-16" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
                         <span class="font-bold text-xl text-gray-400">Zzz</span>
                     </div>
@@ -190,12 +280,18 @@
 
             <!-- CIFR Section -->
             <div class="card relative">
-                 <button onclick="toggleElement('cifr-input')" class="absolute top-4 right-4 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                <button onclick="toggleElement('cifr-input')"
+                    class="absolute top-4 right-4 text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-600 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
                     Edit Data
                 </button>
 
-                <div id="cifr-input" class="mb-4 bg-green-50 p-4 rounded-lg border border-green-100" style="display:none;">
+                <div id="cifr-input" class="mb-4 bg-green-50 p-4 rounded-lg border border-green-100"
+                    style="display:none;">
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
                         <div class="input-group">
                             <label class="input-label">Bulan</label>
@@ -210,27 +306,32 @@
                             <input type="number" id="cifr_rebah" class="input-field">
                         </div>
                         <div class="input-group pb-2">
-                             <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                            <label class="flex items-center gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
                                 <input type="checkbox" id="mode_ytd_cifr" class="w-4 h-4 text-green-600 rounded">
                                 Mode YTD
                             </label>
                         </div>
-                        <button onclick="saveCIFR()" class="btn btn-primary bg-green-600 hover:bg-green-700 h-10">Simpan CIFR</button>
+                        <button onclick="saveCIFR()" class="btn btn-primary bg-green-600 hover:bg-green-700 h-10">Simpan
+                            CIFR</button>
                     </div>
                 </div>
 
                 <div class="flex items-start mb-6">
-                    <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-lg mr-4 shadow-sm border border-green-200">3</div>
+                    <div
+                        class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-lg mr-4 shadow-sm border border-green-200">
+                        3</div>
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">CIFR</h2>
                         <div class="h-1 w-20 bg-gradient-to-r from-green-500 to-transparent rounded mt-1"></div>
                     </div>
                 </div>
                 <div class="flex gap-4">
-                     <div class="hidden md:flex flex-col items-center justify-center w-24">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="text-gray-700 w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                    <div class="hidden md:flex flex-col items-center justify-center w-24">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="text-gray-700 w-16 h-16" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor">
+                            <path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                         </svg>
                     </div>
                     <div class="chart-container">
@@ -239,8 +340,9 @@
                 </div>
             </div>
 
-             <div class="text-center mt-8">
-                <button onclick="resetData()" class="btn btn-secondary text-xs">Reset Semua Data ke Default (Hapus LocalStorage)</button>
+            <div class="text-center mt-8">
+                <button onclick="resetData()" class="btn btn-secondary text-xs">Reset Semua Data ke Default (Hapus
+                    LocalStorage)</button>
             </div>
         </div>
 
@@ -251,15 +353,20 @@
                 <ul class="space-y-4 text-sm text-gray-700 leading-relaxed font-medium">
                     <li class="flex gap-2">
                         <span class="text-green-600 text-lg">•</span>
-                        <span>Secara YTD TIFR Tahun 2025 pada Bulan Desember Week 53 mengalami penurunan diangka <b class="text-black">3,57</b> dan masih dibawah Ambang Batas (TR) <b class="text-black">6,42</b>.</span>
+                        <span>Secara YTD TIFR Tahun 2025 pada Bulan Desember Week 53 mengalami penurunan diangka <b
+                                class="text-black">3,57</b> dan masih dibawah Ambang Batas (TR) <b
+                                class="text-black">6,42</b>.</span>
                     </li>
                     <li class="flex gap-2">
                         <span class="text-green-600 text-lg">•</span>
-                        <span>Insiden Fatigue secara YTD Tahun 2025 <b class="text-black">tidak pernah terjadi</b>.</span>
+                        <span>Insiden Fatigue secara YTD Tahun 2025 <b class="text-black">tidak pernah
+                                terjadi</b>.</span>
                     </li>
                     <li class="flex gap-2">
                         <span class="text-green-600 text-lg">•</span>
-                        <span>Secara YTD 2025 Insiden di PT GECL terjadi sebanyak <b class="text-black">4 kali</b> dengan mekanisme <b class="text-black">1 kali Rebah</b> dan <b class="text-black">3 kali menabrak</b>.</span>
+                        <span>Secara YTD 2025 Insiden di PT GECL terjadi sebanyak <b class="text-black">4 kali</b>
+                            dengan mekanisme <b class="text-black">1 kali Rebah</b> dan <b class="text-black">3 kali
+                                menabrak</b>.</span>
                     </li>
                 </ul>
             </div>
@@ -267,312 +374,313 @@
 
     </div>
 
-<script>
-    // --- constants & defaults ---
-    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Oct', 'Nov', 'Des'];
-    const STORAGE_KEY = 'gecl_dashboard_2025';
-    
-    // Default Calendar Days (Common Year)
-    const DEFAULT_DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    <script>
+        // --- constants & defaults ---
+        const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Oct', 'Nov', 'Des'];
+        const STORAGE_KEY = 'gecl_dashboard_2025';
 
-    const DEFAULT_DATA = {
-        manpower: Array(12).fill(100),
-        days_in_month: [...DEFAULT_DAYS_IN_MONTH],
-        leap_year: false,
-        hours_per_day: 11,
-        factor_mh: 0.85,
+        // Default Calendar Days (Common Year)
+        const DEFAULT_DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
-        ti_incidents: [0,0,1,0,1,0,0,0,1,1,0,0],
-        tr_value: 6.42,
-        mode_ytd_tifr: true,
+        const DEFAULT_DATA = {
+            manpower: Array(12).fill(100),
+            days_in_month: [...DEFAULT_DAYS_IN_MONTH],
+            leap_year: false,
+            hours_per_day: 11,
+            factor_mh: 0.85,
 
-        fatigue_incidents: Array(12).fill(0),
-        mode_ytd_fatigue: true,
+            ti_incidents: [0, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0],
+            tr_value: 6.42,
+            mode_ytd_tifr: true,
 
-        menabrak: [0,0,0,0,1,0,0,0,1,1,0,0],
-        rebah:    [0,0,1,0,0,0,0,0,0,0,0,0],
-        mode_ytd_cifr: true
-    };
+            fatigue_incidents: Array(12).fill(0),
+            mode_ytd_fatigue: true,
 
-    let appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
-    let tifrChart, fatigueChart, cifrChart;
-
-    // --- init ---
-    window.onload = function() {
-        loadData();
-        setupInputs();
-        setupCharts();
-        refreshAll();
-    };
-
-    function loadData() {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored);
-                // Merge to ensure structure integrity
-                appData = { ...DEFAULT_DATA, ...parsed };
-            } catch(e) {
-                console.error("Data corrupt, resetting");
-            }
-        }
-    }
-
-    function saveData() {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
-        refreshAll();
-    }
-
-    function resetData() {
-        if(confirm("Yakin ingin reset semua data ke default?")) {
-            localStorage.removeItem(STORAGE_KEY);
-            appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
-            location.reload();
-        }
-    }
-
-    // --- Calculation Logic ---
-    function calculate() {
-        const MH = [];
-        let cumMH = 0;
-        let cumTI = 0;
-        let cumFatigue = 0;
-        let cumMenabrak = 0;
-        let cumRebah = 0;
-
-        const series = {
-            tifr: [],
-            fatigue: [],
-            cifr: []
+            menabrak: [0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0],
+            rebah: [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            mode_ytd_cifr: true
         };
 
-        // Update Days in Feb based on Leap Year
-        appData.days_in_month[1] = appData.leap_year ? 29 : 28;
+        let appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+        let tifrChart, fatigueChart, cifrChart;
 
-        for (let i = 0; i < 12; i++) {
-            // MH Formula
-            const currentMH = appData.manpower[i] * appData.hours_per_day * appData.days_in_month[i] * appData.factor_mh;
-            MH.push(currentMH);
-            cumMH += currentMH;
+        // --- init ---
+        window.onload = function () {
+            loadData();
+            setupInputs();
+            setupCharts();
+            refreshAll();
+        };
 
-            // Incidents
-            cumTI += appData.ti_incidents[i];
-            cumFatigue += appData.fatigue_incidents[i];
-            cumMenabrak += appData.menabrak[i];
-            cumRebah += appData.rebah[i];
-            const cumCIFRInc = cumMenabrak + cumRebah;
-            const currentCIFRInc = appData.menabrak[i] + appData.rebah[i];
-
-            // TIFR Rate
-            if (appData.mode_ytd_tifr) {
-                series.tifr[i] = cumMH > 0 ? (cumTI * 1000000 / cumMH) : 0;
-            } else {
-                series.tifr[i] = currentMH > 0 ? (appData.ti_incidents[i] * 1000000 / currentMH) : 0;
-            }
-
-            // Fatigue Rate
-            if (appData.mode_ytd_fatigue) {
-                series.fatigue[i] = cumMH > 0 ? (cumFatigue * 1000000 / cumMH) : 0;
-            } else {
-                series.fatigue[i] = currentMH > 0 ? (appData.fatigue_incidents[i] * 1000000 / currentMH) : 0;
-            }
-
-            // CIFR Rate
-            if (appData.mode_ytd_cifr) {
-                series.cifr[i] = cumMH > 0 ? (cumCIFRInc * 1000000 / cumMH) : 0;
-            } else {
-                series.cifr[i] = currentMH > 0 ? (currentCIFRInc * 1000000 / currentMH) : 0;
-            }
-        }
-        return series;
-    }
-
-    // --- Chart Config & Render ---
-    function refreshAll() {
-        // Update input values in UI
-        updateInputUI();
-        
-        // Recalc
-        const derived = calculate();
-
-        // Update Charts
-        updateChartData(tifrChart, appData.ti_incidents, derived.tifr, appData.tr_value);
-        updateChartData(fatigueChart, appData.fatigue_incidents, derived.fatigue, null);
-        updateCIFRChartData(cifrChart, appData.menabrak, appData.rebah, derived.cifr);
-    }
-
-    function setupCharts() {
-        Chart.register(ChartDataLabels);
-        const commonOptions = {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'top', labels: { usePointStyle: true, font: { weight: 'bold' } } },
-                datalabels: {
-                    anchor: 'end', align: 'end', offset: -4,
-                    color: (ctx) => ctx.dataset.type === 'line' ? 'black' : 'white',
-                    font: { weight: 'bold', size: 11 },
-                    formatter: (value, ctx) => {
-                         if (ctx.dataset.type === 'line') return value.toFixed(2).replace('.', ',');
-                         return value > 0 ? value : '';
-                    }
+        function loadData() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    // Merge to ensure structure integrity
+                    appData = { ...DEFAULT_DATA, ...parsed };
+                } catch (e) {
+                    console.error("Data corrupt, resetting");
                 }
-            },
-            scales: {
-                y: { beginAtZero: true, grid: { display: false }, title: {display: false} },
-                y1: { beginAtZero: true, position: 'right', grid: { display: false } }
             }
-        };
-
-        // 1. TIFR
-        const ctxTifr = document.getElementById('chartTIFR').getContext('2d');
-        tifrChart = new Chart(ctxTifr, {
-            type: 'bar',
-            data: {
-                labels: MONTHS,
-                datasets: [
-                    { label: 'Insiden', data: [], backgroundColor: '#dc2626', order: 2, yAxisID: 'y' },
-                    { label: 'TIFR', data: [], type: 'line', borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, order: 1, yAxisID: 'y1' },
-                    { label: 'TR', data: [], type: 'line', borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
-                ]
-            },
-            options: { ...commonOptions }
-        });
-
-        // 2. Fatigue
-        const ctxFatigue = document.getElementById('chartFatigue').getContext('2d');
-        fatigueChart = new Chart(ctxFatigue, {
-            type: 'bar',
-            data: {
-                labels: MONTHS,
-                datasets: [
-                    { label: 'Insiden Fatigue', data: [], backgroundColor: '#dc2626', order: 2, yAxisID: 'y' },
-                    { label: 'Fatigue FR', data: [], type: 'line', borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, order: 1, yAxisID: 'y1' }
-                ]
-            },
-            options: { ...commonOptions }
-        });
-
-        // 3. CIFR
-        const ctxCifr = document.getElementById('chartCIFR').getContext('2d');
-        cifrChart = new Chart(ctxCifr, {
-            type: 'bar',
-            data: {
-                labels: MONTHS,
-                datasets: [
-                    { label: 'Menabrak', data: [], backgroundColor: '#dc2626', stack: 'Stack 0', order: 3, yAxisID: 'y' },
-                    { label: 'Rebah', data: [], backgroundColor: '#64748b', stack: 'Stack 0', order: 2, yAxisID: 'y' },
-                    { label: 'CIFR', data: [], type: 'line', borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, order: 1, yAxisID: 'y1' }
-                ]
-            },
-            options: { ...commonOptions }
-        });
-    }
-
-    function updateChartData(chart, barData, lineData, trValue) {
-        chart.data.datasets[0].data = barData;
-        chart.data.datasets[1].data = lineData;
-        if (trValue !== null && chart.data.datasets[2]) {
-             chart.data.datasets[2].data = Array(12).fill(trValue);
-             chart.data.datasets[2].label = 'TR ' + trValue;
         }
-        chart.update();
-    }
 
-    function updateCIFRChartData(chart, bar1, bar2, lineData) {
-        chart.data.datasets[0].data = bar1;
-        chart.data.datasets[1].data = bar2;
-        chart.data.datasets[2].data = lineData;
-        chart.update();
-    }
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+            refreshAll();
+        }
 
-    // --- UI & Interaction ---
-    function setupInputs() {
-        // Fill Month Dropdowns
-        const selects = ['mh_month', 'tifr_month', 'fatigue_month', 'cifr_month'];
-        selects.forEach(id => {
-            const sel = document.getElementById(id);
-            MONTHS.forEach((m, i) => {
-                const opt = document.createElement('option');
-                opt.value = i;
-                opt.innerText = m;
-                sel.appendChild(opt);
+        function resetData() {
+            if (confirm("Yakin ingin reset semua data ke default?")) {
+                localStorage.removeItem(STORAGE_KEY);
+                appData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                location.reload();
+            }
+        }
+
+        // --- Calculation Logic ---
+        function calculate() {
+            const MH = [];
+            let cumMH = 0;
+            let cumTI = 0;
+            let cumFatigue = 0;
+            let cumMenabrak = 0;
+            let cumRebah = 0;
+
+            const series = {
+                tifr: [],
+                fatigue: [],
+                cifr: []
+            };
+
+            // Update Days in Feb based on Leap Year
+            appData.days_in_month[1] = appData.leap_year ? 29 : 28;
+
+            for (let i = 0; i < 12; i++) {
+                // MH Formula
+                const currentMH = appData.manpower[i] * appData.hours_per_day * appData.days_in_month[i] * appData.factor_mh;
+                MH.push(currentMH);
+                cumMH += currentMH;
+
+                // Incidents
+                cumTI += appData.ti_incidents[i];
+                cumFatigue += appData.fatigue_incidents[i];
+                cumMenabrak += appData.menabrak[i];
+                cumRebah += appData.rebah[i];
+                const cumCIFRInc = cumMenabrak + cumRebah;
+                const currentCIFRInc = appData.menabrak[i] + appData.rebah[i];
+
+                // TIFR Rate
+                if (appData.mode_ytd_tifr) {
+                    series.tifr[i] = cumMH > 0 ? (cumTI * 1000000 / cumMH) : 0;
+                } else {
+                    series.tifr[i] = currentMH > 0 ? (appData.ti_incidents[i] * 1000000 / currentMH) : 0;
+                }
+
+                // Fatigue Rate
+                if (appData.mode_ytd_fatigue) {
+                    series.fatigue[i] = cumMH > 0 ? (cumFatigue * 1000000 / cumMH) : 0;
+                } else {
+                    series.fatigue[i] = currentMH > 0 ? (appData.fatigue_incidents[i] * 1000000 / currentMH) : 0;
+                }
+
+                // CIFR Rate
+                if (appData.mode_ytd_cifr) {
+                    series.cifr[i] = cumMH > 0 ? (cumCIFRInc * 1000000 / cumMH) : 0;
+                } else {
+                    series.cifr[i] = currentMH > 0 ? (currentCIFRInc * 1000000 / currentMH) : 0;
+                }
+            }
+            return series;
+        }
+
+        // --- Chart Config & Render ---
+        function refreshAll() {
+            // Update input values in UI
+            updateInputUI();
+
+            // Recalc
+            const derived = calculate();
+
+            // Update Charts
+            updateChartData(tifrChart, appData.ti_incidents, derived.tifr, appData.tr_value);
+            updateChartData(fatigueChart, appData.fatigue_incidents, derived.fatigue, null);
+            updateCIFRChartData(cifrChart, appData.menabrak, appData.rebah, derived.cifr);
+        }
+
+        function setupCharts() {
+            Chart.register(ChartDataLabels);
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { usePointStyle: true, font: { weight: 'bold' } } },
+                    datalabels: {
+                        anchor: 'end', align: 'end', offset: -4,
+                        color: (ctx) => ctx.dataset.type === 'line' ? 'black' : 'white',
+                        font: { weight: 'bold', size: 11 },
+                        formatter: (value, ctx) => {
+                            if (ctx.dataset.type === 'line') return value.toFixed(2).replace('.', ',');
+                            return value > 0 ? value : '';
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { display: false }, title: { display: false } },
+                    y1: { beginAtZero: true, position: 'right', grid: { display: false } }
+                }
+            };
+
+            // 1. TIFR
+            const ctxTifr = document.getElementById('chartTIFR').getContext('2d');
+            tifrChart = new Chart(ctxTifr, {
+                type: 'bar',
+                data: {
+                    labels: MONTHS,
+                    datasets: [
+                        { label: 'Insiden', data: [], backgroundColor: '#dc2626', order: 2, yAxisID: 'y' },
+                        { label: 'TIFR', data: [], type: 'line', borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, order: 1, yAxisID: 'y1' },
+                        { label: 'TR', data: [], type: 'line', borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
+                    ]
+                },
+                options: { ...commonOptions }
             });
-            sel.addEventListener('change', updateInputUI); // Refresh inputs when month changes
-        });
 
-        // Current Month Selection Default
-        const curMonth = Math.min(new Date().getMonth(), 11);
-        selects.forEach(id => document.getElementById(id).value = curMonth);
-    }
+            // 2. Fatigue
+            const ctxFatigue = document.getElementById('chartFatigue').getContext('2d');
+            fatigueChart = new Chart(ctxFatigue, {
+                type: 'bar',
+                data: {
+                    labels: MONTHS,
+                    datasets: [
+                        { label: 'Insiden Fatigue', data: [], backgroundColor: '#dc2626', order: 2, yAxisID: 'y' },
+                        { label: 'Fatigue FR', data: [], type: 'line', borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, order: 1, yAxisID: 'y1' }
+                    ]
+                },
+                options: { ...commonOptions }
+            });
 
-    function updateInputUI() {
-        // Update MH Input Panel
-        const mhIdx = document.getElementById('mh_month').value;
-        document.getElementById('mh_manpower').value = appData.manpower[mhIdx];
-        document.getElementById('mh_days').value = appData.days_in_month[mhIdx];
-        document.getElementById('hours_per_day').value = appData.hours_per_day;
-        document.getElementById('factor_mh').value = appData.factor_mh;
-        document.getElementById('leap_year').checked = appData.leap_year;
+            // 3. CIFR
+            const ctxCifr = document.getElementById('chartCIFR').getContext('2d');
+            cifrChart = new Chart(ctxCifr, {
+                type: 'bar',
+                data: {
+                    labels: MONTHS,
+                    datasets: [
+                        { label: 'Menabrak', data: [], backgroundColor: '#dc2626', stack: 'Stack 0', order: 3, yAxisID: 'y' },
+                        { label: 'Rebah', data: [], backgroundColor: '#64748b', stack: 'Stack 0', order: 2, yAxisID: 'y' },
+                        { label: 'CIFR', data: [], type: 'line', borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, order: 1, yAxisID: 'y1' }
+                    ]
+                },
+                options: { ...commonOptions }
+            });
+        }
 
-        // TIFR Input
-        const tifrIdx = document.getElementById('tifr_month').value;
-        document.getElementById('tifr_incidents').value = appData.ti_incidents[tifrIdx];
-        document.getElementById('tr_value').value = appData.tr_value;
-        document.getElementById('mode_ytd_tifr').checked = appData.mode_ytd_tifr;
+        function updateChartData(chart, barData, lineData, trValue) {
+            chart.data.datasets[0].data = barData;
+            chart.data.datasets[1].data = lineData;
+            if (trValue !== null && chart.data.datasets[2]) {
+                chart.data.datasets[2].data = Array(12).fill(trValue);
+                chart.data.datasets[2].label = 'TR ' + trValue;
+            }
+            chart.update();
+        }
 
-        // Fatigue Input
-        const fatIdx = document.getElementById('fatigue_month').value;
-        document.getElementById('fatigue_incidents').value = appData.fatigue_incidents[fatIdx];
-        document.getElementById('mode_ytd_fatigue').checked = appData.mode_ytd_fatigue;
+        function updateCIFRChartData(chart, bar1, bar2, lineData) {
+            chart.data.datasets[0].data = bar1;
+            chart.data.datasets[1].data = bar2;
+            chart.data.datasets[2].data = lineData;
+            chart.update();
+        }
 
-        // CIFR Input
-        const cifrIdx = document.getElementById('cifr_month').value;
-        document.getElementById('cifr_menabrak').value = appData.menabrak[cifrIdx];
-        document.getElementById('cifr_rebah').value = appData.rebah[cifrIdx];
-        document.getElementById('mode_ytd_cifr').checked = appData.mode_ytd_cifr;
-    }
+        // --- UI & Interaction ---
+        function setupInputs() {
+            // Fill Month Dropdowns
+            const selects = ['mh_month', 'tifr_month', 'fatigue_month', 'cifr_month'];
+            selects.forEach(id => {
+                const sel = document.getElementById(id);
+                MONTHS.forEach((m, i) => {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.innerText = m;
+                    sel.appendChild(opt);
+                });
+                sel.addEventListener('change', updateInputUI); // Refresh inputs when month changes
+            });
 
-    // Save Handlers
-    window.saveMH = function() {
-        const idx = document.getElementById('mh_month').value;
-        appData.manpower[idx] = parseInt(document.getElementById('mh_manpower').value) || 0;
-        appData.days_in_month[idx] = parseInt(document.getElementById('mh_days').value) || DEFAULT_DAYS_IN_MONTH[idx]; // Fallback to default if empty
-        appData.hours_per_day = parseFloat(document.getElementById('hours_per_day').value) || 11;
-        appData.factor_mh = parseFloat(document.getElementById('factor_mh').value) || 0.85;
-        appData.leap_year = document.getElementById('leap_year').checked;
-        saveData();
-        alert(`Data MH Bulan ${MONTHS[idx]} tersimpan!`);
-    }
+            // Current Month Selection Default
+            const curMonth = Math.min(new Date().getMonth(), 11);
+            selects.forEach(id => document.getElementById(id).value = curMonth);
+        }
 
-    window.saveTIFR = function() {
-        const idx = document.getElementById('tifr_month').value;
-        appData.ti_incidents[idx] = parseInt(document.getElementById('tifr_incidents').value) || 0;
-        appData.tr_value = parseFloat(document.getElementById('tr_value').value) || 6.42;
-        appData.mode_ytd_tifr = document.getElementById('mode_ytd_tifr').checked;
-        saveData();
-    }
+        function updateInputUI() {
+            // Update MH Input Panel
+            const mhIdx = document.getElementById('mh_month').value;
+            document.getElementById('mh_manpower').value = appData.manpower[mhIdx];
+            document.getElementById('mh_days').value = appData.days_in_month[mhIdx];
+            document.getElementById('hours_per_day').value = appData.hours_per_day;
+            document.getElementById('factor_mh').value = appData.factor_mh;
+            document.getElementById('leap_year').checked = appData.leap_year;
 
-    window.saveFatigue = function() {
-        const idx = document.getElementById('fatigue_month').value;
-        appData.fatigue_incidents[idx] = parseInt(document.getElementById('fatigue_incidents').value) || 0;
-        appData.mode_ytd_fatigue = document.getElementById('mode_ytd_fatigue').checked;
-        saveData();
-    }
+            // TIFR Input
+            const tifrIdx = document.getElementById('tifr_month').value;
+            document.getElementById('tifr_incidents').value = appData.ti_incidents[tifrIdx];
+            document.getElementById('tr_value').value = appData.tr_value;
+            document.getElementById('mode_ytd_tifr').checked = appData.mode_ytd_tifr;
 
-    window.saveCIFR = function() {
-        const idx = document.getElementById('cifr_month').value;
-        appData.menabrak[idx] = parseInt(document.getElementById('cifr_menabrak').value) || 0;
-        appData.rebah[idx] = parseInt(document.getElementById('cifr_rebah').value) || 0;
-        appData.mode_ytd_cifr = document.getElementById('mode_ytd_cifr').checked;
-        saveData();
-    }
+            // Fatigue Input
+            const fatIdx = document.getElementById('fatigue_month').value;
+            document.getElementById('fatigue_incidents').value = appData.fatigue_incidents[fatIdx];
+            document.getElementById('mode_ytd_fatigue').checked = appData.mode_ytd_fatigue;
 
-    window.toggleElement = function(id) {
-        const el = document.getElementById(id);
-        el.style.display = el.style.display === 'none' ? 'block' : 'none';
-    }
+            // CIFR Input
+            const cifrIdx = document.getElementById('cifr_month').value;
+            document.getElementById('cifr_menabrak').value = appData.menabrak[cifrIdx];
+            document.getElementById('cifr_rebah').value = appData.rebah[cifrIdx];
+            document.getElementById('mode_ytd_cifr').checked = appData.mode_ytd_cifr;
+        }
 
-</script>
+        // Save Handlers
+        window.saveMH = function () {
+            const idx = document.getElementById('mh_month').value;
+            appData.manpower[idx] = parseInt(document.getElementById('mh_manpower').value) || 0;
+            appData.days_in_month[idx] = parseInt(document.getElementById('mh_days').value) || DEFAULT_DAYS_IN_MONTH[idx]; // Fallback to default if empty
+            appData.hours_per_day = parseFloat(document.getElementById('hours_per_day').value) || 11;
+            appData.factor_mh = parseFloat(document.getElementById('factor_mh').value) || 0.85;
+            appData.leap_year = document.getElementById('leap_year').checked;
+            saveData();
+            alert(`Data MH Bulan ${MONTHS[idx]} tersimpan!`);
+        }
+
+        window.saveTIFR = function () {
+            const idx = document.getElementById('tifr_month').value;
+            appData.ti_incidents[idx] = parseInt(document.getElementById('tifr_incidents').value) || 0;
+            appData.tr_value = parseFloat(document.getElementById('tr_value').value) || 6.42;
+            appData.mode_ytd_tifr = document.getElementById('mode_ytd_tifr').checked;
+            saveData();
+        }
+
+        window.saveFatigue = function () {
+            const idx = document.getElementById('fatigue_month').value;
+            appData.fatigue_incidents[idx] = parseInt(document.getElementById('fatigue_incidents').value) || 0;
+            appData.mode_ytd_fatigue = document.getElementById('mode_ytd_fatigue').checked;
+            saveData();
+        }
+
+        window.saveCIFR = function () {
+            const idx = document.getElementById('cifr_month').value;
+            appData.menabrak[idx] = parseInt(document.getElementById('cifr_menabrak').value) || 0;
+            appData.rebah[idx] = parseInt(document.getElementById('cifr_rebah').value) || 0;
+            appData.mode_ytd_cifr = document.getElementById('mode_ytd_cifr').checked;
+            saveData();
+        }
+
+        window.toggleElement = function (id) {
+            const el = document.getElementById(id);
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+    </script>
 </body>
+
 </html>

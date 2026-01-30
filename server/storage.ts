@@ -8105,6 +8105,98 @@ export class DrizzleStorage implements IStorage {
       pendingLeaveRequests
     };
   }
+  // ============================================
+  // SIDAK FATIGUE METHODS (Supplementary)
+  // ============================================
+
+  async updateSidakFatigueSession(id: string, updates: Partial<InsertSidakFatigueSession>): Promise<SidakFatigueSession | undefined> {
+    const [result] = await db
+      .update(sidakFatigueSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(sidakFatigueSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  // ============================================
+  // SIDAK ROSTER METHODS
+  // ============================================
+
+  async getSidakRosterSession(id: string): Promise<SidakRosterSession | undefined> {
+    const [result] = await db
+      .select()
+      .from(sidakRosterSessions)
+      .where(eq(sidakRosterSessions.id, id));
+    return result;
+  }
+
+  async getAllSidakRosterSessions(): Promise<SidakRosterSession[]> {
+    return await db
+      .select()
+      .from(sidakRosterSessions)
+      .orderBy(desc(sidakRosterSessions.tanggal));
+  }
+
+  async createSidakRosterSession(session: InsertSidakRosterSession): Promise<SidakRosterSession> {
+    const [result] = await db
+      .insert(sidakRosterSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakRosterSession(id: string, updates: Partial<InsertSidakRosterSession>): Promise<SidakRosterSession | undefined> {
+    const [result] = await db
+      .update(sidakRosterSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(sidakRosterSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSidakRosterSession(id: string): Promise<boolean> {
+    // Delete related records first
+    await db.delete(sidakRosterRecords).where(eq(sidakRosterRecords.sessionId, id));
+    await db.delete(sidakRosterObservers).where(eq(sidakRosterObservers.sessionId, id));
+
+    // Delete session
+    const [result] = await db
+      .delete(sidakRosterSessions)
+      .where(eq(sidakRosterSessions.id, id))
+      .returning();
+
+    return !!result;
+  }
+
+  async getSidakRosterRecords(sessionId: string): Promise<SidakRosterRecord[]> {
+    return await db
+      .select()
+      .from(sidakRosterRecords)
+      .where(eq(sidakRosterRecords.sessionId, sessionId));
+  }
+
+  async createSidakRosterRecord(record: InsertSidakRosterRecord): Promise<SidakRosterRecord> {
+    const [result] = await db
+      .insert(sidakRosterRecords)
+      .values(record)
+      .returning();
+    return result;
+  }
+
+  async getSidakRosterObservers(sessionId: string): Promise<SidakRosterObserver[]> {
+    return await db
+      .select()
+      .from(sidakRosterObservers)
+      .where(eq(sidakRosterObservers.sessionId, sessionId));
+  }
+
+  async createSidakRosterObserver(observer: InsertSidakRosterObserver): Promise<SidakRosterObserver> {
+    const [result] = await db
+      .insert(sidakRosterObservers)
+      .values(observer)
+      .returning();
+    return result;
+  }
 }
 
 export const storage = new DrizzleStorage();
