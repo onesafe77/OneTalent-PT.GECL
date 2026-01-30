@@ -417,7 +417,13 @@ app.put("/api/employees/:id", async (req, res) => {
   startReminderScheduler();
 
   // Serve static files from uploads folder (for meeting photos, P5M photos, etc.)
-  app.use('/uploads', express.static('uploads'));
+  // Use absolute path to ensure reliability in production
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsDir));
+
   // Explicitly serve public folder (for standalone HTML dashboards)
   app.use(express.static('public'));
 

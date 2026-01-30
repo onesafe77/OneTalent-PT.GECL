@@ -290,10 +290,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize auth/session middleware
   await setupAuth(app);
 
+  // Ensure uploads directory exists with absolute path
+  const uploadsDir = path.join(process.cwd(), "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log(`[INIT] Created uploads directory at: ${uploadsDir}`);
+  } else {
+    console.log(`[INIT] Uploads directory exists at: ${uploadsDir}`);
+  }
+
   // Configure multer for general file uploads (disk storage) with extension preservation
   const storageConfig = multer.diskStorage({
     destination: function (req, file, cb) {
-      cb(null, 'uploads/')
+      cb(null, uploadsDir)
     },
     filename: function (req, file, cb) {
       console.log('DEBUG: Multer filename function called for:', file.originalname);
@@ -325,6 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No photo uploaded" });
       }
 
+      // Store relative path for URL access
       const photoUrl = `/uploads/${file.filename}`;
       console.log('DEBUG: Photo uploaded!', {
         originalName: file.originalname,
@@ -340,13 +350,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Ensure uploads directory exists
-  if (!fs.existsSync('uploads')) {
-    fs.mkdirSync('uploads');
-  }
-
-  // Serve uploaded files statically
-  app.use('/uploads', express.static('uploads'));
+  // Serve uploaded files statically with absolute path
+  app.use('/uploads', express.static(uploadsDir));
 
 
 
@@ -5025,6 +5030,367 @@ Format sebagai bullet points singkat per insight.`;
       res.status(500).json({ message: "Gagal menambahkan data karyawan" });
     }
   });
+
+  // ============================================
+  // SIDAK FATIGUE PHOTO UPLOAD (Local Adapter)
+  // ============================================
+
+  // Step 1: Request upload URL
+  app.post("/api/sidak-fatigue/:id/request-upload-url", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+
+      if (!name) return res.status(400).json({ error: "Filename is required" });
+
+      const session = await storage.getSidakFatigueSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(7);
+      const ext = path.extname(name) || '.jpg';
+      const filename = `${timestamp}-${randomStr}${ext}`;
+
+      // Ensure directory exists
+      const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-fatigue-photos');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const uploadURL = `${protocol}://${host}/api/sidak-fatigue/temp-upload/${filename}`;
+      const objectPath = `/uploads/sidak-fatigue-photos/${filename}`;
+
+      res.json({ uploadURL, objectPath });
+    } catch (error: any) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  // Step 2: Temp upload endpoint
+  app.put("/api/sidak-fatigue/temp-upload/:filename", async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-fatigue-photos');
+      const filePath = path.join(uploadDir, filename);
+
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const writeStream = fs.createWriteStream(filePath);
+      req.pipe(writeStream);
+
+      writeStream.on('finish', () => {
+        res.json({ success: true });
+      });
+
+      writeStream.on('error', (err) => {
+        console.error("File write error:", err);
+        res.status(500).json({ error: "Failed to write file" });
+      });
+    } catch (error) {
+      console.error("Temp upload error:", error);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  // Step 3: Confirm upload
+  app.post("/api/sidak-fatigue/:id/confirm-upload", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { objectPath } = req.body;
+
+      const session = await storage.getSidakFatigueSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const existingPhotos = session.activityPhotos || [];
+      const updatedPhotos = [...existingPhotos, objectPath];
+
+      const updatedSession = await storage.updateSidakFatigueSession(id, {
+        activityPhotos: updatedPhotos
+      });
+
+      res.json({ photos: updatedSession.activityPhotos });
+    } catch (error) {
+      console.error("Error confirming upload:", error);
+      res.status(500).json({ error: "Failed to confirm upload" });
+    }
+  });
+
+  // Delete photo
+  app.delete("/api/sidak-fatigue/:id/photos/:index", async (req, res) => {
+    try {
+      const { id, index } = req.params;
+      const photoIndex = parseInt(index, 10);
+
+      const session = await storage.getSidakFatigueSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const existingPhotos = session.activityPhotos || [];
+      if (photoIndex < 0 || photoIndex >= existingPhotos.length) {
+        return res.status(404).json({ error: "Invalid photo index" });
+      }
+
+      const updatedPhotos = existingPhotos.filter((_, idx) => idx !== photoIndex);
+
+      const updatedSession = await storage.updateSidakFatigueSession(id, {
+        activityPhotos: updatedPhotos
+      });
+
+      res.json({ photos: updatedSession.activityPhotos });
+    } catch (error) {
+      console.error("Error deleting photo:", error);
+      res.status(500).json({ error: "Failed to delete photo" });
+    }
+  });
+
+
+  // ============================================
+  // SIDAK ROSTER ROUTES
+  // ============================================
+
+  // Create new Sidak Roster session
+  app.post("/api/sidak-roster", async (req, res) => {
+    try {
+      const validatedData = insertSidakRosterSessionSchema.parse(req.body);
+
+      // Get logged-in user's NIK to track who created this SIDAK
+      const sessionUser = (req.session as any).user;
+      const createdBy = sessionUser?.nik || null;
+
+      const session = await storage.createSidakRosterSession({
+        ...validatedData,
+        createdBy
+      });
+      res.json(session);
+    } catch (error: any) {
+      console.error("Error creating Sidak Roster session:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal membuat sesi Sidak Roster" });
+    }
+  });
+
+  // Get all Sidak Roster sessions
+  app.get("/api/sidak-roster", async (req, res) => {
+    try {
+      let sessions = await storage.getAllSidakRosterSessions();
+
+      // Filter by createdBy based on user role
+      const sessionUser = (req.session as any).user;
+      if (sessionUser && sessionUser.role !== 'ADMIN') {
+        sessions = sessions.filter(s => s.createdBy === sessionUser.nik);
+      }
+
+      const sessionsWithDetails = await Promise.all(
+        sessions.map(async (session) => {
+          const [records, observers] = await Promise.all([
+            storage.getSidakRosterRecords(session.id),
+            storage.getSidakRosterObservers(session.id)
+          ]);
+          return {
+            ...session,
+            totalSampel: records.length,
+            observers
+          };
+        })
+      );
+
+      res.json(sessionsWithDetails);
+    } catch (error) {
+      console.error("Error fetching Sidak Roster sessions:", error);
+      res.status(500).json({ message: "Gagal mengambil data sesi Sidak Roster" });
+    }
+  });
+
+  // Get single Sidak Roster session
+  app.get("/api/sidak-roster/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [session, records, observers] = await Promise.all([
+        storage.getSidakRosterSession(id),
+        storage.getSidakRosterRecords(id),
+        storage.getSidakRosterObservers(id)
+      ]);
+
+      if (!session) {
+        return res.status(404).json({ message: "Sesi Sidak Roster tidak ditemukan" });
+      }
+
+      res.json({
+        ...session,
+        records,
+        observers
+      });
+    } catch (error) {
+      console.error("Error fetching Sidak Roster session:", error);
+      res.status(500).json({ message: "Gagal mengambil detail sesi Sidak Roster" });
+    }
+  });
+
+  // Add record to Sidak Roster session
+  app.post("/api/sidak-roster/:id/records", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakRosterRecordSchema.parse({
+        ...req.body,
+        sessionId: id
+      });
+
+      const record = await storage.createSidakRosterRecord(validatedData);
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error adding Sidak Roster record:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      if (error.message?.includes('Maksimal 15 karyawan')) {
+        return res.status(422).json({ message: error.message });
+      }
+      res.status(500).json({ message: "Gagal menambahkan data karyawan" });
+    }
+  });
+
+  // Add observer to Sidak Roster session
+  app.post("/api/sidak-roster/:id/observers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakRosterObserverSchema.parse({
+        ...req.body,
+        sessionId: id
+      });
+
+      const observer = await storage.createSidakRosterObserver(validatedData);
+      res.json(observer);
+    } catch (error: any) {
+      console.error("Error adding Sidak Roster observer:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal menambahkan observer" });
+    }
+  });
+
+  // ============================================
+  // SIDAK ROSTER PHOTO UPLOAD (Local Adapter)
+  // ============================================
+
+  // Step 1: Request upload URL
+  app.post("/api/sidak-roster/:id/request-upload-url", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+
+      if (!name) return res.status(400).json({ error: "Filename is required" });
+
+      const session = await storage.getSidakRosterSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(7);
+      const ext = path.extname(name) || '.jpg';
+      const filename = `${timestamp}-${randomStr}${ext}`;
+
+      // Ensure directory exists
+      const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-roster-photos');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const protocol = req.protocol;
+      const host = req.get('host');
+      const uploadURL = `${protocol}://${host}/api/sidak-roster/temp-upload/${filename}`;
+      const objectPath = `/uploads/sidak-roster-photos/${filename}`;
+
+      res.json({ uploadURL, objectPath });
+    } catch (error: any) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ error: "Failed to generate upload URL" });
+    }
+  });
+
+  // Step 2: Temp upload endpoint
+  app.put("/api/sidak-roster/temp-upload/:filename", async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-roster-photos');
+      const filePath = path.join(uploadDir, filename);
+
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const writeStream = fs.createWriteStream(filePath);
+      req.pipe(writeStream);
+
+      writeStream.on('finish', () => {
+        res.json({ success: true });
+      });
+
+      writeStream.on('error', (err) => {
+        console.error("File write error:", err);
+        res.status(500).json({ error: "Failed to write file" });
+      });
+    } catch (error) {
+      console.error("Temp upload error:", error);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  // Step 3: Confirm upload
+  app.post("/api/sidak-roster/:id/confirm-upload", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { objectPath } = req.body;
+
+      const session = await storage.getSidakRosterSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const existingPhotos = session.activityPhotos || [];
+      const updatedPhotos = [...existingPhotos, objectPath];
+
+      const updatedSession = await storage.updateSidakRosterSession(id, {
+        activityPhotos: updatedPhotos
+      });
+
+      res.json({ photos: updatedSession.activityPhotos });
+    } catch (error) {
+      console.error("Error confirming upload:", error);
+      res.status(500).json({ error: "Failed to confirm upload" });
+    }
+  });
+
+  // Delete photo
+  app.delete("/api/sidak-roster/:id/photos/:index", async (req, res) => {
+    try {
+      const { id, index } = req.params;
+      const photoIndex = parseInt(index, 10);
+
+      const session = await storage.getSidakRosterSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const existingPhotos = session.activityPhotos || [];
+      if (photoIndex < 0 || photoIndex >= existingPhotos.length) {
+        return res.status(404).json({ error: "Invalid photo index" });
+      }
+
+      const updatedPhotos = existingPhotos.filter((_, idx) => idx !== photoIndex);
+
+      const updatedSession = await storage.updateSidakRosterSession(id, {
+        activityPhotos: updatedPhotos
+      });
+
+      res.json({ photos: updatedSession.activityPhotos });
+    } catch (error) {
+      console.error("Error deleting photo:", error);
+      res.status(500).json({ error: "Failed to delete photo" });
+    }
+  });
+
 
   // Create new Sidak Seatbelt session
   app.post("/api/sidak-seatbelt", async (req, res) => {
