@@ -764,6 +764,9 @@ export default function SidakFatigueForm() {
                   { key: 'pemeriksaanKesehatan', label: 'Kesehatan Baik?', desc: 'Tidak ada keluhan fisik' },
                   { key: 'karyawanSiapBekerja', label: 'Siap Bekerja?', desc: 'Mental dan fisik siap' },
                   { key: 'fitUntukBekerja', label: 'Fit to Work?', desc: 'Status kelayakan kerja' },
+                  { key: 'istirahatDanMonitor', label: 'Istirahat & Monitor?', desc: 'Perlu istirahat sebentar dan dimonitor' },
+                  { key: 'istirahatLebihdariSatuJam', label: 'Istirahat >1 Jam?', desc: 'Perlu diistirahatkan lebih dari 1 jam' },
+                  { key: 'tidakBolehBekerja', label: 'Tidak Boleh Bekerja?', desc: 'Tidak diijinkan untuk bekerja' },
                 ].map((field) => {
                   const value = currentEmployee[field.key as keyof EmployeeRecord] as boolean | null;
                   return (

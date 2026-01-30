@@ -334,14 +334,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No photo uploaded" });
       }
 
-      // Store relative path for URL access
-      const photoUrl = `/uploads/${file.filename}`;
+      // Verify file was actually saved to disk
+      const savedFilePath = path.join(uploadsDir, file.filename);
+      const fileExists = fs.existsSync(savedFilePath);
       console.log('DEBUG: Photo uploaded!', {
         originalName: file.originalname,
         filename: file.filename,
         path: file.path,
-        photoUrl
+        savedFilePath,
+        fileExists,
+        uploadsDir
       });
+
+      if (!fileExists) {
+        console.error('CRITICAL: File was not saved to disk!', { savedFilePath });
+        return res.status(500).json({ message: "File upload failed - file not saved" });
+      }
+
+      // Store relative path for URL access
+      const photoUrl = `/uploads/${file.filename}`;
       await storage.updateEmployee(id, { photoUrl });
       res.json({ photoUrl });
     } catch (error) {
@@ -6616,6 +6627,67 @@ Format sebagai bullet points singkat per insight.`;
         ...workshop.map((s: any) => mapSession(s, 'Workshop'))
       ];
 
+      // Resolve supervisor NIKs to names
+      const nikCache = new Map<string, string>();
+      for (const session of allSessions) {
+        const nik = session.createdBy;
+        if (nik && (nik.startsWith('C-') || nik.startsWith('P-'))) {
+          if (!nikCache.has(nik)) {
+            const employee = await storage.getEmployee(nik);
+            nikCache.set(nik, employee?.name || nik);
+          }
+          session.supervisorName = nikCache.get(nik) || nik;
+        }
+      }
+
+      // Calculate totalSampel from records count for sessions with totalSampel = 0
+      const getRecordCount = async (session: any): Promise<number> => {
+        try {
+          switch (session.type) {
+            case 'Fatigue':
+              return (await storage.getSidakFatigueRecords(session.id)).length;
+            case 'Roster':
+              return (await storage.getSidakRosterRecords(session.id)).length;
+            case 'Seatbelt':
+              return (await storage.getSidakSeatbeltRecords(session.id)).length;
+            case 'Rambu':
+              return (await storage.getSidakRambuObservations(session.id)).length;
+            case 'Antrian':
+              return (await storage.getSidakAntrianRecords(session.id)).length;
+            case 'Jarak':
+              return (await storage.getSidakJarakRecords(session.id)).length;
+            case 'Kecepatan':
+              return (await storage.getSidakKecepatanRecords(session.id)).length;
+            case 'Pencahayaan':
+              return (await storage.getSidakPencahayaanRecords(session.id)).length;
+            case 'LOTO':
+              return (await storage.getSidakLotoRecords(session.id)).length;
+            case 'Digital':
+              return (await storage.getSidakDigitalRecords(session.id)).length;
+            case 'Workshop':
+              return (await storage.getSidakWorkshopRecords(session.id)).length;
+            default:
+              return 0;
+          }
+        } catch {
+          return 0;
+        }
+      };
+
+      // Process in batches of 10 for better performance
+      const sessionsWithZero = allSessions.filter(s => s.totalSampel === 0);
+      console.log(`[SIDAK-RECAP] Sessions with totalSampel=0: ${sessionsWithZero.length}`);
+
+      const batchSize = 10;
+      for (let i = 0; i < sessionsWithZero.length; i += batchSize) {
+        const batch = sessionsWithZero.slice(i, i + batchSize);
+        const counts = await Promise.all(batch.map(s => getRecordCount(s)));
+        batch.forEach((s, idx) => {
+          console.log(`[SIDAK-RECAP] Session ${s.id} (${s.type}): records count = ${counts[idx]}`);
+          s.totalSampel = counts[idx];
+        });
+      }
+
       allSessions.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
 
       const stats = {
@@ -6681,18 +6753,38 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ message: "Session ID and Type are required" });
       }
 
+      // Helper function to resolve NIK to employee name
+      const resolveNikToName = async (nik: string | null | undefined): Promise<string> => {
+        if (!nik) return '-';
+        if (nik.startsWith('C-') || nik.startsWith('P-')) {
+          const employee = await storage.getEmployee(nik);
+          return employee?.name || nik;
+        }
+        return nik;
+      };
+
       if (type === 'Fatigue') {
         const session = await storage.getSidakFatigueSession(sessionId as string);
         if (!session) return res.status(404).json({ message: "Session not found" });
         const records = await storage.getSidakFatigueRecords(sessionId as string);
         const observers = await storage.getSidakFatigueObservers(sessionId as string);
 
+        // Debug logging for photos
+        console.log('[SIDAK-RECAP] Fatigue session photos:', {
+          sessionId,
+          activityPhotos: session.activityPhotos,
+          photosCount: session.activityPhotos?.length || 0
+        });
+
+        // Resolve supervisor NIK to name
+        const supervisorName = await resolveNikToName(session.createdBy);
+
         return res.json({
           session: {
             ...session,
             type: 'Fatigue',
             waktu: `${session.waktuMulai} - ${session.waktuSelesai}`,
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6706,13 +6798,14 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakRosterRecords(sessionId as string);
         const observers = await storage.getSidakRosterObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
             type: 'Roster',
             tanggal: session.tanggal,
             waktu: session.waktu,
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6726,6 +6819,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakSeatbeltRecords(sessionId as string);
         const observers = await storage.getSidakSeatbeltObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6733,7 +6827,7 @@ Format sebagai bullet points singkat per insight.`;
             tanggal: session.tanggal,
             waktu: session.waktu,
             departemen: '-',
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6747,6 +6841,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakRambuObservations(sessionId as string);
         const observers = await storage.getSidakRambuObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6754,7 +6849,7 @@ Format sebagai bullet points singkat per insight.`;
             tanggal: session.tanggal,
             waktu: `${session.waktuMulai} - ${session.waktuSelesai}`,
             departemen: '-',
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6769,6 +6864,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakAntrianRecords(sessionId as string);
         const observers = await storage.getSidakAntrianObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6776,7 +6872,7 @@ Format sebagai bullet points singkat per insight.`;
             tanggal: session.tanggal,
             waktu: session.waktu,
             departemen: session.departemen,
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6790,6 +6886,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakJarakRecords(sessionId as string);
         const observers = await storage.getSidakJarakObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6798,8 +6895,7 @@ Format sebagai bullet points singkat per insight.`;
             waktu: session.waktu,
             shift: session.shift,
             lokasi: session.lokasi,
-
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6813,6 +6909,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakKecepatanRecords(sessionId as string);
         const observers = await storage.getSidakKecepatanObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6822,7 +6919,7 @@ Format sebagai bullet points singkat per insight.`;
             shift: session.shift,
             lokasi: session.lokasi,
             area: session.subLokasi,
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6836,6 +6933,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakPencahayaanRecords(sessionId as string);
         const observers = await storage.getSidakPencahayaanObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6845,7 +6943,7 @@ Format sebagai bullet points singkat per insight.`;
             shift: session.shift,
             lokasi: session.lokasi,
             departemen: session.departemen,
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6859,6 +6957,7 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakLotoRecords(sessionId as string);
         const observers = await storage.getSidakLotoObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
@@ -6868,7 +6967,7 @@ Format sebagai bullet points singkat per insight.`;
             shift: session.shift,
             lokasi: session.lokasi,
             departemen: session.departemen,
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6882,11 +6981,12 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakDigitalRecords(sessionId as string);
         const observers = await storage.getSidakDigitalObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
             type: 'Digital',
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,
@@ -6900,11 +7000,12 @@ Format sebagai bullet points singkat per insight.`;
         const records = await storage.getSidakWorkshopRecords(sessionId as string);
         const observers = await storage.getSidakWorkshopObservers(sessionId as string);
 
+        const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
           session: {
             ...session,
             type: 'Workshop',
-            supervisorName: session.createdBy || '-',
+            supervisorName,
             photos: session.activityPhotos
           },
           records,

@@ -86,6 +86,7 @@ export default function EmployeeDetail() {
 
     const [photo, setPhoto] = useState<File | null>(null);
     const [photoPreview, setPhotoPreview] = useState<string>("");
+    const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
     const draftKey = `employee_draft_${employeeId || 'new'}`;
@@ -202,7 +203,10 @@ export default function EmployeeDetail() {
                 keteranganOs: employee.keteranganOs || "",
                 bpjsKesehatan: employee.bpjsKesehatan || "",
             });
-            if (employee.photoUrl) setPhotoPreview(employee.photoUrl);
+            if (employee.photoUrl) {
+                setPhotoPreview(employee.photoUrl);
+                setPhotoLoadError(false);
+            }
         }
     }, [employee, form]);
 
@@ -210,6 +214,7 @@ export default function EmployeeDetail() {
         const file = e.target.files?.[0];
         if (file) {
             setPhoto(file);
+            setPhotoLoadError(false); // Reset error state when new photo is selected
             const reader = new FileReader();
             reader.onloadend = () => setPhotoPreview(reader.result as string);
             reader.readAsDataURL(file);
@@ -324,7 +329,16 @@ export default function EmployeeDetail() {
                                 {/* Photo */}
                                 <div className="flex flex-col items-center gap-2">
                                     <div className="w-32 h-32 rounded-full overflow-hidden bg-muted flex items-center justify-center border-2 border-dashed">
-                                        {photoPreview ? <img src={photoPreview} className="w-full h-full object-cover" /> : <User className="w-12 h-12 text-muted-foreground" />}
+                                        {photoPreview && !photoLoadError ? (
+                                            <img
+                                                src={photoPreview}
+                                                className="w-full h-full object-cover"
+                                                onError={() => setPhotoLoadError(true)}
+                                                alt="Foto Karyawan"
+                                            />
+                                        ) : (
+                                            <User className="w-12 h-12 text-muted-foreground" />
+                                        )}
                                     </div>
                                     <label className="cursor-pointer text-sm text-primary hover:underline flex items-center gap-1">
                                         <Upload className="w-4 h-4" /> Upload Foto
