@@ -193,6 +193,19 @@ export async function generateSidakLotoPdf(data: SidakLotoData): Promise<jsPDF> 
     // --- Sign-off Section (2-column layout: 1-4 left, 5-8 right) ---
     yPosition = (pdf as any).lastAutoTable.finalY + 8;
 
+    // Check if there's enough space for observer section (need at least 80mm)
+    const remainingSpace = pageHeight - yPosition - 10; // 10mm bottom margin
+    if (remainingSpace < 80) {
+        pdf.addPage();
+        yPosition = margin;
+
+        // Add a small header on new page for context
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('INSPEKSI KEPATUHAN LOTO - Daftar Observer', pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 8;
+    }
+
     // Left table (observers 1-4)
     const leftObservers = [];
     for (let i = 0; i < 4; i++) {
