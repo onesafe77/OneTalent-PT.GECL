@@ -1,7 +1,15 @@
 const CACHE_NAME = 'onetalent-v1';
 const urlsToCache = [
   '/',
-  '/manifest.json'
+  '/manifest.json',
+  '/icons/icon-72x72.png',
+  '/icons/icon-96x96.png',
+  '/icons/icon-128x128.png',
+  '/icons/icon-144x144.png',
+  '/icons/icon-152x152.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-384x384.png',
+  '/icons/icon-512x512.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,7 +43,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -57,9 +65,9 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('push', (event) => {
   console.log('Push event received:', event);
-  
+
   let data = { title: 'OneTalent', body: 'Ada notifikasi baru', icon: '/icons/icon-192x192.png' };
-  
+
   if (event.data) {
     try {
       data = event.data.json();
@@ -67,7 +75,7 @@ self.addEventListener('push', (event) => {
       data.body = event.data.text();
     }
   }
-  
+
   const options = {
     body: data.body || 'Ada notifikasi baru',
     icon: data.icon || '/icons/icon-192x192.png',
@@ -85,7 +93,7 @@ self.addEventListener('push', (event) => {
     tag: data.tag || 'onetalent-notification',
     renotify: true
   };
-  
+
   event.waitUntil(
     self.registration.showNotification(data.title || 'OneTalent', options)
   );
@@ -94,13 +102,13 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   console.log('Notification click:', event);
   event.notification.close();
-  
+
   const urlToOpen = event.notification.data?.url || '/';
-  
+
   if (event.action === 'close') {
     return;
   }
-  
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {

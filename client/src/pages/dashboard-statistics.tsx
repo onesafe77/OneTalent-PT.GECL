@@ -77,7 +77,21 @@ export default function DashboardStatistics() {
                 backgroundColor: '#f8fafc',
                 scale: 2,
                 useCORS: true,
-                logging: false
+                logging: false,
+                windowWidth: 1920, // Force Desktop Width
+                onclone: (clonedDoc) => {
+                    const clonedContent = clonedDoc.querySelector('[data-dashboard-container]') as HTMLElement;
+                    if (clonedContent) {
+                        clonedContent.style.width = '1920px';
+                        clonedContent.style.height = 'auto';
+                        clonedContent.style.background = '#f8fafc';
+                        // Ensure charts resize/render correctly
+                        const charts = clonedContent.querySelectorAll('canvas');
+                        charts.forEach((chart) => {
+                            chart.style.display = 'block';
+                        });
+                    }
+                }
             });
             const link = document.createElement('a');
             link.download = `STATISTIK_KESELAMATAN_GECL_2026_${new Date().toISOString().split('T')[0]}.jpg`;
@@ -241,7 +255,7 @@ export default function DashboardStatistics() {
     };
 
     return (
-        <div ref={dashboardRef} className="min-h-screen bg-gray-50/50 p-4 md:p-8 space-y-8 font-sans relative overflow-hidden text-slate-800">
+        <div ref={dashboardRef} data-dashboard-container className="min-h-screen bg-gray-50/50 p-4 md:p-8 space-y-8 font-sans relative overflow-hidden text-slate-800">
             {/* Ambient Background */}
             <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent pointer-events-none -z-10 blur-3xl" />
 
