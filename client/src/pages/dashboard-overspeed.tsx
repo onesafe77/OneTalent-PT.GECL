@@ -12,6 +12,9 @@ import {
     LineChart,
     Line,
     LabelList,
+    PieChart,
+    Pie,
+    Legend,
 } from "recharts";
 import {
     Card,
@@ -780,6 +783,105 @@ export default function DashboardOverspeed() {
                                         <Tooltip cursor={{ fill: 'transparent' }} />
                                         <Bar dataKey="count" fill="#f59e0b" radius={[2, 2, 0, 0]}>
                                             <LabelList dataKey="count" position="top" fill="#f59e0b" fontSize={10} formatter={(v: number) => v > 0 ? v : ''} />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Gap Analysis & Status Breakdown */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Gap Analysis - Ontime vs Overdue */}
+                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                            <CardHeader className="pb-0 border-b border-gray-100/50 mb-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle className="text-lg font-bold text-gray-800">Gap Analysis</CardTitle>
+                                        <CardDescription>Penyelesaian Ontime vs Overdue</CardDescription>
+                                    </div>
+                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                        <TrendingUp className="w-5 h-5" />
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={[
+                                                { name: 'On Time', value: stats?.closedOntime || 0, fill: '#10b981' },
+                                                { name: 'Overdue', value: stats?.closedOverdue || 0, fill: '#ef4444' }
+                                            ]}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={80}
+                                            outerRadius={110}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                                        >
+                                            <Cell key="cell-ontime" fill="#10b981" strokeWidth={0} />
+                                            <Cell key="cell-overdue" fill="#ef4444" strokeWidth={0} />
+                                        </Pie>
+                                        <Tooltip
+                                            formatter={(value: number) => [value, 'Kasus']}
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                        />
+                                        <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        {/* Status Breakdown Bar Chart */}
+                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                            <CardHeader className="pb-0 border-b border-gray-100/50 mb-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle className="text-lg font-bold text-gray-800">Status Breakdown</CardTitle>
+                                        <CardDescription>Distribusi Status Tiket & Kualifikasi</CardDescription>
+                                    </div>
+                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                        <Filter className="w-5 h-5" />
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={[
+                                            { name: 'TOTAL', value: filteredData.length, fill: '#6b7280' },
+                                            { name: 'CLOSED', value: stats?.closedCount || 0, fill: '#10b981' },
+                                            { name: 'VERIF', value: (stats?.validCount || 0) + (stats?.invalidCount || 0), fill: '#8b5cf6' },
+                                            { name: 'OPEN', value: stats?.openCount || 0, fill: '#f59e0b' },
+                                            { name: 'ONTIME', value: stats?.closedOntime || 0, fill: '#059669' },
+                                            { name: 'OVERDUE', value: stats?.closedOverdue || 0, fill: '#ef4444' },
+                                        ]}
+                                        layout="vertical"
+                                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <Tooltip
+                                            cursor={{ fill: '#f8fafc' }}
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                        />
+                                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
+                                            <LabelList dataKey="value" position="right" fill="#64748b" fontSize={11} fontWeight="bold" />
+                                            {
+                                                [
+                                                    { name: 'TOTAL', fill: '#6b7280' },
+                                                    { name: 'CLOSED', fill: '#10b981' },
+                                                    { name: 'VERIF', fill: '#8b5cf6' },
+                                                    { name: 'OPEN', fill: '#f59e0b' },
+                                                    { name: 'ONTIME', fill: '#059669' },
+                                                    { name: 'OVERDUE', fill: '#ef4444' },
+                                                ].map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                                ))
+                                            }
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>

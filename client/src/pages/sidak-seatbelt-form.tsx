@@ -128,6 +128,15 @@ export default function SidakSeatbeltForm() {
     // Autocomplete state
     const [searchOpen, setSearchOpen] = useState(false);
     const [nameSearch, setNameSearch] = useState("");
+    const [debouncedNameSearch, setDebouncedNameSearch] = useState("");
+
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedNameSearch(nameSearch);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [nameSearch]);
 
     useEffect(() => {
         // Set default draft if new
@@ -182,11 +191,24 @@ export default function SidakSeatbeltForm() {
         }
     };
 
-    // Fetch employees for autocomplete (optional optimization: fetch on search)
-    const { data: employeesResponse } = useQuery<any>({
-        queryKey: ["/api/employees"],
-        staleTime: 5 * 60 * 1000
+    // Fetch employees with server-side search for robust results
+    const { data: employeesResponse, isLoading: isLoadingEmployees } = useQuery<any>({
+        queryKey: ["/api/employees", debouncedNameSearch],
+        queryFn: async () => {
+            const params = new URLSearchParams({
+                page: '1',
+                per_page: '20',
+                ...(debouncedNameSearch && { search: debouncedNameSearch })
+            });
+            const res = await apiRequest(`/api/employees?${params}`);
+            return res;
+        },
+        // Keep results fresh for short time during typing
+        staleTime: 5000
     });
+
+    // Handle paginated response structure { data: [], total: ... }
+    // The server search endpoint always returns { data: [...] } format
     const employees = Array.isArray(employeesResponse?.data) ? employeesResponse.data : [];
 
     const handleCreateSession = useMutation({
@@ -278,11 +300,9 @@ export default function SidakSeatbeltForm() {
         });
     };
 
-    // Filter employees based on search
-    const filteredEmployees = (Array.isArray(employees) ? employees : []).filter(emp =>
-        emp.name.toLowerCase().includes(nameSearch.toLowerCase()) ||
-        emp.id.toLowerCase().includes(nameSearch.toLowerCase())
-    ).slice(0, 5); // Limit limit to 5 for mobile
+    // Use server-side search results directly
+    // Ensure we handle potential null/undefined values safely
+    const filteredEmployees = (Array.isArray(employees) ? employees : []);
 
     const handleEmployeeSelect = (employee: Employee) => {
         setCurrentRecord(prev => ({
@@ -468,8 +488,8 @@ export default function SidakSeatbeltForm() {
                                                     />
                                                 </div>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-[300px] p-0" align="start">
-                                                <Command>
+                                            <PopoverContent className="w-[300px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                                <Command shouldFilter={false}>
                                                     <CommandList>
                                                         <CommandEmpty>Tidak ditemukan.</CommandEmpty>
                                                         <CommandGroup heading="Hasil Pencarian">
