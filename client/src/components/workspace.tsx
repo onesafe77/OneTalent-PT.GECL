@@ -16,6 +16,7 @@ import Roster from "@/pages/roster";
 import Leave from "@/pages/leave";
 import LeaveRosterMonitoring from "@/pages/leave-roster-monitoring";
 import SimperMonitoring from "@/pages/simper-monitoring";
+import MonitoringSimperEvAdmin from "@/pages/monitoring-simper-ev-admin";
 import Reports from "@/pages/reports";
 import Meetings from "@/pages/meetings";
 import MeetingScanner from "@/pages/meeting-scanner";
@@ -99,6 +100,7 @@ const workspaceRoutes = [
   { path: "/workspace/leave", component: Leave, title: "Manajemen Cuti" },
   { path: "/workspace/leave-roster-monitoring", component: LeaveRosterMonitoring, title: "Monitoring Roster Cuti" },
   { path: "/workspace/simper-monitoring", component: SimperMonitoring, title: "Monitoring SIMPER Karyawan" },
+  { path: "/workspace/monitoring-simper-ev-admin", component: MonitoringSimperEvAdmin, title: "Admin Monitoring Simper EV" },
   { path: "/workspace/reports", component: Reports, title: "Laporan" },
   { path: "/workspace/meetings", component: Meetings, title: "Meeting Management" },
   { path: "/workspace/meeting-scanner", component: MeetingScanner, title: "Scan QR Meeting" },
@@ -235,6 +237,7 @@ export function Workspace() {
               <Route path="/workspace/leave" component={Leave} />
               <Route path="/workspace/leave-roster-monitoring" component={LeaveRosterMonitoring} />
               <Route path="/workspace/simper-monitoring" component={SimperMonitoring} />
+              <Route path="/workspace/monitoring-simper-ev-admin" component={MonitoringSimperEvAdmin} />
               <Route path="/workspace/reports" component={Reports} />
               <Route path="/workspace/meetings">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_MEETING]}>

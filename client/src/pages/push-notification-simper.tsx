@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react"; // Added useEffect
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input"; // Added Input
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getExpiryStatus } from "@/lib/expiry-utils";
 import type { Employee } from "@shared/schema";
 import {
@@ -24,9 +24,20 @@ import {
     Filter,
     Bot,
     Wand2,
-    Edit3
+    Edit3,
+    Settings // Added Settings icon
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter // Added DialogFooter
+} from "@/components/ui/dialog";
+import { queryClient } from "@/lib/queryClient";
 
 interface ExpiringDocument {
     employeeId: string;
@@ -45,12 +56,60 @@ export default function PushNotificationSimper() {
     const [filterType, setFilterType] = useState<string>("all");
     const [filterStatus, setFilterStatus] = useState<string>("all");
     const [sendingIds, setSendingIds] = useState<Set<string>>(new Set());
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false); // Settings state
 
     // Mystic AI & Message customization state
     const [useMystic, setUseMystic] = useState(false);
     const [customMessage, setCustomMessage] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
     const [showEditor, setShowEditor] = useState(false);
+
+    // Settings form state
+    const [apiKey, setApiKey] = useState("");
+    const [adminPhone, setAdminPhone] = useState("");
+
+    // Fetch settings
+    const { data: settings, isLoading: isLoadingSettings } = useQuery({
+        queryKey: ["/api/settings/whatsapp"],
+        queryFn: async () => {
+            const res = await fetch("/api/settings/whatsapp");
+            if (!res.ok) throw new Error("Failed to fetch settings");
+            return res.json();
+        }
+    });
+
+    // Update form when settings load
+    useEffect(() => {
+        if (settings) {
+            setAdminPhone(settings.adminPhone || "");
+            // API key is masked, so we don't set it directly to avoid overwriting with mask if saved
+        }
+    }, [settings]);
+
+    // Save settings mutation
+    const saveSettingsMutation = useMutation({
+        mutationFn: async (data: { apiKey: string, adminPhone: string }) => {
+            const res = await fetch("/api/settings/whatsapp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+            if (!res.ok) throw new Error("Failed to save settings");
+            return res.json();
+        },
+        onSuccess: () => {
+            toast({ title: "Berhasil", description: "Pengaturan WhatsApp disimpan" });
+            setIsSettingsOpen(false);
+            queryClient.invalidateQueries({ queryKey: ["/api/settings/whatsapp"] });
+        },
+        onError: (error) => {
+            toast({ title: "Gagal", description: `Gagal menyimpan pengaturan: ${error.message}`, variant: "destructive" });
+        }
+    });
+
+    const handleSaveSettings = () => {
+        saveSettingsMutation.mutate({ apiKey, adminPhone });
+    };
 
     // Fetch all employees
     const { data: response, isLoading, refetch } = useQuery<{ data: Employee[] }>({
@@ -258,6 +317,50 @@ export default function PushNotificationSimper() {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline">
+                                <Settings className="w-4 h-4 mr-2" /> Settings
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Konfigurasi WhatsApp API</DialogTitle>
+                                <DialogDescription>
+                                    Masukkan API Key dari Notifyme.id untuk menggunakan layanan WhatsApp.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4 py-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="apiKey">API Key Notifyme.id</Label>
+                                    <Input
+                                        id="apiKey"
+                                        type="password"
+                                        placeholder={settings?.apiKey ? "••••••••" : "Masukkan API Key"}
+                                        value={apiKey}
+                                        onChange={(e) => setApiKey(e.target.value)}
+                                    />
+                                    {settings?.isConfigured && <p className="text-xs text-green-600 flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Terkonfigurasi</p>}
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="adminPhone">Nomor WhatsApp Admin (untuk notifikasi sistem)</Label>
+                                    <Input
+                                        id="adminPhone"
+                                        placeholder="628xxxxxxxxxx"
+                                        value={adminPhone}
+                                        onChange={(e) => setAdminPhone(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>Batal</Button>
+                                <Button onClick={handleSaveSettings} disabled={saveSettingsMutation.isPending}>
+                                    {saveSettingsMutation.isPending && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
+                                    Simpan Pengaturan
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                     <Button variant="outline" onClick={() => refetch()}>
                         <RefreshCw className="w-4 h-4 mr-2" /> Refresh
                     </Button>

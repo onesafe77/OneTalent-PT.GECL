@@ -9,6 +9,8 @@ import { storage } from "./storage";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import Papa from "papaparse";
+import { InsertSimperEvMonitoring } from "@shared/schema";
 
 const app = express();
 
@@ -25,7 +27,7 @@ app.post("/api/hse/tna/delete-entry", async (req, res) => {
   }
 });
 
-console.log("SERVER RESTARTING... UPDATED ROUTES LOADING...");
+console.log(`SERVER RESTARTING... UPDATED ROUTES LOADING... [${new Date().toISOString()}]`);
 
 
 // Enable compression for better performance
@@ -93,6 +95,83 @@ const storageConfig = multer.diskStorage({
 });
 const uploadDirect = multer({ storage: storageConfig });
 app.use('/uploads', express.static('uploads'));
+
+app.get("/api/simper-ev/settings", async (req, res) => {
+  try {
+    // Assuming getSystemSetting returns the value string or object.
+    // If linter says 'value does not exist on type string', then it returns string.
+    const setting = await storage.getSystemSetting("simper_ev_csv_url");
+    // Safety check: if it's an object (runtime), use .value, else use it directly
+    const url = (typeof setting === 'object' && setting !== null && 'value' in setting)
+      ? (setting as any).value
+      : setting;
+    res.json({ url: url || "" });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/simper-ev/sync", async (req, res) => {
+  try {
+    let { url } = req.body;
+    if (url) {
+      await storage.setSystemSetting("simper_ev_csv_url", url, "URL Source for Simper EV Monitoring CSV");
+    } else {
+      const setting = await storage.getSystemSetting("simper_ev_csv_url");
+      const storedUrl = (typeof setting === 'object' && setting !== null && 'value' in setting)
+        ? (setting as any).value
+        : setting;
+      url = storedUrl || null;
+    }
+
+    if (!url) return res.status(400).json({ error: "URL CSV tidak ditemukan." });
+
+    console.log(`[SimperEV-Hotfix] Syncing from URL: ${url}`);
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Gagal mengunduh CSV: ${response.status}`);
+    const csvText = await response.text();
+
+    const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim() });
+    const rows = parsed.data as any[];
+
+    if (!rows || rows.length === 0) return res.status(400).json({ error: "Data CSV kosong" });
+
+    await storage.deleteAllSimperEvMonitoring();
+    const batchId = new Date().toISOString();
+    let successCount = 0;
+
+    for (const row of rows) {
+      const getVal = (key: string) => {
+        const foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
+        return foundKey ? row[foundKey] : "";
+      };
+
+      const rawNo = getVal('no');
+      const noVal = rawNo ? parseInt(String(rawNo)) : 0;
+
+      const rawData: InsertSimperEvMonitoring = {
+        unit: getVal('unit') || "",
+        no: isNaN(noVal) ? 0 : noVal,
+        nama: getVal('nama') || "Unknown",
+        nikSimper: getVal('nik simper') || getVal('nik') || "",
+        asalMitra: getVal('asal mitra') || "",
+        simper: getVal('simper') || "",
+        simperOrientasi: getVal('simper orientasi ev') || getVal('simper orientasi') || getVal('orientasi') || "",
+        simperPermanen: getVal('simper permanen ev') || getVal('simper permanen') || getVal('permanen') || "",
+        unitSkillUp: getVal('unit yg di skill up') || getVal('unit skill up') || "",
+        masaBerlakuSertifikatOs: getVal('masa berlaku sertifikat os') || "",
+        statusPengajuan: getVal('status pengajuan') || getVal('status') || "Pending",
+        importBatchId: batchId,
+      };
+      await storage.createSimperEvMonitoring(rawData);
+      successCount++;
+    }
+    res.json({ success: true, count: successCount, message: "Sinkronisasi berhasil (Hotfix)" });
+  } catch (error) {
+    console.error("[SimperEV-Hotfix] Sync Error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
 
 app.post("/api/employees/:id/photo", uploadDirect.single('photo'), async (req, res) => {
   console.log(`[HOTFIX ROUTE] POST photo for ${req.params.id}`);

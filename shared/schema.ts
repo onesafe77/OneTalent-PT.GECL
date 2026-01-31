@@ -372,6 +372,35 @@ export type InsertManualAttendance = z.infer<typeof insertManualAttendanceSchema
 export type SimperMonitoring = typeof simperMonitoring.$inferSelect;
 export type InsertSimperMonitoring = z.infer<typeof insertSimperMonitoringSchema>;
 
+// SIMPER EV Monitoring System (New)
+export const simperEvMonitoring = pgTable("simper_ev_monitoring", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unit: text("unit"),
+  no: integer("no"),
+  nama: text("nama").notNull(),
+  nikSimper: text("nik_simper"),
+  asalMitra: text("asal_mitra"),
+  simper: text("simper"), // G4, G3, etc.
+  simperOrientasi: text("simper_orientasi"), // Sudah/Belum
+  simperPermanen: text("simper_permanen"), // Sudah/Belum
+  unitSkillUp: text("unit_skill_up"),
+  masaBerlakuSertifikatOs: text("masa_berlaku_sertifikat_os"),
+  statusPengajuan: text("status_pengajuan"),
+  importBatchId: text("import_batch_id"), // To track uploads
+  updatedOf: text("updated_of"), // Timestamp string from CSV or upload time
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSimperEvMonitoringSchema = createInsertSchema(simperEvMonitoring).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SimperEvMonitoring = typeof simperEvMonitoring.$inferSelect;
+export type InsertSimperEvMonitoring = z.infer<typeof insertSimperEvMonitoringSchema>;
+
 // Authentication types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -2500,6 +2529,34 @@ export type WhatsappBlastRecipient = typeof whatsappBlastRecipients.$inferSelect
 export type InsertWhatsappBlastRecipient = z.infer<typeof insertWhatsappBlastRecipientSchema>;
 
 // ============================================
+// WHATSAPP MESSAGE TEMPLATES
+// ============================================
+
+export const whatsappTemplates = pgTable("whatsapp_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  message: text("message").notNull(),
+  blastType: varchar("blast_type", { length: 20 }).notNull().default("text"), // text, image, video
+  mediaUrls: text("media_urls").array(),
+  createdBy: varchar("created_by"),
+  createdByName: text("created_by_name"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_whatsapp_templates_active").on(table.isActive),
+]);
+
+export const insertWhatsappTemplateSchema = createInsertSchema(whatsappTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
+export type InsertWhatsappTemplate = z.infer<typeof insertWhatsappTemplateSchema>;
+
+// ============================================
 // INDUCTION (INDUKSI K3) TABLES
 // ============================================
 
@@ -2632,6 +2689,30 @@ export type InductionSchedule = typeof inductionSchedules.$inferSelect;
 export type InsertInductionSchedule = z.infer<typeof insertInductionScheduleSchema>;
 export type InductionAnswer = typeof inductionAnswers.$inferSelect;
 export type InsertInductionAnswer = z.infer<typeof insertInductionAnswerSchema>;
+
+// ============================================
+// SYSTEM SETTINGS (Key-Value Configuration)
+// ============================================
+
+export const systemSettings = pgTable("system_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_system_settings_key").on(table.key),
+]);
+
+export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 
 // ============================================
 // MCU (Medical Check Up) RECORDS

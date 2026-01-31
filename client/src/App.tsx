@@ -18,6 +18,7 @@ const LoginPage = lazy(() => import("@/pages/login"));
 const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
 
 const LandingPage = lazy(() => import("@/pages/landing-page"));
+const MonitoringSimperEvPublic = lazy(() => import("@/pages/monitoring-simper-ev-public"));
 
 /**
  * Router component dengan landing page dan workspace
@@ -54,6 +55,15 @@ function Router() {
         {() => (
           <Suspense fallback={<LoadingScreen isLoading={true} />}>
             <LoginPage />
+          </Suspense>
+        )}
+      </Route>
+
+      {/* Monitoring Simper EV - Public */}
+      <Route path="/monitoring-simper-ev">
+        {() => (
+          <Suspense fallback={<LoadingScreen isLoading={true} />}>
+            <MonitoringSimperEvPublic />
           </Suspense>
         )}
       </Route>

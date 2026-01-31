@@ -50,6 +50,7 @@ import {
 import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 
 // --- Configuration ---
@@ -100,6 +101,10 @@ interface OverspeedData {
     "Durasi Close"?: string;
     "Tanggal Pemenuhan": string;
     StatusClosedNC?: string; // New field
+    Shift?: string; // New field
+    Jabatan?: string; // New field from CSV
+    Speed?: number; // New field
+    SpeedLimit?: number; // New field
     // Helper fields for easier filtering
     _dateObj?: Date;
     _year?: number;
@@ -132,7 +137,7 @@ const getMonthName = (monthIndex: number) => {
 export default function DashboardOverspeed() {
     // --- State ---
     const [rawData, setRawData] = useState<OverspeedData[]>([]);
-    const [filteredData, setFilteredData] = useState<OverspeedData[]>([]);
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -154,333 +159,208 @@ export default function DashboardOverspeed() {
         setSheetConfig(config);
     }, []);
 
-    const processRows = (rows: string[][], headers: string[]) => {
-        const headersTrimmed = headers.map(h => h ? h.trim() : "");
-        const iNo = headersTrimmed.indexOf("No");
-        const iSumber = headersTrimmed.indexOf("Sumber");
-        const iEksekutor = headersTrimmed.indexOf("Nama Eksekutor");
-        const iKaryawan = headersTrimmed.indexOf("Nama Karyawan");
-        const iDate = headersTrimmed.indexOf("Date");
-        const iTime = headersTrimmed.indexOf("Time");
-        const iVehicle = headersTrimmed.indexOf("Vehicle No");
-        const iCompany = headersTrimmed.indexOf("Company");
-        const iViolation = headersTrimmed.indexOf("Violation");
-        const iLocation = headersTrimmed.indexOf("Location (KM)");
-        const iDurasi = headersTrimmed.indexOf("Durasi Close");
-        const iPemenuhan = headersTrimmed.indexOf("Tanggal Pemenuhan");
-        const iStatusClosedNC = headersTrimmed.indexOf("Status Closed NC"); // Need exact match
-        const iWeek = headersTrimmed.indexOf("Week");
-        const iMonth = headersTrimmed.indexOf("Month");
-        const iTicketStatus = headersTrimmed.indexOf("Status");
-        let iValidationStatus = headersTrimmed.indexOf("Status Pelanggaran");
-        if (iValidationStatus === -1) {
-            iValidationStatus = headersTrimmed.lastIndexOf("Status");
-            if (iValidationStatus === iTicketStatus) iValidationStatus = -1;
-        }
+    const processRows = (rows: any[], headers: string[]) => {
+        // Simple mapping if headers match, but we need to ensure numbers
+        return rows.map(r => {
+            const dStr = r["Date"] || r["Date Opr"] || "";
+            const d = parseDate(dStr);
 
-        return rows
-            .filter(r => r[iCompany]?.trim().toUpperCase() === COMPANY_FILTER_DEFAULT)
-            .map(r => {
-                const d = parseDate(r[iDate]);
-                return {
-                    No: r[iNo],
-                    Sumber: r[iSumber],
-                    "Nama Eksekutor": r[iEksekutor],
-                    "Nama Karyawan": r[iKaryawan],
-                    Date: r[iDate],
-                    Time: r[iTime],
-                    "Vehicle No": r[iVehicle],
-                    Company: r[iCompany],
-                    Violation: r[iViolation],
-                    "Location (KM)": r[iLocation],
-                    "Date Opr": "",
-                    Jalur: "",
-                    Week: r[iWeek],
-                    Month: r[iMonth],
-                    Jalur2: "",
-                    Coordinat: "",
-                    TicketStatus: r[iTicketStatus],
-                    ValidationStatus: r[iValidationStatus],
-                    "Durasi Close": r[iDurasi],
-                    "Tanggal Pemenuhan": r[iPemenuhan],
-                    StatusClosedNC: r[iStatusClosedNC],
-                    _dateObj: d,
-                    _year: d.getFullYear(),
-                    _monthIndex: d.getMonth(),
-                } as OverspeedData;
-            });
+            // Parse Speed Numbers
+            const speed = parseFloat(r["Speed (Kph)"] || r["Speed"] || "0");
+            const limit = parseFloat(r["Speed Limit"] || r["SpeedLimit"] || "0");
+            const shift = r["Shift"] || r["Shift "] || "Unknown"; // Handle "Shift " with space
+
+            // Fix Mapping Status (Handle unexpected CSV headers)
+            // CSV Header might be: "Status", "Status ", "Status Pelanggaran ", "Status Closed NC "
+            const ticketStatus = r["Status"] || r["TicketStatus"] || "Open";
+            const validationStatus = r["Status Pelanggaran "] || r["Status Pelanggaran"] || r["ValidationStatus"] || "";
+            const statusClosedNC = r["Status Closed NC "] || r["Status Closed NC"] || r["StatusClosedNC"] || "";
+            const durasiClose = r["Durasi Close"] || r["Durasi Close "] || "0";
+
+            return {
+                ...r,
+                Shift: shift.trim(),
+                Speed: isNaN(speed) ? 0 : speed,
+                SpeedLimit: isNaN(limit) ? 0 : limit,
+                _dateObj: d,
+                _year: d.getFullYear() || 0,
+                _monthIndex: d.getMonth() || 0,
+                // Explicitly map these fields to ensure they are populated
+                TicketStatus: ticketStatus,
+                ValidationStatus: validationStatus,
+                StatusClosedNC: statusClosedNC,
+                "Durasi Close": durasiClose
+            };
+        }).filter(r => r.Company === COMPANY_FILTER_DEFAULT || !r.Company); // Default filter
     };
 
-    // --- Fetch Data from Google Sheets API ---
-    const fetchFromGoogleSheets = async () => {
-        if (!sheetConfig) return;
+    const fetchData = async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/google-sheets/data/${sheetConfig.spreadsheetId}/${encodeURIComponent(sheetConfig.sheetName)}`);
-            if (!res.ok) throw new Error("Gagal mengambil data dari Google Sheets");
-            const data = await res.json();
+            // Check for custom config first
+            const config = getSheetConfig();
+            let url = CSV_URL;
 
-            if (data.rows && data.rows.length > 0) {
-                const headers = data.columns.map((c: any) => c.name);
-                const rows = data.rows.map((row: any) => headers.map((h: string) => row[h] || ""));
-                const processedData = processRows(rows, headers);
-
-                const years = Array.from(new Set(processedData.map(d => d._year).filter(Boolean))) as number[];
-                const units = Array.from(new Set(processedData.map(d => d["Vehicle No"]).filter(Boolean))) as string[];
-
-                setRawData(processedData);
-                setFilteredData(processedData);
-                setAvailableYears(years.sort((a, b) => b - a));
-                setAvailableUnits(units.sort());
-                setDataSource("sheets");
+            if (config) {
+                // If custom config exists, use our server proxy
             }
-            setLastUpdated(new Date());
+
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Gagal mengambil data CSV");
+            const text = await res.text();
+
+            Papa.parse(text, {
+                header: true,
+                skipEmptyLines: true,
+                complete: (results) => {
+                    const rows = processRows(results.data as any[], results.meta.fields || []);
+                    setRawData(rows as OverspeedData[]);
+                    setLastUpdated(new Date());
+
+                    // Extract available filters
+                    const years = Array.from(new Set(rows.map(r => r._year).filter(Boolean))).sort().reverse() as number[];
+                    setAvailableYears(years);
+
+                    const units = Array.from(new Set(rows.map(r => r["Vehicle No"]).filter(Boolean))).sort();
+                    setAvailableUnits(units);
+                },
+                error: (err: any) => {
+                    setError(`Parse Error: ${err.message}`);
+                }
+            });
         } catch (err: any) {
-            setError(err.message || "Gagal mengambil data");
-            fetchFromCSV();
+            setError(err.message);
         } finally {
             setLoading(false);
         }
     };
 
-    // --- Fetch Data from CSV (Fallback) ---
-    const fetchFromCSV = () => {
-        setLoading(true);
-        setError(null);
-
-        Papa.parse(CSV_URL, {
-            download: true,
-            header: false,
-            complete: (results) => {
-                if (results.data && results.data.length > 0) {
-                    const rows = results.data as string[][];
-                    const headers = rows[0];
-                    const headersTrimmed = headers.map(h => h ? h.trim() : "");
-
-                    const iNo = headersTrimmed.indexOf("No");
-                    const iSumber = headersTrimmed.indexOf("Sumber");
-                    const iEksekutor = headersTrimmed.indexOf("Nama Eksekutor");
-                    const iKaryawan = headersTrimmed.indexOf("Nama Karyawan");
-                    const iDate = headersTrimmed.indexOf("Date");
-                    const iTime = headersTrimmed.indexOf("Time");
-                    const iVehicle = headersTrimmed.indexOf("Vehicle No");
-                    const iCompany = headersTrimmed.indexOf("Company");
-                    const iViolation = headersTrimmed.indexOf("Violation");
-                    const iLocation = headersTrimmed.indexOf("Location (KM)");
-                    const iDurasi = headersTrimmed.indexOf("Durasi Close");
-                    const iPemenuhan = headersTrimmed.indexOf("Tanggal Pemenuhan");
-                    const iStatusClosedNC = headersTrimmed.indexOf("Status Closed NC");
-                    const iWeek = headersTrimmed.indexOf("Week");
-                    const iMonth = headersTrimmed.indexOf("Month");
-
-                    const iTicketStatus = headersTrimmed.indexOf("Status");
-                    let iValidationStatus = headersTrimmed.indexOf("Status Pelanggaran");
-                    if (iValidationStatus === -1) {
-                        iValidationStatus = headersTrimmed.lastIndexOf("Status");
-                        if (iValidationStatus === iTicketStatus) iValidationStatus = -1;
-                    }
-
-                    const processedData = rows.slice(1)
-                        .filter(r => r[iCompany]?.trim().toUpperCase() === COMPANY_FILTER_DEFAULT)
-                        .map(r => {
-                            const d = parseDate(r[iDate]);
-                            return {
-                                No: r[iNo],
-                                Sumber: r[iSumber],
-                                "Nama Eksekutor": r[iEksekutor],
-                                "Nama Karyawan": r[iKaryawan],
-                                Date: r[iDate],
-                                Time: r[iTime],
-                                "Vehicle No": r[iVehicle],
-                                Company: r[iCompany],
-                                Violation: r[iViolation],
-                                "Location (KM)": r[iLocation],
-                                "Date Opr": "",
-                                Jalur: "",
-                                Week: r[iWeek],
-                                Month: r[iMonth],
-                                Jalur2: "",
-                                Coordinat: "",
-                                TicketStatus: r[iTicketStatus],
-                                ValidationStatus: iValidationStatus !== -1 ? r[iValidationStatus] : "",
-                                "Durasi Close": r[iDurasi],
-                                "Tanggal Pemenuhan": r[iPemenuhan],
-                                StatusClosedNC: r[iStatusClosedNC],
-                                // Helpers
-                                _dateObj: d,
-                                _year: d.getFullYear(),
-                                _monthIndex: d.getMonth()
-                            } as OverspeedData;
-                        });
-
-                    setRawData(processedData);
-                    setFilteredData(processedData);
-                    setLastUpdated(new Date());
-
-                    // Extract filter options
-                    const years = Array.from(new Set(processedData.map(d => d._year!))).sort().reverse();
-                    const units = Array.from(new Set(processedData.map(d => d["Vehicle No"]))).sort();
-                    setAvailableYears(years);
-                    setAvailableUnits(units);
-
-                } else {
-                    setError("Tidak ada data ditemukan.");
-                }
-                setLoading(false);
-            },
-            error: (err) => {
-                console.error("CSV Parse Error:", err);
-                setError("Gagal mengambil data dari Google Sheet.");
-                setLoading(false);
-            },
-        });
-    };
-
-    const fetchData = () => {
-        if (sheetConfig) {
-            fetchFromGoogleSheets();
-        } else {
-            fetchFromCSV();
-        }
-    };
-
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 300000); // 5 mins
-        return () => clearInterval(interval);
-    }, [sheetConfig]);
+    }, []);
 
-    // --- Apply Filters ---
-    const applyFilters = () => {
-        let res = [...rawData];
+    // --- Aggregation ---
+    const filteredData = useMemo(() => {
+        if (!rawData) return [];
+        return rawData.filter((r: any) => {
+            const yearStr = (r?._year || "").toString();
+            const monthStr = (r?._monthIndex || "").toString();
 
-        if (filterYear !== "All") {
-            res = res.filter(row => row._year === parseInt(filterYear));
-        }
+            const matchYear = filterYear === "All" || yearStr === filterYear;
+            const matchMonth = filterMonth === "All" || monthStr === filterMonth;
+            const matchUnit = filterUnit === "All" || r?.["Vehicle No"] === filterUnit;
+            const matchVio = filterViolation === "All" ||
+                (filterViolation === "OverSpeed" && r?.Violation?.toLowerCase().includes("overspeed")) ||
+                (filterViolation === "Merokok" && r?.Violation?.toLowerCase().includes("merokok"));
 
-        if (filterMonth !== "All") {
-            res = res.filter(row => row._monthIndex === parseInt(filterMonth));
-        }
-
-        if (filterUnit !== "All") {
-            res = res.filter(row => row["Vehicle No"] === filterUnit);
-        }
-
-        if (filterViolation !== "All") {
-            if (filterViolation === "Merokok") {
-                res = res.filter(row => row.Violation && row.Violation.toLowerCase().includes("merokok"));
-            } else if (filterViolation === "OverSpeed") {
-                res = res.filter(row => row.Violation && row.Violation.toLowerCase().includes("overspeed"));
-            }
-        }
-
-        setFilteredData(res);
-    };
-
-    // Auto-apply when logic changes
-    useEffect(() => {
-        applyFilters();
-    }, [filterYear, filterMonth, filterUnit, filterViolation, rawData]);
-
-    const resetFilters = () => {
-        setFilterYear("All");
-        setFilterMonth("All");
-        setFilterUnit("All");
-        setFilterViolation("All");
-    };
-
-    // --- Data Aggregation (Memoized on filteredData) ---
-    const stats = useMemo(() => {
-        if (filteredData.length === 0) return null;
-
-        // 1. Trend Per Month
-        const monthCounts: Record<string, number> = {};
-        for (let i = 0; i < 12; i++) monthCounts[getMonthName(i)] = 0;
-
-        filteredData.forEach(row => {
-            const m = getMonthName(row._monthIndex!);
-            if (monthCounts[m] !== undefined) monthCounts[m]++;
+            return matchYear && matchMonth && matchUnit && matchVio;
         });
-        const monthData = Object.keys(monthCounts).map(name => ({ name, count: monthCounts[name] }));
+    }, [rawData, filterYear, filterMonth, filterUnit, filterViolation]);
 
-        // 2. Trend Per Week
+    const stats = useMemo(() => {
+        if (!filteredData.length) return null;
+
+        // 1. Month Data
+        const monthCounts = Array(12).fill(0);
+        filteredData.forEach(r => {
+            if (r._monthIndex !== undefined) monthCounts[r._monthIndex]++;
+        });
+        const monthData = monthCounts.map((count, i) => ({
+            name: getMonthName(i),
+            count
+        }));
+
+        // 2. Week Data
         const weekCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const w = row.Week ? `Minggu ${row.Week}` : "Unknown";
+        filteredData.forEach(r => {
+            const w = r.Week ? `Minggu ${r.Week}` : "Unknown";
             weekCounts[w] = (weekCounts[w] || 0) + 1;
         });
-        const weekData = Object.keys(weekCounts)
-            .sort((a, b) => parseInt(a.replace(/\D/g, '')) - parseInt(b.replace(/\D/g, '')))
-            .map(name => ({ name, count: weekCounts[name] }));
+        const weekData = Object.entries(weekCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => parseInt(a.name.replace(/\D/g, '')) - parseInt(b.name.replace(/\D/g, '')));
 
-        // 3. Trend Per Day (unused but kept for future)
-        const dayCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const date = row.Date;
-            dayCounts[date] = (dayCounts[date] || 0) + 1;
-        });
-
-        // 4. Trend Per Hour
-        const hourCounts: Record<string, number> = {};
-        for (let i = 0; i < 24; i++) hourCounts[i] = 0;
-        filteredData.forEach(row => {
-            if (row.Time) {
-                const hour = parseInt(row.Time.split(":")[0]);
-                if (!isNaN(hour)) hourCounts[hour]++;
+        // 3. Hour Data
+        const hourCounts = Array(24).fill(0);
+        filteredData.forEach(r => {
+            if (r.Time) {
+                const h = parseInt(r.Time.split(":")[0]);
+                if (!isNaN(h)) hourCounts[h]++;
             }
         });
-        const hourData = Object.keys(hourCounts).map(h => ({ name: h, count: hourCounts[parseInt(h)] }));
+        const hourData = hourCounts.map((count, i) => ({ name: i.toString(), count }));
 
-        // 5. Top Employees (Using Nama Karyawan)
-        const empCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
-            if (name && name !== "BIB") empCounts[name] = (empCounts[name] || 0) + 1;
-        });
-        const topEmployees = Object.keys(empCounts)
-            .map(name => ({ name, count: empCounts[name], unit: filteredData.find(r => (r["Nama Karyawan"] || r["Nama Eksekutor"])?.toUpperCase() === name)?.["Vehicle No"] || "-" }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
-
-        // 6. Top Units
+        // 4. Employees & Units Aggregation
+        const empInfo: Record<string, { count: number, unit: string, role: string }> = {};
         const unitCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const unit = row["Vehicle No"];
-            if (unit) unitCounts[unit] = (unitCounts[unit] || 0) + 1;
-        });
-        const topUnits = Object.keys(unitCounts)
-            .map(name => ({ name, count: unitCounts[name] }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
+        const locationCounts: Record<string, number> = {};
+        const shiftCounts: Record<string, number> = {};
+        const speedData: any[] = [];
 
-        // 7. Status & Duration Metrics
+        // 5. Status & Duration Metrics
         let openCount = 0;
         let closedCount = 0;
         let validCount = 0;
         let invalidCount = 0;
         let totalDuration = 0;
         let durationCount = 0;
-
         let violationMerokok = 0;
         let violationOverspeed = 0;
-
-        // Status Closed NC Metrics
         let closedOntime = 0;
         let closedOverdue = 0;
+        let waitingCount = 0;
 
-        filteredData.forEach(row => {
-            // Ticket Status (from 'Status' col)
+        filteredData.forEach((row, i) => {
+            // Employee
+            const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
+            // Filter out BIB and #N/A
+            if (name && name !== "BIB" && name !== "#N/A") {
+                if (!empInfo[name]) {
+                    empInfo[name] = { count: 0, unit: row["Vehicle No"] || "-", role: row["Jabatan"] || "-" };
+                }
+                empInfo[name].count++;
+                // Keep latest unit/role
+                if (row["Vehicle No"]) empInfo[name].unit = row["Vehicle No"];
+                if (row["Jabatan"]) empInfo[name].role = row["Jabatan"];
+            }
+
+            // Unit
+            const unit = row["Vehicle No"] || "Unknown";
+            if (unit) unitCounts[unit] = (unitCounts[unit] || 0) + 1;
+
+            // Location
+            const loc = row["Location (KM)"] || "Unknown";
+            locationCounts[loc] = (locationCounts[loc] || 0) + 1;
+
+            // Shift
+            let shift = row.Shift || "Unknown";
+            if (shift.includes("1")) shift = "Shift 1";
+            else if (shift.includes("2")) shift = "Shift 2";
+            shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
+
+            // Speed Data
+            if (row.Speed && row.Speed > 0) {
+                speedData.push({
+                    name: unit,
+                    Speed: row.Speed,
+                    Limit: row.SpeedLimit || 60,
+                    Deviasi: (row.Speed || 0) - (row.SpeedLimit || 0)
+                });
+            }
+
+            // Ticket Status
             const ticketStatus = row.TicketStatus?.trim().toLowerCase();
             if (ticketStatus === 'open') openCount++;
             else if (ticketStatus === 'closed') closedCount++;
+            else if (ticketStatus && (ticketStatus.includes('menunggu') || ticketStatus.includes('verifikasi'))) waitingCount++;
 
-            // Validation Status (from 'Status Pelanggaran' or second 'Status')
+            // Validation Status
             const valStatus = row.ValidationStatus?.trim().toLowerCase();
             if (valStatus === 'valid') validCount++;
             else if (valStatus && valStatus.includes('invalid')) invalidCount++;
 
-            // Duration (from 'Durasi Close')
+            // Duration
             const dur = parseInt(row["Durasi Close"] || "0");
             if (!isNaN(dur) && dur > 0) {
                 totalDuration += dur;
@@ -497,13 +377,36 @@ export default function DashboardOverspeed() {
             if (sc.includes("ontime")) closedOntime++;
             else if (sc.includes("overdue")) closedOverdue++;
         });
+
         const avgDuration = durationCount > 0 ? (totalDuration / durationCount).toFixed(1) : "0";
+
+        const topEmployees = Object.entries(empInfo)
+            .map(([name, data]) => ({ name, count: data.count, unit: data.unit, role: data.role }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const topLocations = Object.entries(locationCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const topUnits = Object.entries(unitCounts)
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const shiftData = Object.entries(shiftCounts)
+            .map(([name, value]) => ({ name, value }));
+
+        // Sort speed data by deviation
+        speedData.sort((a, b) => b.Deviasi - a.Deviasi).splice(50); // Keep top 50 detailed
 
         return {
             monthData, weekData, hourData, topEmployees, topUnits,
             openCount, closedCount, validCount, invalidCount, avgDuration,
             violationMerokok, violationOverspeed,
-            closedOntime, closedOverdue
+            closedOntime, closedOverdue, waitingCount,
+            topLocations, shiftData, speedData // New fields
         };
     }, [filteredData]);
 
@@ -569,6 +472,8 @@ export default function DashboardOverspeed() {
             </div>
         );
     }
+
+    console.log("Dashboard Rendering", { stats, filteredData });
 
     return (
         <div id="dashboard-content" className="min-h-screen bg-gray-50/50 p-4 md:p-6 space-y-6 font-sans relative overflow-hidden">
@@ -684,7 +589,7 @@ export default function DashboardOverspeed() {
                         subtext: `${stats?.invalidCount || 0} Invalid`
                     }
                 ].map((metric, i) => (
-                    <Card key={i} className={`border-none shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-300 bg-white`}>
+                    <Card key={i} className="border-none shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-300 bg-white">
                         <div className={`absolute top-0 left-0 w-1 h-full bg-${metric.color}-500`} />
                         <div className={`absolute -right-6 -top-6 w-24 h-24 bg-${metric.color}-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
 
@@ -750,7 +655,7 @@ export default function DashboardOverspeed() {
                         </CardContent>
                     </Card>
 
-                    {/* Secondary Charts */}
+                    {/* Secondary Charts Row 1 */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Weekly Analysis */}
                         <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
@@ -853,7 +758,7 @@ export default function DashboardOverspeed() {
                                         data={[
                                             { name: 'TOTAL', value: filteredData.length, fill: '#6b7280' },
                                             { name: 'CLOSED', value: stats?.closedCount || 0, fill: '#10b981' },
-                                            { name: 'VERIF', value: (stats?.validCount || 0) + (stats?.invalidCount || 0), fill: '#8b5cf6' },
+                                            { name: 'VERIF', value: stats?.waitingCount || 0, fill: '#8b5cf6' },
                                             { name: 'OPEN', value: stats?.openCount || 0, fill: '#f59e0b' },
                                             { name: 'ONTIME', value: stats?.closedOntime || 0, fill: '#059669' },
                                             { name: 'OVERDUE', value: stats?.closedOverdue || 0, fill: '#ef4444' },
@@ -888,80 +793,199 @@ export default function DashboardOverspeed() {
                             </CardContent>
                         </Card>
                     </div>
+
+                    {/* NEW CHARTS: Top Location & Top Vehicle */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Top 10 Locations */}
+                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Top 10 Locations</CardTitle>
+                            </CardHeader>
+                            <CardContent className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={stats?.topLocations}
+                                        layout="vertical"
+                                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f8fafc' }} />
+                                        <Bar dataKey="count" fill="#ec4899" radius={[0, 4, 4, 0]} barSize={20}>
+                                            <LabelList dataKey="count" position="right" fill="#ec4899" fontSize={10} fontWeight="bold" />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        {/* Top 10 Vehicle No */}
+                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Top 10 Vehicles</CardTitle>
+                            </CardHeader>
+                            <CardContent className="h-[300px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={stats?.topUnits.map(u => ({ name: u.name, count: u.count }))}
+                                        layout="vertical"
+                                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                        <XAxis type="number" hide />
+                                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                                        <Tooltip cursor={{ fill: '#f8fafc' }} />
+                                        <Bar dataKey="count" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20}>
+                                            <LabelList dataKey="count" position="right" fill="#f97316" fontSize={10} fontWeight="bold" />
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* NEW CHARTS: Shift & Speed */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Shift Comparison */}
+                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Shift Comparison</CardTitle>
+                            </CardHeader>
+                            <CardContent className="h-[250px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={stats?.shiftData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                        >
+                                            {stats?.shiftData.map((entry: any, index: number) => (
+                                                <Cell key={`cell-${index}`} fill={entry.name.includes('1') ? '#3b82f6' : '#a855f7'} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                        <Legend verticalAlign="bottom" height={36} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        {/* Speed vs Limit */}
+                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Speed vs Speed Limit</CardTitle>
+                            </CardHeader>
+                            <CardContent className="h-[250px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={stats?.speedData} margin={{ top: 20 }}>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                        <XAxis dataKey="name" hide />
+                                        <Tooltip
+                                            content={({ active, payload }) => {
+                                                if (active && payload && payload.length) {
+                                                    const d = payload[0].payload;
+                                                    return (
+                                                        <div className="bg-white p-2 border rounded shadow-md text-xs">
+                                                            <p className="font-bold">{d.name}</p>
+                                                            <p className="text-red-500">Speed: {d.Speed} km/h</p>
+                                                            <p className="text-gray-500">Limit: {d.Limit} km/h</p>
+                                                            <p className="text-blue-500">Deviasi: {d.Deviasi} km/h</p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return null;
+                                            }}
+                                        />
+                                        <Bar dataKey="Speed" fill="#ef4444" radius={[4, 4, 0, 0]} name="Actual Speed" />
+                                        <Bar dataKey="Limit" fill="#e2e8f0" radius={[4, 4, 0, 0]} name="Speed Limit" />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
 
                 {/* Right Column (Sidebar) */}
                 <div className="space-y-6">
-                    {/* AI Analysis Card */}
-                    <Card className="border-none shadow-xl bg-gradient-to-br from-gray-900 to-gray-800 text-white overflow-hidden relative rounded-2xl">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <BrainCircuit className="w-40 h-40 text-white" />
-                        </div>
+                    {/* Insights Panel */}
+                    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -z-10" />
                         <CardHeader>
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                                    <Sparkles className="w-5 h-5 text-yellow-400" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-lg font-bold text-white">Mystic AI Insights</CardTitle>
-                                    <CardDescription className="text-gray-400 text-xs">Automated Pattern Recognition</CardDescription>
-                                </div>
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-purple-600" />
+                                <CardTitle className="text-lg font-bold text-gray-800">AI Insights</CardTitle>
                             </div>
+                            <CardDescription>Automated analysis of violation patterns</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4 relative z-10">
+                        <CardContent className="space-y-4">
                             {isAnalyzing ? (
-                                <div className="flex items-center gap-3 text-gray-300 animate-pulse">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span className="text-sm">Analyzing data patterns...</span>
+                                <div className="space-y-3">
+                                    <Skeleton className="h-4 w-full" />
+                                    <Skeleton className="h-4 w-[90%]" />
+                                    <Skeleton className="h-4 w-[80%]" />
                                 </div>
-                            ) : (aiInsights || []).length > 0 ? (aiInsights || []).map((text, i) => (
-                                <div key={i} className="bg-white/10 backdrop-blur-md p-3 rounded-xl border border-white/5 text-sm leading-relaxed text-gray-200">
-                                    <span dangerouslySetInnerHTML={{ __html: text.replace(/\*\*(.*?)\*\*/g, '<span class="text-yellow-400 font-bold">$1</span>') }} />
-                                </div>
-                            )) : (
-                                <div className="text-center py-6 text-gray-500 text-sm">
-                                    No insights generated yet.
-                                </div>
+                            ) : (
+                                aiInsights.length > 0 ? (
+                                    <ul className="space-y-3">
+                                        {aiInsights.map((text, i) => (
+                                            <li key={i} className="flex gap-3 text-sm text-gray-600 bg-white/50 p-3 rounded-xl border border-gray-100">
+                                                <div className="min-w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5" />
+                                                {text}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <div className="text-center py-8 text-gray-400 text-sm">
+                                        <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                                        No sufficient data for AI analysis
+                                    </div>
+                                )
                             )}
                         </CardContent>
                     </Card>
 
-                    {/* Top Violators List */}
-                    <Card className="border-none shadow-lg bg-white rounded-2xl">
-                        <CardHeader>
-                            <CardTitle className="text-base font-bold text-gray-900 border-l-4 border-red-500 pl-3">
-                                Top Violators
-                            </CardTitle>
+                    {/* Top Employees */}
+                    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                        <CardHeader className="pb-2 border-b border-gray-100/50">
+                            <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Highest Violators</CardTitle>
                         </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="divide-y divide-gray-100">
-                                {stats?.topEmployees.map((emp, i) => (
-                                    <div key={i} className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${i === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                i === 1 ? 'bg-gray-100 text-gray-700' :
-                                                    'bg-orange-50 text-orange-700'
-                                                }`}>
-                                                {i + 1}
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-gray-700 text-sm">{emp.name}</p>
-                                                <p className="text-xs text-gray-400 flex items-center gap-1">
-                                                    <Truck className="w-3 h-3" /> {emp.unit}
-                                                </p>
-                                            </div>
+                        <CardContent className="pt-4 space-y-4">
+                            {stats?.topEmployees.map((emp, i) => (
+                                <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-red-50 transition-colors group cursor-default">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${i === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {i + 1}
                                         </div>
-                                        <Badge variant="outline" className="border-red-200 text-red-600 font-mono font-bold">
-                                            {emp.count}
-                                        </Badge>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-800 group-hover:text-red-700 transition-colors">{emp.name}</p>
+                                            <p className="text-xs text-gray-400">{emp.unit} • {emp.role}</p>
+                                        </div>
                                     </div>
-                                ))}
-                                {(!stats?.topEmployees?.length) && (
-                                    <div className="p-8 text-center text-gray-400 text-sm">No data available</div>
-                                )}
-                            </div>
+                                    <Badge variant="secondary" className="bg-white group-hover:bg-red-200 text-gray-600 group-hover:text-red-800 transition-colors">
+                                        {emp.count} Cases
+                                    </Badge>
+                                </div>
+                            ))}
                         </CardContent>
                     </Card>
+
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gradient-to-br from-orange-50 to-red-50 p-4 rounded-2xl border border-orange-100/50">
+                            <p className="text-xs font-bold text-orange-400 uppercase mb-1">Cigarette Violations</p>
+                            <p className="text-2xl font-black text-orange-600">{stats?.violationMerokok || 0}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-2xl border border-red-100/50">
+                            <p className="text-xs font-bold text-red-400 uppercase mb-1">Overspeed</p>
+                            <p className="text-2xl font-black text-red-600">{stats?.violationOverspeed || 0}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

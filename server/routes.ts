@@ -9,6 +9,7 @@ import bcrypt from 'bcrypt';
 import OpenAI from "openai";
 import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths } from "date-fns";
 import { exec } from "child_process";
+import Papa from "papaparse";
 
 // Configure Multer
 const upload = multer({ dest: 'uploads/' });
@@ -12398,6 +12399,501 @@ Format sebagai bullet points singkat per insight.`;
     } catch (e: any) {
       console.error("Evaluasi Driver API Error:", e);
       res.status(500).json({ error: e.message });
+    }
+  });
+
+
+  // WhatsApp Settings Routes
+  app.get("/api/settings/whatsapp", async (req, res) => {
+    try {
+      const apiKey = await storage.getSystemSetting('WHATSAPP_API_KEY');
+      const adminPhone = await storage.getSystemSetting('WHATSAPP_ADMIN_PHONE');
+      // Mask API key for security
+      const maskedKey = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : '';
+
+      res.json({
+        apiKey: maskedKey,
+        isConfigured: !!apiKey,
+        adminPhone: adminPhone || ''
+      });
+    } catch (error) {
+      console.error("Error fetching WhatsApp settings:", error);
+      res.status(500).json({ message: "Failed to fetch settings" });
+    }
+  });
+
+  app.post("/api/settings/whatsapp", async (req, res) => {
+    try {
+      const { apiKey, adminPhone } = req.body;
+
+      // Only update if value is provided (and not just the masked version)
+      if (apiKey && !apiKey.includes('...')) {
+        await storage.setSystemSetting('WHATSAPP_API_KEY', apiKey, 'WhatsApp API Key for Notifyme.id');
+      }
+
+      if (adminPhone) {
+        await storage.setSystemSetting('WHATSAPP_ADMIN_PHONE', adminPhone, 'WhatsApp Admin Phone Number');
+      }
+
+      res.json({ message: "Settings saved successfully" });
+    } catch (error) {
+      console.error("Error saving WhatsApp settings:", error);
+      res.status(500).json({ message: "Failed to save settings" });
+    }
+  });
+
+  // ==================================================
+  // WHATSAPP BLAST ENHANCED ENDPOINTS
+  // ==================================================
+
+  // Get all employees for blast selection
+  app.get("/api/whatsapp/employees", async (req, res) => {
+    try {
+      const employees = await storage.getAllEmployees();
+      // Filter employees with phone numbers
+      const employeesWithPhone = employees.filter(e => e.phone && e.phone.trim() !== '');
+      res.json(employeesWithPhone.map(e => ({
+        id: e.id,
+        name: e.name,
+        department: e.department,
+        position: e.position,
+        phone: e.phone,
+        status: e.status
+      })));
+    } catch (error) {
+      console.error("Error fetching employees for blast:", error);
+      res.status(500).json({ message: "Failed to fetch employees" });
+    }
+  });
+
+  // Debug endpoint to check blast configuration
+  app.post("/api/whatsapp/blast-debug", async (req, res) => {
+    try {
+      const { selectedEmployeeIds } = req.body;
+      const allEmployees = await storage.getAllEmployees();
+      const employeesWithPhone = allEmployees.filter(e => e.phone && e.phone.trim() !== '');
+
+      let recipients: any[] = [];
+      if (selectedEmployeeIds?.length > 0) {
+        recipients = employeesWithPhone.filter(e => selectedEmployeeIds.includes(e.id));
+      }
+
+      const apiKey = await storage.getSystemSetting('WHATSAPP_API_KEY');
+
+      return res.json({
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey?.length || 0,
+        recipients: recipients.map(r => ({
+          name: r.name,
+          phone: r.phone,
+          normalizedPhone: whatsappService.normalizePhoneNumber(r.phone)
+        })),
+        totalEmployees: allEmployees.length,
+        employeesWithPhone: employeesWithPhone.length,
+        selectedCount: recipients.length
+      });
+    } catch (error) {
+      res.status(500).json({ error: String(error) });
+    }
+  });
+
+  // Send WhatsApp blast (to all or selected employees)
+  app.post("/api/whatsapp/blast", async (req, res) => {
+    try {
+      const { subject, message, type, mediaUrls, recipientType, selectedEmployeeIds } = req.body;
+
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+
+      // Get recipients
+      let recipients: any[] = [];
+      const allEmployees = await storage.getAllEmployees();
+      const employeesWithPhone = allEmployees.filter(e => e.phone && e.phone.trim() !== '');
+
+      if (recipientType === 'selected' && selectedEmployeeIds?.length > 0) {
+        recipients = employeesWithPhone.filter(e => selectedEmployeeIds.includes(e.id));
+      } else {
+        recipients = employeesWithPhone;
+      }
+
+      if (recipients.length === 0) {
+        return res.status(400).json({ message: "No recipients with phone number found" });
+      }
+
+      // Create blast record
+      const blast = await storage.createWhatsappBlast({
+        subject: subject || `Blast ${new Date().toLocaleDateString('id-ID')}`,
+        message,
+        blastType: type || 'text',
+        mediaUrls: mediaUrls || [],
+        totalRecipients: recipients.length,
+      });
+
+      // Create recipient records
+      await storage.createWhatsappBlastRecipients(blast.id, recipients.map(r => ({
+        employeeId: r.id,
+        employeeName: r.name,
+        phone: r.phone,
+      })));
+
+      // 5. Submit to WhatsApp Service (Synchronous to provide immediate feedback to UI)
+      // We await this so the frontend gets the 'sent' and 'failed' counts it expects.
+      console.log(`[Blast] Starting sync blast ${blast.id} to ${recipients.length} recipients`);
+      console.log(`[Blast] Phone numbers:`, recipients.map(r => r.phone));
+      console.log(`[Blast] Type: ${type || 'text'}, MediaUrls:`, mediaUrls);
+
+      let result;
+      try {
+        result = await whatsappService.blastWhatsApp({
+          phones: recipients.map(r => r.phone),
+          message,
+          type: type || 'text',
+          mediaUrls: mediaUrls
+        });
+        console.log(`[Blast] Result:`, JSON.stringify(result, null, 2));
+      } catch (blastError) {
+        console.error(`[Blast] Error during blast execution:`, blastError);
+        // Update blast status as failed
+        await storage.updateWhatsappBlast(blast.id, {
+          sentCount: 0,
+          failedCount: recipients.length,
+          status: 'completed',
+          completedAt: new Date(),
+        });
+        throw new Error(`Blast execution failed: ${blastError instanceof Error ? blastError.message : String(blastError)}`);
+      }
+
+      // Update Header Status
+      await storage.updateWhatsappBlast(blast.id, {
+        sentCount: result.sent,
+        failedCount: result.failed,
+        status: 'completed',
+        completedAt: new Date(),
+      });
+
+      console.log(`[Blast] Completed. Sent: ${result.sent}, Failed: ${result.failed}`);
+
+      res.json({
+        success: true,
+        blastId: blast.id,
+        totalRecipients: recipients.length,
+        sent: result.sent,
+        failed: result.failed,
+        failedNumbers: result.failedNumbers ? result.failedNumbers.slice(0, 10) : [],
+      });
+
+    } catch (error) {
+      console.error("Error sending WhatsApp blast:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      res.status(500).json({
+        message: "Failed to send blast",
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? String(error) : undefined
+      });
+    }
+  });
+
+  // Get blast history
+  app.get("/api/whatsapp/blasts", async (req, res) => {
+    try {
+      const blasts = await storage.getWhatsappBlasts(50);
+      res.json(blasts);
+    } catch (error) {
+      console.error("Error fetching blast history:", error);
+      res.status(500).json({ message: "Failed to fetch blast history" });
+    }
+  });
+
+  // Get blast detail with recipients
+  app.get("/api/whatsapp/blasts/:id", async (req, res) => {
+    try {
+      const result = await storage.getWhatsappBlastWithRecipients(req.params.id);
+      if (!result) {
+        return res.status(404).json({ message: "Blast not found" });
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching blast detail:", error);
+      res.status(500).json({ message: "Failed to fetch blast detail" });
+    }
+  });
+
+  // Template CRUD
+  app.get("/api/whatsapp/templates", async (req, res) => {
+    try {
+      const templates = await storage.getWhatsappTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ message: "Failed to fetch templates" });
+    }
+  });
+
+  app.post("/api/whatsapp/templates", async (req, res) => {
+    try {
+      const { name, message, blastType, mediaUrls } = req.body;
+      if (!name || !message) {
+        return res.status(400).json({ message: "Name and message are required" });
+      }
+      const template = await storage.createWhatsappTemplate({
+        name,
+        message,
+        blastType: blastType || 'text',
+        mediaUrls: mediaUrls || [],
+      });
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating template:", error);
+      res.status(500).json({ message: "Failed to create template" });
+    }
+  });
+
+  app.delete("/api/whatsapp/templates/:id", async (req, res) => {
+    try {
+      await storage.deleteWhatsappTemplate(req.params.id);
+      res.json({ message: "Template deleted" });
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  // Test send to single number
+  app.post("/api/whatsapp/test-send", async (req, res) => {
+    try {
+      const { phone, message, type, imageUrl, videoUrl } = req.body;
+
+      if (!phone || !message) {
+        return res.status(400).json({ message: "Phone and message are required" });
+      }
+
+      let result;
+
+      if (type === 'image' && imageUrl) {
+        result = await whatsappService.sendWhatsAppImage({ phone, message, imageUrl });
+      } else if (type === 'video' && videoUrl) {
+        result = await whatsappService.sendWhatsAppVideo({ phone, message, videoUrl });
+      } else {
+        result = await whatsappService.sendWhatsAppMessage({ phone, message });
+      }
+
+      if (result.success) {
+        res.json({ success: true, message: "Test message sent successfully", details: result });
+      } else {
+        res.status(400).json({ success: false, message: result.error || "Failed to send test message", details: result });
+      }
+    } catch (error: any) {
+      console.error("Error sending test message:", error);
+      res.status(500).json({ message: "Failed to send test message", error: error.message });
+    }
+  });
+
+
+
+  // ============================================
+  // SIMPER EV MONITORING ROUTES
+  // ============================================
+
+  // Public Search Route (No Auth)
+  app.get("/api/simper-ev/public", async (req, res) => {
+    try {
+      const { query } = req.query;
+      // If no query, return empty to prevent dumping all data for privacy unless explicitly asked
+      // But user demand is "muncul semua data yang ada di gambar" implies dashboard view. 
+      // User said: "pemilik unit membuka link itu dapat mencari tahu dengan memasukan nama dan nik"
+      // So search is primary.
+      if (!query || String(query).trim().length === 0) {
+        // Retrieve all data if no search? Maybe pagination? 
+        // For mobile friendliness, maybe just return empty or recent.
+        // Let's return all for "dashboard" feel if empty, or enforce search.
+        // "dapat mencari tahu dengan memasukan nama dan nik" -> Search based.
+        const results = await storage.getAllSimperEvMonitoring();
+        return res.json(results);
+      }
+
+      const results = await storage.searchSimperEvMonitoring(String(query));
+      res.json(results);
+    } catch (error) {
+      console.error("Error searching Simper EV:", error);
+      res.status(500).json({ message: "Search failed" });
+    }
+  });
+
+  // Admin: Get All Data
+  app.get("/api/simper-ev/all", async (req, res) => {
+    try {
+      const results = await storage.getAllSimperEvMonitoring();
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching Simper EV data:", error);
+      res.status(500).json({ message: "Failed to fetch data" });
+    }
+  });
+
+  // Admin: Upload CSV
+  app.post("/api/simper-ev/upload", upload.single('csvFile'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No CSV file uploaded" });
+      }
+
+      console.log(`[Simper EV] Processing CSV upload: ${req.file.originalname}`);
+
+      const csvContent = fs.readFileSync(req.file.path, 'utf8');
+
+      Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          try {
+            // Replace all data for snapshot
+            await storage.deleteAllSimperEvMonitoring();
+
+            const batchId = new Date().toISOString();
+            let count = 0;
+
+            for (const row of results.data as any[]) {
+              if (!row['Nama']) continue; // Skip empty rows
+
+              await storage.createSimperEvMonitoring({
+                unit: row['Unit'],
+                no: row['No'] ? parseInt(row['No']) : 0,
+                nama: row['Nama'],
+                nikSimper: row['NIK Simper'],
+                asalMitra: row['Asal Mitra'],
+                simper: row['Simper'],
+                simperOrientasi: row['Simper Orientasi'],
+                simperPermanen: row['Simper Permanen'],
+                unitSkillUp: row['UNIT YG DI SKILL UP'],
+                masaBerlakuSertifikatOs: row['Masa Berlaku Sertifikat OS'],
+                statusPengajuan: row['Status Pengajuan'],
+                importBatchId: batchId,
+                updatedOf: new Date().toISOString()
+              });
+              count++;
+            }
+
+            console.log(`[Simper EV] Imported ${count} records`);
+            fs.unlinkSync(req.file.path);
+
+            res.json({ success: true, count, message: `Successfully imported ${count} records` });
+          } catch (err) {
+            console.error("Error processing CSV records:", err);
+            // Verify if file exists before trying to unlink
+            if (fs.existsSync(req.file!.path)) fs.unlinkSync(req.file!.path);
+            res.status(500).json({ message: "Failed to process CSV records" });
+          }
+        },
+        error: (err: any) => {
+          console.error("CSV Parse Error:", err);
+          if (fs.existsSync(req.file!.path)) fs.unlinkSync(req.file!.path);
+          res.status(500).json({ message: "Failed to parse CSV file" });
+        }
+      });
+
+    } catch (error) {
+      console.error("Error uploading Simper EV CSV:", error);
+      res.status(500).json({ message: "Upload failed" });
+    }
+  });
+
+  // Get Simper EV Settings (CSV URL)
+  app.get("/api/simper-ev/settings", async (req, res) => {
+    try {
+      const setting = await storage.getSystemSetting("simper_ev_csv_url");
+      res.json({ url: setting ? setting.value : "" });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Sync Simper EV from URL
+  app.post("/api/simper-ev/sync", async (req, res) => {
+    try {
+      let { url } = req.body;
+
+      // Save URL if provided
+      if (url) {
+        await storage.setSystemSetting("simper_ev_csv_url", url, "URL Source for Simper EV Monitoring CSV");
+      } else {
+        // Try to get from settings
+        const setting = await storage.getSystemSetting("simper_ev_csv_url");
+        url = setting ? setting.value : null;
+      }
+
+      if (!url) {
+        return res.status(400).json({ error: "URL CSV tidak ditemukan. Mohon simpan URL terlebih dahulu." });
+      }
+
+      console.log(`[SimperEV] Syncing from URL: ${url}`);
+
+      // Fetch CSV
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Gagal mengunduh CSV: ${response.status} ${response.statusText}`);
+      }
+      const csvText = await response.text();
+
+      // Parse
+      const parsed = Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (h) => h.trim(),
+      });
+
+      if (parsed.errors.length > 0) {
+        console.warn("[SimperEV] CSV Parse Warnings:", parsed.errors);
+      }
+
+      const rows = parsed.data as any[];
+      if (!rows || rows.length === 0) {
+        return res.status(400).json({ error: "Data CSV kosong atau format tidak valid" });
+      }
+
+      // Clear old data
+      await storage.deleteAllSimperEvMonitoring();
+
+      const batchId = new Date().toISOString();
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const row of rows) {
+        try {
+          // Normalize keys (case insensitive search)
+          const getVal = (key: string) => {
+            const foundKey = Object.keys(row).find(k => k.toLowerCase() === key.toLowerCase());
+            return foundKey ? row[foundKey] : "";
+          };
+
+          const rawData: InsertSimperEvMonitoring = {
+            unit: getVal('unit') || "",
+            no: getVal('no') ? String(getVal('no')) : "",
+            nama: getVal('nama') || "Unknown",
+            nikSimper: getVal('nik simper') || getVal('nik') || "",
+            asalMitra: getVal('asal mitra') || "",
+            simper: getVal('simper') || "",
+            simperOrientasi: getVal('simper orientasi ev') || getVal('simper orientasi') || getVal('orientasi') || "",
+            simperPermanen: getVal('simper permanen ev') || getVal('simper permanen') || getVal('permanen') || "",
+            unitSkillUp: getVal('unit yg di skill up') || getVal('unit skill up') || "",
+            masaBerlakuSertifikatOs: getVal('masa berlaku sertifikat os') || "",
+            statusPengajuan: getVal('status pengajuan') || getVal('status') || "Pending",
+            importBatchId: batchId,
+          };
+
+          await storage.createSimperEvMonitoring(rawData);
+          successCount++;
+        } catch (err) {
+          console.error("Error inserting row:", err);
+          errorCount++;
+        }
+      }
+
+      res.json({ success: true, count: successCount, errors: errorCount, message: "Sinkronisasi berhasil" });
+
+    } catch (error) {
+      console.error("[SimperEV] Sync Error:", error);
+      res.status(500).json({ error: (error as Error).message });
     }
   });
 

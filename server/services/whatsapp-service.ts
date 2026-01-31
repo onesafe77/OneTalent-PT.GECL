@@ -1,3 +1,5 @@
+import { storage } from "../storage";
+
 /**
  * WhatsApp Service using Notifyme.id API
  * Endpoint: https://app.notif.my.id/api/v2/send-message
@@ -35,10 +37,26 @@ export function normalizePhoneNumber(phone: string): string {
 }
 
 /**
+ * Get API Key from DB or Env
+ */
+async function getApiKey(): Promise<string | null> {
+    const dbKey = await storage.getSystemSetting('WHATSAPP_API_KEY');
+    return dbKey || process.env.NOTIFYME_API_KEY || null;
+}
+
+/**
+ * Get Admin Phone from DB or Env
+ */
+async function getAdminPhone(): Promise<string> {
+    const dbPhone = await storage.getSystemSetting('WHATSAPP_ADMIN_PHONE');
+    return dbPhone || process.env.NOTIFYME_ADMIN_PHONE || '6285126408588';
+}
+
+/**
  * Send WhatsApp message via Notifyme.id API
  */
 export async function sendWhatsAppMessage(params: SendMessageParams): Promise<SendMessageResult> {
-    const apiKey = process.env.NOTIFYME_API_KEY;
+    const apiKey = await getApiKey();
 
     if (!apiKey) {
         console.error('[WhatsApp] API key not configured');
@@ -58,8 +76,19 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Se
         url.searchParams.append('text', params.message);
 
         console.log(`[WhatsApp] Sending to ${normalizedPhone}`);
+        console.log(`[WhatsApp] URL: ${url.toString()}`);
 
-        const response = await fetch(url.toString(), { method: 'GET' });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
+        const response = await fetch(url.toString(), {
+            method: 'GET',
+            signal: controller.signal,
+            // @ts-ignore - Node.js specific options
+            agent: undefined, // Let Node.js handle the agent
+        });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         if (response.ok) {
@@ -70,8 +99,10 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Se
             return { success: false, error: data.message || 'Send failed', response: data };
         }
     } catch (error) {
-        console.error(`[WhatsApp] Error:`, error);
-        return { success: false, error: String(error) };
+        console.error(`[WhatsApp] Fetch error for ${normalizedPhone}:`, error);
+        console.error(`[WhatsApp] Error type:`, error instanceof Error ? error.constructor.name : typeof error);
+        console.error(`[WhatsApp] Error details:`, error instanceof Error ? { message: error.message, cause: error.cause } : error);
+        return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
 }
 
@@ -79,7 +110,7 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Se
  * Send notification to admin (OneTalent GECL)
  */
 export async function sendAdminNotification(message: string): Promise<SendMessageResult> {
-    const adminPhone = process.env.NOTIFYME_ADMIN_PHONE || '6285126406588';
+    const adminPhone = await getAdminPhone();
     return sendWhatsAppMessage({ phone: adminPhone, message });
 }
 
@@ -163,7 +194,7 @@ export async function sendWhatsAppImage(params: {
     message: string;
     imageUrl: string;
 }): Promise<SendMessageResult> {
-    const apiKey = process.env.NOTIFYME_API_KEY;
+    const apiKey = await getApiKey();
 
     if (!apiKey) {
         console.error('[WhatsApp] API key not configured');
@@ -186,11 +217,17 @@ export async function sendWhatsAppImage(params: {
 
         console.log(`[WhatsApp] Sending image to ${normalizedPhone}`);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch(NOTIFYME_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         if (response.ok) {
@@ -214,7 +251,7 @@ export async function sendWhatsAppVideo(params: {
     message: string;
     videoUrl: string;
 }): Promise<SendMessageResult> {
-    const apiKey = process.env.NOTIFYME_API_KEY;
+    const apiKey = await getApiKey();
 
     if (!apiKey) {
         console.error('[WhatsApp] API key not configured');
@@ -237,11 +274,17 @@ export async function sendWhatsAppVideo(params: {
 
         console.log(`[WhatsApp] Sending video to ${normalizedPhone}`);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
         const response = await fetch(NOTIFYME_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: controller.signal,
         });
+        clearTimeout(timeoutId);
+
         const data = await response.json();
 
         if (response.ok) {
@@ -294,28 +337,30 @@ export async function blastWhatsApp(params: {
         console.log(`[WhatsApp Blast] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(phones.length / BATCH_SIZE)}`);
 
         for (const phone of batch) {
-            let result: SendMessageResult;
+            // Initialize result with default failure state
+            let result: SendMessageResult = {
+                success: false,
+                error: 'Unknown error'
+            };
 
             if (type === 'text') {
                 result = await sendWhatsAppMessage({ phone, message });
             } else if (type === 'image' && mediaUrls && mediaUrls.length > 0) {
-                // Send each image separately
-                for (const imageUrl of mediaUrls) {
-                    result = await sendWhatsAppImage({ phone, message, imageUrl });
-                    if (!result.success) break;
-                    await delay(500); // Small delay between images
-                }
+                // Send first image only (WhatsApp API handles one media per message)
+                result = await sendWhatsAppImage({ phone, message, imageUrl: mediaUrls[0] });
             } else if (type === 'video' && mediaUrls && mediaUrls.length > 0) {
                 result = await sendWhatsAppVideo({ phone, message, videoUrl: mediaUrls[0] });
             } else {
                 result = { success: false, error: 'Invalid type or missing media' };
             }
 
-            if (result!.success) {
+            if (result.success) {
                 sent++;
+                console.log(`[WhatsApp Blast] ✓ Sent to ${phone}`);
             } else {
                 failed++;
                 failedNumbers.push(phone);
+                console.error(`[WhatsApp Blast] ✗ Failed to send to ${phone}: ${result.error}`);
             }
         }
 

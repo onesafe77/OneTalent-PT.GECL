@@ -211,6 +211,17 @@ import {
   mcuRecords,
   type McuRecord,
   type InsertMcuRecord,
+  systemSettings,
+  type SystemSetting,
+  whatsappBlasts,
+  whatsappBlastRecipients,
+  whatsappTemplates,
+  type WhatsappBlast,
+  type WhatsappBlastRecipient,
+  type WhatsappTemplate,
+  simperEvMonitoring,
+  type InsertSimperEvMonitoring,
+  type SimperEvMonitoring
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -548,6 +559,12 @@ export interface IStorage {
   deleteMcuRecord(id: string): Promise<boolean>;
   getMcuStatistics(): Promise<{ total: number; fit: number; unfit: number; expiredSoon: number }>;
   getDashboardStats(date?: string): Promise<{ totalEmployees: number; scheduledToday: number; presentToday: number; absentToday: number; onLeaveToday: number; pendingLeaveRequests: number }>;
+
+  // Simper EV Monitoring
+  createSimperEvMonitoring(data: InsertSimperEvMonitoring): Promise<SimperEvMonitoring>;
+  getAllSimperEvMonitoring(): Promise<SimperEvMonitoring[]>;
+  searchSimperEvMonitoring(query: string): Promise<SimperEvMonitoring[]>;
+  deleteAllSimperEvMonitoring(): Promise<void>;
 }
 
 export class MemStorage {
@@ -626,6 +643,20 @@ export class MemStorage {
 
   async syncLeaveMonitoringWithRoster(): Promise<void> {
     throw new Error("Not implemented in MemStorage. Use DrizzleStorage.");
+  }
+
+  // Simper EV Monitoring Stubs
+  async createSimperEvMonitoring(data: InsertSimperEvMonitoring): Promise<SimperEvMonitoring> {
+    throw new Error("Simper EV Monitoring not implemented in MemStorage.");
+  }
+  async getAllSimperEvMonitoring(): Promise<SimperEvMonitoring[]> {
+    return [];
+  }
+  async searchSimperEvMonitoring(query: string): Promise<SimperEvMonitoring[]> {
+    return [];
+  }
+  async deleteAllSimperEvMonitoring(): Promise<void> {
+    throw new Error("Simper EV Monitoring not implemented in MemStorage.");
   }
 
 
@@ -8183,19 +8214,211 @@ export class DrizzleStorage implements IStorage {
     return result;
   }
 
-  async getSidakRosterObservers(sessionId: string): Promise<SidakRosterObserver[]> {
-    return await db
+  // System Settings Implementation
+  async getSystemSetting(key: string): Promise<string | null> {
+    const [result] = await db
       .select()
-      .from(sidakRosterObservers)
-      .where(eq(sidakRosterObservers.sessionId, sessionId));
+      .from(systemSettings)
+      .where(eq(systemSettings.key, key));
+    return result ? result.value : null;
   }
 
-  async createSidakRosterObserver(observer: InsertSidakRosterObserver): Promise<SidakRosterObserver> {
+  async setSystemSetting(key: string, value: string, description?: string): Promise<SystemSetting> {
     const [result] = await db
-      .insert(sidakRosterObservers)
-      .values(observer)
+      .insert(systemSettings)
+      .values({ key, value, description })
+      .onConflictDoUpdate({
+        target: systemSettings.key,
+        set: {
+          value,
+          description: description || undefined,
+          updatedAt: new Date()
+        }
+      })
       .returning();
     return result;
+  }
+
+  // ==================================================
+  // WHATSAPP BLAST & TEMPLATE METHODS
+  // ==================================================
+
+  async createWhatsappBlast(data: {
+    subject?: string;
+    message: string;
+    blastType: string;
+    mediaUrls?: string[];
+    totalRecipients: number;
+    createdBy?: string;
+    createdByName?: string;
+  }): Promise<any> {
+    const [result] = await db
+      .insert(whatsappBlasts)
+      .values({
+        subject: data.subject || null,
+        message: data.message,
+        blastType: data.blastType,
+        mediaUrls: data.mediaUrls || [],
+        totalRecipients: data.totalRecipients,
+        sentCount: 0,
+        failedCount: 0,
+        createdBy: data.createdBy || null,
+        createdByName: data.createdByName || null,
+        status: 'sending',
+      })
+      .returning();
+    return result;
+  }
+
+  async updateWhatsappBlast(id: string, data: Partial<{
+    sentCount: number;
+    failedCount: number;
+    status: string;
+    completedAt: Date;
+  }>): Promise<any> {
+    const [result] = await db
+      .update(whatsappBlasts)
+      .set(data)
+      .where(eq(whatsappBlasts.id, id))
+      .returning();
+    return result;
+  }
+
+  async getWhatsappBlasts(limit: number = 50): Promise<any[]> {
+    return db
+      .select()
+      .from(whatsappBlasts)
+      .orderBy(desc(whatsappBlasts.createdAt))
+      .limit(limit);
+  }
+
+  async getWhatsappBlastWithRecipients(blastId: string): Promise<{ blast: any; recipients: any[] } | null> {
+    const [blast] = await db
+      .select()
+      .from(whatsappBlasts)
+      .where(eq(whatsappBlasts.id, blastId));
+
+    if (!blast) return null;
+
+    const recipients = await db
+      .select()
+      .from(whatsappBlastRecipients)
+      .where(eq(whatsappBlastRecipients.blastId, blastId))
+      .orderBy(desc(whatsappBlastRecipients.sentAt));
+
+    return { blast, recipients };
+  }
+
+  async createWhatsappBlastRecipients(blastId: string, recipients: Array<{
+    employeeId?: string;
+    employeeName: string;
+    phone: string;
+  }>): Promise<void> {
+    if (recipients.length === 0) return;
+
+    const values = recipients.map(r => ({
+      blastId,
+      employeeId: r.employeeId || null,
+      employeeName: r.employeeName,
+      phone: r.phone,
+      status: 'pending',
+    }));
+
+    await db.insert(whatsappBlastRecipients).values(values);
+  }
+
+  async updateBlastRecipientStatus(recipientId: string, status: string, error?: string): Promise<void> {
+    await db
+      .update(whatsappBlastRecipients)
+      .set({
+        status,
+        error: error || null,
+        sentAt: status === 'sent' ? new Date() : null,
+      })
+      .where(eq(whatsappBlastRecipients.id, recipientId));
+  }
+
+  async getBlastRecipientsByBlast(blastId: string): Promise<any[]> {
+    return db
+      .select()
+      .from(whatsappBlastRecipients)
+      .where(eq(whatsappBlastRecipients.blastId, blastId));
+  }
+
+  // Template methods
+  async createWhatsappTemplate(data: {
+    name: string;
+    message: string;
+    blastType?: string;
+    mediaUrls?: string[];
+    createdBy?: string;
+    createdByName?: string;
+  }): Promise<any> {
+    const [result] = await db
+      .insert(whatsappTemplates)
+      .values({
+        name: data.name,
+        message: data.message,
+        blastType: data.blastType || 'text',
+        mediaUrls: data.mediaUrls || [],
+        createdBy: data.createdBy || null,
+        createdByName: data.createdByName || null,
+        isActive: true,
+      })
+      .returning();
+    return result;
+  }
+
+  async getWhatsappTemplates(): Promise<any[]> {
+    return db
+      .select()
+      .from(whatsappTemplates)
+      .where(eq(whatsappTemplates.isActive, true))
+      .orderBy(desc(whatsappTemplates.createdAt));
+  }
+
+  async deleteWhatsappTemplate(id: string): Promise<boolean> {
+    const result = await db
+      .update(whatsappTemplates)
+      .set({ isActive: false })
+      .where(eq(whatsappTemplates.id, id));
+    return true;
+  }
+
+  // ==================================================
+  // SIMPER EV MONITORING METHODS
+  // ==================================================
+  async createSimperEvMonitoring(data: InsertSimperEvMonitoring): Promise<SimperEvMonitoring> {
+    const [result] = await db
+      .insert(simperEvMonitoring)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async getAllSimperEvMonitoring(): Promise<SimperEvMonitoring[]> {
+    return await db
+      .select()
+      .from(simperEvMonitoring)
+      .orderBy(desc(simperEvMonitoring.createdAt));
+  }
+
+  async searchSimperEvMonitoring(query: string): Promise<SimperEvMonitoring[]> {
+    if (!query) return this.getAllSimperEvMonitoring();
+    const lowerQuery = query.toLowerCase();
+
+    return await db
+      .select()
+      .from(simperEvMonitoring)
+      .where(or(
+        ilike(simperEvMonitoring.nama, `%${lowerQuery}%`),
+        ilike(simperEvMonitoring.nikSimper, `%${lowerQuery}%`)
+      ))
+      .orderBy(asc(simperEvMonitoring.nama));
+  }
+
+  async deleteAllSimperEvMonitoring(): Promise<void> {
+    await db.delete(simperEvMonitoring);
   }
 }
 
