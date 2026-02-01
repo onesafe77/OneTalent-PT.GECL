@@ -1,4 +1,4 @@
-const CACHE_NAME = 'onetalent-v1';
+const CACHE_NAME = 'onetalent-v2';
 const urlsToCache = [
   '/',
   '/manifest.json',

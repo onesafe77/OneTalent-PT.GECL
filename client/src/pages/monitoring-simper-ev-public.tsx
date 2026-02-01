@@ -350,55 +350,72 @@ export default function MonitoringSimperEvPublic() {
                                     <p className="text-slate-500 font-medium">Belum ada riwayat update untuk pengajuan ini.</p>
                                 </div>
                             ) : (
-                                [...history].reverse().map((log, idx) => (
-                                    <div key={log.id} className="relative z-10 pl-10">
-                                        <div className={`absolute left-1 top-0 w-6 h-6 rounded-full border-4 border-white shadow-lg flex items-center justify-center ${idx === 0 ? 'bg-blue-600 ring-4 ring-blue-100' : 'bg-slate-200'}`}>
-                                            {idx === 0 ? (
-                                                <Check className="w-3 h-3 text-white" />
-                                            ) : (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                                            )}
-                                        </div>
-
-                                        <div className={`p-4 rounded-2xl border transition-all duration-300 group hover:translate-x-1 hover:shadow-lg ${idx === 0 ? 'bg-white border-blue-100 shadow-md ring-1 ring-blue-50' : 'bg-white border-slate-100 shadow-sm hover:border-blue-100'}`}>
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                        {log.workflowType || "LOG"}
-                                                    </span>
-                                                    <h4 className="font-bold text-slate-900 mt-1.5">{log.workflowLevel}</h4>
+                                [...history]
+                                    .sort((a, b) => new Date(b.approvedAt || 0).getTime() - new Date(a.approvedAt || 0).getTime())
+                                    .map((log, idx) => {
+                                        const isApproved = log.status === 'APPROVED';
+                                        return (
+                                            <div key={log.id} className="relative z-10 pl-10">
+                                                <div className={`absolute left-1 top-0 w-6 h-6 rounded-full border-4 border-white shadow-lg flex items-center justify-center ${isApproved || idx === 0
+                                                    ? 'bg-emerald-500 ring-4 ring-emerald-50'
+                                                    : 'bg-slate-200'
+                                                    }`}>
+                                                    {isApproved ? (
+                                                        <Check className="w-3 h-3 text-white" />
+                                                    ) : idx === 0 ? (
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                                    ) : (
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                                                    )}
                                                 </div>
-                                                <div className="flex items-center text-slate-400 text-[10px] font-medium">
-                                                    <Calendar className="w-3 h-3 mr-1" />
-                                                    {log.approvedAt ? format(new Date(log.approvedAt), "d MMM yyyy, HH:mm") : "-"}
+
+                                                <div className={`p-4 rounded-2xl border transition-all duration-300 group hover:translate-x-1 hover:shadow-lg ${idx === 0
+                                                    ? 'bg-white border-blue-100 shadow-md ring-1 ring-blue-50'
+                                                    : 'bg-white border-slate-100 shadow-sm hover:border-blue-100'
+                                                    }`}>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${idx === 0 ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                                {log.workflowType || "LOG"}
+                                                            </span>
+                                                            <h4 className="font-bold text-slate-900 mt-1.5">{log.workflowLevel}</h4>
+                                                        </div>
+                                                        <div className="flex items-center text-slate-400 text-[10px] font-medium">
+                                                            <Calendar className="w-3 h-3 mr-1" />
+                                                            {log.approvedAt ? format(new Date(log.approvedAt), "d MMM yyyy, HH:mm") : "-"}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-3">
+                                                        <div className="flex items-start gap-2 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
+                                                            <MessageSquare className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                                            <p className="text-sm text-slate-600 leading-relaxed italic">
+                                                                "{log.message || "Tidak ada catatan."}"
+                                                            </p>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 pt-1">
+                                                            <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                                                <User className="w-3 h-3 text-indigo-600" />
+                                                            </div>
+                                                            <p className="text-[11px] font-bold text-slate-500 tracking-wide uppercase">
+                                                                Oleh: <span className="text-slate-900 font-extrabold">{log.approver || "System"}</span>
+                                                            </p>
+                                                            <div className="ml-auto">
+                                                                <Badge className={`${log.status === 'APPROVED'
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                                    : 'bg-amber-50 text-amber-700 border-amber-100'
+                                                                    } border text-[10px] font-extrabold px-2 flex items-center gap-1`}>
+                                                                    {log.status === 'APPROVED' && <CheckCircle2 className="w-3 h-3" />}
+                                                                    {log.status}
+                                                                </Badge>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-
-                                            <div className="space-y-3">
-                                                <div className="flex items-start gap-2 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100/50">
-                                                    <MessageSquare className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                                                    <p className="text-sm text-slate-600 leading-relaxed italic">
-                                                        "{log.message || "Tidak ada catatan."}"
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex items-center gap-2 pt-1">
-                                                    <div className="h-6 w-6 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                                                        <User className="w-3 h-3 text-indigo-600" />
-                                                    </div>
-                                                    <p className="text-[11px] font-bold text-slate-500 tracking-wide uppercase">
-                                                        Oleh: <span className="text-slate-900 font-extrabold">{log.approver || "System"}</span>
-                                                    </p>
-                                                    <div className="ml-auto">
-                                                        <Badge className={`${log.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'} border-none text-[10px] font-extrabold px-2`}>
-                                                            {log.status}
-                                                        </Badge>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
+                                        );
+                                    })
                             )}
                         </div>
                     </div>

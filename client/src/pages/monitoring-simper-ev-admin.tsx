@@ -1010,52 +1010,54 @@ export default function MonitoringSimperEvAdmin() {
                                                 <TableCell colSpan={7} className="text-center py-8 text-gray-500">Belum ada riwayat approval.</TableCell>
                                             </TableRow>
                                         ) : (
-                                            historyRecords.map((log) => (
-                                                <TableRow key={log.id}>
-                                                    <TableCell className="font-medium">{log.approver}</TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={log.status === 'APPROVED' ? 'default' : log.status === 'REJECTED' ? 'destructive' : 'outline'}>
-                                                            {log.status}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>{log.workflowLevel}</TableCell>
-                                                    <TableCell>{log.workflowType}</TableCell>
-                                                    <TableCell>{log.message}</TableCell>
-                                                    <TableCell className="text-xs text-gray-500">
-                                                        {(() => {
-                                                            if (!log.approvedAt) return "-";
-                                                            try {
-                                                                const d = new Date(log.approvedAt);
-                                                                if (isNaN(d.getTime())) return "-";
-                                                                return format(d, "d MMM yyyy HH:mm");
-                                                            } catch (e) {
-                                                                return "-";
-                                                            }
-                                                        })()}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <Button variant="ghost" size="icon" onClick={() => {
-                                                            setEditingHistory(log);
-                                                            setNewHistory({
-                                                                approver: log.approver || "",
-                                                                status: (log.status as any) || "PENDING",
-                                                                workflowLevel: log.workflowLevel || "",
-                                                                workflowType: log.workflowType || "",
-                                                                message: log.message || ""
-                                                            });
-                                                        }}>
-                                                            <Edit className="h-3 w-3" />
-                                                        </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => {
-                                                            if (confirm("Hapus riwayat ini?")) {
-                                                                deleteHistoryMutation.mutate(log.id);
-                                                            }
-                                                        }}>
-                                                            <Trash2 className="h-3 w-3 text-red-500" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
+                                            historyRecords
+                                                .sort((a, b) => new Date(b.approvedAt || 0).getTime() - new Date(a.approvedAt || 0).getTime())
+                                                .map((log) => (
+                                                    <TableRow key={log.id}>
+                                                        <TableCell className="font-medium">{log.approver}</TableCell>
+                                                        <TableCell>
+                                                            <Badge variant={log.status === 'APPROVED' ? 'default' : log.status === 'REJECTED' ? 'destructive' : 'outline'}>
+                                                                {log.status}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell>{log.workflowLevel}</TableCell>
+                                                        <TableCell>{log.workflowType}</TableCell>
+                                                        <TableCell>{log.message}</TableCell>
+                                                        <TableCell className="text-xs text-gray-500">
+                                                            {(() => {
+                                                                if (!log.approvedAt) return "-";
+                                                                try {
+                                                                    const d = new Date(log.approvedAt);
+                                                                    if (isNaN(d.getTime())) return "-";
+                                                                    return format(d, "d MMM yyyy HH:mm");
+                                                                } catch (e) {
+                                                                    return "-";
+                                                                }
+                                                            })()}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button variant="ghost" size="icon" onClick={() => {
+                                                                setEditingHistory(log);
+                                                                setNewHistory({
+                                                                    approver: log.approver || "",
+                                                                    status: (log.status as any) || "PENDING",
+                                                                    workflowLevel: log.workflowLevel || "",
+                                                                    workflowType: log.workflowType || "",
+                                                                    message: log.message || ""
+                                                                });
+                                                            }}>
+                                                                <Edit className="h-3 w-3" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" onClick={() => {
+                                                                if (confirm("Hapus riwayat ini?")) {
+                                                                    deleteHistoryMutation.mutate(log.id);
+                                                                }
+                                                            }}>
+                                                                <Trash2 className="h-3 w-3 text-red-500" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
                                         )}
                                     </TableBody>
                                 </Table>
