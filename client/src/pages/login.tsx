@@ -1,4 +1,4 @@
-import { useState, useEffect, Component, ReactNode } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import { useForm } from "react-hook-form";
@@ -8,27 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff, Hexagon, ArrowLeft } from "lucide-react";
-import { ParticleBackground } from "@/components/ui/particle-background";
-import Spline from '@splinetool/react-spline';
-import { Suspense, lazy } from "react";
+import { Loader2, Eye, EyeOff, QrCode } from "lucide-react";
 
-class SplineErrorBoundary extends Component<{ children: ReactNode, fallback: ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: ReactNode, fallback: ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  render() {
-    if (this.state.hasError) {
-      return this.props.fallback;
-    }
-    return this.props.children;
-  }
-}
-
+// Schema Definitions
 const loginFormSchema = z.object({
   nik: z.string().min(1, "NIK wajib diisi"),
   password: z.string().min(1, "Password wajib diisi"),
@@ -55,9 +37,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'login' | 'reset'>('login');
 
-  // Animation states
-  const [isAnimating, setIsAnimating] = useState(false);
-
   const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: { nik: "", password: "" },
@@ -79,9 +58,9 @@ export default function LoginPage() {
     try {
       await login(data.nik, data.password);
       toast({ title: "Login Berhasil", description: "Selamat datang kembali!" });
-      setIsLoading(false);
     } catch (error) {
       toast({ title: "Login Gagal", description: error instanceof Error ? error.message : "NIK atau password salah", variant: "destructive" });
+    } finally {
       setIsLoading(false);
     }
   }
@@ -100,58 +79,43 @@ export default function LoginPage() {
       toast({ title: "Password Berhasil Direset", description: "Silakan login dengan password baru Anda" });
       resetForm.reset();
       setMode('login');
-      setIsLoading(false);
     } catch (error) {
       toast({ title: "Reset Password Gagal", description: error instanceof Error ? error.message : "Terjadi kesalahan", variant: "destructive" });
+    } finally {
       setIsLoading(false);
     }
   }
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 relative bg-slate-50 overflow-hidden font-sans selection:bg-red-100">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-[#FFF5F5] font-sans">
+      <div className="w-full max-w-[1000px] bg-white rounded-[40px] shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
 
-      {/* Spline Background with WebGL fallback */}
-      <div className="absolute inset-0 z-0">
-        <SplineErrorBoundary fallback={<ParticleBackground />}>
-          <Suspense fallback={<div className="w-full h-full bg-slate-50" />}>
-            <Spline scene="https://prod.spline.design/DM9x2ADdMUM5XlDE/scene.splinecode" />
-          </Suspense>
-        </SplineErrorBoundary>
-      </div>
+        {/* Left Side - Login Form */}
+        <div className="w-full md:w-1/2 p-8 pb-24 md:p-12 flex flex-col justify-center relative">
+          <div className="max-w-md mx-auto w-full">
 
-      {/* Hide Spline Logo Badge (Aggressive) */}
-      <style>{`
-        a[href^="https://spline.design"],
-        a[href*="spline.design"] {
-            display: none !important;
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-      `}</style>
-
-      {/* Main Glassmorphism Card */}
-      <div className="w-full max-w-md bg-white/70 backdrop-blur-xl rounded-[32px] shadow-2xl overflow-hidden relative z-10 border border-white/50 ring-1 ring-slate-900/5 transition-all duration-500 hover:shadow-red-900/5">
-
-        <div className="p-8 sm:p-10 relative">
-
-          {/* Logo Section */}
-          <div className="flex flex-col items-center justify-center mb-8">
-            <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 ring-1 ring-slate-50 mb-4 transform transition-transform hover:scale-105 duration-300">
-              <Hexagon className="w-10 h-10 text-red-600 fill-red-600/5" strokeWidth={1.5} />
-            </div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">OneTalent</h1>
-            <p className="text-sm text-slate-500 font-medium">Portal K3 & Produktivitas</p>
-          </div>
-
-          {/* MODE: LOGIN */}
-          {mode === 'login' && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-semibold text-slate-900">Selamat Datang</h2>
-                <p className="text-slate-500 text-sm mt-1">Masuk untuk mengakses workspace anda</p>
+            {/* Logo Placeholder - Flower Icon */}
+            {/* Brand Logo - Modern & Prominent */}
+            {/* Brand Logo - App Icon Style */}
+            <div className="flex justify-center mb-10 relative group">
+              {/* White Squircle Container */}
+              <div className="bg-white p-6 rounded-[40px] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100 flex items-center justify-center transform group-hover:scale-105 transition-transform duration-500">
+                <img
+                  src="/images/brand-logo.png"
+                  alt="OneTalent Logo"
+                  className="h-16 md:h-20 w-auto object-contain filter hover:brightness-110"
+                />
               </div>
+            </div>
 
+            <div className="text-center mb-8">
+              <h1 className="text-2xl font-bold text-slate-900 mb-2">{mode === 'login' ? 'Masuk' : 'Reset Password'}</h1>
+              <p className="text-slate-500 text-sm">
+                {mode === 'login' ? 'Masukkan NIK dan password untuk melanjutkan' : 'Verifikasi identitas anda'}
+              </p>
+            </div>
+
+            {mode === 'login' ? (
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-5">
                   <FormField
@@ -159,9 +123,9 @@ export default function LoginPage() {
                     name="nik"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="sr-only">NIK</FormLabel>
+                        <FormLabel className="text-slate-700 text-xs font-bold uppercase tracking-wider">NIK</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="NIK Karyawan" disabled={isLoading} className="h-12 bg-white/60 border-slate-200 focus:border-red-500 focus:ring-red-500/20 rounded-xl" />
+                          <Input {...field} placeholder="Masukkan NIK Anda" disabled={isLoading} className="h-11 rounded-lg border-slate-200 focus:border-red-500 focus:ring-red-500/20" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -173,12 +137,12 @@ export default function LoginPage() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="sr-only">Password</FormLabel>
+                        <FormLabel className="text-slate-700 text-xs font-bold uppercase tracking-wider">Password</FormLabel>
                         <FormControl>
                           <div className="relative">
-                            <Input {...field} type={showPassword ? "text" : "password"} placeholder="Password" disabled={isLoading} className="h-12 bg-white/60 border-slate-200 focus:border-red-500 focus:ring-red-500/20 rounded-xl pr-10" />
-                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            <Input {...field} type={showPassword ? "text" : "password"} placeholder="Masukkan password Anda" disabled={isLoading} className="h-11 rounded-lg border-slate-200 focus:border-red-500 focus:ring-red-500/20 pr-10" />
+                            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                             </button>
                           </div>
                         </FormControl>
@@ -187,35 +151,30 @@ export default function LoginPage() {
                     )}
                   />
 
-                  <Button type="submit" disabled={isLoading} className="w-full h-12 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
-                    {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Masuk Workspace"}
-                  </Button>
+                  <div className="pt-2">
+                    <Button type="submit" disabled={isLoading} className="w-full h-11 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-md hover:shadow-lg transition-all">
+                      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Masuk"}
+                    </Button>
+                  </div>
 
-                  <div className="text-center pt-2">
-                    <button type="button" onClick={() => setMode('reset')} className="text-sm text-slate-500 hover:text-red-600 transition-colors font-medium">Lupa Password?</button>
+                  <div className="text-center">
+                    <button type="button" onClick={() => setMode('reset')} className="text-xs font-semibold text-red-600 hover:text-red-700 transition-colors">
+                      Lupa Password?
+                    </button>
                   </div>
                 </form>
               </Form>
-            </div>
-          )}
-
-          {/* MODE: RESET */}
-          {mode === 'reset' && (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="text-center mb-6">
-                <h2 className="text-xl font-semibold text-slate-900">Reset Password</h2>
-                <p className="text-slate-500 text-sm mt-1">Verifikasi identitas anda</p>
-              </div>
-
+            ) : (
               <Form {...resetForm}>
                 <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
                   <FormField
                     control={resetForm.control}
                     name="nik"
                     render={({ field }) => (
-                      <FormItem className="space-y-1">
+                      <FormItem>
+                        <FormLabel className="text-slate-700 text-xs font-bold uppercase tracking-wider">NIK</FormLabel>
                         <FormControl>
-                          <Input {...field} placeholder="NIK" className="h-11 bg-white/60 rounded-xl border-slate-200" />
+                          <Input {...field} placeholder="Masukkan NIK" className="h-11 rounded-lg border-slate-200" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -225,9 +184,10 @@ export default function LoginPage() {
                     control={resetForm.control}
                     name="oldPassword"
                     render={({ field }) => (
-                      <FormItem className="space-y-1">
+                      <FormItem>
+                        <FormLabel className="text-slate-700 text-xs font-bold uppercase tracking-wider">Password Lama</FormLabel>
                         <FormControl>
-                          <Input {...field} type="password" placeholder="Password Lama" className="h-11 bg-white/60 rounded-xl border-slate-200" />
+                          <Input {...field} type="password" placeholder="Password Lama" className="h-11 rounded-lg border-slate-200" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -238,9 +198,10 @@ export default function LoginPage() {
                       control={resetForm.control}
                       name="newPassword"
                       render={({ field }) => (
-                        <FormItem className="space-y-1">
+                        <FormItem>
+                          <FormLabel className="text-slate-700 text-xs font-bold uppercase tracking-wider">Pass Baru</FormLabel>
                           <FormControl>
-                            <Input {...field} type="password" placeholder="Pass Baru" className="h-11 bg-white/60 rounded-xl border-slate-200" />
+                            <Input {...field} type="password" placeholder="Baru" className="h-11 rounded-lg border-slate-200" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -250,36 +211,53 @@ export default function LoginPage() {
                       control={resetForm.control}
                       name="confirmPassword"
                       render={({ field }) => (
-                        <FormItem className="space-y-1">
+                        <FormItem>
+                          <FormLabel className="text-slate-700 text-xs font-bold uppercase tracking-wider">Konfirmasi</FormLabel>
                           <FormControl>
-                            <Input {...field} type="password" placeholder="Konfirmasi" className="h-11 bg-white/60 rounded-xl border-slate-200" />
+                            <Input {...field} type="password" placeholder="Ulangi" className="h-11 rounded-lg border-slate-200" />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
-
-                  <Button type="submit" disabled={isLoading} className="w-full h-11 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium shadow-md">
-                    {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Reset Sekarang"}
-                  </Button>
-
-                  <div className="text-center">
-                    <button type="button" onClick={() => setMode('login')} className="flex items-center justify-center w-full text-sm text-slate-500 hover:text-slate-900 gap-2">
-                      <ArrowLeft className="w-4 h-4" /> Kembali
+                  <div className="pt-2 gap-3 flex flex-col">
+                    <Button type="submit" disabled={isLoading} className="w-full h-11 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold">
+                      {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Reset Sekarang"}
+                    </Button>
+                    <button type="button" onClick={() => setMode('login')} className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors">
+                      Kembali ke Login
                     </button>
                   </div>
                 </form>
               </Form>
+            )}
+            {/* Copyright Footer */}
+            <div className="absolute bottom-1 left-0 w-full text-center p-4">
+              <p className="text-[10px] text-slate-400 font-medium tracking-wide opacity-80">
+                &copy; 2026 PT. Goden Energi Cemerlang Lestari. All rights reserved.
+              </p>
             </div>
-          )}
 
+          </div>
         </div>
 
-        {/* Footer inside card */}
-        <div className="px-8 py-4 bg-slate-50/50 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-400">&copy; {new Date().getFullYear()} PT. Goden Energi Cemerlang Lestari</p>
+        {/* Right Side - Hero Image */}
+        <div className="w-full md:w-1/2 relative bg-red-900 hidden md:block">
+          {/* Background Image */}
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat mix-blend-overlay opacity-80"
+            style={{ backgroundImage: `url('/images/login-hero.jpg')` }}
+          />
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-br from-red-600 to-red-900 opacity-70" />
+
+          {/* Content */}
+          <div className="relative z-10 h-full flex flex-col items-center justify-center text-white p-12 text-center">
+            {/* Content Removed as requested */}
+          </div>
         </div>
+
       </div>
     </div>
   );

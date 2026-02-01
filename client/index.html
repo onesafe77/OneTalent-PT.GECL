@@ -26,22 +26,23 @@
 
 <body>
   <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
-  <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
-  <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+  <!-- AGGRESSIVE SERVICE WORKER KILLER -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((registration) => {
-            console.log('SW registered:', registration.scope);
-          })
-          .catch((error) => {
-            console.log('SW registration failed:', error);
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister().then(function () {
+            console.log('Service Worker unregistered via index.html');
+            window.location.reload(); // Force reload once cleaned
           });
+        }
       });
     }
   </script>
+  <script type="module" src="/src/main.tsx"></script>
+  <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
+  <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
+
 </body>
 
 </html>

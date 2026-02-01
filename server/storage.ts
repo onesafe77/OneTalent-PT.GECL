@@ -8601,7 +8601,8 @@ export class DrizzleStorage implements IStorage {
 
     // Attempting to access the 'phone' or 'noTelepon' field dynamically if type definition is hidden
     const record = result as any;
-    return record?.phone || record?.noTelepon || record?.contact || null;
+    // Fix: Added phoneNumber to the check list as it matches the schema definition
+    return record?.phoneNumber || record?.phone || record?.noTelepon || record?.contact || null;
   }
 
   async createSimperMitra(data: InsertSimperMitra): Promise<SimperMitra> {

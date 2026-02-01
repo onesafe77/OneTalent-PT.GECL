@@ -438,14 +438,14 @@ export default function MonitoringSimperEvAdmin() {
                             <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600">
                                 Monitoring Simper EV
                             </h1>
-                            <p className="text-slate-500 text-sm mt-1 flex items-center gap-2">
+                            <div className="text-slate-500 text-sm mt-1 flex items-center gap-2">
                                 Dashboard Evaluasi & Manajemen Pengajuan
                                 {whatsappConfig && (
                                     <Badge variant={whatsappConfig.configured ? "default" : "destructive"} className="ml-2">
                                         {whatsappConfig.configured ? "✅ WA Terkonfigurasi" : "⚠️ WA Belum Dikonfigurasi"}
                                     </Badge>
                                 )}
-                            </p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" onClick={() => queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] })} className="h-9">

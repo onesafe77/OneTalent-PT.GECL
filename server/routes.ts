@@ -13137,8 +13137,11 @@ Format sebagai bullet points singkat per insight.`;
 
   app.delete("/api/simper-ev/history/:id", async (req, res) => {
     try {
+      console.log(`[SimperEV-DEBUG] DELETE Request for ID: ${req.params.id}`);
       const success = await storage.deleteSimperEvHistory(req.params.id);
-      if (!success) return res.status(404).json({ error: "History not found" });
+      if (!success) {
+        console.warn(`[SimperEV] DELETE History ID ${req.params.id} not found, but returning 204 for idempotency`);
+      }
       res.sendStatus(204);
     } catch (error) {
       console.error("[SimperEV] Delete History Error:", error);

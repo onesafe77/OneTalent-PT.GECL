@@ -14,18 +14,23 @@ import { LoadingScreen } from "@/components/ui/loading-screen";
 const Workspace = lazy(() => import("@/components/workspace").then(module => ({ default: module.Workspace })));
 const MobileDriverView = lazy(() => import("@/pages/mobile-driver-view"));
 const DriverView = lazy(() => import("@/pages/driver-view"));
-const LoginPage = lazy(() => import("@/pages/login"));
+import LoginPage from "@/pages/login";
 const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
 
-const LandingPage = lazy(() => import("@/pages/landing-page"));
 const MonitoringSimperEvPublic = lazy(() => import("@/pages/monitoring-simper-ev-public"));
 
 /**
  * Router component dengan landing page dan workspace
  */
 function Router() {
-  const [currentPath] = useLocation();
+  const [currentPath, setLocation] = useLocation();
   const urlParams = new URLSearchParams(window.location.search);
+
+  // Redirect root to login
+  if (currentPath === "/") {
+    setLocation("/login");
+    return null;
+  }
 
   // Prioritaskan workspace routes - selalu render Workspace untuk path yang dimulai dengan /workspace
   // Wrap dengan ProtectedRoute untuk authentication
@@ -41,15 +46,6 @@ function Router() {
 
   return (
     <Switch>
-      {/* Landing Page Route - Public Root */}
-      <Route path="/">
-        {() => (
-          <Suspense fallback={<LoadingScreen isLoading={true} />}>
-            <LandingPage />
-          </Suspense>
-        )}
-      </Route>
-
       {/* Login Route - Public */}
       <Route path="/login">
         {() => (
