@@ -15,6 +15,7 @@ import Papa from "papaparse";
 const upload = multer({ dest: 'uploads/' });
 
 import { storage } from "./storage";
+import { sendWhatsAppMessage, formatSimperEvNotification } from "./services/whatsapp-service";
 import { fetchSheetData, listSpreadsheetSheets, getSpreadsheetMetadata, generateVisualizationSuggestions } from "./google-sheets-service";
 import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
 import { setupAuth } from "./replitAuth";
@@ -27,7 +28,9 @@ import {
   insertMeetingSchema,
   insertMeetingAttendanceSchema,
   insertManualAttendanceSchema,
-  insertSimperMonitoringSchema,
+  insertSimperEvMonitoringSchema,
+  InsertSimperEvMonitoring,
+  insertSimperEvHistorySchema,
   insertSidakFatigueSessionSchema,
   insertSidakFatigueRecordSchema,
   insertSidakFatigueObserverSchema,
@@ -12720,16 +12723,33 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // Admin: Get All Data
+  // Admin: Get All Data (Paginated)
   app.get("/api/simper-ev/all", async (req, res) => {
     try {
-      const results = await storage.getAllSimperEvMonitoring();
-      res.json(results);
+      console.log("[API] GET /api/simper-ev/all called");
+
+      const page = parseInt(req.query.page as string);
+      const limit = parseInt(req.query.limit as string);
+      const search = req.query.search as string;
+
+      if (!isNaN(page) && !isNaN(limit)) {
+        console.log(`[API] Fetching paginated Simper EV: page ${page}, limit ${limit}, search "${search || ''}"`);
+        const result = await storage.getSimperEvMonitoringPaginated(page, limit, search);
+        res.json(result); // Returns { data: [], total: number }
+      } else {
+        // Fallback for backward compatibility
+        console.log("[API] Fetching ALL Simper EV records (Legacy Mode)");
+        const results = await storage.getAllSimperEvMonitoring();
+        console.log(`[API] Got ${results.length} Simper EV records`);
+        res.json(results);
+      }
     } catch (error) {
-      console.error("Error fetching Simper EV data:", error);
+      console.error("[API] Error fetching Simper EV data:", error);
       res.status(500).json({ message: "Failed to fetch data" });
     }
   });
+
+
 
   // Admin: Upload CSV
   app.post("/api/simper-ev/upload", upload.single('csvFile'), async (req, res) => {
@@ -12767,6 +12787,8 @@ Format sebagai bullet points singkat per insight.`;
                 simperPermanen: row['Simper Permanen'],
                 unitSkillUp: row['UNIT YG DI SKILL UP'],
                 masaBerlakuSertifikatOs: row['Masa Berlaku Sertifikat OS'],
+                merkUnit: row['Merk Unit'] || row['Merek Unit'] || "",
+                typeUnit: row['Type Unit'] || row['Tipe Unit'] || "",
                 statusPengajuan: row['Status Pengajuan'],
                 importBatchId: batchId,
                 updatedOf: new Date().toISOString()
@@ -12877,6 +12899,8 @@ Format sebagai bullet points singkat per insight.`;
             simperPermanen: getVal('simper permanen ev') || getVal('simper permanen') || getVal('permanen') || "",
             unitSkillUp: getVal('unit yg di skill up') || getVal('unit skill up') || "",
             masaBerlakuSertifikatOs: getVal('masa berlaku sertifikat os') || "",
+            merkUnit: getVal('merk unit') || getVal('merek unit') || "",
+            typeUnit: getVal('type unit') || getVal('tipe unit') || "",
             statusPengajuan: getVal('status pengajuan') || getVal('status') || "Pending",
             importBatchId: batchId,
           };
@@ -12893,6 +12917,342 @@ Format sebagai bullet points singkat per insight.`;
 
     } catch (error) {
       console.error("[SimperEV] Sync Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Manual CRUD Routes for Simper EV
+  app.post("/api/simper-ev", async (req, res) => {
+    try {
+      const data = insertSimperEvMonitoringSchema.parse(req.body);
+      const result = await storage.createSimperEvMonitoring(data);
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("[SimperEV] Create Error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  app.put("/api/simper-ev/:id", async (req, res) => {
+    try {
+      const data = insertSimperEvMonitoringSchema.partial().parse(req.body);
+      const result = await storage.updateSimperEvMonitoring(req.params.id, data);
+      if (!result) return res.status(404).json({ error: "Record not found" });
+      res.json(result);
+    } catch (error) {
+      console.error("[SimperEV] Update Error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/api/simper-ev/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSimperEvMonitoring(req.params.id);
+      if (!success) return res.status(404).json({ error: "Record not found" });
+      res.sendStatus(204);
+    } catch (error) {
+      console.error("[SimperEV] Delete Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // History Routes
+  app.get("/api/simper-ev/:nikSimper/history", async (req, res) => {
+    try {
+      const history = await storage.getSimperEvHistory(req.params.nikSimper);
+      res.json(history);
+    } catch (error) {
+      console.error("[SimperEV] Get History Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post("/api/simper-ev/:nikSimper/history", async (req, res) => {
+    try {
+      const data = insertSimperEvHistorySchema.parse({
+        ...req.body,
+        nikSimper: req.params.nikSimper
+      });
+      console.log(`[SimperEV] Creating history for NIK: ${req.params.nikSimper}. Level: ${req.body.workflowLevel}`);
+
+      const result = await storage.createSimperEvHistory(data);
+
+      // Auto-update status statusPengajuan in main monitoring table
+      if (data.workflowLevel) {
+        console.log(`[SimperEV] Updating status for ${req.params.nikSimper} to "${data.workflowLevel}"`);
+        await storage.updateSimperEvMonitoringStatusByNik(req.params.nikSimper, data.workflowLevel);
+        console.log(`[SimperEV] Status update completed`);
+      } else {
+        console.log(`[SimperEV] Skipping status update - no workflow level provided`);
+      }
+
+      // ---------------------------------------------------------
+      // Enhanced WhatsApp Notification with Logging
+      // ---------------------------------------------------------
+      try {
+        const simperRecords = await storage.searchSimperEvMonitoring(req.params.nikSimper);
+        const simper = simperRecords.length > 0 ? simperRecords[0] : null;
+
+        if (simper && simper.asalMitra) {
+          const mitraPhone = await storage.getMitraPhoneByName(simper.asalMitra);
+
+          if (mitraPhone) {
+            console.log(`[SimperEV] Preparing WA notification for Mitra: ${simper.asalMitra}`);
+
+            // Format enhanced message
+            const message = formatSimperEvNotification({
+              employeeName: simper.nama || "Unknown",
+              nikSimper: simper.nikSimper || req.params.nikSimper,
+              mitraName: simper.asalMitra,
+              status: data.workflowLevel || data.status || "Updated",
+              approver: data.approver,
+              message: data.message,
+              workflowType: data.workflowType,
+              isRevision: false
+            });
+
+            // Create notification log (PENDING)
+            const notifLog = await storage.createWhatsappNotificationLog({
+              module: "SIMPER_EV",
+              referenceId: req.params.nikSimper,
+              referenceName: simper.nama || "Unknown",
+              recipientPhone: mitraPhone,
+              recipientName: simper.asalMitra,
+              recipientType: "MITRA",
+              messageContent: message,
+              messageType: "APPROVAL_STATUS_UPDATE",
+              status: "PENDING",
+              triggeredBy: (req as any).user?.nik || "SYSTEM"
+            });
+
+            // Send WhatsApp message
+            const sendResult = await sendWhatsAppMessage({
+              phone: mitraPhone,
+              message: message
+            });
+
+            // Update log with result
+            await storage.updateWhatsappNotificationLogStatus(
+              notifLog.id,
+              sendResult.success ? "SENT" : "FAILED",
+              sendResult.error,
+              sendResult.response
+            );
+
+            if (sendResult.success) {
+              console.log(`[SimperEV] ✅ WA notification sent to ${simper.asalMitra}`);
+            } else {
+              console.error(`[SimperEV] ❌ WA notification failed: ${sendResult.error}`);
+            }
+          } else {
+            console.log(`[SimperEV] ⚠️ No phone found for Mitra: ${simper.asalMitra}`);
+          }
+        }
+      } catch (waError) {
+        console.error("[SimperEV] Failed to send WhatsApp notification:", waError);
+        // We don't fail the request if notification fails
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[SimperEV] Create History Error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  app.put("/api/simper-ev/history/:id", async (req, res) => {
+    try {
+      const updated = await storage.updateSimperEvHistory(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ error: "History not found" });
+
+      // Enhanced WhatsApp Notification with Logging (Revision)
+      try {
+        const simperRecords = await storage.searchSimperEvMonitoring(updated.nikSimper);
+        const simper = simperRecords.length > 0 ? simperRecords[0] : null;
+
+        if (simper && simper.asalMitra) {
+          const mitraPhone = await storage.getMitraPhoneByName(simper.asalMitra);
+
+          if (mitraPhone) {
+            console.log(`[SimperEV] Preparing WA revision notification for Mitra: ${simper.asalMitra}`);
+
+            // Format enhanced message with revision flag
+            const message = formatSimperEvNotification({
+              employeeName: simper.nama || "Unknown",
+              nikSimper: updated.nikSimper,
+              mitraName: simper.asalMitra,
+              status: updated.workflowLevel || updated.status || "Updated",
+              approver: updated.approver,
+              message: updated.message,
+              workflowType: updated.workflowType,
+              isRevision: true,
+              previousStatus: simper.statusPengajuan // Show previous status
+            });
+
+            // Create notification log (PENDING)
+            const notifLog = await storage.createWhatsappNotificationLog({
+              module: "SIMPER_EV",
+              referenceId: updated.nikSimper,
+              referenceName: simper.nama || "Unknown",
+              recipientPhone: mitraPhone,
+              recipientName: simper.asalMitra,
+              recipientType: "MITRA",
+              messageContent: message,
+              messageType: "APPROVAL_STATUS_REVISION",
+              status: "PENDING",
+              triggeredBy: (req as any).user?.nik || "SYSTEM"
+            });
+
+            // Send WhatsApp message
+            const sendResult = await sendWhatsAppMessage({
+              phone: mitraPhone,
+              message: message
+            });
+
+            // Update log with result
+            await storage.updateWhatsappNotificationLogStatus(
+              notifLog.id,
+              sendResult.success ? "SENT" : "FAILED",
+              sendResult.error,
+              sendResult.response
+            );
+
+            if (sendResult.success) {
+              console.log(`[SimperEV] ✅ WA revision notification sent to ${simper.asalMitra}`);
+            } else {
+              console.error(`[SimperEV] ❌ WA revision notification failed: ${sendResult.error}`);
+            }
+          }
+        }
+      } catch (waError) {
+        console.error("[SimperEV] Failed to send WA on update:", waError);
+      }
+
+      res.json(updated);
+    } catch (error) {
+      console.error("[SimperEV] Update History Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/api/simper-ev/history/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSimperEvHistory(req.params.id);
+      if (!success) return res.status(404).json({ error: "History not found" });
+      res.sendStatus(204);
+    } catch (error) {
+      console.error("[SimperEV] Delete History Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // ==========================================
+  // Simper EV: WhatsApp Notification Logs API
+  // ==========================================
+
+  // Get all notification logs for Simper EV module
+  app.get("/api/simper-ev/notification-logs", async (req, res) => {
+    try {
+      const logs = await storage.getWhatsappNotificationLogs("SIMPER_EV", 200);
+      res.json(logs);
+    } catch (error) {
+      console.error("[SimperEV] Get Notification Logs Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Get notification logs for specific NIK
+  app.get("/api/simper-ev/:nikSimper/notification-logs", async (req, res) => {
+    try {
+      const logs = await storage.getWhatsappNotificationLogsByReference(req.params.nikSimper);
+      res.json(logs);
+    } catch (error) {
+      console.error("[SimperEV] Get NIK Notification Logs Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Check WhatsApp API configuration status
+  app.get("/api/simper-ev/whatsapp-config-status", async (req, res) => {
+    try {
+      const apiKey = await storage.getSystemSetting("WHATSAPP_API_KEY");
+      const adminPhone = await storage.getSystemSetting("WHATSAPP_ADMIN_PHONE");
+
+      const envApiKey = process.env.NOTIFYME_API_KEY;
+      const envAdminPhone = process.env.NOTIFYME_ADMIN_PHONE;
+
+      res.json({
+        configured: !!(apiKey || envApiKey),
+        apiKeySource: apiKey ? "DATABASE" : envApiKey ? "ENVIRONMENT" : "NOT_CONFIGURED",
+        adminPhoneSource: adminPhone ? "DATABASE" : envAdminPhone ? "ENVIRONMENT" : "DEFAULT",
+        adminPhone: adminPhone || envAdminPhone || "6285126408588"
+      });
+    } catch (error) {
+      console.error("[SimperEV] Check WhatsApp Config Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // SIMPER MITRA ENDPOINTS
+  app.get("/api/simper-mitra", async (req, res) => {
+    try {
+      const mitras = await storage.getSimperMitras();
+      res.json(mitras);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post("/api/simper-mitra", async (req, res) => {
+    try {
+      const { name, phoneNumber } = req.body;
+      if (!name) return res.status(400).json({ error: "Nama mitra wajib diisi" });
+      const mitra = await storage.createSimperMitra({ name, phoneNumber });
+      res.json(mitra);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.put("/api/simper-mitra/:id", async (req, res) => {
+    try {
+      const { name, phoneNumber } = req.body;
+      if (!name) return res.status(400).json({ error: "Nama mitra wajib diisi" });
+      const mitra = await storage.updateSimperMitra(req.params.id, { name, phoneNumber });
+      if (!mitra) return res.status(404).json({ error: "Mitra tidak ditemukan" });
+      res.json(mitra);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.delete("/api/simper-mitra/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSimperMitra(req.params.id);
+      res.json({ success });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  app.post("/api/simper-mitra/notify", async (req, res) => {
+    try {
+      const { phone, message } = req.body;
+      if (!phone || !message) {
+        return res.status(400).json({ error: "Nomor HP dan pesan wajib diisi" });
+      }
+
+      const result = await whatsappService.sendWhatsAppMessage({
+        phone,
+        message
+      });
+
+      if (result.success) {
+        res.json({ success: true, result });
+      } else {
+        res.status(500).json({ error: "Gagal kirim WhatsApp", details: result });
+      }
+    } catch (error) {
       res.status(500).json({ error: (error as Error).message });
     }
   });

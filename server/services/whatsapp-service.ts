@@ -37,6 +37,71 @@ export function normalizePhoneNumber(phone: string): string {
 }
 
 /**
+ * Simper EV Notification Parameters
+ */
+interface SimperEvNotificationParams {
+    employeeName: string;
+    nikSimper: string;
+    mitraName: string;
+    status: string;
+    approver?: string;
+    message?: string;
+    workflowType?: string;
+    isRevision?: boolean;
+    previousStatus?: string;
+}
+
+/**
+ * Format enhanced Simper EV notification message with emojis and structured layout
+ */
+export function formatSimperEvNotification(params: SimperEvNotificationParams): string {
+    const title = params.isRevision
+        ? "🔄 *Update Status Simper EV (Revisi)*"
+        : "📋 *Update Status Simper EV*";
+
+    const statusEmoji = params.status.toLowerCase().includes("approved") ? "✅"
+        : params.status.toLowerCase().includes("reject") ? "❌"
+        : params.status.toLowerCase().includes("selesai") ? "🎉"
+        : "⏳";
+
+    let message = `${title}\n\n`;
+    message += `👤 *Nama:* ${params.employeeName}\n`;
+    message += `🆔 *NIK Simper:* ${params.nikSimper}\n`;
+    message += `🏢 *Asal Mitra:* ${params.mitraName}\n`;
+    message += `\n`;
+
+    if (params.isRevision && params.previousStatus) {
+        message += `📊 *Status Sebelumnya:* ${params.previousStatus}\n`;
+    }
+
+    message += `${statusEmoji} *Status Baru:* ${params.status}\n`;
+
+    if (params.workflowType) {
+        message += `📝 *Jenis Workflow:* ${params.workflowType}\n`;
+    }
+
+    if (params.approver) {
+        message += `✍️ *Approver:* ${params.approver}\n`;
+    }
+
+    message += `\n`;
+    message += `💬 *Pesan/Catatan:*\n${params.message || "Tidak ada catatan"}\n`;
+    message += `\n`;
+    message += `📅 *Tanggal:* ${new Date().toLocaleString('id-ID', {
+        timeZone: 'Asia/Makassar',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })}\n`;
+    message += `\n`;
+    message += `_Notifikasi otomatis dari OneTalent System_`;
+
+    return message;
+}
+
+/**
  * Get API Key from DB or Env
  */
 async function getApiKey(): Promise<string | null> {

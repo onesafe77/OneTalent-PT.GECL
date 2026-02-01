@@ -160,6 +160,8 @@ app.post("/api/simper-ev/sync", async (req, res) => {
         simperPermanen: getVal('simper permanen ev') || getVal('simper permanen') || getVal('permanen') || "",
         unitSkillUp: getVal('unit yg di skill up') || getVal('unit skill up') || "",
         masaBerlakuSertifikatOs: getVal('masa berlaku sertifikat os') || "",
+        merkUnit: getVal('merk unit') || getVal('merek unit') || "",
+        typeUnit: getVal('type unit') || getVal('tipe unit') || "",
         statusPengajuan: getVal('status pengajuan') || getVal('status') || "Pending",
         importBatchId: batchId,
       };
@@ -169,6 +171,36 @@ app.post("/api/simper-ev/sync", async (req, res) => {
     res.json({ success: true, count: successCount, message: "Sinkronisasi berhasil (Hotfix)" });
   } catch (error) {
     console.error("[SimperEV-Hotfix] Sync Error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// SIMPER MITRA ENDPOINTS
+app.get("/api/simper-mitra", async (req, res) => {
+  try {
+    const mitras = await storage.getSimperMitras();
+    res.json(mitras);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.post("/api/simper-mitra", async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Nama mitra wajib diisi" });
+    const mitra = await storage.createSimperMitra({ name });
+    res.json(mitra);
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+app.delete("/api/simper-mitra/:id", async (req, res) => {
+  try {
+    const success = await storage.deleteSimperMitra(req.params.id);
+    res.json({ success });
+  } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
 });

@@ -44,21 +44,34 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
+  // Skip chrome-extension requests or other non-http/https
+  if (!event.request.url.startsWith('http')) return;
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
+        // Check if we received a valid response
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }
+
         const responseToCache = response.clone();
         caches.open(CACHE_NAME)
           .then((cache) => {
             cache.put(event.request, responseToCache);
           });
+
         return response;
       })
-      .catch(() => {
-        return caches.match(event.request);
+      .catch((error) => {
+        console.log('Fetch failed; returning from cache.', error);
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Fallback: return a basic 404 response if nothing else works
+          return new Response('Not found', { status: 404, statusText: 'Not Found' });
+        });
       })
   );
 });

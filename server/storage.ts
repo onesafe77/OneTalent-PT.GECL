@@ -1,4 +1,5 @@
 import { format, parse, parseISO } from "date-fns";
+import { eq, desc, and, or, sql, ilike } from "drizzle-orm";
 import {
   type Employee,
   type InsertEmployee,
@@ -221,7 +222,16 @@ import {
   type WhatsappTemplate,
   simperEvMonitoring,
   type InsertSimperEvMonitoring,
-  type SimperEvMonitoring
+  type SimperEvMonitoring,
+  simperEvHistory,
+  type SimperEvHistory,
+  type InsertSimperEvHistory,
+  whatsappNotificationLogs,
+  type WhatsappNotificationLog,
+  type InsertWhatsappNotificationLog,
+  simperMitra,
+  type SimperMitra,
+  type InsertSimperMitra,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -565,6 +575,30 @@ export interface IStorage {
   getAllSimperEvMonitoring(): Promise<SimperEvMonitoring[]>;
   searchSimperEvMonitoring(query: string): Promise<SimperEvMonitoring[]>;
   deleteAllSimperEvMonitoring(): Promise<void>;
+  // Simper EV History
+  getSimperEvHistory(nikSimper: string): Promise<SimperEvHistory[]>;
+  createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory>;
+  updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined>;
+  deleteSimperEvHistory(id: string): Promise<boolean>;
+
+  // WhatsApp Notification Logs
+  createWhatsappNotificationLog(data: InsertWhatsappNotificationLog): Promise<WhatsappNotificationLog>;
+  updateWhatsappNotificationLogStatus(id: string, status: "SENT" | "FAILED", errorMessage?: string, apiResponse?: any): Promise<void>;
+  getWhatsappNotificationLogs(module?: string, limit?: number): Promise<WhatsappNotificationLog[]>;
+  getWhatsappNotificationLogsByReference(referenceId: string): Promise<WhatsappNotificationLog[]>;
+
+  // Simper EV CRUD
+  updateSimperEvMonitoring(id: string, data: Partial<InsertSimperEvMonitoring>): Promise<SimperEvMonitoring | undefined>;
+  updateSimperEvMonitoringStatusByNik(nikSimper: string, status: string): Promise<void>;
+  deleteSimperEvMonitoring(id: string): Promise<boolean>;
+
+  // Simper Mitra
+  getSimperMitras(): Promise<SimperMitra[]>;
+  createSimperMitra(data: InsertSimperMitra): Promise<SimperMitra>;
+  updateSimperMitra(id: string, data: Partial<InsertSimperMitra>): Promise<SimperMitra | undefined>;
+  deleteSimperMitra(id: string): Promise<boolean>;
+  getMitraPhoneByName(name: string): Promise<string | null>;
+  getSimperEvMonitoringPaginated(page: number, limit: number, search?: string): Promise<{ data: SimperEvMonitoring[], total: number }>;
 }
 
 export class MemStorage {
@@ -656,8 +690,45 @@ export class MemStorage {
     return [];
   }
   async deleteAllSimperEvMonitoring(): Promise<void> {
-    throw new Error("Simper EV Monitoring not implemented in MemStorage.");
+    throw new Error("Method not implemented.");
   }
+  async updateSimperEvMonitoring(id: string, data: Partial<InsertSimperEvMonitoring>): Promise<SimperEvMonitoring | undefined> {
+    throw new Error("Method not implemented.");
+  }
+  async deleteSimperEvMonitoring(id: string): Promise<boolean> {
+    throw new Error("Method not implemented.");
+  }
+
+  async updateSimperEvMonitoringStatusByNik(nikSimper: string, status: string): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+
+  async getSimperEvHistory(nikSimper: string): Promise<SimperEvHistory[]> {
+    throw new Error("Method not implemented.");
+  }
+  async createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory> {
+    throw new Error("Method not implemented.");
+  }
+  async updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined> {
+    throw new Error("Method not implemented.");
+  }
+  async deleteSimperEvHistory(id: string): Promise<boolean> {
+    throw new Error("Method not implemented.");
+  }
+
+  async getSimperMitras(): Promise<SimperMitra[]> {
+    return [];
+  }
+  async createSimperMitra(data: InsertSimperMitra): Promise<SimperMitra> {
+    throw new Error("Method not implemented.");
+  }
+  async updateSimperMitra(id: string, data: Partial<InsertSimperMitra>): Promise<SimperMitra | undefined> {
+    throw new Error("Method not implemented.");
+  }
+  async deleteSimperMitra(id: string): Promise<boolean> {
+    throw new Error("Method not implemented.");
+  }
+
 
 
   private initializeSampleData() {
@@ -8022,26 +8093,7 @@ export class DrizzleStorage implements IStorage {
       .orderBy(desc(sidakWorkshopSessions.createdAt));
   }
 
-  async createSidakWorkshopSession(session: InsertSidakWorkshopSession): Promise<SidakWorkshopSession> {
-    const [result] = await this.db
-      .insert(sidakWorkshopSessions)
-      .values(session)
-      .returning();
-    return result;
-  }
 
-  async updateSidakWorkshopSession(id: string, updates: Partial<InsertSidakWorkshopSession>): Promise<SidakWorkshopSession | undefined> {
-    const [result] = await this.db
-      .update(sidakWorkshopSessions)
-      .set(updates)
-      .where(eq(sidakWorkshopSessions.id, id))
-      .returning();
-    return result;
-  }
-
-  async deleteSidakWorkshopSession(id: string): Promise<void> {
-    await this.db.delete(sidakWorkshopSessions).where(eq(sidakWorkshopSessions.id, id));
-  }
 
   // Equipment Methods
   async getSidakWorkshopEquipment(sessionId: string): Promise<SidakWorkshopEquipment[]> {
@@ -8419,6 +8471,192 @@ export class DrizzleStorage implements IStorage {
 
   async deleteAllSimperEvMonitoring(): Promise<void> {
     await db.delete(simperEvMonitoring);
+  }
+
+  async updateSimperEvMonitoring(id: string, data: Partial<InsertSimperEvMonitoring>): Promise<SimperEvMonitoring | undefined> {
+    const [result] = await db
+      .update(simperEvMonitoring)
+      .set({ ...data, updatedOf: new Date().toISOString() })
+      .where(eq(simperEvMonitoring.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSimperEvMonitoring(id: string): Promise<boolean> {
+    const [result] = await db
+      .delete(simperEvMonitoring)
+      .where(eq(simperEvMonitoring.id, id))
+      .returning();
+    return !!result;
+  }
+
+  async updateSimperEvMonitoringStatusByNik(nikSimper: string, status: string): Promise<void> {
+    // Also update history updated_at
+    await db
+      .update(simperEvMonitoring)
+      .set({
+        statusPengajuan: status,
+        updatedOf: new Date().toISOString()
+      })
+      .where(eq(simperEvMonitoring.nikSimper, nikSimper));
+  }
+
+  async getSimperEvHistory(nikSimper: string): Promise<SimperEvHistory[]> {
+    return await db
+      .select()
+      .from(simperEvHistory)
+      .where(eq(simperEvHistory.nikSimper, nikSimper))
+      .orderBy(desc(simperEvHistory.approvedAt));
+  }
+
+  async createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory> {
+    const [result] = await db
+      .insert(simperEvHistory)
+      .values(history)
+      .returning();
+    return result;
+  }
+
+  async updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined> {
+    const [result] = await db
+      .update(simperEvHistory)
+      .set(history)
+      .where(eq(simperEvHistory.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSimperEvHistory(id: string): Promise<boolean> {
+    const [result] = await db
+      .delete(simperEvHistory)
+      .where(eq(simperEvHistory.id, id))
+      .returning();
+    return !!result;
+  }
+
+  // WhatsApp Notification Logs
+  async createWhatsappNotificationLog(data: InsertWhatsappNotificationLog): Promise<WhatsappNotificationLog> {
+    const [log] = await db.insert(whatsappNotificationLogs).values(data).returning();
+    return log as WhatsappNotificationLog;
+  }
+
+  async updateWhatsappNotificationLogStatus(
+    id: string,
+    status: "SENT" | "FAILED",
+    errorMessage?: string,
+    apiResponse?: any
+  ): Promise<void> {
+    await db.update(whatsappNotificationLogs)
+      .set({
+        status,
+        sentAt: status === "SENT" ? new Date() : undefined,
+        errorMessage,
+        apiResponse
+      })
+      .where(eq(whatsappNotificationLogs.id, id));
+  }
+
+  async getWhatsappNotificationLogs(
+    module?: string,
+    limit: number = 100
+  ): Promise<WhatsappNotificationLog[]> {
+    let query = db
+      .select()
+      .from(whatsappNotificationLogs)
+      .orderBy(desc(whatsappNotificationLogs.createdAt))
+      .limit(limit);
+
+    if (module) {
+      query = query.where(eq(whatsappNotificationLogs.module, module)) as any;
+    }
+
+    const results = await query;
+    return results as WhatsappNotificationLog[];
+  }
+
+  async getWhatsappNotificationLogsByReference(
+    referenceId: string
+  ): Promise<WhatsappNotificationLog[]> {
+    const results = await db
+      .select()
+      .from(whatsappNotificationLogs)
+      .where(eq(whatsappNotificationLogs.referenceId, referenceId))
+      .orderBy(desc(whatsappNotificationLogs.createdAt));
+    return results as WhatsappNotificationLog[];
+  }
+
+  // Simper Mitra
+  async getSimperMitras(): Promise<SimperMitra[]> {
+    return await db
+      .select()
+      .from(simperMitra)
+      .orderBy(asc(simperMitra.name));
+  }
+
+  async getMitraPhoneByName(name: string): Promise<string | null> {
+    const [result] = await db
+      .select()
+      .from(simperMitra)
+      .where(ilike(simperMitra.name, name));
+
+    // Attempting to access the 'phone' or 'noTelepon' field dynamically if type definition is hidden
+    const record = result as any;
+    return record?.phone || record?.noTelepon || record?.contact || null;
+  }
+
+  async createSimperMitra(data: InsertSimperMitra): Promise<SimperMitra> {
+    const [result] = await db
+      .insert(simperMitra)
+      .values(data)
+      .returning();
+    return result;
+  }
+
+  async updateSimperMitra(id: string, data: Partial<InsertSimperMitra>): Promise<SimperMitra | undefined> {
+    const [result] = await db
+      .update(simperMitra)
+      .set(data)
+      .where(eq(simperMitra.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSimperMitra(id: string): Promise<boolean> {
+    const [result] = await db
+      .delete(simperMitra)
+      .where(eq(simperMitra.id, id))
+      .returning();
+    return !!result;
+  }
+
+  async getSimperEvMonitoringPaginated(page: number, limit: number, search?: string): Promise<{ data: SimperEvMonitoring[], total: number }> {
+    const offset = (page - 1) * limit;
+    const lowerQuery = search?.toLowerCase() || "";
+
+    let whereClause = undefined;
+    if (search) {
+      whereClause = or(
+        ilike(simperEvMonitoring.nama, `%${lowerQuery}%`),
+        ilike(simperEvMonitoring.nikSimper, `%${lowerQuery}%`)
+      );
+    }
+
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(simperEvMonitoring)
+      .where(whereClause);
+
+    const total = Number(countResult?.count || 0);
+
+    const data = await db
+      .select()
+      .from(simperEvMonitoring)
+      .where(whereClause)
+      .orderBy(desc(simperEvMonitoring.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total };
   }
 }
 

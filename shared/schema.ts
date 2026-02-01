@@ -385,12 +385,30 @@ export const simperEvMonitoring = pgTable("simper_ev_monitoring", {
   simperPermanen: text("simper_permanen"), // Sudah/Belum
   unitSkillUp: text("unit_skill_up"),
   masaBerlakuSertifikatOs: text("masa_berlaku_sertifikat_os"),
+  merkUnit: text("merk_unit"),
+  typeUnit: text("type_unit"), // EV or Solar
   statusPengajuan: text("status_pengajuan"),
   importBatchId: text("import_batch_id"), // To track uploads
   updatedOf: text("updated_of"), // Timestamp string from CSV or upload time
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// SIMPER Mitra Dropdown Options
+export const simperMitra = pgTable("simper_mitra", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  phoneNumber: text("phone_number"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSimperMitraSchema = createInsertSchema(simperMitra).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SimperMitra = typeof simperMitra.$inferSelect;
+export type InsertSimperMitra = z.infer<typeof insertSimperMitraSchema>;
 
 export const insertSimperEvMonitoringSchema = createInsertSchema(simperEvMonitoring).omit({
   id: true,
@@ -424,6 +442,7 @@ export const sidakFatigueSessions = pgTable("sidak_fatigue_sessions", {
   createdBy: varchar("created_by"), // NIK of supervisor who created the SIDAK
   activityPhotos: text("activity_photos").array(), // Array of photo paths for activity documentation
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("IDX_fatigue_sessions_created_by").on(table.createdBy),
 ]);
@@ -600,6 +619,7 @@ export const sidakSeatbeltObservers = pgTable("sidak_seatbelt_observers", {
 export const insertSidakFatigueSessionSchema = createInsertSchema(sidakFatigueSessions).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
   totalSampel: true, // Auto calculated
 });
 
@@ -2756,3 +2776,68 @@ export const insertMcuRecordSchema = createInsertSchema(mcuRecords).omit({
 
 export type McuRecord = typeof mcuRecords.$inferSelect;
 export type InsertMcuRecord = z.infer<typeof insertMcuRecordSchema>;
+
+export const simperEvHistory = pgTable("simper_ev_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nikSimper: text("nik_simper").notNull(), // Foreign Key logical (linked to simper_ev_monitoring.nikSimper)
+  approver: text("approver"),
+  status: text("status"),
+  workflowLevel: text("workflow_level"),
+  workflowType: text("workflow_type"),
+  message: text("message"),
+  approvedAt: timestamp("approved_at").defaultNow(),
+}, (table) => [
+  index("IDX_simper_ev_history_nik").on(table.nikSimper),
+]);
+
+export const insertSimperEvHistorySchema = createInsertSchema(simperEvHistory).omit({
+  id: true,
+  approvedAt: true
+});
+
+export type SimperEvHistory = typeof simperEvHistory.$inferSelect;
+export type InsertSimperEvHistory = z.infer<typeof insertSimperEvHistorySchema>;
+
+// ====================
+// WhatsApp Notification Logs
+// ====================
+export const whatsappNotificationLogs = pgTable("whatsapp_notification_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // Notification Context
+  module: text("module").notNull(), // "SIMPER_EV", "INDUCTION", etc.
+  referenceId: text("reference_id"), // ID of related record (nikSimper, inductionId, etc.)
+  referenceName: text("reference_name"), // Name of person/entity
+
+  // Recipient Info
+  recipientPhone: text("recipient_phone").notNull(),
+  recipientName: text("recipient_name"),
+  recipientType: text("recipient_type").notNull(), // "MITRA", "EMPLOYEE", "ADMIN"
+
+  // Message Details
+  messageContent: text("message_content").notNull(),
+  messageType: text("message_type").notNull(), // "STATUS_UPDATE", "REMINDER", "APPROVAL", etc.
+
+  // Delivery Status
+  status: text("status").notNull().default("PENDING"), // "PENDING", "SENT", "FAILED"
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+  apiResponse: jsonb("api_response"), // Store full API response for debugging
+
+  // Metadata
+  triggeredBy: text("triggered_by"), // NIK of admin who triggered, or "SYSTEM"
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_wa_notif_log_module").on(table.module),
+  index("IDX_wa_notif_log_reference").on(table.referenceId),
+  index("IDX_wa_notif_log_phone").on(table.recipientPhone),
+  index("IDX_wa_notif_log_created").on(table.createdAt),
+]);
+
+export const insertWhatsappNotificationLogSchema = createInsertSchema(whatsappNotificationLogs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type WhatsappNotificationLog = typeof whatsappNotificationLogs.$inferSelect;
+export type InsertWhatsappNotificationLog = z.infer<typeof insertWhatsappNotificationLogSchema>;
