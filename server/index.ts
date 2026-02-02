@@ -205,22 +205,7 @@ app.delete("/api/simper-mitra/:id", async (req, res) => {
   }
 });
 
-app.post("/api/employees/:id/photo", uploadDirect.single('photo'), async (req, res) => {
-  console.log(`[HOTFIX ROUTE] POST photo for ${req.params.id}`);
-  try {
-    const { id } = req.params;
-    const file = req.file;
-    if (!file) return res.status(400).json({ message: "No photo" });
 
-    const photoUrl = `/uploads/${file.filename}`;
-    await storage.updateEmployee(id, { photoUrl });
-    console.log("Photo updated via HOTFIX:", photoUrl);
-    res.json({ photoUrl });
-  } catch (error) {
-    console.error("Hotfix Upload Error:", error);
-    res.status(500).json({ error: String(error) });
-  }
-});
 
 // Upload OS Certificate PDF
 app.post("/api/employees/:id/os-certificate", uploadDirect.single('certificate'), async (req, res) => {

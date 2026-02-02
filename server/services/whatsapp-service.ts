@@ -10,6 +10,14 @@ const NOTIFYME_API_URL = 'https://app.notif.my.id/api/v2/send-message';
 interface SendMessageParams {
     phone: string;
     message: string;
+    logContext?: {
+        module: string;
+        referenceId?: string; // NIK Simper / Induction ID / etc
+        referenceName?: string; // Employee Name
+        recipientType?: "MITRA" | "EMPLOYEE" | "ADMIN";
+        triggeredBy?: string; // NIK of admin or "SYSTEM"
+        messageType?: string; // "STATUS_UPDATE", "REMINDER", etc.
+    };
 }
 
 interface SendMessageResult {
@@ -61,8 +69,8 @@ export function formatSimperEvNotification(params: SimperEvNotificationParams): 
 
     const statusEmoji = params.status.toLowerCase().includes("approved") ? "✅"
         : params.status.toLowerCase().includes("reject") ? "❌"
-        : params.status.toLowerCase().includes("selesai") ? "🎉"
-        : "⏳";
+            : params.status.toLowerCase().includes("selesai") ? "🎉"
+                : "⏳";
 
     let message = `${title}\n\n`;
     message += `👤 *Nama:* ${params.employeeName}\n`;
@@ -133,6 +141,25 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Se
         return { success: false, error: 'Invalid phone number' };
     }
 
+    // [Logging] Create log entry (Always log)
+    let logId: string | null = null;
+    try {
+        const log = await storage.createWhatsappNotificationLog({
+            module: params.logContext?.module || "WHATSAPP_GENERIC",
+            referenceId: params.logContext?.referenceId || null,
+            referenceName: params.logContext?.referenceName || null,
+            recipientPhone: normalizedPhone,
+            recipientType: params.logContext?.recipientType || "EMPLOYEE",
+            messageContent: params.message,
+            messageType: params.logContext?.messageType || "NOTIFICATION",
+            status: "PENDING",
+            triggeredBy: params.logContext?.triggeredBy || "SYSTEM"
+        });
+        logId = log.id;
+    } catch (error) {
+        console.error('[WhatsApp] Failed to create log:', error);
+    }
+
     try {
         const url = new URL(NOTIFYME_API_URL);
         url.searchParams.append('apikey', apiKey);
@@ -158,15 +185,22 @@ export async function sendWhatsAppMessage(params: SendMessageParams): Promise<Se
 
         if (response.ok) {
             console.log(`[WhatsApp] Success: ${normalizedPhone}`);
+            if (logId) {
+                await storage.updateWhatsappNotificationLogStatus(logId, "SENT", undefined, data);
+            }
             return { success: true, response: data };
         } else {
             console.error(`[WhatsApp] Failed: ${JSON.stringify(data)}`);
-            return { success: false, error: data.message || 'Send failed', response: data };
+            if (logId) {
+                await storage.updateWhatsappNotificationLogStatus(logId, "FAILED", data.message || 'Send failed', data);
+            }
+            return { success: true, error: data.message || 'Send failed', response: data };
         }
     } catch (error) {
         console.error(`[WhatsApp] Fetch error for ${normalizedPhone}:`, error);
-        console.error(`[WhatsApp] Error type:`, error instanceof Error ? error.constructor.name : typeof error);
-        console.error(`[WhatsApp] Error details:`, error instanceof Error ? { message: error.message, cause: error.cause } : error);
+        if (logId) {
+            await storage.updateWhatsappNotificationLogStatus(logId, "FAILED", String(error));
+        }
         return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
 }
@@ -271,6 +305,23 @@ export async function sendWhatsAppImage(params: {
         return { success: false, error: 'Invalid phone number' };
     }
 
+    // [Logging] Create log entry (Simplified context for image)
+    let logId: string | null = null;
+    try {
+        // Since sendWhatsAppImage doesn't take full context yet, we infer or use defaults
+        // In future, update params type here too
+        const log = await storage.createWhatsappNotificationLog({
+            module: "WHATSAPP_IMAGE",
+            recipientPhone: normalizedPhone,
+            recipientType: "EMPLOYEE",
+            messageContent: `[IMAGE] ${params.message} (${params.imageUrl})`,
+            messageType: "IMAGE_SEND",
+            status: "PENDING",
+            triggeredBy: "SYSTEM"
+        });
+        logId = log.id;
+    } catch (e) { console.error("Log error", e) }
+
     try {
         const body = {
             apikey: apiKey,
@@ -297,13 +348,16 @@ export async function sendWhatsAppImage(params: {
 
         if (response.ok) {
             console.log(`[WhatsApp] Image sent: ${normalizedPhone}`);
+            if (logId) await storage.updateWhatsappNotificationLogStatus(logId, "SENT", undefined, data);
             return { success: true, response: data };
         } else {
             console.error(`[WhatsApp] Image failed: ${JSON.stringify(data)}`);
+            if (logId) await storage.updateWhatsappNotificationLogStatus(logId, "FAILED", data.message, data);
             return { success: false, error: data.message || 'Send failed', response: data };
         }
     } catch (error) {
         console.error(`[WhatsApp] Image error:`, error);
+        if (logId) await storage.updateWhatsappNotificationLogStatus(logId, "FAILED", String(error));
         return { success: false, error: String(error) };
     }
 }
@@ -327,6 +381,22 @@ export async function sendWhatsAppVideo(params: {
     if (!normalizedPhone) {
         return { success: false, error: 'Invalid phone number' };
     }
+
+    // [Logging] Create log entry
+    let logId: string | null = null;
+    try {
+        const log = await storage.createWhatsappNotificationLog({
+            module: "WHATSAPP_VIDEO",
+            recipientPhone: normalizedPhone,
+            recipientType: "EMPLOYEE",
+            messageContent: `[VIDEO] ${params.message} (${params.videoUrl})`,
+            messageType: "VIDEO_SEND",
+            status: "PENDING",
+            triggeredBy: "SYSTEM"
+        });
+        logId = log.id;
+    } catch (e) { console.error("Log error", e) }
+
 
     try {
         const body = {
@@ -354,13 +424,16 @@ export async function sendWhatsAppVideo(params: {
 
         if (response.ok) {
             console.log(`[WhatsApp] Video sent: ${normalizedPhone}`);
+            if (logId) await storage.updateWhatsappNotificationLogStatus(logId, "SENT", undefined, data);
             return { success: true, response: data };
         } else {
             console.error(`[WhatsApp] Video failed: ${JSON.stringify(data)}`);
+            if (logId) await storage.updateWhatsappNotificationLogStatus(logId, "FAILED", data.message, data);
             return { success: false, error: data.message || 'Send failed', response: data };
         }
     } catch (error) {
         console.error(`[WhatsApp] Video error:`, error);
+        if (logId) await storage.updateWhatsappNotificationLogStatus(logId, "FAILED", String(error));
         return { success: false, error: String(error) };
     }
 }

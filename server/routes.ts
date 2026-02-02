@@ -9087,6 +9087,40 @@ Format sebagai bullet points singkat per insight.`;
 
       console.log("📷 Media URL extracted:", mediaUrl || "(none)");
 
+      // [Safety Patrol Fix] Download media to local storage to prevent expiry
+      if (mediaUrl && (mediaUrl.startsWith('http') || mediaUrl.startsWith('https'))) {
+        try {
+          console.log(`[SafetyPatrol] Downloading media from: ${mediaUrl}`);
+
+          // Ensure directory exists
+          const spUploadsDir = path.join(process.cwd(), "uploads", "safety-patrol");
+          if (!fs.existsSync(spUploadsDir)) {
+            fs.mkdirSync(spUploadsDir, { recursive: true });
+          }
+
+          // Generate filename
+          const ext = path.extname(new URL(mediaUrl).pathname) || '.jpg';
+          const filename = `sp-${Date.now()}-${Math.round(Math.random() * 1000)}${ext}`;
+          const localFilePath = path.join(spUploadsDir, filename);
+
+          // Download
+          const response = await fetch(mediaUrl);
+          if (response.ok) {
+            const buffer = await response.arrayBuffer();
+            await fs.promises.writeFile(localFilePath, Buffer.from(buffer));
+
+            // Update variable to point to local path
+            mediaUrl = `/uploads/safety-patrol/${filename}`;
+            console.log(`[SafetyPatrol] Media saved to: ${mediaUrl}`);
+          } else {
+            console.warn(`[SafetyPatrol] Failed to download media: ${response.status} ${response.statusText}`);
+          }
+        } catch (error) {
+          console.error("[SafetyPatrol] Error downloading media:", error);
+          // Keep original URL as fallback
+        }
+      }
+
       console.log("📝 Parsed message - type:", messageType, "content length:", messageContent?.length);
 
       // Extract WhatsApp message timestamp (unixTimestamp from notif.my.id)
@@ -12000,7 +12034,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const message = `Yth. ${schedule.employee.name},\n\nAnda dijadwalkan untuk *Induksi K3* pada tanggal *${new Date(schedule.scheduledDate).toLocaleDateString("id-ID")}*.\n\nSilakan buka aplikasi OneTalent dan selesaikan quiz induksi.\n\nTerima kasih,\nHSE Team`;
 
-      const result = await sendWhatsAppMessage({ phone, message });
+      const result = await sendWhatsAppMessage({
+        phone,
+        message,
+        logContext: {
+          module: 'INDUCTION',
+          referenceId: scheduleId,
+          referenceName: schedule.employee.name,
+          recipientType: 'EMPLOYEE',
+          messageType: 'REMINDER'
+        }
+      });
 
       if (result.success) {
         await storage.updateInductionSchedule(scheduleId, {
@@ -12678,7 +12722,16 @@ Format sebagai bullet points singkat per insight.`;
       } else if (type === 'video' && videoUrl) {
         result = await whatsappService.sendWhatsAppVideo({ phone, message, videoUrl });
       } else {
-        result = await whatsappService.sendWhatsAppMessage({ phone, message });
+        result = await whatsappService.sendWhatsAppMessage({
+          phone,
+          message,
+          logContext: {
+            module: 'TEST',
+            recipientType: 'ADMIN',
+            triggeredBy: 'ADMIN_TEST',
+            messageType: 'TEST_MESSAGE'
+          }
+        });
       }
 
       if (result.success) {

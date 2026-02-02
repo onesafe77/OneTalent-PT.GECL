@@ -111,6 +111,9 @@ export async function setupAuth(app: Express) {
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
   app.get("/api/login", (req, res, next) => {
+    if (!process.env.REPLIT_DOMAINS || !process.env.REPL_ID) {
+      return res.status(501).json({ message: "Replit Auth not configured" });
+    }
     passport.authenticate(`replitauth:${req.hostname}`, {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
@@ -118,6 +121,9 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/callback", (req, res, next) => {
+    if (!process.env.REPLIT_DOMAINS || !process.env.REPL_ID) {
+      return res.status(501).json({ message: "Replit Auth not configured" });
+    }
     passport.authenticate(`replitauth:${req.hostname}`, {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",

@@ -148,7 +148,17 @@ export function initializeCronJobs() {
         if (schedule.employee?.phone) {
           const message = `Yth. ${schedule.employee.name},\n\nAnda dijadwalkan untuk *Induksi K3* hari ini.\n\nSilakan buka aplikasi OneTalent dan selesaikan quiz induksi sebelum memulai pekerjaan.\n\nTerima kasih,\nHSE Team`;
 
-          const result = await sendWhatsAppMessage({ phone: schedule.employee.phone, message });
+          const result = await sendWhatsAppMessage({
+            phone: schedule.employee.phone,
+            message,
+            logContext: {
+              module: 'INDUCTION',
+              referenceId: schedule.id,
+              referenceName: schedule.employee.name,
+              recipientType: 'EMPLOYEE',
+              messageType: 'REMINDER_CRON'
+            }
+          });
 
           if (result.success) {
             await storage.updateInductionSchedule(schedule.id, {
