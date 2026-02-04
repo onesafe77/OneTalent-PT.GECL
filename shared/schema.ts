@@ -797,6 +797,8 @@ export type InsertAnnouncementRead = z.infer<typeof insertAnnouncementReadSchema
 // Dokumen perusahaan: Kebijakan KPLH, Prosedur, SPDK, Zero Harm, Critical Control Card, Golden Rule
 // ============================================
 
+
+
 export const documentCategories = [
   "Kebijakan KPLH",
   "Prosedur - Dept HSE",
@@ -2841,3 +2843,41 @@ export const insertWhatsappNotificationLogSchema = createInsertSchema(whatsappNo
 
 export type WhatsappNotificationLog = typeof whatsappNotificationLogs.$inferSelect;
 export type InsertWhatsappNotificationLog = z.infer<typeof insertWhatsappNotificationLogSchema>;
+
+// ============================================
+// SICK LEAVES (Ijin Sakit via WhatsApp)
+// ============================================
+
+export const sickLeaves = pgTable("sick_leaves", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").references(() => employees.id), // Nullable if name match fails
+  name: text("name").notNull(),
+  date: text("date").notNull(), // Format: YYYY-MM-DD
+  reason: text("reason"),
+  status: text("status").notNull().default("Pending"), // Pending, Approved, Rejected
+
+  // Attachments
+  attachmentUrl: text("attachment_url"), // URL/Path to file
+  attachmentType: text("attachment_type"), // image/jpeg, application/pdf
+
+  // AI Parsing Metadata
+  aiConfidence: integer("ai_confidence"),
+  originalMessage: text("original_message"),
+  aiAnalysis: jsonb("ai_analysis"), // Full debug output from AI
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_sick_leaves_date").on(table.date),
+  index("IDX_sick_leaves_employee").on(table.employeeId),
+  index("IDX_sick_leaves_status").on(table.status),
+]);
+
+export const insertSickLeaveSchema = createInsertSchema(sickLeaves).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SickLeave = typeof sickLeaves.$inferSelect;
+export type InsertSickLeave = z.infer<typeof insertSickLeaveSchema>;

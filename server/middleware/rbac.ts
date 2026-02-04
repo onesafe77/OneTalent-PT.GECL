@@ -7,6 +7,7 @@ interface AuthenticatedRequest extends Request {
     nik: string;
     name: string;
     position: string | null;
+    department?: string | null;
     role: Role;
     permissions: Permission[];
   };
@@ -15,20 +16,20 @@ interface AuthenticatedRequest extends Request {
 // Middleware to check if user is authenticated
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const user = (req.session as any)?.user;
-  
+
   if (!user) {
     return res.status(401).json({ message: "Silakan login terlebih dahulu" });
   }
-  
+
   // Ensure user has role info (for backward compatibility)
   if (!user.role || !user.permissions) {
-    const userWithRole = createUserWithRole(user.nik, user.name, user.position || null);
+    const userWithRole = createUserWithRole(user.nik, user.name, user.position || null, user.department || null);
     (req.session as any).user = userWithRole;
     (req as AuthenticatedRequest).user = userWithRole;
   } else {
     (req as AuthenticatedRequest).user = user;
   }
-  
+
   next();
 }
 
@@ -36,27 +37,27 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 export function requireRole(...allowedRoles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req.session as any)?.user;
-    
+
     if (!user) {
       return res.status(401).json({ message: "Silakan login terlebih dahulu" });
     }
-    
+
     // Ensure user has role info
     let userRole = user.role;
     if (!userRole) {
-      const userWithRole = createUserWithRole(user.nik, user.name, user.position || null);
+      const userWithRole = createUserWithRole(user.nik, user.name, user.position || null, user.department || null);
       (req.session as any).user = userWithRole;
       userRole = userWithRole.role;
     }
-    
+
     if (!allowedRoles.includes(userRole)) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: "Anda tidak memiliki akses ke fitur ini",
         requiredRoles: allowedRoles,
         yourRole: userRole
       });
     }
-    
+
     next();
   };
 }
@@ -65,11 +66,11 @@ export function requireRole(...allowedRoles: Role[]) {
 export function requireAnyPermission(...requiredPermissions: Permission[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req.session as any)?.user;
-    
+
     if (!user) {
       return res.status(401).json({ message: "Silakan login terlebih dahulu" });
     }
-    
+
     // Ensure user has permissions
     let userPermissions = user.permissions;
     if (!userPermissions) {
@@ -77,17 +78,17 @@ export function requireAnyPermission(...requiredPermissions: Permission[]) {
       (req.session as any).user = userWithRole;
       userPermissions = userWithRole.permissions;
     }
-    
+
     const hasPermission = requiredPermissions.some(p => userPermissions.includes(p));
-    
+
     if (!hasPermission) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: "Anda tidak memiliki akses ke fitur ini",
         requiredPermissions,
         yourPermissions: userPermissions
       });
     }
-    
+
     next();
   };
 }
@@ -96,11 +97,11 @@ export function requireAnyPermission(...requiredPermissions: Permission[]) {
 export function requireAllPermissions(...requiredPermissions: Permission[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = (req.session as any)?.user;
-    
+
     if (!user) {
       return res.status(401).json({ message: "Silakan login terlebih dahulu" });
     }
-    
+
     // Ensure user has permissions
     let userPermissions = user.permissions;
     if (!userPermissions) {
@@ -108,17 +109,17 @@ export function requireAllPermissions(...requiredPermissions: Permission[]) {
       (req.session as any).user = userWithRole;
       userPermissions = userWithRole.permissions;
     }
-    
+
     const hasAllPermissions = requiredPermissions.every(p => userPermissions.includes(p));
-    
+
     if (!hasAllPermissions) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         message: "Anda tidak memiliki akses lengkap ke fitur ini",
         requiredPermissions,
         yourPermissions: userPermissions
       });
     }
-    
+
     next();
   };
 }

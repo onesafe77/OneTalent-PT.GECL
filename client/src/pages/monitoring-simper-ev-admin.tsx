@@ -397,6 +397,27 @@ export default function MonitoringSimperEvAdmin() {
         }
     });
 
+    // Manual Send Notification Mutation
+    const sendNotificationMutation = useMutation({
+        mutationFn: async (historyId: string) => {
+            return await apiRequest(`/api/simper-ev/history/${historyId}/resend-notification`, "POST");
+        },
+        onSuccess: (data) => {
+            refetchNotificationLogs();
+            toast({
+                title: "Notifikasi Terkirim",
+                description: `Notifikasi WhatsApp berhasil dikirim ke ${data.details?.recipientName}`
+            });
+        },
+        onError: (err: any) => {
+            toast({
+                title: "Gagal Mengirim Notifikasi",
+                description: err.message || "Terjadi kesalahan saat mengirim notifikasi",
+                variant: "destructive"
+            });
+        }
+    });
+
     // editingHistory state moved to top
 
 
@@ -1036,25 +1057,49 @@ export default function MonitoringSimperEvAdmin() {
                                                             })()}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            <Button variant="ghost" size="icon" onClick={() => {
-                                                                setEditingHistory(log);
-                                                                setNewHistory({
-                                                                    approver: log.approver || "",
-                                                                    status: (log.status as any) || "PENDING",
-                                                                    workflowLevel: log.workflowLevel || "",
-                                                                    workflowType: log.workflowType || "",
-                                                                    message: log.message || ""
-                                                                });
-                                                            }}>
-                                                                <Edit className="h-3 w-3" />
-                                                            </Button>
-                                                            <Button variant="ghost" size="icon" onClick={() => {
-                                                                if (confirm("Hapus riwayat ini?")) {
-                                                                    deleteHistoryMutation.mutate(log.id);
-                                                                }
-                                                            }}>
-                                                                <Trash2 className="h-3 w-3 text-red-500" />
-                                                            </Button>
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                {/* Send Notification Button */}
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => {
+                                                                        if (confirm(`Kirim notifikasi WhatsApp ke Mitra ${selectedHistoryEmployee?.asalMitra}?`)) {
+                                                                            sendNotificationMutation.mutate(log.id);
+                                                                        }
+                                                                    }}
+                                                                    disabled={sendNotificationMutation.isPending}
+                                                                    title="Kirim Notifikasi WhatsApp"
+                                                                >
+                                                                    {sendNotificationMutation.isPending && sendNotificationMutation.variables === log.id ? (
+                                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                                    ) : (
+                                                                        <MessageSquare className="h-3 w-3 text-green-600" />
+                                                                    )}
+                                                                </Button>
+
+                                                                {/* Edit Button */}
+                                                                <Button variant="ghost" size="icon" onClick={() => {
+                                                                    setEditingHistory(log);
+                                                                    setNewHistory({
+                                                                        approver: log.approver || "",
+                                                                        status: (log.status as any) || "PENDING",
+                                                                        workflowLevel: log.workflowLevel || "",
+                                                                        workflowType: log.workflowType || "",
+                                                                        message: log.message || ""
+                                                                    });
+                                                                }}>
+                                                                    <Edit className="h-3 w-3" />
+                                                                </Button>
+
+                                                                {/* Delete Button */}
+                                                                <Button variant="ghost" size="icon" onClick={() => {
+                                                                    if (confirm("Hapus riwayat ini?")) {
+                                                                        deleteHistoryMutation.mutate(log.id);
+                                                                    }
+                                                                }}>
+                                                                    <Trash2 className="h-3 w-3 text-red-500" />
+                                                                </Button>
+                                                            </div>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))

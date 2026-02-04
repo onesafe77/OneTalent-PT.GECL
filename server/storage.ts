@@ -232,6 +232,15 @@ import {
   simperMitra,
   type SimperMitra,
   type InsertSimperMitra,
+  // Sick Leave Types
+  sickLeaves,
+  type SickLeave,
+  type InsertSickLeave,
+  type SickLeave,
+  type InsertSickLeave,
+  // Project Tracker
+  projects, type Project, type InsertProject,
+  projectFiles, type ProjectFile, type InsertProjectFile,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -577,6 +586,7 @@ export interface IStorage {
   deleteAllSimperEvMonitoring(): Promise<void>;
   // Simper EV History
   getSimperEvHistory(nikSimper: string): Promise<SimperEvHistory[]>;
+  getSimperEvHistoryById(id: string): Promise<SimperEvHistory | undefined>;
   createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory>;
   updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined>;
   deleteSimperEvHistory(id: string): Promise<boolean>;
@@ -599,9 +609,26 @@ export interface IStorage {
   deleteSimperMitra(id: string): Promise<boolean>;
   getMitraPhoneByName(name: string): Promise<string | null>;
   getSimperEvMonitoringPaginated(page: number, limit: number, search?: string): Promise<{ data: SimperEvMonitoring[], total: number }>;
+
+  // Sick Leave Methods
+  getSickLeaves(): Promise<SickLeave[]>;
+  getSickLeavesByEmployee(employeeId: string): Promise<SickLeave[]>;
+  createSickLeave(data: InsertSickLeave): Promise<SickLeave>;
+  updateSickLeave(id: string, data: Partial<InsertSickLeave>): Promise<SickLeave | undefined>;
+  deleteSickLeave(id: string): Promise<boolean>;
+  // Project Tracker Methods
+  getProjects(): Promise<Project[]>;
+  getProject(id: string): Promise<Project | undefined>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: string, project: Partial<InsertProject>): Promise<Project | undefined>;
+  deleteProject(id: string): Promise<boolean>;
+
+  getProjectFiles(projectId: string): Promise<ProjectFile[]>;
+  createProjectFile(file: InsertProjectFile): Promise<ProjectFile>;
+  deleteProjectFile(id: string): Promise<boolean>;
 }
 
-export class MemStorage {
+export class MemStorage implements IStorage {
   private users: Map<string, User>;
   private employees: Map<string, Employee>;
   private attendanceRecords: Map<string, AttendanceRecord>;
@@ -728,6 +755,8 @@ export class MemStorage {
   async deleteSimperMitra(id: string): Promise<boolean> {
     throw new Error("Method not implemented.");
   }
+
+
 
 
 
@@ -7639,6 +7668,7 @@ export class DrizzleStorage implements IStorage {
     summary: any;
     validationStats: any[];
     availableViolationTypes: any[];
+    availableWeeks: any[];
   }> {
     // Build dynamic filter conditions
     const conditions: any[] = [];
@@ -7743,6 +7773,47 @@ export class DrizzleStorage implements IStorage {
     }
 
     const availableTypesFilter = conditionsForAvailableTypes.length > 0 ? and(...conditionsForAvailableTypes) : undefined;
+
+    // 10. Available Weeks Filter (Similar strategy: include Date but exclude Week filter)
+    const conditionsForAvailableWeeks: any[] = [];
+    if (startDate && endDate) {
+      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationDate} >= ${startDate}`);
+      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationDate} <= ${endDate}`);
+    }
+    // Include other filters if needed (e.g. shift, violationType etc. might be irrelevant for limiting weeks available in a date range, but let's keep it consistent)
+    // Actually, usually users want to see "What weeks contain data for 'Overspeed'?" so we SHOULD include other filters.
+    // So distinct Available Weeks should be filtered by everything EXCEPT 'week'.
+
+    // Simplified approach: Re-use 'conditions' but filter out the 'week' condition
+    // Since we can't easily filter the 'conditions' array because they are SQL objects, we rebuild it.
+
+    // Rebuild conditions EXCLUDING Week
+    if (options?.startTime) conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTime}::time >= ${options.startTime}::time`);
+    if (options?.endTime) conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTime}::time <= ${options.endTime}::time`);
+
+    if (options?.violationType && options.violationType !== 'all') {
+      const types = options.violationType.split(',').map(t => t.trim()).filter(t => t);
+      if (types.length === 1) conditionsForAvailableWeeks.push(eq(fmsViolations.violationType, types[0]));
+      else if (types.length > 1) conditionsForAvailableWeeks.push(inArray(fmsViolations.violationType, types));
+    }
+
+    if (options?.shift && options.shift !== 'all') {
+      const shifts = options.shift.split(',').map(s => s.trim()).filter(s => s);
+      if (shifts.length === 1) conditionsForAvailableWeeks.push(eq(fmsViolations.shift, shifts[0]));
+      else if (shifts.length > 1) conditionsForAvailableWeeks.push(inArray(fmsViolations.shift, shifts));
+    }
+
+    if (options?.validationStatus && options.validationStatus !== 'all') {
+      const statuses = options.validationStatus.split(',').map(s => s.trim()).filter(s => s);
+      const statusConditions: any[] = [];
+      for (const status of statuses) {
+        if (status === 'Valid') statusConditions.push(sql`${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True'`);
+        else if (status === 'Tidak Valid') statusConditions.push(sql`${fmsViolations.validationStatus} = 'Tidak Valid' OR ${fmsViolations.validationStatus} = 'False'`);
+      }
+      if (statusConditions.length > 0) conditionsForAvailableWeeks.push(or(...statusConditions));
+    }
+
+    const availableWeeksFilter = conditionsForAvailableWeeks.length > 0 ? and(...conditionsForAvailableWeeks) : undefined;
 
     console.log(`[FMS Analytics] Fetching with filter: start=${startDate}, end=${endDate}, options=`, options);
 
@@ -7864,6 +7935,16 @@ export class DrizzleStorage implements IStorage {
       .groupBy(fmsViolations.violationType)
       .orderBy(desc(sql`count(*)`));
 
+    // 11. Available Weeks (Independent of week filter) - NEW
+    const availableWeeks = await db
+      .select({
+        week: fmsViolations.week
+      })
+      .from(fmsViolations)
+      .where(availableWeeksFilter)
+      .groupBy(fmsViolations.week)
+      .orderBy(asc(fmsViolations.week));
+
     return {
       availableViolationTypes: availableViolationTypes.map(v => ({ ...v, count: Number(v.count || 0) })),
       summary: {
@@ -7888,7 +7969,8 @@ export class DrizzleStorage implements IStorage {
         total: Number(v.total || 0),
         valid: Number(v.valid || 0),
         invalid: Number(v.invalid || 0),
-      }))
+      })),
+      availableWeeks: availableWeeks.map(w => w.week)
     };
   }
 
@@ -8437,6 +8519,56 @@ export class DrizzleStorage implements IStorage {
     return true;
   }
 
+  // Evaluation statistics - OPTIMIZED with SQL aggregations
+  async getWhatsappEvaluationStats(): Promise<{
+    totalBlasts: number;
+    totalRecipients: number;
+    totalSent: number;
+    totalFailed: number;
+    successRate: number;
+    recentBlasts: Array<{ date: string; sent: number; failed: number }>;
+  }> {
+    // Use SQL aggregation for summary stats - MUCH FASTER
+    const [summary] = await db
+      .select({
+        totalBlasts: sql<number>`COUNT(*)::int`,
+        totalRecipients: sql<number>`COALESCE(SUM(${whatsappBlasts.totalRecipients}), 0)::int`,
+        totalSent: sql<number>`COALESCE(SUM(${whatsappBlasts.sentCount}), 0)::int`,
+        totalFailed: sql<number>`COALESCE(SUM(${whatsappBlasts.failedCount}), 0)::int`,
+      })
+      .from(whatsappBlasts);
+
+    const totalBlasts = summary?.totalBlasts || 0;
+    const totalRecipients = summary?.totalRecipients || 0;
+    const totalSent = summary?.totalSent || 0;
+    const totalFailed = summary?.totalFailed || 0;
+    const successRate = totalRecipients > 0 ? (totalSent / totalRecipients) * 100 : 0;
+
+    // Get recent blasts (last 7 days) aggregated by date using SQL GROUP BY
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentBlastsQuery = await db
+      .select({
+        date: sql<string>`DATE(${whatsappBlasts.createdAt})`,
+        sent: sql<number>`COALESCE(SUM(${whatsappBlasts.sentCount}), 0)::int`,
+        failed: sql<number>`COALESCE(SUM(${whatsappBlasts.failedCount}), 0)::int`,
+      })
+      .from(whatsappBlasts)
+      .where(sql`${whatsappBlasts.createdAt} >= ${sevenDaysAgo}`)
+      .groupBy(sql`DATE(${whatsappBlasts.createdAt})`)
+      .orderBy(sql`DATE(${whatsappBlasts.createdAt}) DESC`);
+
+    return {
+      totalBlasts,
+      totalRecipients,
+      totalSent,
+      totalFailed,
+      successRate,
+      recentBlasts: recentBlastsQuery,
+    };
+  }
+
   // ==================================================
   // SIMPER EV MONITORING METHODS
   // ==================================================
@@ -8507,6 +8639,15 @@ export class DrizzleStorage implements IStorage {
       .from(simperEvHistory)
       .where(eq(simperEvHistory.nikSimper, nikSimper))
       .orderBy(desc(simperEvHistory.approvedAt));
+  }
+
+  async getSimperEvHistoryById(id: string): Promise<SimperEvHistory | undefined> {
+    const [record] = await db
+      .select()
+      .from(simperEvHistory)
+      .where(eq(simperEvHistory.id, id))
+      .limit(1);
+    return record as SimperEvHistory | undefined;
   }
 
   async createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory> {
@@ -8658,6 +8799,37 @@ export class DrizzleStorage implements IStorage {
       .offset(offset);
 
     return { data, total };
+  }
+
+  // ============================================
+  // SICK LEAVE METHODS
+  // ============================================
+
+  async getSickLeaves(): Promise<SickLeave[]> {
+    return await db.select().from(sickLeaves).orderBy(desc(sickLeaves.createdAt));
+  }
+
+  async getSickLeavesByEmployee(employeeId: string): Promise<SickLeave[]> {
+    return await db.select().from(sickLeaves).where(eq(sickLeaves.employeeId, employeeId)).orderBy(desc(sickLeaves.createdAt));
+  }
+
+  async createSickLeave(data: InsertSickLeave): Promise<SickLeave> {
+    const [result] = await db.insert(sickLeaves).values(data).returning();
+    return result;
+  }
+
+  async updateSickLeave(id: string, data: Partial<InsertSickLeave>): Promise<SickLeave | undefined> {
+    const [result] = await db
+      .update(sickLeaves)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(sickLeaves.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSickLeave(id: string): Promise<boolean> {
+    const result = await db.delete(sickLeaves).where(eq(sickLeaves.id, id));
+    return result.rowCount > 0;
   }
 }
 

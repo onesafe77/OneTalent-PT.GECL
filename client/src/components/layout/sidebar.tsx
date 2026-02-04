@@ -153,10 +153,22 @@ export const navigationGroups: NavGroup[] = [
                 ]
               },
               {
-                name: "MCU",
+                name: "Kesehatan",
                 icon: Activity,
-                href: "/workspace/hse/mcu",
-                // requiredPermissions: [Permission.VIEW_SIDAK] // Temporarily removed for dev
+                children: [
+                  {
+                    name: "MCU",
+                    icon: Activity,
+                    href: "/workspace/hse/mcu",
+                    // requiredPermissions: [Permission.VIEW_SIDAK] // Temporarily removed for dev
+                  },
+                  {
+                    name: "Ijin Sakit",
+                    icon: ClipboardList,
+                    href: "/workspace/hse/sick-leave",
+                    requiredPermissions: [Permission.MANAGE_EMPLOYEES]
+                  }
+                ]
               },
             ]
           },
@@ -379,7 +391,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   };
 
   // Safe User Data Access with Fallbacks
-  const safeUser = user || { name: 'User', role: 'Guest', position: '', permissions: [] };
+  const safeUser = user || { name: 'User', role: 'Guest', position: '', department: '', permissions: [] };
   const userRole = safeUser.role || 'Welcome';
   const userName = safeUser.name || 'Tamu';
   const userPosition = safeUser.position || 'Pengguna Aplikasi';
@@ -443,6 +455,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               );
             })}
           </nav>
+
+
         </div>
       </div>
     </>

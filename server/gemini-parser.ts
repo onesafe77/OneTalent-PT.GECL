@@ -419,3 +419,52 @@ export async function parseMCUWithGemini(caption: string, imageUrl?: string): Pr
     return null;
   }
 }
+
+// ==========================================
+// SICK LEAVE PARSING LOGIC
+// ==========================================
+
+export interface ParsedSickLeave {
+  nama: string;
+  tanggal: string; // YYYY-MM-DD
+  alasan: string;
+  confidence: number; // 0-100
+  summary: string;
+}
+
+export async function parseSickLeaveWithGemini(messageText: string): Promise<ParsedSickLeave | null> {
+  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+
+  const prompt = `Analisis Pesan Ijin Sakit WhatsApp.
+  
+  TUGAS: Ekstrak informasi berikut dari pesan ijin sakit:
+  1. nama: Nama karyawan yang sakit
+  2. tanggal: Tanggal sakit (format YYYY-MM-DD). Jika menyebut "hari ini", gunakan tanggal hari ini: ${new Date().toISOString().split('T')[0]}.
+  3. alasan: Alasan sakit / keterangan singkat
+  4. confidence: Seberapa yakin ini adalah pesan ijin sakit (0-100)
+  5. summary: Ringkasan singkat untuk notifikasi
+
+  PESAN: "${messageText}"
+
+  ATURAN:
+  - Berikan HANYA JSON output.
+  - Tanggal konversi ke format YYYY-MM-DD.
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]) as ParsedSickLeave;
+      // Basic validation
+      if (!parsed.tanggal) parsed.tanggal = new Date().toISOString().split('T')[0];
+      return parsed;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error parsing Sick Leave with Gemini:", error);
+    return null;
+  }
+}

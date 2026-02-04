@@ -12,7 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
     MessageSquare, Image, Video, Send, Upload, X, AlertCircle, CheckCircle,
     Users, UserCheck, Search, Filter, History, FileText, Trash2, Eye,
-    ChevronDown, Check, RefreshCw
+    ChevronDown, Check, RefreshCw, FileSpreadsheet, Download, BarChart3, TrendingUp, PieChart,
+    Loader2, StopCircle, PlayCircle
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,9 +38,10 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
+import * as XLSX from 'xlsx';
 
 type BlastType = "text" | "image" | "video";
-type RecipientType = "all" | "selected";
+type RecipientType = "all" | "selected" | "excel";
 
 interface Employee {
     id: string;
@@ -81,6 +83,36 @@ interface BlastResult {
     failedNumbers: string[];
 }
 
+interface ImportedContact {
+    name: string;
+    phone: string;
+    department?: string;
+}
+
+interface EvaluationStats {
+    totalBlasts: number;
+    totalRecipients: number;
+    totalSent: number;
+    totalFailed: number;
+    successRate: number;
+    recentBlasts: {
+        date: string;
+        sent: number;
+        failed: number;
+    }[];
+}
+
+interface BlastJob {
+    id: string;
+    total: number;
+    sent: number;
+    failed: number;
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+    failedNumbers: string[];
+    createdAt: number;
+    cancelRequested: boolean;
+}
+
 export default function BlastWhatsApp() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -92,6 +124,7 @@ export default function BlastWhatsApp() {
     const [blastType, setBlastType] = useState<BlastType>("text");
     const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
     const [result, setResult] = useState<BlastResult | null>(null);
+    const [currentJobId, setCurrentJobId] = useState<string | null>(null);
 
     // Recipient state
     const [recipientType, setRecipientType] = useState<RecipientType>("all");
@@ -111,6 +144,12 @@ export default function BlastWhatsApp() {
     // Detail modal state
     const [selectedBlastId, setSelectedBlastId] = useState<string | null>(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
+
+    // Excel import state
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [importedContacts, setImportedContacts] = useState<ImportedContact[]>([]);
+    const [importPreview, setImportPreview] = useState<ImportedContact[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Queries
     const { data: employees = [], isLoading: isLoadingEmployees } = useQuery<Employee[]>({
@@ -151,25 +190,107 @@ export default function BlastWhatsApp() {
         enabled: !!selectedBlastId,
     });
 
+    const { data: evaluationStats } = useQuery<EvaluationStats>({
+        queryKey: ["/api/whatsapp/evaluation"],
+        queryFn: async () => {
+            const res = await fetch("/api/whatsapp/evaluation");
+            if (!res.ok) throw new Error("Failed to fetch evaluation stats");
+            return res.json();
+        },
+    });
+
+    // Poll for active job status
+    const { data: jobStatus } = useQuery<BlastJob>({
+        queryKey: ["/api/whatsapp/blast/status", currentJobId],
+        queryFn: async () => {
+            if (!currentJobId) return null;
+            const res = await fetch(`/api/whatsapp/blast/status/${currentJobId}`);
+            if (!res.ok) throw new Error("Failed to fetch job status");
+            return res.json();
+        },
+        enabled: !!currentJobId,
+        refetchInterval: (data) => {
+            // Stop polling if completed, failed, or cancelled
+            if (data?.state?.data?.status === 'completed' ||
+                data?.state?.data?.status === 'failed' ||
+                data?.state?.data?.status === 'cancelled') {
+                return false;
+            }
+            return 1000; // Poll every 1 second
+        },
+    });
+
+    // Effect to handle job completion
+    useMemo(() => {
+        if (jobStatus && (jobStatus.status === 'completed' || jobStatus.status === 'failed' || jobStatus.status === 'cancelled')) {
+            if (currentJobId) {
+                // Keep the final status displayed
+                console.log("Job finished:", jobStatus);
+                // Optionally clear currentJobId after a delay or keep it to show results
+                // We keep it to show the "Success" card state
+            }
+        }
+    }, [jobStatus, currentJobId]);
+
     // Computed values
     const departments = useMemo(() => {
         const depts = new Set(employees.map(e => e.department).filter(Boolean));
         return Array.from(depts) as string[];
     }, [employees]);
 
+    // Convert imported contacts to employee format (for display only)
+    const importedAsEmployees = useMemo(() => {
+        return importedContacts.map((contact, idx) => ({
+            id: `imported-${idx}`,
+            name: contact.name,
+            phone: contact.phone,
+            department: contact.department || null,
+            position: null,
+            status: 'imported' as const,
+        }));
+    }, [importedContacts]);
+
+    // Show only relevant contacts based on recipient type
+    const displayedContacts = useMemo(() => {
+        if (recipientType === "excel") {
+            return importedAsEmployees;
+        }
+        return employees;
+    }, [recipientType, employees, importedAsEmployees]);
+
     const filteredEmployees = useMemo(() => {
-        return employees.filter(e => {
+        return displayedContacts.filter(e => {
             const matchesSearch = !searchQuery ||
                 e.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 e.phone.includes(searchQuery);
             const matchesDept = departmentFilter === "all" || e.department === departmentFilter;
             return matchesSearch && matchesDept;
         });
-    }, [employees, searchQuery, departmentFilter]);
+    }, [displayedContacts, searchQuery, departmentFilter]);
 
     // Mutations
     const blastMutation = useMutation({
         mutationFn: async () => {
+            // Get custom recipients (Excel imports)
+            let customRecipients: Array<{ name: string; phone: string }> = [];
+
+            if (recipientType === "excel") {
+                // Use all imported contacts or selected ones
+                if (selectedEmployeeIds.length > 0) {
+                    // Get only selected imported contacts
+                    customRecipients = selectedEmployeeIds
+                        .filter(id => id.startsWith('imported-'))
+                        .map(id => {
+                            const idx = parseInt(id.replace('imported-', ''));
+                            return importedContacts[idx];
+                        })
+                        .filter(Boolean);
+                } else {
+                    // Use all imported contacts
+                    customRecipients = importedContacts;
+                }
+            }
+
             const body = {
                 subject,
                 message,
@@ -177,6 +298,7 @@ export default function BlastWhatsApp() {
                 mediaUrls: uploadedUrls.filter(u => u),
                 recipientType,
                 selectedEmployeeIds: recipientType === "selected" ? selectedEmployeeIds : [],
+                customRecipients, // Excel imports only
             };
 
             const response = await fetch("/api/whatsapp/blast", {
@@ -192,17 +314,45 @@ export default function BlastWhatsApp() {
             return response.json();
         },
         onSuccess: (data) => {
-            setResult(data);
+            // Start tracking the job
+            if (data.jobId) {
+                setCurrentJobId(data.jobId);
+                setResult(null); // Clear previous static result
+                toast({
+                    title: "Blast Dimulai",
+                    description: "Pesan sedang dikirim di latar belakang...",
+                });
+            } else {
+                // Fallback for sync responses (shouldn't happen with new API)
+                setResult(data);
+                toast({
+                    title: "Blast Selesai!",
+                    description: `${data.sent} terkirim, ${data.failed} gagal`,
+                    variant: data.failed > 0 ? "destructive" : "default",
+                });
+            }
             queryClient.invalidateQueries({ queryKey: ["/api/whatsapp/blasts"] });
-            toast({
-                title: "Blast Selesai!",
-                description: `${data.sent} terkirim, ${data.failed} gagal`,
-                variant: data.failed > 0 ? "destructive" : "default",
-            });
         },
         onError: (error) => {
             toast({ title: "Blast gagal", description: String(error), variant: "destructive" });
         },
+    });
+
+    const cancelMutation = useMutation({
+        mutationFn: async () => {
+            if (!currentJobId) return;
+            const response = await fetch(`/api/whatsapp/blast/cancel/${currentJobId}`, {
+                method: "POST",
+            });
+            if (!response.ok) throw new Error("Failed to cancel");
+            return response.json();
+        },
+        onSuccess: () => {
+            toast({ title: "Permintaan pembatalan dikirim", description: "Proses akan berhenti sejenak lagi." });
+        },
+        onError: () => {
+            toast({ title: "Gagal membatalkan", variant: "destructive" });
+        }
     });
 
     const saveTemplateMutation = useMutation({
@@ -321,9 +471,75 @@ export default function BlastWhatsApp() {
         setResult(null);
         setSelectedEmployeeIds([]);
         setRecipientType("all");
+        setCurrentJobId(null);
     };
 
-    const recipientCount = recipientType === "all" ? employees.length : selectedEmployeeIds.length;
+    // Excel Import Handlers
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = e.target?.result;
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                const jsonData = XLSX.utils.sheet_to_json<any>(worksheet);
+
+                // Parse the Excel data - support common column names
+                const contacts: ImportedContact[] = jsonData.map((row: any) => ({
+                    name: row.Nama || row.nama || row.Name || row.name || row.NAMA || 'Unknown',
+                    phone: String(row.Nomor || row.nomor || row.Phone || row.phone || row.Telepon || row.telepon || row.NOMOR || row['No HP'] || row['No. HP'] || ''),
+                    department: row.Departemen || row.departemen || row.Department || row.department || row.Divisi || row.divisi || undefined
+                })).filter(contact => contact.phone); // Filter out contacts without phone numbers
+
+                setImportPreview(contacts);
+                toast({
+                    title: "File berhasil dibaca",
+                    description: `Ditemukan ${contacts.length} kontak`,
+                });
+            } catch (error) {
+                toast({
+                    title: "Error membaca file",
+                    description: String(error),
+                    variant: "destructive",
+                });
+            }
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    const handleImportContacts = () => {
+        setImportedContacts(importPreview);
+        toast({
+            title: "Kontak diimport",
+            description: `${importPreview.length} kontak berhasil diimport`,
+        });
+        setShowImportModal(false);
+        setImportPreview([]);
+    };
+
+    const handleExportTemplate = () => {
+        // Create a sample template
+        const template = [
+            { Nama: "Contoh Nama 1", Nomor: "081234567890", Departemen: "IT" },
+            { Nama: "Contoh Nama 2", Nomor: "081234567891", Departemen: "HR" },
+        ];
+        const ws = XLSX.utils.json_to_sheet(template);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Template");
+        XLSX.writeFile(wb, "template-import-kontak.xlsx");
+    };
+
+    const recipientCount = useMemo(() => {
+        if (recipientType === "all") return employees.length;
+        if (recipientType === "excel") {
+            return selectedEmployeeIds.length > 0 ? selectedEmployeeIds.length : importedContacts.length;
+        }
+        return selectedEmployeeIds.length;
+    }, [recipientType, employees, importedContacts, selectedEmployeeIds]);
 
     // Animation Variants
     const containerVariants = {
@@ -369,7 +585,7 @@ export default function BlastWhatsApp() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <motion.div variants={itemVariants}>
-                    <TabsList className="grid w-full grid-cols-3 lg:w-[480px] p-1 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 rounded-xl shadow-sm">
+                    <TabsList className="grid w-full grid-cols-4 lg:w-[640px] p-1 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 rounded-xl shadow-sm">
                         <TabsTrigger
                             value="compose"
                             className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all duration-300"
@@ -386,6 +602,15 @@ export default function BlastWhatsApp() {
                             <div className="flex items-center gap-2">
                                 <History className="w-4 h-4" />
                                 <span className="font-medium">Riwayat</span>
+                            </div>
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="evaluation"
+                            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400 data-[state=active]:shadow-sm transition-all duration-300"
+                        >
+                            <div className="flex items-center gap-2">
+                                <BarChart3 className="w-4 h-4" />
+                                <span className="font-medium">Evaluasi</span>
                             </div>
                         </TabsTrigger>
                         <TabsTrigger
@@ -544,36 +769,138 @@ export default function BlastWhatsApp() {
 
                         {/* Right Column - Recipients & Preview */}
                         <motion.div variants={itemVariants} className="lg:col-span-5 space-y-6">
+
+                            {/* ACTIVE JOB PROGRESS CARD */}
+                            {currentJobId && jobStatus && (
+                                <Card className="border-none shadow-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl ring-2 ring-blue-500/20 animate-in fade-in slide-in-from-top-4 duration-500">
+                                    <CardHeader className="pb-3 border-b border-gray-100 dark:border-gray-800">
+                                        <div className="flex items-center justify-between">
+                                            <CardTitle className="flex items-center gap-2 text-lg text-blue-600 dark:text-blue-400">
+                                                {jobStatus.status === 'processing' || jobStatus.status === 'pending' ? (
+                                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                                ) : jobStatus.status === 'cancelled' ? (
+                                                    <StopCircle className="w-5 h-5 text-red-500" />
+                                                ) : (
+                                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                                )}
+                                                {jobStatus.status === 'processing' ? 'Mengirim Pesan...' :
+                                                    jobStatus.status === 'cancelled' ? 'Dibatalkan' :
+                                                        jobStatus.status === 'completed' ? 'Selesai' : 'Pending'}
+                                            </CardTitle>
+                                            {jobStatus.status === 'processing' && (
+                                                <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    className="h-7 text-xs gap-1"
+                                                    onClick={() => cancelMutation.mutate()}
+                                                    disabled={cancelMutation.isPending}
+                                                >
+                                                    <StopCircle className="w-3 h-3" />
+                                                    {cancelMutation.isPending ? "Membatalkan..." : "Batal"}
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4 pt-4">
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-sm font-medium">
+                                                <span>Progress</span>
+                                                <span>{Math.round((jobStatus.sent + jobStatus.failed) / jobStatus.total * 100)}%</span>
+                                            </div>
+                                            <Progress value={(jobStatus.sent + jobStatus.failed) / jobStatus.total * 100} className="h-2" />
+
+                                            <div className="grid grid-cols-3 gap-2 mt-4 text-center">
+                                                <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
+                                                    <div className="text-xl font-bold text-green-600">{jobStatus.sent}</div>
+                                                    <div className="text-xs text-green-600/80">Berhasil</div>
+                                                </div>
+                                                <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
+                                                    <div className="text-xl font-bold text-red-600">{jobStatus.failed}</div>
+                                                    <div className="text-xs text-red-600/80">Gagal</div>
+                                                </div>
+                                                <div className="bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                                                    <div className="text-xl font-bold text-gray-600 dark:text-gray-300">{jobStatus.total}</div>
+                                                    <div className="text-xs text-gray-500">Total</div>
+                                                </div>
+                                            </div>
+
+                                            {jobStatus.status === 'processing' && (
+                                                <Alert className="bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 text-blue-800 dark:text-blue-200 mt-4">
+                                                    <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                                    <AlertDescription className="text-xs ml-2">
+                                                        Sistem menggunakan <strong>jeda acak (5-12 detik)</strong> antar pesan untuk keamanan akun WhatsApp Anda. Mohon bersabar.
+                                                    </AlertDescription>
+                                                </Alert>
+                                            )}
+
+                                            {(jobStatus.status === 'completed' || jobStatus.status === 'cancelled') && (
+                                                <Button
+                                                    className="w-full mt-4"
+                                                    variant="outline"
+                                                    onClick={resetForm}
+                                                >
+                                                    Kirim Pesan Baru
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+
                             {/* Recipient Selection */}
                             <Card className="border-none shadow-xl bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
                                 <CardHeader className="pb-3 border-b border-gray-100 dark:border-gray-800">
-                                    <CardTitle className="flex items-center gap-2 text-lg">
-                                        <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs">2</span>
-                                        Penerima
-                                    </CardTitle>
+                                    <div className="flex items-center justify-between">
+                                        <CardTitle className="flex items-center gap-2 text-lg">
+                                            <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 flex items-center justify-center text-xs">2</span>
+                                            Penerima
+                                        </CardTitle>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setShowImportModal(true)}
+                                            className="gap-2"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4" />
+                                            Import Excel
+                                        </Button>
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="space-y-4 pt-4">
                                     <RadioGroup
                                         value={recipientType}
                                         onValueChange={(v) => setRecipientType(v as RecipientType)}
-                                        className="grid grid-cols-2 gap-3"
+                                        className="grid grid-cols-3 gap-3"
                                     >
                                         <div className={`relative flex items-center space-x-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${recipientType === "all" ? "border-purple-500 bg-purple-50/50 dark:bg-purple-900/20 ring-1 ring-purple-500/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"}`}>
                                             <RadioGroupItem value="all" id="all" />
-                                            <Label htmlFor="all" className="flex items-center gap-2 cursor-pointer font-medium">
-                                                <Users className="w-4 h-4 text-purple-500" /> Semua
+                                            <Label htmlFor="all" className="flex flex-col gap-1 cursor-pointer flex-1">
+                                                <div className="flex items-center gap-2 font-medium text-sm">
+                                                    <Users className="w-4 h-4 text-purple-500" /> Semua DB
+                                                </div>
                                                 <span className="text-xs font-normal text-muted-foreground">({employees.length})</span>
                                             </Label>
                                         </div>
                                         <div className={`relative flex items-center space-x-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${recipientType === "selected" ? "border-purple-500 bg-purple-50/50 dark:bg-purple-900/20 ring-1 ring-purple-500/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"}`}>
                                             <RadioGroupItem value="selected" id="selected" />
-                                            <Label htmlFor="selected" className="flex items-center gap-2 cursor-pointer font-medium">
-                                                <UserCheck className="w-4 h-4 text-purple-500" /> Manual
+                                            <Label htmlFor="selected" className="flex flex-col gap-1 cursor-pointer flex-1">
+                                                <div className="flex items-center gap-2 font-medium text-sm">
+                                                    <UserCheck className="w-4 h-4 text-purple-500" /> Manual DB
+                                                </div>
+                                            </Label>
+                                        </div>
+                                        <div className={`relative flex items-center space-x-2 p-3 border rounded-xl cursor-pointer transition-all duration-200 ${recipientType === "excel" ? "border-blue-500 bg-blue-50/50 dark:bg-blue-900/20 ring-1 ring-blue-500/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"} ${importedContacts.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}>
+                                            <RadioGroupItem value="excel" id="excel" disabled={importedContacts.length === 0} />
+                                            <Label htmlFor="excel" className="flex flex-col gap-1 cursor-pointer flex-1">
+                                                <div className="flex items-center gap-2 font-medium text-sm">
+                                                    <FileSpreadsheet className="w-4 h-4 text-blue-500" /> Excel
+                                                </div>
+                                                <span className="text-xs font-normal text-muted-foreground">({importedContacts.length})</span>
                                             </Label>
                                         </div>
                                     </RadioGroup>
 
-                                    {recipientType === "selected" && (
+                                    {(recipientType === "selected" || recipientType === "excel") && (
                                         <motion.div
                                             initial={{ opacity: 0, height: 0 }}
                                             animate={{ opacity: 1, height: "auto" }}
@@ -604,14 +931,16 @@ export default function BlastWhatsApp() {
                                                 </Select>
                                             </div>
 
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-2 items-center">
                                                 <Button variant="outline" size="sm" onClick={handleSelectAll} className="h-8 text-xs">
                                                     Check All
                                                 </Button>
                                                 <Button variant="outline" size="sm" onClick={handleDeselectAll} className="h-8 text-xs">
                                                     Uncheck All
                                                 </Button>
-                                                <Badge variant="secondary" className="ml-auto">{selectedEmployeeIds.length} dipilih</Badge>
+                                                <div className="ml-auto flex items-center gap-2">
+                                                    <Badge variant="secondary">{selectedEmployeeIds.length} dipilih</Badge>
+                                                </div>
                                             </div>
 
                                             <ScrollArea className="h-[250px] border rounded-lg bg-white/50 dark:bg-gray-900/50 p-2">
@@ -627,15 +956,27 @@ export default function BlastWhatsApp() {
                                                             className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
                                                         />
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-medium text-sm truncate">{emp.name}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="font-medium text-sm truncate">{emp.name}</p>
+                                                            </div>
                                                             <div className="flex items-center gap-2 text-xs text-gray-500">
                                                                 <span>{emp.phone}</span>
-                                                                <span className="w-1 h-1 rounded-full bg-gray-300" />
-                                                                <span className="truncate">{emp.department}</span>
+                                                                {emp.department && (
+                                                                    <>
+                                                                        <span className="w-1 h-1 rounded-full bg-gray-300" />
+                                                                        <span className="truncate">{emp.department}</span>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ))}
+                                                {filteredEmployees.length === 0 && (
+                                                    <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                                                        <Users className="w-8 h-8 mb-2" />
+                                                        <p className="text-sm">Tidak ada kontak ditemukan</p>
+                                                    </div>
+                                                )}
                                             </ScrollArea>
                                         </motion.div>
                                     )}
@@ -720,10 +1061,14 @@ export default function BlastWhatsApp() {
                                     {!result && (
                                         <Button
                                             onClick={handleBlast}
-                                            disabled={blastMutation.isPending || !message.trim()}
+                                            disabled={blastMutation.isPending || !message.trim() || !!currentJobId}
                                             className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25 h-12 text-base font-semibold group transition-all duration-300 hover:scale-[1.02]"
                                         >
-                                            {blastMutation.isPending ? "Mengirim..." : (
+                                            {blastMutation.isPending ? (
+                                                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Memproses...</>
+                                            ) : currentJobId ? (
+                                                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Sedang Mengirim...</>
+                                            ) : (
                                                 <>
                                                     <Send className="w-5 h-5 mr-2 group-hover:translate-x-1 transition-transform" />
                                                     Kirim Sekarang
@@ -797,6 +1142,141 @@ export default function BlastWhatsApp() {
                                                 </div>
                                             </motion.div>
                                         ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                </TabsContent>
+
+                {/* EVALUATION TAB */}
+                <TabsContent value="evaluation">
+                    <motion.div variants={itemVariants} className="space-y-6">
+                        <Card className="border-none shadow-xl bg-white/70 dark:bg-gray-800/60 backdrop-blur-xl ring-1 ring-black/5 dark:ring-white/10">
+                            <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <BarChart3 className="w-6 h-6" />
+                                    Evaluasi & Statistik
+                                </CardTitle>
+                                <CardDescription>Analisis performa pengiriman blast WhatsApp</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {evaluationStats ? (
+                                    <>
+                                        {/* Summary Cards */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+                                                <CardContent className="p-4 text-center">
+                                                    <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{evaluationStats.totalBlasts}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total Blast</p>
+                                                </CardContent>
+                                            </Card>
+                                            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+                                                <CardContent className="p-4 text-center">
+                                                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{evaluationStats.totalRecipients}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total Penerima</p>
+                                                </CardContent>
+                                            </Card>
+                                            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+                                                <CardContent className="p-4 text-center">
+                                                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{evaluationStats.totalSent}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Berhasil Terkirim</p>
+                                                </CardContent>
+                                            </Card>
+                                            <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-800">
+                                                <CardContent className="p-4 text-center">
+                                                    <p className="text-3xl font-bold text-red-600 dark:text-red-400">{evaluationStats.totalFailed}</p>
+                                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Gagal</p>
+                                                </CardContent>
+                                            </Card>
+                                        </div>
+
+                                        {/* Success Rate */}
+                                        <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-indigo-200 dark:border-indigo-800">
+                                            <CardContent className="p-6">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <h3 className="font-semibold text-gray-700 dark:text-gray-300">Success Rate</h3>
+                                                    <div className="flex items-center gap-2">
+                                                        <TrendingUp className="w-5 h-5 text-green-500" />
+                                                        <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
+                                                            {evaluationStats.successRate.toFixed(1)}%
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <Progress value={evaluationStats.successRate} className="h-3" />
+                                            </CardContent>
+                                        </Card>
+
+                                        {/* Recent Activity Chart */}
+                                        {evaluationStats.recentBlasts.length > 0 && (
+                                            <Card>
+                                                <CardHeader>
+                                                    <CardTitle className="text-lg">Aktivitas Terakhir (7 Hari)</CardTitle>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <div className="space-y-3">
+                                                        {evaluationStats.recentBlasts.map((blast, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+                                                                <div>
+                                                                    <p className="font-medium text-sm">{format(new Date(blast.date), "EEEE, d MMM yyyy", { locale: id })}</p>
+                                                                </div>
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="text-right">
+                                                                        <p className="text-sm text-green-600 dark:text-green-400 font-semibold">{blast.sent} sent</p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-sm text-red-600 dark:text-red-400 font-semibold">{blast.failed} failed</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        )}
+
+                                        {/* Export Button */}
+                                        <div className="flex justify-end">
+                                            <Button
+                                                variant="outline"
+                                                className="gap-2"
+                                                onClick={() => {
+                                                    // Export evaluation report to Excel
+                                                    const reportData = [
+                                                        { Metrik: "Total Blast", Nilai: evaluationStats.totalBlasts },
+                                                        { Metrik: "Total Penerima", Nilai: evaluationStats.totalRecipients },
+                                                        { Metrik: "Berhasil Terkirim", Nilai: evaluationStats.totalSent },
+                                                        { Metrik: "Gagal", Nilai: evaluationStats.totalFailed },
+                                                        { Metrik: "Success Rate (%)", Nilai: evaluationStats.successRate.toFixed(2) },
+                                                    ];
+                                                    const ws = XLSX.utils.json_to_sheet(reportData);
+                                                    const wb = XLSX.utils.book_new();
+                                                    XLSX.utils.book_append_sheet(wb, ws, "Evaluasi");
+
+                                                    // Add recent activity sheet
+                                                    if (evaluationStats.recentBlasts.length > 0) {
+                                                        const activityData = evaluationStats.recentBlasts.map(b => ({
+                                                            Tanggal: format(new Date(b.date), "yyyy-MM-dd"),
+                                                            Terkirim: b.sent,
+                                                            Gagal: b.failed,
+                                                        }));
+                                                        const ws2 = XLSX.utils.json_to_sheet(activityData);
+                                                        XLSX.utils.book_append_sheet(wb, ws2, "Aktivitas");
+                                                    }
+
+                                                    XLSX.writeFile(wb, `evaluasi-whatsapp-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+                                                    toast({ title: "Laporan berhasil diexport" });
+                                                }}
+                                            >
+                                                <Download className="w-4 h-4" />
+                                                Export Laporan Excel
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                                        <RefreshCw className="w-8 h-8 animate-spin mb-3" />
+                                        <p>Memuat data evaluasi...</p>
                                     </div>
                                 )}
                             </CardContent>
@@ -949,7 +1429,95 @@ export default function BlastWhatsApp() {
                         </div>
                     )}
                 </DialogContent>
-            </Dialog >
+            </Dialog>
+
+            {/* Import Excel Dialog */}
+            <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+                <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Import Kontak dari Excel</DialogTitle>
+                        <DialogDescription>
+                            Upload file Excel (.xlsx, .xls) dengan kolom: Nama, Nomor, Departemen (opsional)
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="flex-1"
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Pilih File Excel
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={handleExportTemplate}
+                            >
+                                <Download className="w-4 h-4 mr-2" />
+                                Download Template
+                            </Button>
+                        </div>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".xlsx,.xls"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                        />
+
+                        {importPreview.length > 0 && (
+                            <>
+                                <Alert>
+                                    <CheckCircle className="h-4 w-4" />
+                                    <AlertDescription>
+                                        Ditemukan {importPreview.length} kontak yang valid
+                                    </AlertDescription>
+                                </Alert>
+
+                                <div className="border rounded-lg">
+                                    <ScrollArea className="h-[300px]">
+                                        <div className="p-2">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
+                                                    <tr>
+                                                        <th className="p-2 text-left">Nama</th>
+                                                        <th className="p-2 text-left">Nomor</th>
+                                                        <th className="p-2 text-left">Departemen</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {importPreview.map((contact, idx) => (
+                                                        <tr key={idx} className="border-t hover:bg-gray-50 dark:hover:bg-gray-900/50">
+                                                            <td className="p-2">{contact.name}</td>
+                                                            <td className="p-2 font-mono">{contact.phone}</td>
+                                                            <td className="p-2">{contact.department || '-'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </ScrollArea>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => {
+                            setShowImportModal(false);
+                            setImportPreview([]);
+                        }}>
+                            Batal
+                        </Button>
+                        <Button
+                            onClick={handleImportContacts}
+                            disabled={importPreview.length === 0}
+                        >
+                            Import {importPreview.length} Kontak
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </motion.div >
     );
 }

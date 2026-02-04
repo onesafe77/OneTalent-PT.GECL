@@ -11,6 +11,8 @@ import path from "path";
 import fs from "fs";
 import Papa from "papaparse";
 import { InsertSimperEvMonitoring } from "@shared/schema";
+import { nanoid } from "nanoid";
+import { createBlastJob, getBlastJob, cancelBlastJob, blastWhatsApp } from "./services/whatsapp-service";
 
 const app = express();
 
@@ -226,11 +228,25 @@ app.post("/api/employees/:id/os-certificate", uploadDirect.single('certificate')
 });
 
 // WhatsApp Send Reminder API
-import { sendWhatsAppMessage, generateSimperReminderMessage, sendAdminNotification, blastWhatsApp } from './services/whatsapp-service';
+import { sendWhatsAppMessage, generateSimperReminderMessage, sendAdminNotification } from './services/whatsapp-service';
 
 // ============================================
-// WHATSAPP BLAST ROUTES
+// WHATSAPP BLAST ROUTES (ASYNC JOBS)
 // ============================================
+
+// Get Blast Job Status
+app.get("/api/whatsapp/blast/status/:jobId", (req, res) => {
+  const job = getBlastJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json(job);
+});
+
+// Cancel Blast Job
+app.post("/api/whatsapp/blast/cancel/:jobId", (req, res) => {
+  const success = cancelBlastJob(req.params.jobId);
+  if (!success) return res.status(400).json({ error: "Cannot cancel job (invalid ID or already finished)" });
+  res.json({ success: true, message: "Cancellation requested" });
+});
 
 // Blast WhatsApp - Text Only
 app.post("/api/whatsapp/blast/text", async (req, res) => {
@@ -254,16 +270,24 @@ app.post("/api/whatsapp/blast/text", async (req, res) => {
       return res.status(400).json({ success: false, message: "No valid phone numbers found" });
     }
 
-    const result = await blastWhatsApp({
+    // Create Job
+    const jobId = nanoid();
+    createBlastJob(jobId, validPhones.length);
+
+    // Start background process
+    blastWhatsApp({
       phones: validPhones,
       message,
-      type: 'text'
-    });
+      type: 'text',
+      jobId
+    }).catch(err => console.error("Blast Job Error:", err));
 
+    // Return immediate response with Job ID
     res.json({
       success: true,
-      subject,
-      ...result
+      message: "Blast started in background",
+      jobId,
+      totalRecipients: validPhones.length
     });
   } catch (error) {
     console.error("[WhatsApp Blast] Error:", error);
@@ -297,18 +321,24 @@ app.post("/api/whatsapp/blast/image", async (req, res) => {
       return res.status(400).json({ success: false, message: "No valid phone numbers found" });
     }
 
-    const result = await blastWhatsApp({
+    // Create Job
+    const jobId = nanoid();
+    createBlastJob(jobId, validPhones.length);
+
+    // Start background process
+    blastWhatsApp({
       phones: validPhones,
       message,
       type: 'image',
-      mediaUrls: imageUrls
-    });
+      mediaUrls: imageUrls,
+      jobId
+    }).catch(err => console.error("Blast Job Error:", err));
 
     res.json({
       success: true,
-      subject,
-      imagesCount: imageUrls.length,
-      ...result
+      message: "Blast started in background",
+      jobId,
+      totalRecipients: validPhones.length
     });
   } catch (error) {
     console.error("[WhatsApp Blast] Error:", error);
@@ -342,17 +372,24 @@ app.post("/api/whatsapp/blast/video", async (req, res) => {
       return res.status(400).json({ success: false, message: "No valid phone numbers found" });
     }
 
-    const result = await blastWhatsApp({
+    // Create Job
+    const jobId = nanoid();
+    createBlastJob(jobId, validPhones.length);
+
+    // Start background process
+    blastWhatsApp({
       phones: validPhones,
       message,
       type: 'video',
-      mediaUrls: [videoUrl]
-    });
+      mediaUrls: [videoUrl],
+      jobId
+    }).catch(err => console.error("Blast Job Error:", err));
 
     res.json({
       success: true,
-      subject,
-      ...result
+      message: "Blast started in background",
+      jobId,
+      totalRecipients: validPhones.length
     });
   } catch (error) {
     console.error("[WhatsApp Blast] Error:", error);

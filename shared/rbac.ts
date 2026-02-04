@@ -4,7 +4,7 @@
 // Define available roles
 export enum Role {
   ADMIN = "ADMIN",
-  SUPERVISOR = "SUPERVISOR", 
+  SUPERVISOR = "SUPERVISOR",
   BASIC = "BASIC"
 }
 
@@ -12,50 +12,50 @@ export enum Role {
 export enum Permission {
   // Dashboard
   VIEW_DASHBOARD = "VIEW_DASHBOARD",
-  
+
   // Employee Management
   VIEW_EMPLOYEES = "VIEW_EMPLOYEES",
   MANAGE_EMPLOYEES = "MANAGE_EMPLOYEES",
-  
+
   // Attendance
   VIEW_ATTENDANCE = "VIEW_ATTENDANCE",
   SCAN_QR = "SCAN_QR",
   MANAGE_ATTENDANCE = "MANAGE_ATTENDANCE",
-  
+
   // Roster
   VIEW_ROSTER = "VIEW_ROSTER",
   MANAGE_ROSTER = "MANAGE_ROSTER",
-  
+
   // Leave/Cuti
   VIEW_LEAVE = "VIEW_LEAVE",
   REQUEST_LEAVE = "REQUEST_LEAVE",
   MANAGE_LEAVE = "MANAGE_LEAVE",
-  
+
   // SIDAK
   VIEW_SIDAK = "VIEW_SIDAK",
   CREATE_SIDAK = "CREATE_SIDAK",
   MANAGE_SIDAK = "MANAGE_SIDAK",
-  
+
   // Meeting
   VIEW_MEETING = "VIEW_MEETING",
   CREATE_MEETING = "CREATE_MEETING",
   MANAGE_MEETING = "MANAGE_MEETING",
-  
+
   // Reports
   VIEW_REPORTS = "VIEW_REPORTS",
   EXPORT_REPORTS = "EXPORT_REPORTS",
-  
+
   // Evaluasi Driver
   VIEW_EVALUASI = "VIEW_EVALUASI",
   MANAGE_EVALUASI = "MANAGE_EVALUASI",
-  
+
   // Driver View (Mobile)
   VIEW_DRIVER_VIEW = "VIEW_DRIVER_VIEW",
-  
+
   // QR Code Management
   VIEW_QR = "VIEW_QR",
   GENERATE_QR = "GENERATE_QR",
-  
+
   // Documents
   VIEW_DOCUMENTS = "VIEW_DOCUMENTS",
   MANAGE_DOCUMENTS = "MANAGE_DOCUMENTS",
@@ -92,7 +92,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_DOCUMENTS,
     Permission.MANAGE_DOCUMENTS,
   ],
-  
+
   [Role.SUPERVISOR]: [
     // Scan QR, Roster, SIDAK, Laporan, Absensi Meeting
     Permission.VIEW_DASHBOARD,
@@ -108,7 +108,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_QR,
     Permission.VIEW_DOCUMENTS,
   ],
-  
+
   [Role.BASIC]: [
     // Basic access - Driver only sees Driver View and Documents, no Dashboard
     Permission.VIEW_DRIVER_VIEW,
@@ -136,28 +136,36 @@ const SUPERVISOR_POSITIONS = [
 ];
 
 // Get role from position - STRICT exact matching to prevent privilege escalation
-export function getRoleFromPosition(position: string | null | undefined): Role {
+// UPDATED: Now also considers department for automatic Admin rights
+export function getRoleFromPosition(position: string | null | undefined, department?: string | null): Role {
+  // 1. Check Department-based Rules First
+  // Updated to handle "HSE Department" or just "HSE"
+  // Updated to handle "HSE Department", "Departemen HSE", or just "HSE"
+  if (department && department.toUpperCase().includes("HSE")) {
+    return Role.ADMIN;
+  }
+
   if (!position) return Role.BASIC;
-  
+
   const normalizedPosition = position.toLowerCase().trim();
-  
+
   // Check if position EXACTLY matches an ADMIN position
   if (ADMIN_POSITIONS.some(p => normalizedPosition === p)) {
     return Role.ADMIN;
   }
-  
+
   // Check if position EXACTLY matches a SUPERVISOR position
   if (SUPERVISOR_POSITIONS.some(p => normalizedPosition === p)) {
     return Role.SUPERVISOR;
   }
-  
+
   // Default to BASIC for all other positions (including Driver, Operator, etc.)
   return Role.BASIC;
 }
 
 // Get permissions from position
-export function getPermissionsFromPosition(position: string | null | undefined): Permission[] {
-  const role = getRoleFromPosition(position);
+export function getPermissionsFromPosition(position: string | null | undefined, department?: string | null): Permission[] {
+  const role = getRoleFromPosition(position, department);
   return ROLE_PERMISSIONS[role];
 }
 
@@ -167,8 +175,8 @@ export function hasPermission(role: Role, permission: Permission): boolean {
 }
 
 // Check if a position has a specific permission
-export function positionHasPermission(position: string | null | undefined, permission: Permission): boolean {
-  const role = getRoleFromPosition(position);
+export function positionHasPermission(position: string | null | undefined, permission: Permission, department?: string | null): boolean {
+  const role = getRoleFromPosition(position, department);
   return hasPermission(role, permission);
 }
 
@@ -177,19 +185,21 @@ export interface UserWithRole {
   nik: string;
   name: string;
   position: string | null;
+  department?: string | null; // Added department field
   role: Role;
   permissions: Permission[];
 }
 
 // Create user with role from basic user data
-export function createUserWithRole(nik: string, name: string, position: string | null): UserWithRole {
-  const role = getRoleFromPosition(position);
+export function createUserWithRole(nik: string, name: string, position: string | null, department?: string | null): UserWithRole {
+  const role = getRoleFromPosition(position, department);
   const permissions = ROLE_PERMISSIONS[role];
-  
+
   return {
     nik,
     name,
     position,
+    department,
     role,
     permissions,
   };
@@ -222,12 +232,12 @@ export const MENU_PERMISSIONS: MenuPermission[] = [
 // Check if user can access a specific path
 export function canAccessPath(permissions: Permission[], path: string): boolean {
   const menuPermission = MENU_PERMISSIONS.find(m => path.startsWith(m.path));
-  
+
   if (!menuPermission) {
     // If no permission defined for path, allow access
     return true;
   }
-  
+
   if (menuPermission.requireAll) {
     // Must have all required permissions
     return menuPermission.requiredPermissions.every(p => permissions.includes(p));

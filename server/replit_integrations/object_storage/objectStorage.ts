@@ -250,3 +250,4 @@ export class ObjectStorageService {
 }
 
 
+export const objectStorageClient = new ObjectStorageService();

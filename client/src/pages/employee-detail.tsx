@@ -55,6 +55,14 @@ const formSchema = z.object({
     refreshmentOs: z.string().optional(),
     keteranganOs: z.string().optional(),
     bpjsKesehatan: z.string().optional(),
+}).superRefine((data, ctx) => {
+    if (data.statusKaryawan === "Resign" && !data.tanggalResign) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Tanggal resign wajib diisi jika status Resign",
+            path: ["tanggalResign"],
+        });
+    }
 });
 
 type FormValues = z.infer<typeof formSchema>;

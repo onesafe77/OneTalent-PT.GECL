@@ -58,6 +58,7 @@ import GoogleSheetsConfig from "@/pages/google-sheets-config";
 import FmsFatigueValidationDashboard from "@/pages/hse/fatigue/dashboard-validation";
 
 import SafetyPatrol from "@/pages/safety-patrol";
+import SickLeavePage from "@/pages/hse/sick-leave-page";
 import TrainingMaster from "@/pages/hse/tna/training-master";
 import TnaInput from "@/pages/hse/tna/tna-input";
 import TnaDashboard from "@/pages/hse/tna/tna-dashboard";
@@ -129,6 +130,7 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/workshop/history", component: SidakWorkshopHistory, title: "Riwayat Sidak Workshop" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
+  { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
   { path: "/workspace/announcements", component: Announcements, title: "Kelola Pengumuman" },
   { path: "/workspace/news", component: News, title: "Kelola Berita" },
@@ -288,6 +290,11 @@ export function Workspace() {
                   <SafetyPatrol />
                 </PermissionGuard>
               </Route>
+              <Route path="/workspace/hse/sick-leave">
+                <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
+                  <SickLeavePage />
+                </PermissionGuard>
+              </Route>
               <Route path="/workspace/evaluasi-driver" component={EvaluasiDriver} />
               <Route path="/workspace/announcements">
                 <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
@@ -321,6 +328,11 @@ export function Workspace() {
               {/* Mystic AI Chatbot Routes */}
               <Route path="/workspace/si-asef" component={SiAsefChatPage} />
               <Route path="/workspace/si-asef/admin" component={SiAsefAdminPage} />
+              {/* Projects route was seemingly here before, I will keep it but point to the reverted page if I can, or just remove if I want to be safe. 
+                 Step 75 showed the file existed. So I should probably keep the route for SiAsefProjectsPage but remove Detail page.
+              */}
+              <Route path="/workspace/si-asef/projects" component={SiAsefProjectsPage} />
+              <Route path="/workspace/si-asef/artifacts" component={SiAsefArtifactsPage} />
 
               {/* Document Control Routes */}
               <Route path="/workspace/hse/k3/document-control" component={DocumentControl} />

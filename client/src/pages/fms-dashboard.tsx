@@ -327,20 +327,23 @@ export default function FmsDashboard() {
                                 <span className="ml-auto opacity-50 text-[10px]">▼</span>
                             </summary>
                             <div className="absolute z-20 mt-2 w-48 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 ring-1 ring-black/5">
-                                {[1, 2, 3, 4, 5].map((week) => (
-                                    <label key={week} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.weeks.includes(week)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) setFilters(prev => ({ ...prev, weeks: [...prev.weeks, week] }));
-                                                else setFilters(prev => ({ ...prev, weeks: prev.weeks.filter(w => w !== week) }));
-                                            }}
-                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-sm text-slate-700">Week {week}</span>
-                                    </label>
-                                ))}
+                                {(analytics?.availableWeeks || [1, 2, 3, 4, 5])
+                                    .map((w: any) => Number(w))
+                                    .sort((a: number, b: number) => a - b)
+                                    .map((week: number) => (
+                                        <label key={week} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={filters.weeks.includes(week)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setFilters(prev => ({ ...prev, weeks: [...prev.weeks, week] }));
+                                                    else setFilters(prev => ({ ...prev, weeks: prev.weeks.filter(w => w !== week) }));
+                                                }}
+                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            />
+                                            <span className="text-sm text-slate-700">Week {week}</span>
+                                        </label>
+                                    ))}
                             </div>
                         </details>
                     </div>

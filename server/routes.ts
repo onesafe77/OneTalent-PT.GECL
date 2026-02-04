@@ -1,4 +1,5 @@
 // @ts-nocheck
+// Force reload for RBAC update - DEBUG MODE
 import type { Express, Request, Response, NextFunction } from "express";
 import express from "express";
 import { createServer, type Server } from "http";
@@ -86,6 +87,9 @@ import {
   insertInductionAnswerSchema,
   inductionMaterials,
   inductionSchedules,
+  // Project Tracker
+  insertProjectSchema,
+  insertProjectFileSchema,
 } from "@shared/schema";
 import { eq, ilike, and, desc, sql } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
@@ -97,6 +101,7 @@ import { PushNotificationService } from "./push-notification";
 import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition } from "@shared/rbac";
 import { sendWhatsAppMessage } from "./services/whatsapp-service";
 import { inductionAiService } from "./services/induction-ai-service";
+import { parseSickLeaveWithGemini } from "./gemini-parser";
 
 // Report cache invalidation and update notification system
 let lastRosterUpdate = new Date();
@@ -774,6 +779,28 @@ Format sebagai bullet points singkat per insight.`;
   await setupAuth(app);
 
   // ============================================
+  // DEBUG ROUTES (TEMPORARY)
+  // ============================================
+  app.get("/api/debug/rbac", (req, res) => {
+    try {
+      const { getRoleFromPosition } = require("@shared/rbac");
+      const dept = req.query.dept as string;
+      const pos = req.query.pos as string;
+
+      console.log(`[DEBUG ENDPOINT] Testing Role for Dept: '${dept}', Pos: '${pos}'`);
+      const role = getRoleFromPosition(pos, dept);
+
+      res.json({
+        input: { dept, pos },
+        calculatedRole: role,
+        logicSource: "Live Route Module"
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ============================================
   // AUTHENTICATION ROUTES
   // ============================================
 
@@ -856,8 +883,8 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(404).json({ message: "Data karyawan tidak ditemukan" });
       }
 
-      // Create user with role and permissions based on position
-      const userWithRole = createUserWithRole(employee.id, employee.name, employee.position || null);
+      // Create user with role and permissions based on position AND department
+      const userWithRole = createUserWithRole(employee.id, employee.name, employee.position || null, employee.department || null);
 
       // Create session with role info - with explicit save
       try {
@@ -925,14 +952,18 @@ Format sebagai bullet points singkat per insight.`;
   app.get("/api/auth/session", (req, res) => {
     const user = (req.session as any).user;
     if (user) {
-      // Ensure user has role and permissions (for existing sessions)
-      if (!user.role || !user.permissions) {
-        const userWithRole = createUserWithRole(user.nik, user.name, user.position || null);
-        (req.session as any).user = userWithRole;
-        res.json({ authenticated: true, user: userWithRole });
-      } else {
-        res.json({ authenticated: true, user });
-      }
+      // ALWAYS refresh role and permissions from current logic
+      // This ensures that RBAC changes apply immediately even to active sessions
+      const userWithRole = createUserWithRole(user.nik, user.name, user.position || null, user.department || null);
+
+      console.log(`[SESSION DEBUG] NIK: ${user.nik}, Name: ${user.name}`);
+      console.log(`[SESSION DEBUG] Stored Dept: '${user.department}', Stored Pos: '${user.position}'`);
+      console.log(`[SESSION DEBUG] Calculated Role: ${userWithRole.role}`);
+
+      // Update session if role changed (optimization: could check deep equality but object creation is cheap)
+      (req.session as any).user = userWithRole;
+
+      res.json({ authenticated: true, user: userWithRole });
     } else {
       res.json({ authenticated: false, user: null });
     }
@@ -9058,6 +9089,53 @@ Format sebagai bullet points singkat per insight.`;
   // Import Gemini parser dynamically
   const { parseReportWithGemini, analyzeReportContent, parseMCUWithGemini } = await import("./gemini-parser");
 
+
+  // ==========================================
+  // SICK LEAVE API
+  // ==========================================
+
+  app.get("/api/hse/sick-leaves", async (req, res) => {
+    try {
+      const result = await storage.getSickLeaves();
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch sick leaves" });
+    }
+  });
+
+  app.delete("/api/hse/sick-leaves/:id", async (req, res) => {
+    try {
+      const success = await storage.deleteSickLeave(req.params.id);
+      if (success) {
+        res.json({ message: "Deleted successfully" });
+      } else {
+        res.status(404).json({ message: "Not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete" });
+    }
+  });
+
+  app.get("/api/hse/sick-leaves/stats", async (req, res) => {
+    try {
+      const leaves = await storage.getSickLeaves();
+      const stats = {
+        total: leaves.length,
+        pending: leaves.filter(l => l.status === "Pending").length,
+        approved: leaves.filter(l => l.status === "Approved").length,
+        rejected: leaves.filter(l => l.status === "Rejected").length,
+        thisMonth: leaves.filter(l => {
+          const d = new Date(l.date);
+          const now = new Date();
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length
+      };
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch stats" });
+    }
+  });
+
   // WhatsApp Webhook from notif.my.id
   app.post("/api/webhook/whatsapp", async (req, res) => {
     try {
@@ -9158,6 +9236,45 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       if (shouldProcessWithAI) {
+        // Detect Sick Leave Intent
+        const isSickLeave = messageContent?.toUpperCase().includes("IJIN SAKIT")
+          || messageContent?.toUpperCase().includes("IZIN SAKIT")
+          || (messageContent?.toUpperCase().includes("SAKIT") && messageContent?.toUpperCase().includes("DEMAM"))
+          || (messageContent?.toUpperCase().includes("SAKIT") && messageContent?.toUpperCase().includes("DOKTER"));
+
+        if (isSickLeave) {
+          console.log("🏥 Sick Leave detected in webhook");
+          try {
+            const sickData = await parseSickLeaveWithGemini(messageContent);
+            if (sickData && sickData.confidence > 50) {
+              // Try to match employee
+              const allEmployees = await storage.getAllEmployees();
+              const matchedEmployee = allEmployees.find(e => e.name.toLowerCase().includes(sickData.nama.toLowerCase()));
+
+              const created = await storage.createSickLeave({
+                name: sickData.nama,
+                employeeId: matchedEmployee ? matchedEmployee.id : null,
+                date: sickData.tanggal,
+                reason: sickData.alasan,
+                status: "Pending",
+                attachmentUrl: mediaUrl || null,
+                attachmentType: mediaUrl ? (mediaUrl.toLowerCase().endsWith('pdf') ? 'application/pdf' : 'image/jpeg') : null,
+                aiConfidence: sickData.confidence,
+                originalMessage: messageContent,
+                aiAnalysis: sickData as any
+              });
+              console.log(`✅ Sick Leave created for ${sickData.nama}`);
+              res.status(200).json({ status: "ok", message: "Sick Leave processed", data: created });
+              return;
+            }
+          } catch (e) {
+            console.error("Error processing Sick Leave:", e);
+            // Don't error out, let it fall through or return success with error message
+            res.status(200).json({ status: "ok", message: "Sick Leave processing failed but received" });
+            return;
+          }
+        }
+
         // Detect MCU Intent
         const isMCU = messageContent?.toUpperCase().includes("MCU")
           || messageContent?.toUpperCase().includes("MEDICAL")
@@ -12547,21 +12664,38 @@ Format sebagai bullet points singkat per insight.`;
   // Send WhatsApp blast (to all or selected employees)
   app.post("/api/whatsapp/blast", async (req, res) => {
     try {
-      const { subject, message, type, mediaUrls, recipientType, selectedEmployeeIds } = req.body;
+      const { subject, message, type, mediaUrls, recipientType, selectedEmployeeIds, customRecipients } = req.body;
 
       if (!message) {
         return res.status(400).json({ message: "Message is required" });
       }
 
-      // Get recipients
+      // Get recipients based on type
       let recipients: any[] = [];
-      const allEmployees = await storage.getAllEmployees();
-      const employeesWithPhone = allEmployees.filter(e => e.phone && e.phone.trim() !== '');
 
-      if (recipientType === 'selected' && selectedEmployeeIds?.length > 0) {
-        recipients = employeesWithPhone.filter(e => selectedEmployeeIds.includes(e.id));
+      if (recipientType === 'excel') {
+        // Use only Excel imports
+        if (customRecipients && Array.isArray(customRecipients) && customRecipients.length > 0) {
+          recipients = customRecipients
+            .filter((r: any) => r.phone && r.phone.trim() !== '')
+            .map((r: any) => ({
+              id: null, // No ID for imported contacts
+              name: r.name,
+              phone: r.phone,
+              department: r.department || null,
+            }));
+        }
       } else {
-        recipients = employeesWithPhone;
+        // Use database employees only (all or selected)
+        const allEmployees = await storage.getAllEmployees();
+        const employeesWithPhone = allEmployees.filter(e => e.phone && e.phone.trim() !== '');
+
+        if (recipientType === 'selected' && selectedEmployeeIds?.length > 0) {
+          recipients = employeesWithPhone.filter(e => selectedEmployeeIds.includes(e.id));
+        } else {
+          // recipientType === 'all' - use all database employees
+          recipients = employeesWithPhone;
+        }
       }
 
       if (recipients.length === 0) {
@@ -12618,6 +12752,9 @@ Format sebagai bullet points singkat per insight.`;
         status: 'completed',
         completedAt: new Date(),
       });
+
+      // Invalidate evaluation cache after blast completes
+      evaluationCache = null;
 
       console.log(`[Blast] Completed. Sent: ${result.sent}, Failed: ${result.failed}`);
 
@@ -12703,6 +12840,33 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error deleting template:", error);
       res.status(500).json({ message: "Failed to delete template" });
+    }
+  });
+
+  // Simple cache for evaluation stats (5 minutes TTL)
+  let evaluationCache: { data: any; timestamp: number } | null = null;
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // Get evaluation statistics (with caching)
+  app.get("/api/whatsapp/evaluation", async (req, res) => {
+    try {
+      const now = Date.now();
+
+      // Return cached data if still valid
+      if (evaluationCache && (now - evaluationCache.timestamp) < CACHE_TTL) {
+        return res.json(evaluationCache.data);
+      }
+
+      // Fetch fresh data
+      const stats = await storage.getWhatsappEvaluationStats();
+
+      // Update cache
+      evaluationCache = { data: stats, timestamp: now };
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Error getting evaluation stats:", error);
+      res.status(500).json({ message: "Failed to get evaluation statistics" });
     }
   });
 
@@ -13228,6 +13392,111 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Manual resend notification for specific history record
+  app.post("/api/simper-ev/history/:historyId/resend-notification", async (req, res) => {
+    try {
+      const { historyId } = req.params;
+
+      console.log(`[SimperEV] Manual notification resend requested for history: ${historyId}`);
+
+      // 1. Fetch the history record
+      const historyRecord = await storage.getSimperEvHistoryById(historyId);
+      if (!historyRecord) {
+        return res.status(404).json({
+          success: false,
+          error: "History record not found"
+        });
+      }
+
+      // 2. Fetch the SIMPER monitoring record
+      const simperRecords = await storage.searchSimperEvMonitoring(historyRecord.nikSimper);
+      const simper = simperRecords.length > 0 ? simperRecords[0] : null;
+
+      if (!simper) {
+        return res.status(404).json({
+          success: false,
+          error: "Employee SIMPER record not found"
+        });
+      }
+
+      if (!simper.asalMitra) {
+        return res.status(400).json({
+          success: false,
+          error: "Mitra information not available"
+        });
+      }
+
+      // 3. Get Mitra phone number
+      const mitraPhone = await storage.getMitraPhoneByName(simper.asalMitra);
+      if (!mitraPhone) {
+        return res.status(400).json({
+          success: false,
+          error: `No phone number configured for Mitra: ${simper.asalMitra}`
+        });
+      }
+
+      // 4. Format the notification message (reuse existing function)
+      const message = formatSimperEvNotification({
+        employeeName: simper.nama || "Unknown",
+        nikSimper: simper.nikSimper || historyRecord.nikSimper,
+        mitraName: simper.asalMitra,
+        status: historyRecord.workflowLevel || historyRecord.status || "Updated",
+        approver: historyRecord.approver,
+        message: historyRecord.message,
+        workflowType: historyRecord.workflowType,
+        isRevision: false
+      });
+
+      console.log(`[SimperEV] Sending manual notification to ${simper.asalMitra} (${mitraPhone})`);
+
+      // 5. Send WhatsApp message (this will create log automatically)
+      const sendResult = await sendWhatsAppMessage({
+        phone: mitraPhone,
+        message: message,
+        logContext: {
+          module: "SIMPER_EV",
+          referenceId: historyRecord.nikSimper,
+          referenceName: simper.nama || "Unknown",
+          recipientType: "MITRA",
+          messageType: "MANUAL_RESEND",
+          triggeredBy: (req as any).user?.nik || "ADMIN_MANUAL"
+        }
+      });
+
+      // 6. Return response
+      if (sendResult.success) {
+        console.log(`[SimperEV] ✅ Manual notification sent successfully`);
+        return res.json({
+          success: true,
+          message: "Notification sent successfully",
+          details: {
+            recipientPhone: mitraPhone,
+            recipientName: simper.asalMitra,
+            status: "SENT"
+          }
+        });
+      } else {
+        console.error(`[SimperEV] ❌ Manual notification failed: ${sendResult.error}`);
+        return res.status(500).json({
+          success: false,
+          error: sendResult.error || "Failed to send notification",
+          details: {
+            recipientPhone: mitraPhone,
+            recipientName: simper.asalMitra,
+            status: "FAILED"
+          }
+        });
+      }
+
+    } catch (error) {
+      console.error("[SimperEV] Manual Notification Error:", error);
+      return res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   // Check WhatsApp API configuration status
   app.get("/api/simper-ev/whatsapp-config-status", async (req, res) => {
     try {
@@ -13312,6 +13581,8 @@ Format sebagai bullet points singkat per insight.`;
       res.status(500).json({ error: (error as Error).message });
     }
   });
+
+
 
   const httpServer = createServer(app);
 

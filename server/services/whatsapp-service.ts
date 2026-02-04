@@ -439,42 +439,151 @@ export async function sendWhatsAppVideo(params: {
 }
 
 /**
- * Delay helper for batch processing
+ * Blast Job Interface
  */
-function delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+export interface BlastJob {
+    id: string;
+    total: number;
+    sent: number;
+    failed: number;
+    status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+    failedNumbers: string[];
+    createdAt: number;
+    cancelRequested: boolean;
+}
+
+// In-memory job store (Note: In production, consider Redis or DB)
+const blastJobs = new Map<string, BlastJob>();
+
+/**
+ * Create a new blast job
+ */
+export function createBlastJob(id: string, total: number): BlastJob {
+    const job: BlastJob = {
+        id,
+        total,
+        sent: 0,
+        failed: 0,
+        status: 'pending',
+        failedNumbers: [],
+        createdAt: Date.now(),
+        cancelRequested: false
+    };
+    blastJobs.set(id, job);
+    return job;
+}
+
+/**
+ * Get a blast job by ID
+ */
+export function getBlastJob(id: string): BlastJob | undefined {
+    return blastJobs.get(id);
+}
+
+/**
+ * Cancel a blast job
+ */
+export function cancelBlastJob(id: string): boolean {
+    const job = blastJobs.get(id);
+    if (!job) return false;
+
+    // Only active jobs can be cancelled
+    if (job.status === 'processing' || job.status === 'pending') {
+        job.cancelRequested = true;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Cleanup old jobs (optional utility)
+ */
+export function cleanupOldJobs(maxAgeMs = 24 * 60 * 60 * 1000) {
+    const now = Date.now();
+    for (const [id, job] of blastJobs.entries()) {
+        if (now - job.createdAt > maxAgeMs) {
+            blastJobs.delete(id);
+        }
+    }
+}
+
+
+/**
+ * Random delay helper for safer rate limiting (mimic human behavior)
+ * Returns a promise that resolves after a random time between min and max ms
+ */
+function randomDelay(min: number, max: number): Promise<void> {
+    const delayMs = Math.floor(Math.random() * (max - min + 1)) + min;
+    return new Promise(resolve => setTimeout(resolve, delayMs));
 }
 
 /**
  * Blast WhatsApp message to multiple recipients with batch processing
- * Sends in batches of 10 with 5 second delay between batches
+ * Sends in batches to prevent server overload and uses random delays to avoid WhatsApp blocks
+ * NOW SUPPORTING: Job ID tracking and Cancellation
  */
 export async function blastWhatsApp(params: {
     phones: string[];
     message: string;
     type: 'text' | 'image' | 'video';
     mediaUrls?: string[]; // For multiple images or single video
+    jobId?: string; // Optional Job ID for tracking
 }): Promise<{
     totalRecipients: number;
     sent: number;
     failed: number;
     failedNumbers: string[];
+    status: 'completed' | 'cancelled' | 'failed';
 }> {
-    const { phones, message, type, mediaUrls } = params;
-    const BATCH_SIZE = 10;
-    const BATCH_DELAY = 5000; // 5 seconds
+    const { phones, message, type, mediaUrls, jobId } = params;
+
+    // SAFETY CONFIGURATION
+    const BATCH_SIZE = 5; // Reduced batch size for safety
+    const MIN_MSG_DELAY = 5000; // 5 seconds min between messages
+    const MAX_MSG_DELAY = 12000; // 12 seconds max between messages
+    const MIN_BATCH_DELAY = 30000; // 30 seconds min between batches
+    const MAX_BATCH_DELAY = 60000; // 60 seconds max between batches
 
     let sent = 0;
     let failed = 0;
     const failedNumbers: string[] = [];
+    let isCancelled = false;
 
-    console.log(`[WhatsApp Blast] Starting blast to ${phones.length} recipients (type: ${type})`);
+    // Get or initialize job if provided
+    let job: BlastJob | undefined;
+    if (jobId) {
+        job = blastJobs.get(jobId);
+        if (job) {
+            job.status = 'processing';
+            job.total = phones.length; // Ensure total is accurate
+        }
+    }
 
+    console.log(`[WhatsApp Blast] Starting SAFER blast to ${phones.length} recipients (type: ${type}) ${jobId ? `[Job: ${jobId}]` : ''}`);
+
+    outerLoop:
     for (let i = 0; i < phones.length; i += BATCH_SIZE) {
-        const batch = phones.slice(i, i + BATCH_SIZE);
-        console.log(`[WhatsApp Blast] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(phones.length / BATCH_SIZE)}`);
+        // CHECK FOR CANCELLATION BEFORE BATCH
+        if (job && job.cancelRequested) {
+            console.log(`[WhatsApp Blast] Job ${jobId} CANCELLED by user request.`);
+            isCancelled = true;
+            break outerLoop;
+        }
 
-        for (const phone of batch) {
+        const batchIndex = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(phones.length / BATCH_SIZE);
+        const batch = phones.slice(i, i + BATCH_SIZE);
+
+        console.log(`[WhatsApp Blast] Processing batch ${batchIndex}/${totalBatches} (Size: ${batch.length})`);
+
+        for (const [index, phone] of batch.entries()) {
+            // CHECK FOR CANCELLATION BEFORE MESSAGE
+            if (job && job.cancelRequested) {
+                console.log(`[WhatsApp Blast] Job ${jobId} CANCELLED by user request.`);
+                isCancelled = true;
+                break outerLoop; // Break out of both loops
+            }
+
             // Initialize result with default failure state
             let result: SendMessageResult = {
                 success: false,
@@ -500,16 +609,49 @@ export async function blastWhatsApp(params: {
                 failedNumbers.push(phone);
                 console.error(`[WhatsApp Blast] ✗ Failed to send to ${phone}: ${result.error}`);
             }
+
+            // UPDATE JOB STATUS
+            if (job) {
+                job.sent = sent;
+                job.failed = failed;
+                if (!result.success) {
+                    job.failedNumbers.push(phone);
+                }
+            }
+
+            // DELAY BETWEEN MESSAGES (except for the very last one in the entire list)
+            const isLastMessageOverall = (i + index + 1) === phones.length;
+            if (!isLastMessageOverall) {
+                console.log(`[WhatsApp Blast] Waiting random delay before next message...`);
+                // We await delay, but we should check cancel again after delay if we wanted instant cancel, 
+                // but checking before next iteration is usually enough.
+                await randomDelay(MIN_MSG_DELAY, MAX_MSG_DELAY);
+            }
         }
 
-        // Delay between batches (except for last batch)
+        // DELAY BETWEEN BATCHES (except for last batch)
         if (i + BATCH_SIZE < phones.length) {
-            console.log(`[WhatsApp Blast] Waiting ${BATCH_DELAY / 1000}s before next batch...`);
-            await delay(BATCH_DELAY);
+            console.log(`[WhatsApp Blast] Batch ${batchIndex} done. Cooldown before next batch...`);
+            await randomDelay(MIN_BATCH_DELAY, MAX_BATCH_DELAY);
         }
     }
 
-    console.log(`[WhatsApp Blast] Complete: ${sent} sent, ${failed} failed`);
-    return { totalRecipients: phones.length, sent, failed, failedNumbers };
+    // FINALIZATION
+    if (job) {
+        job.status = isCancelled ? 'cancelled' : 'completed';
+        job.sent = sent;
+        job.failed = failed;
+        // job.failedNumbers is already updated
+    }
+
+    console.log(`[WhatsApp Blast] ${isCancelled ? 'CANCELLED' : 'Complete'}: ${sent} sent, ${failed} failed`);
+
+    return {
+        totalRecipients: phones.length,
+        sent,
+        failed,
+        failedNumbers,
+        status: isCancelled ? 'cancelled' : 'completed'
+    };
 }
 

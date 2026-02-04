@@ -6,6 +6,7 @@ interface User {
   nik: string;
   name: string;
   position: string | null;
+  department?: string | null;
   role: Role;
   permissions: Permission[];
 }
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const response = await fetch('/api/auth/session');
       const data = await response.json();
-      
+
       if (data.authenticated && data.user) {
         setUser(data.user);
       } else {
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(nik: string, password: string) {
     const data = await apiRequest('/api/auth/login', 'POST', { nik, password });
     setUser(data.user);
-    
+
     // Invalidate all queries on login to refresh data
     queryClient.invalidateQueries();
   }
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function logout() {
     await apiRequest('/api/auth/logout', 'POST');
     setUser(null);
-    
+
     // Clear all query cache on logout
     queryClient.clear();
   }
