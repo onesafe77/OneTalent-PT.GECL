@@ -135,67 +135,47 @@ export async function generateSidakPencahayaanPDF(data: SidakPencahayaanData): P
 
     yPosition = finalY + 14;
 
-    // Observer sign-off section - 2 rows x 4 columns (max 8 observers)
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(9);
-    pdf.text('Inspektur/Pemantau:', margin, yPosition);
-    yPosition += 4;
-
+    // Observer sign-off section - 4 rows x 2 groups (max 8 observers) - matching official template
     const getObs = (i: number) => data.observers[i] || null;
+
+    // Layout: 2 groups per row, 4 rows total
+    // Left side: observers 1, 2, 3, 4 | Right side: observers 5, 6, 7, 8
     const obsData = [
-        [
-            '1', getObs(0)?.nama || '', getObs(0)?.perusahaan || '', '',
-            '2', getObs(1)?.nama || '', getObs(1)?.perusahaan || '', '',
-            '3', getObs(2)?.nama || '', getObs(2)?.perusahaan || '', '',
-            '4', getObs(3)?.nama || '', getObs(3)?.perusahaan || '', ''
-        ],
-        [
-            '5', getObs(4)?.nama || '', getObs(4)?.perusahaan || '', '',
-            '6', getObs(5)?.nama || '', getObs(5)?.perusahaan || '', '',
-            '7', getObs(6)?.nama || '', getObs(6)?.perusahaan || '', '',
-            '8', getObs(7)?.nama || '', getObs(7)?.perusahaan || '', ''
-        ],
+        ['1.', getObs(0)?.nama || '', getObs(0)?.perusahaan || '', '', '5.', getObs(4)?.nama || '', getObs(4)?.perusahaan || '', ''],
+        ['2.', getObs(1)?.nama || '', getObs(1)?.perusahaan || '', '', '6.', getObs(5)?.nama || '', getObs(5)?.perusahaan || '', ''],
+        ['3.', getObs(2)?.nama || '', getObs(2)?.perusahaan || '', '', '7.', getObs(6)?.nama || '', getObs(6)?.perusahaan || '', ''],
+        ['4.', getObs(3)?.nama || '', getObs(3)?.perusahaan || '', '', '8.', getObs(7)?.nama || '', getObs(7)?.perusahaan || '', ''],
     ];
 
     autoTable(pdf, {
         startY: yPosition,
         head: [[
             'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan',
-            'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan',
-            'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan',
             'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan'
         ]],
         body: obsData,
         theme: 'grid',
         tableWidth: availableWidth,
-        styles: { fontSize: 6, cellPadding: 1, valign: 'middle', minCellHeight: 12, lineWidth: 0.15 },
+        styles: { fontSize: 7, cellPadding: 1.5, valign: 'middle', minCellHeight: 10, lineWidth: 0.15 },
         headStyles: { fillColor: [220, 220, 220], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
         columnStyles: {
-            // Group 1
-            0: { cellWidth: 6, halign: 'center' },
-            1: { cellWidth: 20 },
-            2: { cellWidth: 15 },
-            3: { cellWidth: 18 },
-            // Group 2
-            4: { cellWidth: 6, halign: 'center' },
-            5: { cellWidth: 20 },
-            6: { cellWidth: 15 },
-            7: { cellWidth: 18 },
-            // Group 3
-            8: { cellWidth: 6, halign: 'center' },
-            9: { cellWidth: 20 },
-            10: { cellWidth: 15 },
-            11: { cellWidth: 18 },
-            // Group 4
-            12: { cellWidth: 6, halign: 'center' },
-            13: { cellWidth: 20 },
-            14: { cellWidth: 15 },
-            15: { cellWidth: 18 },
+            // Group 1 (left side)
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 45, halign: 'left' },
+            2: { cellWidth: 35, halign: 'left' },
+            3: { cellWidth: 45 },
+            // Group 2 (right side)
+            4: { cellWidth: 10, halign: 'center' },
+            5: { cellWidth: 45, halign: 'left' },
+            6: { cellWidth: 35, halign: 'left' },
+            7: { cellWidth: 45 },
         },
         didDrawCell: (cellData) => {
-            // Signature columns: 3, 7, 11, 15
-            if ([3, 7, 11, 15].includes(cellData.column.index) && cellData.section === 'body') {
-                const obsIdx = cellData.row.index * 4 + Math.floor(cellData.column.index / 4);
+            // Signature columns: 3 (left group), 7 (right group)
+            if ([3, 7].includes(cellData.column.index) && cellData.section === 'body') {
+                // For column 3: observers 0-3 (rows 0-3)
+                // For column 7: observers 4-7 (rows 0-3)
+                const obsIdx = cellData.column.index === 3 ? cellData.row.index : cellData.row.index + 4;
                 const obs = getObs(obsIdx);
                 if (obs?.tandaTangan) {
                     try {
@@ -209,8 +189,12 @@ export async function generateSidakPencahayaanPDF(data: SidakPencahayaanData): P
         margin: { left: margin, right: margin },
     });
 
+    // Footer
+    const footerY = (pdf as any).lastAutoTable.finalY + 3;
+    pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
-    pdf.text('Page 1 of 1', pageWidth - margin, pageHeight - 5, { align: 'right' });
+    pdf.text('Mei 2020/R0', margin, pageHeight - 5);
+    pdf.text('Page 1 of 2', pageWidth - margin, pageHeight - 5, { align: 'right' });
 
     return pdf;
 }
@@ -246,3 +230,6 @@ export async function downloadSidakPencahayaanAsJpg(data: SidakPencahayaanData, 
         }, 'image/jpeg', 0.95);
     });
 }
+
+// Alias exports for backward compatibility
+export const generateSidakPencahayaanPdf = generateSidakPencahayaanPDF;
