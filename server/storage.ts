@@ -5595,11 +5595,11 @@ export class DrizzleStorage implements IStorage {
           { name: 'Nama', label: 'Nama', w: 140, align: 'left', type: 'text' },
           { name: 'NIK', label: 'NIK', w: 70, align: 'left', type: 'text' },
           { name: 'Perusahaan', label: 'Perusahaan', w: 90, align: 'left', type: 'text' },
-          { name: 'Q1', label: 'Gembok & Danger tag terpasang?', w: qWidth, align: 'center', type: 'vertical' },
-          { name: 'Q2', label: 'Danger tag sesuai & memadai?', w: qWidth, align: 'center', type: 'vertical' },
-          { name: 'Q3', label: 'Gembok sesuai & memadai?', w: qWidth, align: 'center', type: 'vertical' },
-          { name: 'Q4', label: 'Kunci unik untuk gembok sendiri?', w: qWidth, align: 'center', type: 'vertical' },
-          { name: 'Q5', label: 'Hasp digunakan dengan benar?', w: qWidth, align: 'center', type: 'vertical' },
+          { name: 'Q1', label: 'Apakah gembok dan danger tag terpasang pada unit yang sedang diperbaiki ?', w: qWidth, align: 'center', type: 'vertical' },
+          { name: 'Q2', label: 'Apakah danger tag sesuai dan memadai ?', w: qWidth, align: 'center', type: 'vertical' },
+          { name: 'Q3', label: 'Apakah gembok sesuai dan memadai ?', w: qWidth, align: 'center', type: 'vertical' },
+          { name: 'Q4', label: 'Apakah setiap pekerja memiliki kunci unik untuk gemboknya sendiri?', w: qWidth, align: 'center', type: 'vertical' },
+          { name: 'Q5', label: 'Apakah hasp (multi-lock) digunakan dengan benar jika lebih dari satu pekerja terlibat?', w: qWidth, align: 'center', type: 'vertical' },
           { name: 'Ket', label: 'Keterangan', w: 0, align: 'left', type: 'text' }
         ];
 
@@ -5608,7 +5608,7 @@ export class DrizzleStorage implements IStorage {
         cols[cols.length - 1].w = contentWidth - fixedWidth;
 
         let currentY = tableTop;
-        const headerHeightTable = 140; // Taller for vertical text
+        const headerHeightTable = 160; // Taller for vertical text to fit longer labels
         const rowHeight = 20;
 
         const drawHeader = (y: number) => {
@@ -5618,19 +5618,20 @@ export class DrizzleStorage implements IStorage {
 
           cols.forEach(col => {
             doc.rect(x, y, col.w, headerHeightTable).stroke();
-            doc.font('Helvetica-Bold').fontSize(9);
 
             if (col.type === 'vertical') {
-              // Draw vertical text
+              // Draw vertical text with smaller font for longer labels
               doc.save();
-              const textX = x + (col.w / 2) + 3; // slight offset for font baseline
-              const textY = y + headerHeightTable - 5;
+              doc.font('Helvetica-Bold').fontSize(7);
+              const textX = x + (col.w / 2) + 2;
+              const textY = y + headerHeightTable - 8;
               doc.translate(textX, textY);
               doc.rotate(-90);
-              doc.text(col.label, 0, 0, { width: headerHeightTable - 10, align: 'left' }); // align left relative to rotation start (which is bottom)
+              doc.text(col.label, 0, 0, { width: headerHeightTable - 15, align: 'left', lineGap: 1 });
               doc.restore();
             } else {
               // Draw centered text normally
+              doc.font('Helvetica-Bold').fontSize(9);
               const textHeight = doc.heightOfString(col.label, { width: col.w - 4 });
               const textY = y + (headerHeightTable - textHeight) / 2;
               doc.text(col.label, x + 2, textY, { width: col.w - 4, align: 'center' });
@@ -5662,7 +5663,7 @@ export class DrizzleStorage implements IStorage {
             doc.rect(x, currentY, col.w, rowHeight).stroke();
 
             let text = '';
-            if (col.name === 'No') text = (idx + 1).toString();
+            if (col.name === 'No') text = (idx + 1).toString() + '.';
             else if (col.name === 'Nama') text = rec.nama || '';
             else if (col.name === 'NIK') text = rec.nik || '';
             else if (col.name === 'Perusahaan') text = rec.perusahaan || '';
@@ -5695,7 +5696,7 @@ export class DrizzleStorage implements IStorage {
           cols.forEach(col => {
             doc.rect(x, currentY, col.w, rowHeight).stroke();
             if (col.name === 'No') {
-              doc.text((records.length + i + 1).toString(), x + 2, currentY + 6, { width: col.w, align: 'center' });
+              doc.text((records.length + i + 1).toString() + '.', x + 2, currentY + 6, { width: col.w, align: 'center' });
             }
             x += col.w;
           });
@@ -5746,7 +5747,7 @@ export class DrizzleStorage implements IStorage {
 
           // --- LEFT SIDE ---
           // No
-          doc.rect(rowX, currentY, oCols[0], obsRowH).stroke().text((r + 1).toString(), rowX, currentY + 15, { width: oCols[0], align: 'center' }); rowX += oCols[0];
+          doc.rect(rowX, currentY, oCols[0], obsRowH).stroke().text((r + 1).toString() + '.', rowX, currentY + 15, { width: oCols[0], align: 'center' }); rowX += oCols[0];
           // Nama
           doc.rect(rowX, currentY, oCols[1], obsRowH).stroke();
           if (obs1) doc.text(obs1.nama, rowX + 5, currentY + 15, { width: oCols[1] - 10 }); rowX += oCols[1];
@@ -5763,7 +5764,7 @@ export class DrizzleStorage implements IStorage {
 
           // --- RIGHT SIDE ---
           // No
-          doc.rect(rowX, currentY, oCols[0], obsRowH).stroke().text((r + 5).toString(), rowX, currentY + 15, { width: oCols[0], align: 'center' }); rowX += oCols[0];
+          doc.rect(rowX, currentY, oCols[0], obsRowH).stroke().text((r + 5).toString() + '.', rowX, currentY + 15, { width: oCols[0], align: 'center' }); rowX += oCols[0];
           // Nama
           doc.rect(rowX, currentY, oCols[1], obsRowH).stroke();
           if (obs2) doc.text(obs2.nama, rowX + 5, currentY + 15, { width: oCols[1] - 10 }); rowX += oCols[1];
