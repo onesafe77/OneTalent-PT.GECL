@@ -46,35 +46,37 @@ export default function SidakPencahayaanHistory() {
     const uploadPhotosMutation = useMutation({
         mutationFn: async ({ sessionId, files }: { sessionId: string; files: File[] }) => {
             setUploadingPhotos(true);
-            try {
-                let finalPhotos: string[] = [];
-                for (const file of files) {
-                    const urlResponse = await fetch(`/api/sidak-pencahayaan/${sessionId}/request-upload-url`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: file.name, contentType: file.type || 'application/octet-stream' })
-                    });
-                    if (!urlResponse.ok) throw new Error((await urlResponse.json()).error || 'Gagal mendapatkan URL upload');
-                    const { uploadURL, objectPath } = await urlResponse.json();
-                    
-                    const uploadResponse = await fetch(uploadURL, {
-                        method: 'PUT', body: file,
-                        headers: { 'Content-Type': file.type || 'application/octet-stream' }
-                    });
-                    if (!uploadResponse.ok) throw new Error('Gagal mengupload file ke storage');
-                    
-                    const confirmResponse = await fetch(`/api/sidak-pencahayaan/${sessionId}/confirm-upload`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ objectPath })
-                    });
-                    if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).error || 'Gagal konfirmasi upload');
-                    finalPhotos = (await confirmResponse.json()).photos;
-                }
-                return { photos: finalPhotos };
-            } finally {
-                setUploadingPhotos(false);
+            let finalPhotos: string[] = [];
+            for (const file of files) {
+                const urlResponse = await fetch(`/api/sidak-pencahayaan/${sessionId}/request-upload-url`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: file.name, contentType: file.type || 'application/octet-stream' })
+                });
+                if (!urlResponse.ok) throw new Error((await urlResponse.json()).error || 'Gagal mendapatkan URL upload');
+                const { uploadURL } = await urlResponse.json();
+
+                // Step 2: Upload to database storage
+                const uploadResponse = await fetch(uploadURL, {
+                    method: 'PUT',
+                    body: file,
+                    headers: { 'Content-Type': file.type || 'application/octet-stream' }
+                });
+
+                if (!uploadResponse.ok) throw new Error('Failed to upload file to storage');
+
+                const uploadResult = await uploadResponse.json();
+                if (!uploadResult.url) throw new Error('Upload succeeded but no URL returned');
+
+                const confirmResponse = await fetch(`/api/sidak-pencahayaan/${sessionId}/confirm-upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: uploadResult.url })
+                });
+                if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).error || 'Gagal konfirmasi upload');
+                finalPhotos = (await confirmResponse.json()).photos;
             }
+            return { photos: finalPhotos };
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['/api/sidak-pencahayaan/sessions'] });
@@ -84,6 +86,9 @@ export default function SidakPencahayaanHistory() {
         onError: (error: any) => {
             toast({ title: "Gagal upload foto", description: error.message, variant: "destructive" });
         },
+        onSettled: () => {
+            setUploadingPhotos(false);
+        }
     });
 
     const deletePhotoMutation = useMutation({

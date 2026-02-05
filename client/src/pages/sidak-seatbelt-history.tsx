@@ -54,18 +54,22 @@ export default function SidakSeatbeltHistory() {
                         body: JSON.stringify({ name: file.name, contentType: file.type || 'application/octet-stream' })
                     });
                     if (!urlResponse.ok) throw new Error((await urlResponse.json()).error || 'Gagal mendapatkan URL upload');
-                    const { uploadURL, objectPath } = await urlResponse.json();
-                    
+                    const { uploadURL } = await urlResponse.json();
+
                     const uploadResponse = await fetch(uploadURL, {
                         method: 'PUT', body: file,
                         headers: { 'Content-Type': file.type || 'application/octet-stream' }
                     });
                     if (!uploadResponse.ok) throw new Error('Gagal mengupload file ke storage');
-                    
+
+                    // Get the uploaded file URL from response
+                    const uploadResult = await uploadResponse.json();
+                    if (!uploadResult.url) throw new Error('Upload succeeded but no URL returned');
+
                     const confirmResponse = await fetch(`/api/sidak-seatbelt/${sessionId}/confirm-upload`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ objectPath })
+                        body: JSON.stringify({ url: uploadResult.url }) // Use 'url' instead of 'objectPath'
                     });
                     if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).error || 'Gagal konfirmasi upload');
                     finalPhotos = (await confirmResponse.json()).photos;

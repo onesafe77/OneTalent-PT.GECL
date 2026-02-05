@@ -63,9 +63,9 @@ export default function SidakRosterHistory() {
           throw new Error(error.error || 'Failed to get upload URL');
         }
 
-        const { uploadURL, objectPath } = await urlResponse.json();
+        const { uploadURL } = await urlResponse.json();
 
-        // Step 2: Upload directly to object storage
+        // Step 2: Upload to database storage
         const uploadResponse = await fetch(uploadURL, {
           method: 'PUT',
           body: file,
@@ -76,11 +76,17 @@ export default function SidakRosterHistory() {
           throw new Error('Failed to upload file to storage');
         }
 
-        // Step 3: Confirm upload and add to session
+        // Get the uploaded file URL from response
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResult.url) {
+          throw new Error('Upload succeeded but no URL returned');
+        }
+
+        // Step 3: Confirm upload with database URL
         const confirmResponse = await fetch(`/api/sidak-roster/${sessionId}/confirm-upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ objectPath })
+          body: JSON.stringify({ url: uploadResult.url })
         });
 
         if (!confirmResponse.ok) {

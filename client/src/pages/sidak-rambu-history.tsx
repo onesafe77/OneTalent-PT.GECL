@@ -55,18 +55,25 @@ export default function SidakRambuHistory() {
                         body: JSON.stringify({ name: file.name, contentType: file.type || 'application/octet-stream' })
                     });
                     if (!urlResponse.ok) throw new Error((await urlResponse.json()).error || 'Gagal mendapatkan URL upload');
-                    const { uploadURL, objectPath } = await urlResponse.json();
-                    
+                    const { uploadURL } = await urlResponse.json();
+
+                    // Step 2: Upload to database storage
                     const uploadResponse = await fetch(uploadURL, {
                         method: 'PUT', body: file,
                         headers: { 'Content-Type': file.type || 'application/octet-stream' }
                     });
-                    if (!uploadResponse.ok) throw new Error('Gagal mengupload file ke storage');
-                    
+                    if (!uploadResponse.ok) {
+                        throw new Error('Failed to upload file to storage');
+                    }
+
+                    const uploadResult = await uploadResponse.json();
+                    if (!uploadResult.url) throw new Error('Upload succeeded but no URL returned');
+
+                    // Step 3: Confirm upload with database URL
                     const confirmResponse = await fetch(`/api/sidak-rambu/${sessionId}/confirm-upload`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ objectPath })
+                        body: JSON.stringify({ url: uploadResult.url })
                     });
                     if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).error || 'Gagal konfirmasi upload');
                     finalPhotos = (await confirmResponse.json()).photos;

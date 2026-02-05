@@ -5226,6 +5226,150 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // ============================================
+  // SIDAK PHOTO UPLOAD - GENERIC ENDPOINT HELPER
+  // ============================================
+
+  /**
+   * Generic function to create photo upload endpoints for any SIDAK type
+   * Handles: request-upload-url, temp-upload, confirm-upload, and delete photo
+   */
+  function createSidakPhotoEndpoints(
+    sidakType: string,
+    getSession: (id: string) => Promise<any>,
+    updateSession: (id: string, data: any) => Promise<any>
+  ) {
+    // Step 1: Request upload URL
+    app.post(`/api/sidak-${sidakType}/:id/request-upload-url`, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { name } = req.body;
+
+        if (!name) return res.status(400).json({ error: "Filename is required" });
+
+        const session = await getSession(id);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(7);
+        const ext = path.extname(name) || '.jpg';
+        const filename = `${timestamp}-${randomStr}${ext}`;
+
+        const protocol = req.protocol;
+        const host = req.get('host');
+        const uploadURL = `${protocol}://${host}/api/sidak-${sidakType}/temp-upload/${filename}`;
+
+        res.json({ uploadURL, objectPath: filename });
+      } catch (error: any) {
+        console.error(`[SIDAK ${sidakType}] Error generating upload URL:`, error);
+        res.status(500).json({ error: "Failed to generate upload URL" });
+      }
+    });
+
+    // Step 2: Temp upload (Database Storage)
+    app.put(`/api/sidak-${sidakType}/temp-upload/:filename`, async (req, res) => {
+      try {
+        const { filename } = req.params;
+        const chunks: Buffer[] = [];
+
+        req.on('data', (chunk) => {
+          chunks.push(Buffer.from(chunk));
+        });
+
+        req.on('end', async () => {
+          try {
+            const buffer = Buffer.concat(chunks);
+            const mockFile = {
+              buffer: buffer,
+              originalname: filename,
+              mimetype: req.headers['content-type'] || 'image/jpeg',
+            } as Express.Multer.File;
+
+            const result = await dbStorage.uploadFile(mockFile);
+
+            res.json({
+              success: true,
+              id: result.id,
+              url: result.url
+            });
+          } catch (error) {
+            console.error(`[SIDAK ${sidakType}] Database upload error:`, error);
+            res.status(500).json({ error: "Failed to upload to database" });
+          }
+        });
+
+        req.on('error', (err) => {
+          console.error(`[SIDAK ${sidakType}] Request error:`, err);
+          res.status(500).json({ error: "Request failed" });
+        });
+      } catch (error) {
+        console.error(`[SIDAK ${sidakType}] Temp upload error:`, error);
+        res.status(500).json({ error: "Upload failed" });
+      }
+    });
+
+    // Step 3: Confirm upload
+    app.post(`/api/sidak-${sidakType}/:id/confirm-upload`, async (req, res) => {
+      try {
+        const { id } = req.params;
+        const { url } = req.body;
+
+        const session = await getSession(id);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const existingPhotos = session.activityPhotos || [];
+        const updatedPhotos = [...existingPhotos, url];
+
+        const updatedSession = await updateSession(id, {
+          activityPhotos: updatedPhotos
+        });
+
+        res.json({ photos: updatedSession.activityPhotos });
+      } catch (error) {
+        console.error(`[SIDAK ${sidakType}] Error confirming upload:`, error);
+        res.status(500).json({ error: "Failed to confirm upload" });
+      }
+    });
+
+    // Delete photo
+    app.delete(`/api/sidak-${sidakType}/:id/photos/:index`, async (req, res) => {
+      try {
+        const { id, index } = req.params;
+        const photoIndex = parseInt(index, 10);
+
+        const session = await getSession(id);
+        if (!session) return res.status(404).json({ error: "Session not found" });
+
+        const existingPhotos = session.activityPhotos || [];
+        if (photoIndex < 0 || photoIndex >= existingPhotos.length) {
+          return res.status(404).json({ error: "Invalid photo index" });
+        }
+
+        const updatedPhotos = existingPhotos.filter((_, idx) => idx !== photoIndex);
+
+        const updatedSession = await updateSession(id, {
+          activityPhotos: updatedPhotos
+        });
+
+        res.json({ photos: updatedSession.activityPhotos });
+      } catch (error) {
+        console.error(`[SIDAK ${sidakType}] Error deleting photo:`, error);
+        res.status(500).json({ error: "Failed to delete photo" });
+      }
+    });
+  }
+
+  // Register photo upload endpoints for all SIDAK types
+  createSidakPhotoEndpoints('seatbelt', storage.getSidakSeatbeltSession, storage.updateSidakSeatbeltSession);
+  createSidakPhotoEndpoints('roster', storage.getSidakRosterSession, storage.updateSidakRosterSession);
+  createSidakPhotoEndpoints('rambu', storage.getSidakRambuSession, storage.updateSidakRambuSession);
+  createSidakPhotoEndpoints('jarak', storage.getSidakJarakSession, storage.updateSidakJarakSession);
+  createSidakPhotoEndpoints('pencahayaan', storage.getSidakPencahayaanSession, storage.updateSidakPencahayaanSession);
+  createSidakPhotoEndpoints('digital', storage.getSidakDigitalSession, storage.updateSidakDigitalSession);
+  createSidakPhotoEndpoints('antrian', storage.getSidakAntrianSession, storage.updateSidakAntrianSession);
+  createSidakPhotoEndpoints('workshop', storage.getSidakWorkshopSession, storage.updateSidakWorkshopSession);
+
+
 
   // ============================================
   // SIDAK ROSTER ROUTES
