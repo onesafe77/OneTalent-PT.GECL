@@ -5360,14 +5360,14 @@ Format sebagai bullet points singkat per insight.`;
   }
 
   // Register photo upload endpoints for all SIDAK types
-  createSidakPhotoEndpoints('seatbelt', storage.getSidakSeatbeltSession, storage.updateSidakSeatbeltSession);
-  createSidakPhotoEndpoints('roster', storage.getSidakRosterSession, storage.updateSidakRosterSession);
-  createSidakPhotoEndpoints('rambu', storage.getSidakRambuSession, storage.updateSidakRambuSession);
-  createSidakPhotoEndpoints('jarak', storage.getSidakJarakSession, storage.updateSidakJarakSession);
-  createSidakPhotoEndpoints('pencahayaan', storage.getSidakPencahayaanSession, storage.updateSidakPencahayaanSession);
-  createSidakPhotoEndpoints('digital', storage.getSidakDigitalSession, storage.updateSidakDigitalSession);
-  createSidakPhotoEndpoints('antrian', storage.getSidakAntrianSession, storage.updateSidakAntrianSession);
-  createSidakPhotoEndpoints('workshop', storage.getSidakWorkshopSession, storage.updateSidakWorkshopSession);
+  createSidakPhotoEndpoints('seatbelt', (id) => storage.getSidakSeatbeltSession(id), (id, data) => storage.updateSidakSeatbeltSession(id, data));
+  createSidakPhotoEndpoints('roster', (id) => storage.getSidakRosterSession(id), (id, data) => storage.updateSidakRosterSession(id, data));
+  createSidakPhotoEndpoints('rambu', (id) => storage.getSidakRambuSession(id), (id, data) => storage.updateSidakRambuSession(id, data));
+  createSidakPhotoEndpoints('jarak', (id) => storage.getSidakJarakSession(id), (id, data) => storage.updateSidakJarakSession(id, data));
+  createSidakPhotoEndpoints('pencahayaan', (id) => storage.getSidakPencahayaanSession(id), (id, data) => storage.updateSidakPencahayaanSession(id, data));
+  createSidakPhotoEndpoints('digital', (id) => storage.getSidakDigitalSession(id), (id, data) => storage.updateSidakDigitalSession(id, data));
+  createSidakPhotoEndpoints('antrian', (id) => storage.getSidakAntrianSession(id), (id, data) => storage.updateSidakAntrianSession(id, data));
+  createSidakPhotoEndpoints('workshop', (id) => storage.getSidakWorkshopSession(id), (id, data) => storage.updateSidakWorkshopSession(id, data));
 
 
 
