@@ -2881,3 +2881,22 @@ export const insertSickLeaveSchema = createInsertSchema(sickLeaves).omit({
 
 export type SickLeave = typeof sickLeaves.$inferSelect;
 export type InsertSickLeave = z.infer<typeof insertSickLeaveSchema>;
+// ============================================
+// UPLOADED FILES STORAGE
+// ============================================
+
+export const uploadedFiles = pgTable("uploaded_files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  data: text("data").notNull(), // Base64 encoded file data
+  mimeType: varchar("mime_type").notNull(),
+  filename: varchar("filename").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type UploadedFile = typeof uploadedFiles.$inferSelect;
+export type InsertUploadedFile = z.infer<typeof insertUploadedFileSchema>;

@@ -19,6 +19,7 @@ import { storage } from "./storage";
 import { sendWhatsAppMessage, formatSimperEvNotification } from "./services/whatsapp-service";
 import { fetchSheetData, listSpreadsheetSheets, getSpreadsheetMetadata, generateVisualizationSuggestions } from "./google-sheets-service";
 import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
+import { dbStorage } from "./services/storage-db";
 import { setupAuth } from "./replitAuth";
 import {
   insertEmployeeSchema,
@@ -372,6 +373,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Serve uploaded files statically with absolute path
   app.use('/uploads', express.static(uploadsDir));
+
+  // Serve files from database storage
+  app.get("/api/uploads/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const file = await dbStorage.getFile(id);
+
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+
+      res.setHeader("Content-Type", file.mimeType);
+      res.setHeader("Content-Disposition", `inline; filename="${file.filename}"`);
+      res.send(file.data);
+    } catch (error) {
+      console.error("Error serving file from database:", error);
+      res.status(500).json({ message: "Failed to serve file" });
+    }
+  });
 
 
 
@@ -5081,7 +5101,7 @@ Format sebagai bullet points singkat per insight.`;
   // SIDAK FATIGUE PHOTO UPLOAD (Local Adapter)
   // ============================================
 
-  // Step 1: Request upload URL
+  // Step 1: Request upload URL (Database Storage)
   app.post("/api/sidak-fatigue/:id/request-upload-url", async (req, res) => {
     try {
       const { id } = req.params;
@@ -5097,45 +5117,58 @@ Format sebagai bullet points singkat per insight.`;
       const ext = path.extname(name) || '.jpg';
       const filename = `${timestamp}-${randomStr}${ext}`;
 
-      // Ensure directory exists
-      const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-fatigue-photos');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-
       const protocol = req.protocol;
       const host = req.get('host');
       const uploadURL = `${protocol}://${host}/api/sidak-fatigue/temp-upload/${filename}`;
-      const objectPath = `/uploads/sidak-fatigue-photos/${filename}`;
 
-      res.json({ uploadURL, objectPath });
+      // Return upload URL - actual storage path will be determined after upload
+      res.json({ uploadURL, objectPath: filename });
     } catch (error: any) {
       console.error("Error generating upload URL:", error);
       res.status(500).json({ error: "Failed to generate upload URL" });
     }
   });
 
-  // Step 2: Temp upload endpoint
+  // Step 2: Temp upload endpoint (Database Storage)
   app.put("/api/sidak-fatigue/temp-upload/:filename", async (req, res) => {
     try {
       const { filename } = req.params;
-      const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-fatigue-photos');
-      const filePath = path.join(uploadDir, filename);
 
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
+      // Collect the incoming data as a buffer
+      const chunks: Buffer[] = [];
 
-      const writeStream = fs.createWriteStream(filePath);
-      req.pipe(writeStream);
-
-      writeStream.on('finish', () => {
-        res.json({ success: true });
+      req.on('data', (chunk) => {
+        chunks.push(Buffer.from(chunk));
       });
 
-      writeStream.on('error', (err) => {
-        console.error("File write error:", err);
-        res.status(500).json({ error: "Failed to write file" });
+      req.on('end', async () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+
+          // Create a mock multer file object
+          const mockFile = {
+            buffer: buffer,
+            originalname: filename,
+            mimetype: req.headers['content-type'] || 'image/jpeg',
+          } as Express.Multer.File;
+
+          // Upload to database
+          const result = await dbStorage.uploadFile(mockFile);
+
+          res.json({
+            success: true,
+            id: result.id,
+            url: result.url
+          });
+        } catch (error) {
+          console.error("Database upload error:", error);
+          res.status(500).json({ error: "Failed to upload to database" });
+        }
+      });
+
+      req.on('error', (err) => {
+        console.error("Request error:", err);
+        res.status(500).json({ error: "Request failed" });
       });
     } catch (error) {
       console.error("Temp upload error:", error);
@@ -5143,17 +5176,17 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // Step 3: Confirm upload
+  // Step 3: Confirm upload (Database Storage)
   app.post("/api/sidak-fatigue/:id/confirm-upload", async (req, res) => {
     try {
       const { id } = req.params;
-      const { objectPath } = req.body;
+      const { url } = req.body; // Accept the 'url' from the temp-upload response
 
       const session = await storage.getSidakFatigueSession(id);
       if (!session) return res.status(404).json({ error: "Session not found" });
 
       const existingPhotos = session.activityPhotos || [];
-      const updatedPhotos = [...existingPhotos, objectPath];
+      const updatedPhotos = [...existingPhotos, url]; // Store the database URL
 
       const updatedSession = await storage.updateSidakFatigueSession(id, {
         activityPhotos: updatedPhotos
@@ -9165,36 +9198,39 @@ Format sebagai bullet points singkat per insight.`;
 
       console.log("📷 Media URL extracted:", mediaUrl || "(none)");
 
-      // [Safety Patrol Fix] Download media to local storage to prevent expiry
+      // [Safety Patrol Fix] Download media to database storage to prevent expiry
       if (mediaUrl && (mediaUrl.startsWith('http') || mediaUrl.startsWith('https'))) {
         try {
           console.log(`[SafetyPatrol] Downloading media from: ${mediaUrl}`);
 
-          // Ensure directory exists
-          const spUploadsDir = path.join(process.cwd(), "uploads", "safety-patrol");
-          if (!fs.existsSync(spUploadsDir)) {
-            fs.mkdirSync(spUploadsDir, { recursive: true });
-          }
-
-          // Generate filename
-          const ext = path.extname(new URL(mediaUrl).pathname) || '.jpg';
-          const filename = `sp-${Date.now()}-${Math.round(Math.random() * 1000)}${ext}`;
-          const localFilePath = path.join(spUploadsDir, filename);
-
-          // Download
+          // Download media
           const response = await fetch(mediaUrl);
           if (response.ok) {
-            const buffer = await response.arrayBuffer();
-            await fs.promises.writeFile(localFilePath, Buffer.from(buffer));
+            const buffer = Buffer.from(await response.arrayBuffer());
 
-            // Update variable to point to local path
-            mediaUrl = `/uploads/safety-patrol/${filename}`;
-            console.log(`[SafetyPatrol] Media saved to: ${mediaUrl}`);
+            // Extract filename and MIME type
+            const ext = path.extname(new URL(mediaUrl).pathname) || '.jpg';
+            const filename = `sp-${Date.now()}-${Math.round(Math.random() * 1000)}${ext}`;
+            const mimeType = response.headers.get('content-type') || 'image/jpeg';
+
+            // Create mock multer file object
+            const mockFile = {
+              buffer: buffer,
+              originalname: filename,
+              mimetype: mimeType,
+            } as Express.Multer.File;
+
+            // Upload to database
+            const result = await dbStorage.uploadFile(mockFile);
+
+            // Update variable to point to database URL
+            mediaUrl = result.url;
+            console.log(`[SafetyPatrol] Media saved to database: ${mediaUrl}`);
           } else {
             console.warn(`[SafetyPatrol] Failed to download media: ${response.status} ${response.statusText}`);
           }
         } catch (error) {
-          console.error("[SafetyPatrol] Error downloading media:", error);
+          console.error("[SafetyPatrol] Error downloading/storing media:", error);
           // Keep original URL as fallback
         }
       }
