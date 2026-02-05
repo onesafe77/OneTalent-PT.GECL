@@ -133,6 +133,7 @@ const SUPERVISOR_POSITIONS = [
   "hse group leader",
   "maintenance group leader",
   "production group leader",
+  "fms specialist",
 ];
 
 // Get role from position - STRICT exact matching to prevent privilege escalation
