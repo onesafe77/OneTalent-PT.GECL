@@ -16,7 +16,7 @@ import Papa from "papaparse";
 const upload = multer({ dest: 'uploads/' });
 
 import { storage } from "./storage";
-import { sendWhatsAppMessage, formatSimperEvNotification } from "./services/whatsapp-service";
+import { sendWhatsAppMessage, formatSimperEvNotification, formatSimperPerpanjanganNotification } from "./services/whatsapp-service";
 import { fetchSheetData, listSpreadsheetSheets, getSpreadsheetMetadata, generateVisualizationSuggestions } from "./google-sheets-service";
 import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
 import { dbStorage } from "./services/storage-db";
@@ -49,7 +49,6 @@ import {
   resetPasswordSchema,
   insertSidakAntrianSessionSchema,
   insertSidakAntrianRecordSchema,
-
   insertSidakAntrianObserverSchema,
   insertSidakKecepatanSessionSchema,
   insertSidakKecepatanRecordSchema,
@@ -69,8 +68,6 @@ import {
   insertSidakWorkshopSessionSchema,
   insertSidakWorkshopEquipmentSchema,
   insertSidakWorkshopInspectorSchema,
-
-  // TNA Schemas
   insertTrainingSchema,
   insertTnaSummarySchema,
   insertTnaEntrySchema,
@@ -79,217 +76,218 @@ import {
   insertKompetensiMonitoringSchema,
   siAsefDocuments, siAsefChunks, siAsefChatSessions, siAsefChatMessages,
   insertSiAsefChatSessionSchema, insertSiAsefChatMessageSchema,
-  fmsFatigueAlerts,
   insertActivityEventSchema,
-  // Induction Schemas
   insertInductionMaterialSchema,
   insertInductionQuestionSchema,
   insertInductionScheduleSchema,
   insertInductionAnswerSchema,
-  inductionMaterials,
-  inductionSchedules,
-  // Project Tracker
   insertProjectSchema,
   insertProjectFileSchema,
 } from "@shared/schema";
-import { eq, ilike, and, desc, sql } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, asc } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
 import * as whatsappService from "./services/whatsapp-service";
 import { buildRAGPrompt, searchSimilarChunks, generateEmbedding } from "./services/rag-service";
-import { eq, desc, asc } from "drizzle-orm";
 import { db } from "./db";
 import { PushNotificationService } from "./push-notification";
 import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition } from "@shared/rbac";
-import { sendWhatsAppMessage } from "./services/whatsapp-service";
 import { inductionAiService } from "./services/induction-ai-service";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
 
-// Report cache invalidation and update notification system
-let lastRosterUpdate = new Date();
-
-async function triggerReportUpdate() {
-  console.log("🔄 Roster data changed - triggering report updates");
-
-  // Update the last roster change timestamp
-  lastRosterUpdate = new Date();
-
-  // Could implement various notification methods:
-  // 1. WebSocket broadcast to all connected report clients
-  // 2. Cache invalidation for TanStack Query
-  // 3. Database triggers for real-time updates
-  // 4. Email notifications to managers
-
-  console.log(`📊 Report update triggered at ${lastRosterUpdate.toISOString()}`);
-}
-
-// Utility function to determine shift based on time
-function determineShiftByTime(time: string): string {
-  const [hours, minutes] = time.split(':').map(Number);
-  const totalMinutes = hours * 60 + minutes;
-
-  // UPDATED CRITERIA:
-  // Shift 1: 04:00-10:00 (240-600 menit)
-  // Shift 2: 16:00-22:00 (960-1320 menit)
-
-  if (totalMinutes >= 960 && totalMinutes <= 1320) {
-    return "Shift 2";
-  } else if (totalMinutes >= 240 && totalMinutes <= 600) {
-    return "Shift 1";
-  } else {
-    return "Shift 1"; // Default to Shift 1 for other times
-  }
-}
-
-// Strict shift time validation based on actual roster schedule
-// Fungsi validasi waktu berdasarkan pola shift standar operasional
-function isValidRosterTime(currentTime: string, startTime: string, endTime: string): boolean {
-  // Tidak menggunakan startTime dan endTime dari roster untuk sementara
-  // Karena data roster bisa inconsistent
-  return true; // Temporary - akan menggunakan shift-based validation
-}
-
-// STRICT: Fungsi validasi waktu berdasarkan nama shift - TIDAK BOLEH ABSENSI DILUAR JAM KERJA
-function isValidShiftTimeByName(currentTime: string, shiftName: string): boolean {
-  const [hours, minutes] = currentTime.split(':').map(Number);
-  const totalMinutes = hours * 60 + minutes;
-
-  // Normalize shift name to handle both formats: "Shift 1", "SHIFT 1"
-  const normalizedShift = shiftName.toUpperCase();
-
-  if (normalizedShift === "SHIFT 1") {
-    // Shift 1: UPDATED CRITERIA - Hanya boleh scan dari 04:00 sampai 10:00
-    return totalMinutes >= 240 && totalMinutes <= 600;
-  } else if (normalizedShift === "SHIFT 2") {
-    // Shift 2: UPDATED CRITERIA - Hanya boleh scan dari 16:00 sampai 22:00
-    return totalMinutes >= 960 && totalMinutes <= 1320;
-  }
-  // CRITICAL: Diluar shift yang ditentukan = TIDAK BOLEH ABSENSI
-  return false;
-}
-
-// Function to get shift time range for error messages
-function getShiftTimeRange(shiftName: string): { start: string; end: string } {
-  // Normalize shift name to handle both formats: "Shift 1", "SHIFT 1"
-  const normalizedShift = shiftName.toUpperCase();
-
-  if (normalizedShift === "SHIFT 1") {
-    return { start: "04:00", end: "10:00" };
-  } else if (normalizedShift === "SHIFT 2") {
-    return { start: "16:00", end: "22:00" };
-  }
-  return { start: "00:00", end: "23:59" };
-}
-
-// Function to check if time is completely outside all shift windows
-function isCompletelyOutsideShiftTimes(currentTime: string): boolean {
-  const [hours, minutes] = currentTime.split(':').map(Number);
-  const totalMinutes = hours * 60 + minutes;
-
-  // Check if time falls within any shift window - UPDATED CRITERIA
-  const isInShift1Window = totalMinutes >= 240 && totalMinutes <= 600; // 04:00-10:00
-  const isInShift2Window = totalMinutes >= 960 && totalMinutes <= 1320; // 16:00-22:00
-
-  return !isInShift1Window && !isInShift2Window;
-}
-
-// Fungsi lama untuk backward compatibility (tidak digunakan lagi)
-function isValidShiftTime(currentTime: string, scheduledShift: string): boolean {
-  const [hours, minutes] = currentTime.split(':').map(Number);
-  const totalMinutes = hours * 60 + minutes;
-
-  if (scheduledShift === "Shift 1") {
-    // Shift 1: Hanya boleh scan antara jam 06:00:00 sampai 16:00:00 (360-960 minutes)
-    return totalMinutes >= 360 && totalMinutes < 960;
-  } else if (scheduledShift === "Shift 2") {
-    // Shift 2: Hanya boleh scan antara jam 16:30:00 sampai 20:00:00 (990-1200 minutes)
-    return totalMinutes >= 990 && totalMinutes < 1200;
-  }
-
-  return false;
-}
-
-// AGGRESSIVE CACHING STRATEGY for Performance Optimization
-const employeeCache = new Map<string, { data: any; timestamp: number }>();
-const allEmployeesCache = new Map<string, { data: any; timestamp: number }>();
-const rosterCache = new Map<string, { data: any; timestamp: number }>();
-const leaveMonitoringCache = new Map<string, { data: any; timestamp: number }>();
-
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for employee data
-const ALL_EMPLOYEES_TTL = 10 * 60 * 1000; // 10 minutes for all employees (changes less frequently)
-const ROSTER_TTL = 3 * 60 * 1000; // 3 minutes for roster data
-const LEAVE_MONITORING_TTL = 5 * 60 * 1000; // 5 minutes for leave monitoring
-
-function getCachedEmployee(employeeId: string) {
-  const cached = employeeCache.get(employeeId);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedEmployee(employeeId: string, data: any) {
-  employeeCache.set(employeeId, { data, timestamp: Date.now() });
-}
-
-function clearCachedEmployee(employeeId: string) {
-  employeeCache.delete(employeeId);
-}
-
-// Cache for all employees (used frequently in roster enrichment)
-function getCachedAllEmployees() {
-  const cached = allEmployeesCache.get('all');
-  if (cached && Date.now() - cached.timestamp < ALL_EMPLOYEES_TTL) {
-    console.log('📦 Using cached all employees data');
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedAllEmployees(data: any) {
-  allEmployeesCache.set('all', { data, timestamp: Date.now() });
-  console.log(`📦 Cached ${data.length} employees for ${ALL_EMPLOYEES_TTL / 1000}s`);
-}
-
-// Cache for roster data by date
-function getCachedRoster(date: string) {
-  const cached = rosterCache.get(date);
-  if (cached && Date.now() - cached.timestamp < ROSTER_TTL) {
-    console.log(`📦 Using cached roster data for ${date}`);
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedRoster(date: string, data: any) {
-  rosterCache.set(date, { data, timestamp: Date.now() });
-  console.log(`📦 Cached ${data.length} roster entries for ${date}`);
-}
-
-// Cache for leave monitoring data
-function getCachedLeaveMonitoring() {
-  const cached = leaveMonitoringCache.get('all');
-  if (cached && Date.now() - cached.timestamp < LEAVE_MONITORING_TTL) {
-    console.log('📦 Using cached leave monitoring data');
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedLeaveMonitoring(data: any) {
-  leaveMonitoringCache.set('all', { data, timestamp: Date.now() });
-  console.log(`📦 Cached ${data.length} leave monitoring records`);
-}
-
-// Clear all caches (useful for data updates)
-function clearAllCaches() {
-  employeeCache.clear();
-  allEmployeesCache.clear();
-  rosterCache.clear();
-  leaveMonitoringCache.clear();
-  console.log('🧹 All caches cleared');
-}
-
 export async function registerRoutes(app: Express): Promise<Server> {
+  // DEBUG ENDPOINT
+  app.get("/api/ping-debug", (req, res) => {
+    res.json({ message: "PONG - Code is live!", time: new Date().toISOString() });
+  });
+
+  setupAuth(app);
+
+  // Report cache invalidation and update notification system
+  let lastRosterUpdate = new Date();
+
+  async function triggerReportUpdate() {
+    console.log("🔄 Roster data changed - triggering report updates");
+
+    // Update the last roster change timestamp
+    lastRosterUpdate = new Date();
+
+    // Could implement various notification methods:
+    // 1. WebSocket broadcast to all connected report clients
+    // 2. Cache invalidation for TanStack Query
+    // 3. Database triggers for real-time updates
+    // 4. Email notifications to managers
+
+    console.log(`📊 Report update triggered at ${lastRosterUpdate.toISOString()}`);
+  }
+
+  // Utility function to determine shift based on time
+  function determineShiftByTime(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes;
+
+    // UPDATED CRITERIA:
+    // Shift 1: 04:00-10:00 (240-600 menit)
+    // Shift 2: 16:00-22:00 (960-1320 menit)
+
+    if (totalMinutes >= 960 && totalMinutes <= 1320) {
+      return "Shift 2";
+    } else if (totalMinutes >= 240 && totalMinutes <= 600) {
+      return "Shift 1";
+    } else {
+      return "Shift 1"; // Default to Shift 1 for other times
+    }
+  }
+
+  // Strict shift time validation based on actual roster schedule
+  // Fungsi validasi waktu berdasarkan pola shift standar operasional
+  function isValidRosterTime(currentTime: string, startTime: string, endTime: string): boolean {
+    // Tidak menggunakan startTime dan endTime dari roster untuk sementara
+    // Karena data roster bisa inconsistent
+    return true; // Temporary - akan menggunakan shift-based validation
+  }
+
+  // STRICT: Fungsi validasi waktu berdasarkan nama shift - TIDAK BOLEH ABSENSI DILUAR JAM KERJA
+  function isValidShiftTimeByName(currentTime: string, shiftName: string): boolean {
+    const [hours, minutes] = currentTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes;
+
+    // Normalize shift name to handle both formats: "Shift 1", "SHIFT 1"
+    const normalizedShift = shiftName.toUpperCase();
+
+    if (normalizedShift === "SHIFT 1") {
+      // Shift 1: UPDATED CRITERIA - Hanya boleh scan dari 04:00 sampai 10:00
+      return totalMinutes >= 240 && totalMinutes <= 600;
+    } else if (normalizedShift === "SHIFT 2") {
+      // Shift 2: UPDATED CRITERIA - Hanya boleh scan dari 16:00 sampai 22:00
+      return totalMinutes >= 960 && totalMinutes <= 1320;
+    }
+    // CRITICAL: Diluar shift yang ditentukan = TIDAK BOLEH ABSENSI
+    return false;
+  }
+
+  // Function to get shift time range for error messages
+  function getShiftTimeRange(shiftName: string): { start: string; end: string } {
+    // Normalize shift name to handle both formats: "Shift 1", "SHIFT 1"
+    const normalizedShift = shiftName.toUpperCase();
+
+    if (normalizedShift === "SHIFT 1") {
+      return { start: "04:00", end: "10:00" };
+    } else if (normalizedShift === "SHIFT 2") {
+      return { start: "16:00", end: "22:00" };
+    }
+    return { start: "00:00", end: "23:59" };
+  }
+
+  // Function to check if time is completely outside all shift windows
+  function isCompletelyOutsideShiftTimes(currentTime: string): boolean {
+    const [hours, minutes] = currentTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes;
+
+    // Check if time falls within any shift window - UPDATED CRITERIA
+    const isInShift1Window = totalMinutes >= 240 && totalMinutes <= 600; // 04:00-10:00
+    const isInShift2Window = totalMinutes >= 960 && totalMinutes <= 1320; // 16:00-22:00
+
+    return !isInShift1Window && !isInShift2Window;
+  }
+
+  // Fungsi lama untuk backward compatibility (tidak digunakan lagi)
+  function isValidShiftTime(currentTime: string, scheduledShift: string): boolean {
+    const [hours, minutes] = currentTime.split(':').map(Number);
+    const totalMinutes = hours * 60 + minutes;
+
+    if (scheduledShift === "Shift 1") {
+      // Shift 1: Hanya boleh scan antara jam 06:00:00 sampai 16:00:00 (360-960 minutes)
+      return totalMinutes >= 360 && totalMinutes < 960;
+    } else if (scheduledShift === "Shift 2") {
+      // Shift 2: Hanya boleh scan antara jam 16:30:00 sampai 20:00:00 (990-1200 minutes)
+      return totalMinutes >= 990 && totalMinutes < 1200;
+    }
+
+    return false;
+  }
+
+  // AGGRESSIVE CACHING STRATEGY for Performance Optimization
+  const employeeCache = new Map<string, { data: any; timestamp: number }>();
+  const allEmployeesCache = new Map<string, { data: any; timestamp: number }>();
+  const rosterCache = new Map<string, { data: any; timestamp: number }>();
+  const leaveMonitoringCache = new Map<string, { data: any; timestamp: number }>();
+
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes for employee data
+  const ALL_EMPLOYEES_TTL = 10 * 60 * 1000; // 10 minutes for all employees (changes less frequently)
+  const ROSTER_TTL = 3 * 60 * 1000; // 3 minutes for roster data
+  const LEAVE_MONITORING_TTL = 5 * 60 * 1000; // 5 minutes for leave monitoring
+
+  function getCachedEmployee(employeeId: string) {
+    const cached = employeeCache.get(employeeId);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+    return null;
+  }
+
+  function setCachedEmployee(employeeId: string, data: any) {
+    employeeCache.set(employeeId, { data, timestamp: Date.now() });
+  }
+
+  function clearCachedEmployee(employeeId: string) {
+    employeeCache.delete(employeeId);
+  }
+
+  // Cache for all employees (used frequently in roster enrichment)
+  function getCachedAllEmployees() {
+    const cached = allEmployeesCache.get('all');
+    if (cached && Date.now() - cached.timestamp < ALL_EMPLOYEES_TTL) {
+      console.log('📦 Using cached all employees data');
+      return cached.data;
+    }
+    return null;
+  }
+
+  function setCachedAllEmployees(data: any) {
+    allEmployeesCache.set('all', { data, timestamp: Date.now() });
+    console.log(`📦 Cached ${data.length} employees for ${ALL_EMPLOYEES_TTL / 1000}s`);
+  }
+
+  // Cache for roster data by date
+  function getCachedRoster(date: string) {
+    const cached = rosterCache.get(date);
+    if (cached && Date.now() - cached.timestamp < ROSTER_TTL) {
+      console.log(`📦 Using cached roster data for ${date}`);
+      return cached.data;
+    }
+    return null;
+  }
+
+  function setCachedRoster(date: string, data: any) {
+    rosterCache.set(date, { data, timestamp: Date.now() });
+    console.log(`📦 Cached ${data.length} roster entries for ${date}`);
+  }
+
+  // Cache for leave monitoring data
+  function getCachedLeaveMonitoring() {
+    const cached = leaveMonitoringCache.get('all');
+    if (cached && Date.now() - cached.timestamp < LEAVE_MONITORING_TTL) {
+      console.log('📦 Using cached leave monitoring data');
+      return cached.data;
+    }
+    return null;
+  }
+
+  function setCachedLeaveMonitoring(data: any) {
+    leaveMonitoringCache.set('all', { data, timestamp: Date.now() });
+    console.log(`📦 Cached ${data.length} leave monitoring records`);
+  }
+
+  // Clear all caches (useful for data updates)
+  function clearAllCaches() {
+    employeeCache.clear();
+    allEmployeesCache.clear();
+    rosterCache.clear();
+    leaveMonitoringCache.clear();
+    console.log('🧹 All caches cleared');
+  }
+
+
   console.log('Resource: server/routes.ts LOADED - Verifying photo upload fix');
 
   app.get('/api/probe', (req, res) => {
@@ -13025,7 +13023,7 @@ Format sebagai bullet points singkat per insight.`;
 
   // Simple cache for evaluation stats (5 minutes TTL)
   let evaluationCache: { data: any; timestamp: number } | null = null;
-  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  const EVALUATION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   // Get evaluation statistics (with caching)
   app.get("/api/whatsapp/evaluation", async (req, res) => {
@@ -13033,7 +13031,7 @@ Format sebagai bullet points singkat per insight.`;
       const now = Date.now();
 
       // Return cached data if still valid
-      if (evaluationCache && (now - evaluationCache.timestamp) < CACHE_TTL) {
+      if (evaluationCache && (now - evaluationCache.timestamp) < EVALUATION_CACHE_TTL) {
         return res.json(evaluationCache.data);
       }
 
@@ -13800,6 +13798,9 @@ Format sebagai bullet points singkat per insight.`;
   // Create Simper Perpanjangan
   app.post("/api/simper-perpanjangan", async (req, res) => {
     try {
+      try {
+        fs.appendFileSync('wa_diagnostic.log', `[${new Date().toISOString()}] POST /api/simper-perpanjangan called\n`);
+      } catch (e) { }
       console.log("[SimperPerpanjangan] Creating new record:", req.body);
       const result = await storage.createSimperPerpanjangan(req.body);
 
@@ -13814,6 +13815,61 @@ Format sebagai bullet points singkat per insight.`;
         catatan: "Data perpanjangan SIMPER baru dibuat"
       });
 
+      // WhatsApp Notification for New Entry
+      try {
+        try {
+          fs.appendFileSync('wa_diagnostic.log', `[${new Date().toISOString()}] Triggering notification (POST) for record: ${result.id}\n`);
+        } catch (e) { }
+        console.log(`[SimperPerpanjangan] Triggering notification for new record: ${result.id}`);
+        let mitraPhone = await storage.getMitraPhoneByName(result.perusahaan || "");
+
+        // Fallback to phone in record if mitra lookup fails
+        if (!mitraPhone && result.noHp) {
+          console.log(`[SimperPerpanjangan] Mitra phone not found for "${result.perusahaan}", using record noHp: ${result.noHp}`);
+          mitraPhone = result.noHp;
+        }
+
+        if (mitraPhone) {
+          console.log(`[SimperPerpanjangan] Sending notification to: ${mitraPhone}`);
+          const message = formatSimperPerpanjanganNotification({
+            employeeName: result.nama,
+            nik: result.nik,
+            mitraName: result.perusahaan || "Unknown",
+            status: result.statusPerpanjangan || "Belum Diproses",
+            approver: "Admin",
+            catatan: "Pengajuan perpanjangan SIMPER baru dibuat",
+            isCreation: true
+          });
+
+          const sendResult = await sendWhatsAppMessage({
+            phone: mitraPhone,
+            message: message,
+            logContext: {
+              module: "SIMPER_PERPANJANGAN",
+              referenceId: result.id,
+              referenceName: result.nama,
+              recipientType: "MITRA",
+              messageType: "NEW_SUBMISSION"
+            }
+          });
+          console.log(`[SimperPerpanjangan] Notification result:`, sendResult);
+
+          // Debug: Also notify admin if requested/hinted
+          const adminPhone = process.env.NOTIFYME_ADMIN_PHONE;
+          if (adminPhone) {
+            await sendWhatsAppMessage({
+              phone: adminPhone,
+              message: `[ADMIN DEBUG] New SIMPER Perpanjangan: ${result.nama} (${result.perusahaan})`,
+              logContext: { module: "ADMIN_DEBUG", messageType: "DEBUG" }
+            });
+          }
+        } else {
+          console.log(`[SimperPerpanjangan] No phone number found for notification.`);
+        }
+      } catch (waError) {
+        console.error("[SimperPerpanjangan] Notification error (POST):", waError);
+      }
+
       res.status(201).json(result);
     } catch (error) {
       console.error("[SimperPerpanjangan] Create Error:", error);
@@ -13825,6 +13881,9 @@ Format sebagai bullet points singkat per insight.`;
   app.put("/api/simper-perpanjangan/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      try {
+        fs.appendFileSync('wa_diagnostic.log', `[${new Date().toISOString()}] PUT /api/simper-perpanjangan/${id} called\n`);
+      } catch (e) { }
       console.log(`[SimperPerpanjangan] Updating record ${id}:`, req.body);
 
       // Get old record for history
@@ -13846,6 +13905,63 @@ Format sebagai bullet points singkat per insight.`;
           approverNik: (req as any).user?.nik || "SYSTEM",
           catatan: req.body.catatan || `Status diubah dari ${oldRecord.statusPerpanjangan} ke ${req.body.statusPerpanjangan}`
         });
+      }
+
+      // WhatsApp Notification for Status/Workflow Update
+      try {
+        try {
+          fs.appendFileSync('wa_diagnostic.log', `[${new Date().toISOString()}] Triggering notification (PUT) for record: ${id}\n`);
+        } catch (e) { }
+        console.log(`[SimperPerpanjangan] Triggering notification for update: ${id}`);
+        let mitraPhone = await storage.getMitraPhoneByName(result.perusahaan || "");
+
+        // Fallback to phone in record if mitra lookup fails
+        if (!mitraPhone && result.noHp) {
+          console.log(`[SimperPerpanjangan] Mitra phone not found for "${result.perusahaan}", using record noHp: ${result.noHp}`);
+          mitraPhone = result.noHp;
+        }
+
+        if (mitraPhone) {
+          console.log(`[SimperPerpanjangan] Sending notification to: ${mitraPhone}`);
+          const message = formatSimperPerpanjanganNotification({
+            employeeName: result.nama,
+            nik: result.nik,
+            mitraName: result.perusahaan || "Unknown",
+            status: result.statusPerpanjangan || "Updated",
+            tahapan: result.tahapanWorkflow || undefined,
+            approver: (req as any).user?.nama || "Admin",
+            catatan: req.body.catatan,
+            previousStatus: oldRecord.statusPerpanjangan || undefined,
+            isCreation: false
+          });
+
+          const sendResult = await sendWhatsAppMessage({
+            phone: mitraPhone,
+            message: message,
+            logContext: {
+              module: "SIMPER_PERPANJANGAN",
+              referenceId: id,
+              referenceName: result.nama,
+              recipientType: "MITRA",
+              messageType: "STATUS_UPDATE"
+            }
+          });
+          console.log(`[SimperPerpanjangan] Notification result:`, sendResult);
+
+          // Debug: Also notify admin if requested/hinted
+          const adminPhone = process.env.NOTIFYME_ADMIN_PHONE;
+          if (adminPhone) {
+            await sendWhatsAppMessage({
+              phone: adminPhone,
+              message: `[ADMIN DEBUG] Update SIMPER Perpanjangan: ${result.nama} -> ${result.statusPerpanjangan}`,
+              logContext: { module: "ADMIN_DEBUG", messageType: "DEBUG" }
+            });
+          }
+        } else {
+          console.log(`[SimperPerpanjangan] No phone number found for notification.`);
+        }
+      } catch (waError) {
+        console.error("[SimperPerpanjangan] Notification error (PUT):", waError);
       }
 
       res.json(result);

@@ -60,6 +60,21 @@ interface SimperEvNotificationParams {
 }
 
 /**
+ * Simper Perpanjangan Notification Parameters
+ */
+export interface SimperPerpanjanganNotificationParams {
+    employeeName: string;
+    nik: string;
+    mitraName: string;
+    status: string;
+    tahapan?: string;
+    approver?: string;
+    catatan?: string;
+    previousStatus?: string;
+    isCreation?: boolean;
+}
+
+/**
  * Format enhanced Simper EV notification message with emojis and structured layout
  */
 export function formatSimperEvNotification(params: SimperEvNotificationParams): string {
@@ -94,6 +109,56 @@ export function formatSimperEvNotification(params: SimperEvNotificationParams): 
 
     message += `\n`;
     message += `💬 *Pesan/Catatan:*\n${params.message || "Tidak ada catatan"}\n`;
+    message += `\n`;
+    message += `📅 *Tanggal:* ${new Date().toLocaleString('id-ID', {
+        timeZone: 'Asia/Makassar',
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    })}\n`;
+    message += `\n`;
+    message += `_Notifikasi otomatis dari OneTalent System_`;
+
+    return message;
+}
+
+/**
+ * Format enhanced Simper Perpanjangan notification message
+ */
+export function formatSimperPerpanjanganNotification(params: SimperPerpanjanganNotificationParams): string {
+    const title = params.isCreation
+        ? "🆕 *Pengajuan Perpanjangan SIMPER Baru*"
+        : "📋 *Update Status Perpanjangan SIMPER*";
+
+    const statusEmoji = params.status.toLowerCase().includes("approved") ? "✅"
+        : params.status.toLowerCase().includes("reject") ? "❌"
+            : params.status.toLowerCase().includes("selesai") ? "🎉"
+                : "⏳";
+
+    let message = `${title}\n\n`;
+    message += `👤 *Nama:* ${params.employeeName}\n`;
+    message += `🆔 *NIK:* ${params.nik}\n`;
+    message += `🏢 *Mitra:* ${params.mitraName}\n`;
+    message += `\n`;
+
+    if (params.previousStatus && params.previousStatus !== params.status) {
+        message += `📊 *Status Sebelumnya:* ${params.previousStatus}\n`;
+    }
+
+    message += `${statusEmoji} *Status Saat Ini:* ${params.status}\n`;
+
+    if (params.tahapan) {
+        message += `🛤️ *Tahapan:* ${params.tahapan}\n`;
+    }
+
+    if (params.approver) {
+        message += `✍️ *Petugas:* ${params.approver}\n`;
+    }
+
+    message += `\n`;
+    message += `💬 *Catatan:*\n${params.catatan || "Tidak ada catatan"}\n`;
     message += `\n`;
     message += `📅 *Tanggal:* ${new Date().toLocaleString('id-ID', {
         timeZone: 'Asia/Makassar',

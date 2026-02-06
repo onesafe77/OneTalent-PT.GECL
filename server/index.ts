@@ -14,6 +14,7 @@ import { InsertSimperEvMonitoring } from "@shared/schema";
 import { nanoid } from "nanoid";
 import { createBlastJob, getBlastJob, cancelBlastJob, blastWhatsApp } from "./services/whatsapp-service";
 
+
 const app = express();
 
 // EMERGENCY DEBUG ROUTE - DELETE TNA
@@ -48,6 +49,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 app.use((req, res, next) => {
+  if (req.originalUrl.startsWith("/api")) {
+    console.log(`[API REQUEST] ${req.method} ${req.originalUrl}`);
+  }
   console.log(`[INCOMING REQUEST] ${req.method} ${req.originalUrl}`);
   const start = Date.now();
   const path = req.path;
@@ -72,11 +76,6 @@ app.use((req, res, next) => {
   });
 
   next();
-});
-
-// !!! HOTFIX: Define routes directly here to bypass potential routes.ts issues !!!
-app.get('/api/direct-probe', (req, res) => {
-  res.json({ working: true, source: 'index.ts' });
 });
 
 // Unified Public Monitoring SIMPER Perpanjangan: Get All Records (Masked)
@@ -141,6 +140,79 @@ app.get("/api/public/simper-perpanjangan/:token", async (req, res) => {
   } catch (error) {
     console.error("[PublicTracking-HOTFIX] Error:", error);
     res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// SIMPER Perpanjangan Update - HOTFIX
+app.put("/api/simper-perpanjangan/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    console.log(`[SimperPerpanjangan] Updating record ${id}:`, req.body);
+
+    const oldRecord = await storage.getSimperPerpanjanganById(id);
+    if (!oldRecord) {
+      return res.status(404).json({ error: "Record not found" });
+    }
+
+    const result = await storage.updateSimperPerpanjangan(id, req.body);
+    if (!result) {
+      return res.status(404).json({ error: "Failed to update record" });
+    }
+
+    // Create history entry if status changed
+    if (oldRecord.statusPerpanjangan !== req.body.statusPerpanjangan || oldRecord.tahapanWorkflow !== req.body.tahapanWorkflow) {
+      await storage.createSimperPerpanjanganHistory({
+        simperPerpanjanganId: id,
+        statusSebelum: oldRecord.statusPerpanjangan,
+        statusSesudah: req.body.statusPerpanjangan || oldRecord.statusPerpanjangan,
+        tahapan: req.body.tahapanWorkflow || oldRecord.tahapanWorkflow,
+        approver: (req as any).user?.nama || "Admin (Hotfix)",
+        approverNik: (req as any).user?.nik || "SYSTEM",
+        catatan: req.body.catatan || `Status updated (Hotfix)`
+      });
+    }
+
+    // WhatsApp Notification
+    try {
+      let mitraPhone = await storage.getMitraPhoneByName(result.perusahaan || "");
+      if (!mitraPhone && result.noHp) {
+        mitraPhone = result.noHp;
+      }
+
+      if (mitraPhone) {
+        const message = formatSimperPerpanjanganNotification({
+          employeeName: result.nama,
+          nik: result.nik,
+          mitraName: result.perusahaan || "Unknown",
+          status: result.statusPerpanjangan || "Updated",
+          tahapan: result.tahapanWorkflow || undefined,
+          approver: (req as any).user?.nama || "Admin",
+          catatan: req.body.catatan,
+          previousStatus: oldRecord.statusPerpanjangan || undefined,
+          isCreation: false
+        });
+
+        const sendResult = await sendWhatsAppMessage({
+          phone: mitraPhone,
+          message: message,
+          logContext: {
+            module: "SIMPER_PERPANJANGAN",
+            referenceId: id,
+            referenceName: result.nama,
+            recipientType: "MITRA",
+            messageType: "STATUS_UPDATE"
+          }
+        });
+        console.log(`[SimperPerpanjangan] Notification sent for ${id}:`, sendResult);
+      }
+    } catch (waError) {
+      console.error("[SimperPerpanjangan-HOTFIX] Notification error:", waError);
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("[SimperPerpanjangan-HOTFIX] Error:", err);
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
@@ -293,7 +365,7 @@ app.post("/api/employees/:id/os-certificate", uploadDirect.single('certificate')
 });
 
 // WhatsApp Send Reminder API
-import { sendWhatsAppMessage, generateSimperReminderMessage, sendAdminNotification } from './services/whatsapp-service';
+import { sendWhatsAppMessage, generateSimperReminderMessage, sendAdminNotification, formatSimperPerpanjanganNotification } from './services/whatsapp-service';
 
 // ============================================
 // WHATSAPP BLAST ROUTES (ASYNC JOBS)
