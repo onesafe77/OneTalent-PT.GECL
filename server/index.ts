@@ -79,6 +79,71 @@ app.get('/api/direct-probe', (req, res) => {
   res.json({ working: true, source: 'index.ts' });
 });
 
+// Unified Public Monitoring SIMPER Perpanjangan: Get All Records (Masked)
+app.get("/api/public/simper-perpanjangan/all", async (req, res) => {
+  try {
+    const search = req.query.search as string;
+    console.log(`[PublicMonitoring-HOTFIX] GET all perpanjangan, search: "${search || ''}"`);
+
+    const records = await storage.getAllSimperPerpanjangan(search);
+
+    const maskedRecords = records.map(record => ({
+      id: record.id,
+      nama: record.nama,
+      nik: record.nik.length > 6
+        ? `${record.nik.substring(0, 4)}***${record.nik.substring(record.nik.length - 2)}`
+        : record.nik,
+      jabatan: record.jabatan,
+      departemen: record.departemen,
+      perusahaan: record.perusahaan,
+      jenisSimper: record.jenisSimper,
+      statusPerpanjangan: record.statusPerpanjangan,
+      tahapanWorkflow: record.tahapanWorkflow,
+      trackingToken: record.trackingToken,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt
+    }));
+
+    res.json(maskedRecords);
+  } catch (error) {
+    console.error("[PublicMonitoring-HOTFIX] Error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Public SIMPER Tracking Route (Anonymous Access)
+app.get("/api/public/simper-perpanjangan/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    console.log(`[PublicTracking-HOTFIX] GET by token: ${token}`);
+
+    const record = await storage.getSimperPerpanjanganByToken(token);
+    if (!record) {
+      return res.status(404).json({ error: "Data tracking tidak ditemukan" });
+    }
+
+    const maskedNik = record.nik.length > 6
+      ? `${record.nik.substring(0, 4)}***${record.nik.substring(record.nik.length - 2)}`
+      : record.nik;
+
+    res.json({
+      nama: record.nama,
+      nik: maskedNik,
+      jabatan: record.jabatan,
+      departemen: record.departemen,
+      perusahaan: record.perusahaan,
+      jenisSimper: record.jenisSimper,
+      statusPerpanjangan: record.statusPerpanjangan,
+      tahapanWorkflow: record.tahapanWorkflow,
+      catatan: record.catatan,
+      updatedAt: record.updatedAt
+    });
+  } catch (error) {
+    console.error("[PublicTracking-HOTFIX] Error:", error);
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 // Ensure uploads directory exists
 if (!fs.existsSync('uploads')) {
   fs.mkdirSync('uploads');

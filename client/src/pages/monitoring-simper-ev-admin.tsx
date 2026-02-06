@@ -293,7 +293,7 @@ export default function MonitoringSimperEvAdmin() {
     const downloadTemplate = () => {
         // Create a CSV template
         const headers = [
-            "No", "Nama", "NIK Simper", "Asal Mitra",
+            "No", "Nama", "NIK Simper", "Mitra",
             "Simper", "Simper Permanen",
             "UNIT YG DI SKILL UP", "Masa Berlaku Sertifikat OS", "Status Pengajuan"
         ];
@@ -517,7 +517,7 @@ export default function MonitoringSimperEvAdmin() {
                                 </DialogTrigger>
                                 <DialogContent className="max-w-2xl">
                                     <DialogHeader>
-                                        <DialogTitle>Kelola Asal Mitra</DialogTitle>
+                                        <DialogTitle>Kelola Daftar Mitra</DialogTitle>
                                         <DialogDescription>Tambahkan atau hapus pilihan mitra untuk dropdown.</DialogDescription>
                                     </DialogHeader>
                                     {/* (Mitra Content preserved but omitted for brevity in this chunk if it was here, but in original code it was inline. I will re-include the Dialog content below properly if I replaced it. 
@@ -1000,7 +1000,7 @@ export default function MonitoringSimperEvAdmin() {
                         <div className="space-y-6 mt-4">
                             {/* Employee Info Recap */}
                             <div className="bg-slate-50 p-4 rounded-lg grid grid-cols-2 gap-4 text-sm">
-                                <div><span className="text-gray-500 block">Asal Mitra</span> <span className="font-semibold">{selectedHistoryEmployee?.asalMitra}</span></div>
+                                <div><span className="text-gray-500 block">Mitra</span> <span className="font-semibold">{selectedHistoryEmployee?.asalMitra}</span></div>
                                 <div><span className="text-gray-500 block">Simper</span> <span className="font-semibold">{selectedHistoryEmployee?.simper}</span></div>
                                 <div><span className="text-gray-500 block">Status Saat Ini</span> <Badge variant="outline">{selectedHistoryEmployee?.statusPengajuan}</Badge></div>
                             </div>
@@ -1207,7 +1207,7 @@ export default function MonitoringSimperEvAdmin() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Asal Mitra</Label>
+                                <Label>Mitra</Label>
                                 <Select
                                     value={currentEmployee.asalMitra || ""}
                                     onValueChange={(val) => setCurrentEmployee({ ...currentEmployee, asalMitra: val })}

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -15,9 +15,10 @@ import {
     Loader2, Search, Plus, Edit, Trash2, RefreshCw,
     FileText, Calendar, Users, AlertTriangle, CheckCircle2,
     Clock, XCircle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    Download, Upload, History
+    Download, Upload, History, Copy, Share2, ExternalLink, QrCode
 } from "lucide-react";
-import { SimperPerpanjangan, SimperPerpanjanganHistory } from "@shared/schema";
+import { generateQRCodeCanvas } from "@/lib/qr-utils";
+import { SimperPerpanjangan, SimperPerpanjanganHistory, SimperMitra } from "@shared/schema";
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip as RechartsTooltip, Legend, ResponsiveContainer
@@ -55,12 +56,12 @@ const statusOptions = [
 
 // Tahapan workflow options
 const tahapanOptions = [
-    "Pengajuan Admin",
-    "Verifikasi Dokumen",
-    "Verifikasi HSE",
-    "Approval Supervisor",
-    "Approval Manager",
-    "Proses Penerbitan",
+    "Submit by Admin Mitra Kerja",
+    "Waiting Approval by PJO Mitra Kerja",
+    "Waiting Approval by Head Custodioan",
+    "Waiting Approval by Dokter Perusahan",
+    "Waiting Approval by Admin STC",
+    "Simper can be picked up at the office GECL",
     "Selesai",
 ];
 
@@ -76,19 +77,21 @@ export default function MonitoringSimperPerpanjangan() {
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
     const [selectedRecord, setSelectedRecord] = useState<SimperPerpanjangan | null>(null);
+    const [isQrDialogOpen, setIsQrDialogOpen] = useState(false);
+    const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+
+    const publicMonitoringUrl = `${window.location.origin}/monitoring-perpanjangan-simper`;
 
     // Form state
     const [formData, setFormData] = useState({
         nama: "",
         nik: "",
-        nomorLambung: "",
         jabatan: "",
         departemen: "",
         perusahaan: "",
         noHp: "",
         jenisSimper: "BIB",
         expiredSimperBib: "",
-        expiredSimperTia: "",
         statusPerpanjangan: "Belum Diproses",
         tahapanWorkflow: "",
         catatan: "",
@@ -127,6 +130,14 @@ export default function MonitoringSimperPerpanjangan() {
         enabled: !!selectedRecord?.id && isHistoryDialogOpen,
     });
 
+    // Fetch Mitras
+    const { data: mitras = [] } = useQuery<SimperMitra[]>({
+        queryKey: ["simper-mitras"],
+        queryFn: async () => {
+            return await apiRequest("/api/simper-mitra", "GET");
+        },
+    });
+
     // Create mutation
     const createMutation = useMutation({
         mutationFn: async (data: any) => {
@@ -142,6 +153,29 @@ export default function MonitoringSimperPerpanjangan() {
             toast({ title: "Gagal", description: err.message, variant: "destructive" });
         },
     });
+
+    // Generate QR Code when dialog opens
+    useEffect(() => {
+        if (isQrDialogOpen) {
+            const timer = setTimeout(() => {
+                if (qrCanvasRef.current) {
+                    generateQRCodeCanvas(publicMonitoringUrl, qrCanvasRef.current, {
+                        width: 300,
+                        margin: 2
+                    });
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isQrDialogOpen, publicMonitoringUrl]);
+
+    const handleCopyPublicLink = () => {
+        navigator.clipboard.writeText(publicMonitoringUrl);
+        toast({
+            title: "Link Tersalin",
+            description: "Link monitoring publik telah disalin ke clipboard",
+        });
+    };
 
     // Update mutation
     const updateMutation = useMutation({
@@ -178,14 +212,12 @@ export default function MonitoringSimperPerpanjangan() {
         setFormData({
             nama: "",
             nik: "",
-            nomorLambung: "",
             jabatan: "",
             departemen: "",
             perusahaan: "",
             noHp: "",
             jenisSimper: "BIB",
             expiredSimperBib: "",
-            expiredSimperTia: "",
             statusPerpanjangan: "Belum Diproses",
             tahapanWorkflow: "",
             catatan: "",
@@ -199,14 +231,12 @@ export default function MonitoringSimperPerpanjangan() {
         setFormData({
             nama: record.nama || "",
             nik: record.nik || "",
-            nomorLambung: record.nomorLambung || "",
             jabatan: record.jabatan || "",
             departemen: record.departemen || "",
             perusahaan: record.perusahaan || "",
             noHp: record.noHp || "",
             jenisSimper: record.jenisSimper || "BIB",
             expiredSimperBib: record.expiredSimperBib || "",
-            expiredSimperTia: record.expiredSimperTia || "",
             statusPerpanjangan: record.statusPerpanjangan || "Belum Diproses",
             tahapanWorkflow: record.tahapanWorkflow || "",
             catatan: record.catatan || "",
@@ -237,6 +267,28 @@ export default function MonitoringSimperPerpanjangan() {
         }
     };
 
+    // Handle copy tracking link
+    const handleCopyLink = (token: string | null | undefined) => {
+        if (!token) {
+            toast({
+                title: "Gagal",
+                description: "Token tracking tidak tersedia untuk data ini (hanya untuk data baru/dimigrasi)",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        const host = window.location.host;
+        const protocol = window.location.protocol;
+        const link = `${protocol}//${host}/public/simper-tracking/${token}`;
+
+        navigator.clipboard.writeText(link).then(() => {
+            toast({ title: "Berhasil", description: "Tautan pelacakan telah disalin ke clipboard" });
+        }).catch(() => {
+            toast({ title: "Gagal", description: "Gagal menyalin tautan", variant: "destructive" });
+        });
+    };
+
     // Get days until expiry
     const getDaysUntilExpiry = (dateStr: string | null | undefined) => {
         if (!dateStr) return null;
@@ -264,14 +316,12 @@ export default function MonitoringSimperPerpanjangan() {
             {
                 "Nama": "Contoh Nama",
                 "NIK": "C-000001",
-                "Nomor Lambung": "DT-001",
                 "Jabatan": "Driver",
                 "Departemen": "Operasional",
-                "Perusahaan": "PT. XYZ",
+                "Mitra": "PT. XYZ",
                 "No HP": "08123456789",
                 "Jenis SIMPER": "BIB",
                 "Expired SIMPER BIB": "2025-12-31",
-                "Expired SIMPER TIA": "2025-12-31",
             }
         ];
 
@@ -287,14 +337,12 @@ export default function MonitoringSimperPerpanjangan() {
             "No": idx + 1,
             "Nama": r.nama,
             "NIK": r.nik,
-            "Nomor Lambung": r.nomorLambung || "-",
             "Jabatan": r.jabatan || "-",
             "Departemen": r.departemen || "-",
-            "Perusahaan": r.perusahaan || "-",
+            "Mitra": r.perusahaan || "-",
             "No HP": r.noHp || "-",
             "Jenis SIMPER": r.jenisSimper,
             "Expired BIB": r.expiredSimperBib || "-",
-            "Expired TIA": r.expiredSimperTia || "-",
             "Status": r.statusPerpanjangan,
             "Tahapan": r.tahapanWorkflow || "-",
             "Catatan": r.catatan || "-",
@@ -311,9 +359,7 @@ export default function MonitoringSimperPerpanjangan() {
         const statusCount: Record<string, number> = {};
         const jenisCount: Record<string, number> = {};
         let expiredBib = 0;
-        let expiredTia = 0;
         let nearExpiryBib = 0;
-        let nearExpiryTia = 0;
 
         records.forEach((r) => {
             // Status count
@@ -328,13 +374,6 @@ export default function MonitoringSimperPerpanjangan() {
                 if (bibDays < 0) expiredBib++;
                 else if (bibDays <= 30) nearExpiryBib++;
             }
-
-            // Check TIA expiry
-            const tiaDays = getDaysUntilExpiry(r.expiredSimperTia);
-            if (tiaDays !== null) {
-                if (tiaDays < 0) expiredTia++;
-                else if (tiaDays <= 30) nearExpiryTia++;
-            }
         });
 
         return {
@@ -342,9 +381,7 @@ export default function MonitoringSimperPerpanjangan() {
             statusCount,
             jenisCount,
             expiredBib,
-            expiredTia,
             nearExpiryBib,
-            nearExpiryTia,
         };
     }, [records]);
 
@@ -414,17 +451,6 @@ export default function MonitoringSimperPerpanjangan() {
                                 <span className="text-sm text-gray-500">expired</span>
                             </div>
                             <p className="text-xs text-yellow-600 mt-1">{stats.nearExpiryBib} mendekati expired</p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-white border shadow-md">
-                        <CardContent className="p-4">
-                            <p className="text-gray-500 text-sm font-medium">SIMPER TIA</p>
-                            <div className="flex items-end gap-2 mt-1">
-                                <span className="text-2xl font-bold text-red-600">{stats.expiredTia}</span>
-                                <span className="text-sm text-gray-500">expired</span>
-                            </div>
-                            <p className="text-xs text-yellow-600 mt-1">{stats.nearExpiryTia} mendekati expired</p>
                         </CardContent>
                     </Card>
 
@@ -531,6 +557,80 @@ export default function MonitoringSimperPerpanjangan() {
                     </CardContent>
                 </Card>
 
+                {/* Portal Monitoring Publik Banner */}
+                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 mb-6 shadow-xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative group">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(99,102,241,0.15),transparent_50%)]" />
+
+                    <div className="flex items-center gap-5 relative z-10">
+                        <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                            <Share2 className="text-indigo-300 w-7 h-7" />
+                        </div>
+                        <div className="space-y-1">
+                            <h2 className="text-xl font-bold text-white tracking-tight">Portal Monitoring Publik</h2>
+                            <p className="text-indigo-200/70 text-sm max-w-md leading-relaxed">
+                                Bagikan akses monitoring kepada karyawan atau mitra. Mereka dapat memantau status pengajuan tanpa perlu login.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 relative z-10 w-full md:w-auto">
+                        <Dialog open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-white hover:bg-indigo-50 text-indigo-900 font-bold border-none h-12 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex-1 md:flex-none">
+                                    <QrCode className="w-4 h-4 mr-2" />
+                                    Tampilkan Barcode
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-md p-8 bg-white rounded-3xl border-none shadow-2xl">
+                                <DialogHeader className="space-y-3 text-center pb-4">
+                                    <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                                        <QrCode className="text-indigo-600 w-8 h-8" />
+                                    </div>
+                                    <DialogTitle className="text-2xl font-black text-slate-900 uppercase tracking-tight">QR Code Monitoring</DialogTitle>
+                                    <DialogDescription className="text-slate-500 font-medium">
+                                        Scan barcode ini untuk mengakses halaman monitoring publik secara langsung.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="flex justify-center py-6 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                                    <canvas ref={qrCanvasRef} className="rounded-xl shadow-sm bg-white p-2" />
+                                </div>
+                                <div className="mt-8 space-y-3">
+                                    <Button
+                                        onClick={handleCopyPublicLink}
+                                        variant="outline"
+                                        className="w-full h-14 rounded-2xl border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all text-lg"
+                                    >
+                                        <Copy className="w-5 h-5 mr-3 text-indigo-500" />
+                                        Salin Link Portal
+                                    </Button>
+                                    <Button
+                                        onClick={() => setIsQrDialogOpen(false)}
+                                        className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-lg shadow-xl transition-all"
+                                    >
+                                        Tutup
+                                    </Button>
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+
+                        <Button
+                            onClick={handleCopyPublicLink}
+                            className="bg-slate-800/50 hover:bg-slate-800 text-white font-bold border border-white/10 h-12 px-6 rounded-xl backdrop-blur-sm transition-all active:scale-95 flex-1 md:flex-none"
+                        >
+                            <Copy className="w-4 h-4 mr-2 text-indigo-300" />
+                            Salin Link
+                        </Button>
+
+                        <Button
+                            onClick={() => window.open(publicMonitoringUrl, '_blank')}
+                            className="bg-slate-800/50 hover:bg-slate-800 text-white font-bold border border-white/10 h-12 px-6 rounded-xl backdrop-blur-sm transition-all active:scale-95 flex-1 md:flex-none"
+                        >
+                            <ExternalLink className="w-4 h-4 mr-2 text-indigo-300" />
+                            Buka
+                        </Button>
+                    </div>
+                </div>
+
                 {/* Data Table */}
                 <Card className="bg-white border shadow-md">
                     <CardHeader>
@@ -551,10 +651,9 @@ export default function MonitoringSimperPerpanjangan() {
                                                 <TableHead className="w-[50px]">No</TableHead>
                                                 <TableHead>Nama</TableHead>
                                                 <TableHead>NIK</TableHead>
-                                                <TableHead>No. Lambung</TableHead>
+                                                <TableHead>Mitra</TableHead>
                                                 <TableHead>Jenis</TableHead>
                                                 <TableHead>Exp. BIB</TableHead>
-                                                <TableHead>Exp. TIA</TableHead>
                                                 <TableHead>Status</TableHead>
                                                 <TableHead>Tahapan</TableHead>
                                                 <TableHead className="text-right">Aksi</TableHead>
@@ -579,7 +678,7 @@ export default function MonitoringSimperPerpanjangan() {
                                                             <TableCell className="font-medium">{(page - 1) * pageSize + idx + 1}</TableCell>
                                                             <TableCell className="font-medium">{record.nama}</TableCell>
                                                             <TableCell>{record.nik}</TableCell>
-                                                            <TableCell>{record.nomorLambung || "-"}</TableCell>
+                                                            <TableCell>{record.perusahaan || "-"}</TableCell>
                                                             <TableCell>
                                                                 <Badge variant="outline">{record.jenisSimper}</Badge>
                                                             </TableCell>
@@ -594,16 +693,6 @@ export default function MonitoringSimperPerpanjangan() {
                                                                 ) : "-"}
                                                             </TableCell>
                                                             <TableCell>
-                                                                {record.expiredSimperTia ? (
-                                                                    <div>
-                                                                        <span className="text-sm">{record.expiredSimperTia}</span>
-                                                                        <Badge className={`ml-2 ${tiaStatus.color} text-white text-xs`}>
-                                                                            {tiaDays !== null ? `${tiaDays}h` : "-"}
-                                                                        </Badge>
-                                                                    </div>
-                                                                ) : "-"}
-                                                            </TableCell>
-                                                            <TableCell>
                                                                 <Badge className={`${statusColors[record.statusPerpanjangan] || "bg-gray-500"} text-white`}>
                                                                     {record.statusPerpanjangan}
                                                                 </Badge>
@@ -613,6 +702,14 @@ export default function MonitoringSimperPerpanjangan() {
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 <div className="flex justify-end gap-1">
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        onClick={() => handleCopyLink(record.trackingToken)}
+                                                                        title="Salin Link Tracking"
+                                                                    >
+                                                                        <Share2 className="h-4 w-4 text-emerald-600" />
+                                                                    </Button>
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="icon"
@@ -737,14 +834,6 @@ export default function MonitoringSimperPerpanjangan() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="nomorLambung">Nomor Lambung</Label>
-                                <Input
-                                    id="nomorLambung"
-                                    value={formData.nomorLambung}
-                                    onChange={(e) => setFormData({ ...formData, nomorLambung: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-2">
                                 <Label htmlFor="jabatan">Jabatan</Label>
                                 <Input
                                     id="jabatan"
@@ -761,12 +850,27 @@ export default function MonitoringSimperPerpanjangan() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="perusahaan">Perusahaan</Label>
-                                <Input
-                                    id="perusahaan"
+                                <Label htmlFor="mitra">Mitra</Label>
+                                <Select
                                     value={formData.perusahaan}
-                                    onChange={(e) => setFormData({ ...formData, perusahaan: e.target.value })}
-                                />
+                                    onValueChange={(value) => {
+                                        const selectedMitra = mitras.find(m => m.name === value);
+                                        setFormData({
+                                            ...formData,
+                                            perusahaan: value,
+                                            noHp: selectedMitra?.phoneNumber || formData.noHp
+                                        });
+                                    }}
+                                >
+                                    <SelectTrigger id="mitra">
+                                        <SelectValue placeholder="Pilih Mitra..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {mitras.map((mitra) => (
+                                            <SelectItem key={mitra.id} value={mitra.name}>{mitra.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="noHp">No. HP</Label>
@@ -799,15 +903,6 @@ export default function MonitoringSimperPerpanjangan() {
                                     type="date"
                                     value={formData.expiredSimperBib}
                                     onChange={(e) => setFormData({ ...formData, expiredSimperBib: e.target.value })}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="expiredSimperTia">Expired SIMPER TIA</Label>
-                                <Input
-                                    id="expiredSimperTia"
-                                    type="date"
-                                    value={formData.expiredSimperTia}
-                                    onChange={(e) => setFormData({ ...formData, expiredSimperTia: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">

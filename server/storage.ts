@@ -629,6 +629,17 @@ export interface IStorage {
   getProjectFiles(projectId: string): Promise<ProjectFile[]>;
   createProjectFile(file: InsertProjectFile): Promise<ProjectFile>;
   deleteProjectFile(id: string): Promise<boolean>;
+
+  // Simper Perpanjangan methods
+  getSimperPerpanjanganPaginated(page: number, limit: number, search?: string, status?: string, jenis?: string): Promise<{ data: SimperPerpanjangan[], total: number }>;
+  getAllSimperPerpanjangan(search?: string): Promise<SimperPerpanjangan[]>;
+  getSimperPerpanjanganById(id: string): Promise<SimperPerpanjangan | undefined>;
+  getSimperPerpanjanganByToken(token: string): Promise<SimperPerpanjangan | undefined>;
+  createSimperPerpanjangan(data: InsertSimperPerpanjangan): Promise<SimperPerpanjangan>;
+  updateSimperPerpanjangan(id: string, data: Partial<InsertSimperPerpanjangan>): Promise<SimperPerpanjangan | undefined>;
+  deleteSimperPerpanjangan(id: string): Promise<boolean>;
+  getSimperPerpanjanganHistory(simperPerpanjanganId: string): Promise<SimperPerpanjanganHistory[]>;
+  createSimperPerpanjanganHistory(data: InsertSimperPerpanjanganHistory): Promise<SimperPerpanjanganHistory>;
 }
 
 export class MemStorage implements IStorage {
@@ -1734,6 +1745,45 @@ export class MemStorage implements IStorage {
   async deleteMcuRecord(id: string): Promise<boolean> { throw new Error("Not implemented in MemStorage"); }
   async getMcuStatistics(): Promise<any> { throw new Error("Not implemented in MemStorage"); }
   async getDashboardStats(date?: string): Promise<any> { throw new Error("Not implemented in MemStorage"); }
+
+  // Project Tracker Methods - Not implemented in MemStorage
+  async getProjects(): Promise<any[]> { throw new Error("Method not implemented."); }
+  async getProject(id: string): Promise<any> { throw new Error("Method not implemented."); }
+  async createProject(project: any): Promise<any> { throw new Error("Method not implemented."); }
+  async updateProject(id: string, project: any): Promise<any> { throw new Error("Method not implemented."); }
+  async deleteProject(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+  async getProjectFiles(projectId: string): Promise<any[]> { throw new Error("Method not implemented."); }
+  async createProjectFile(file: any): Promise<any> { throw new Error("Method not implemented."); }
+  async deleteProjectFile(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+
+  // Simper Perpanjangan Methods - Not implemented in MemStorage
+  async getSimperPerpanjanganPaginated(page: number, limit: number, search?: string, status?: string, jenis?: string): Promise<{ data: SimperPerpanjangan[], total: number }> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getAllSimperPerpanjangan(search?: string): Promise<SimperPerpanjangan[]> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSimperPerpanjanganById(id: string): Promise<SimperPerpanjangan | undefined> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSimperPerpanjanganByToken(token: string): Promise<SimperPerpanjangan | undefined> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async createSimperPerpanjangan(data: InsertSimperPerpanjangan): Promise<SimperPerpanjangan> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async updateSimperPerpanjangan(id: string, data: Partial<InsertSimperPerpanjangan>): Promise<SimperPerpanjangan | undefined> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async deleteSimperPerpanjangan(id: string): Promise<boolean> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSimperPerpanjanganHistory(simperPerpanjanganId: string): Promise<SimperPerpanjanganHistory[]> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async createSimperPerpanjanganHistory(data: InsertSimperPerpanjanganHistory): Promise<SimperPerpanjanganHistory> {
+    throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
 }
 
 // DrizzleStorage implementation using PostgreSQL
@@ -8894,6 +8944,22 @@ export class DrizzleStorage implements IStorage {
     return { data, total };
   }
 
+  async getAllSimperPerpanjangan(search?: string): Promise<SimperPerpanjangan[]> {
+    let query = db.select().from(simperPerpanjangan);
+
+    if (search && search.trim() !== "") {
+      const lowerSearch = `%${search.toLowerCase()}%`;
+      query = query.where(
+        or(
+          ilike(simperPerpanjangan.nama, lowerSearch),
+          ilike(simperPerpanjangan.nik, lowerSearch)
+        )
+      ) as any;
+    }
+
+    return await query.orderBy(desc(simperPerpanjangan.createdAt));
+  }
+
   async getSimperPerpanjanganById(id: string): Promise<SimperPerpanjangan | undefined> {
     const [result] = await db
       .select()
@@ -8908,8 +8974,17 @@ export class DrizzleStorage implements IStorage {
       .values({
         ...data,
         diajukanPada: new Date(),
+        trackingToken: randomUUID(),
       })
       .returning();
+    return result;
+  }
+
+  async getSimperPerpanjanganByToken(token: string): Promise<SimperPerpanjangan | undefined> {
+    const [result] = await db
+      .select()
+      .from(simperPerpanjangan)
+      .where(eq(simperPerpanjangan.trackingToken, token));
     return result;
   }
 

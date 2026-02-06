@@ -18,6 +18,8 @@ import LoginPage from "@/pages/login";
 const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
 
 const MonitoringSimperEvPublic = lazy(() => import("@/pages/monitoring-simper-ev-public"));
+const MonitoringSimperPerpanjanganPublic = lazy(() => import("@/pages/monitoring-simper-perpanjangan-public"));
+const PublicSimperTracking = lazy(() => import("@/pages/public-simper-tracking"));
 
 /**
  * Router component dengan landing page dan workspace
@@ -60,6 +62,23 @@ function Router() {
         {() => (
           <Suspense fallback={<LoadingScreen isLoading={true} />}>
             <MonitoringSimperEvPublic />
+          </Suspense>
+        )}
+      </Route>
+
+      {/* Monitoring Perpanjangan SIMPER - Public */}
+      <Route path="/monitoring-perpanjangan-simper">
+        {() => (
+          <Suspense fallback={<LoadingScreen isLoading={true} />}>
+            <MonitoringSimperPerpanjanganPublic />
+          </Suspense>
+        )}
+      </Route>
+
+      <Route path="/public/simper-tracking/:token">
+        {({ token }) => (
+          <Suspense fallback={<LoadingScreen isLoading={true} />}>
+            <PublicSimperTracking />
           </Suspense>
         )}
       </Route>

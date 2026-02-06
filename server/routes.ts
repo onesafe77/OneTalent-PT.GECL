@@ -13763,9 +13763,6 @@ Format sebagai bullet points singkat per insight.`;
   });
 
 
-  // ============================================
-  // MONITORING PERPANJANGAN SIMPER ROUTES
-  // ============================================
 
   // Get all Simper Perpanjangan (with pagination, search, and filters)
   app.get("/api/simper-perpanjangan", async (req, res) => {

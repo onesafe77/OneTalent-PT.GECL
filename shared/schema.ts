@@ -2944,12 +2944,16 @@ export const simperPerpanjangan = pgTable("simper_perpanjangan", {
   diajukanOleh: text("diajukan_oleh"), // NIK admin yang mengajukan
   diajukanPada: timestamp("diajukan_pada"),
 
+  // Public Tracking Token
+  trackingToken: varchar("tracking_token").unique(),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("IDX_simper_perpanjangan_nik").on(table.nik),
   index("IDX_simper_perpanjangan_status").on(table.statusPerpanjangan),
   index("IDX_simper_perpanjangan_jenis").on(table.jenisSimper),
+  index("IDX_simper_perpanjangan_token").on(table.trackingToken),
 ]);
 
 // History perpanjangan SIMPER
