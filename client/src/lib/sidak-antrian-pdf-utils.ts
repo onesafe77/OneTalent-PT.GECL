@@ -128,10 +128,10 @@ export async function generateSidakAntrianPdf(data: SidakAntrianData): Promise<j
             (index + 1).toString(),
             record.namaNik || '',
             record.noLambung || '',
-            record.handbrakeAktif ? 'V' : '',
-            !record.handbrakeAktif ? 'V' : '',
-            record.jarakUnitAman ? 'V' : '',
-            !record.jarakUnitAman ? 'V' : '',
+            record.handbrakeAktif ? '✓' : '',
+            !record.handbrakeAktif ? '✓' : '',
+            record.jarakUnitAman ? '✓' : '',
+            !record.jarakUnitAman ? '✓' : '',
             record.keterangan || ''
         ]);
     });

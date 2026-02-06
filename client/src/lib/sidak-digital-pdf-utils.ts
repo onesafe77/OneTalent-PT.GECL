@@ -16,6 +16,7 @@ export async function generateSidakDigitalPDF(data: SidakDigitalData): Promise<j
     const availableWidth = pageWidth - (margin * 2);
     let yPosition = margin;
 
+    // Try to add logo
     try {
         const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
             const img = new Image();
@@ -33,183 +34,350 @@ export async function generateSidakDigitalPDF(data: SidakDigitalData): Promise<j
     // Official document code (top right)
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
-    pdf.text('BIB – HSE – ES – F – 3.02 – 88', pageWidth - margin, yPosition + 3, { align: 'right' });
-    pdf.text('April 2025/R0', pageWidth - margin, yPosition + 7, { align: 'right' });
+    pdf.text('BIB – HSE – ES – F – 3.02 – 88', pageWidth - margin, yPosition + 6, { align: 'right' });
 
     yPosition += 14;
 
-    // Official title
+    // ========================================
+    // TITLE SECTION
+    // ========================================
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(14);
     pdf.text('INSPEKSI KEBERADAAN DAN FUNGSI PENGAWAS DIGITALISASI', pageWidth / 2, yPosition, { align: 'center' });
-    pdf.setFontSize(10);
-    pdf.text('Formulir ini digunakan sebagai catatan hasil inspeksi keberadaan dan fungsi pengawas Digitalisasi', pageWidth / 2, yPosition + 5, { align: 'center' });
-    pdf.text('yang dilaksanakan di PT Borneo Indobara', pageWidth / 2, yPosition + 9, { align: 'center' });
 
-    yPosition += 16;
+    pdf.setFont('helvetica', 'italic');
+    pdf.setFontSize(8);
+    pdf.text('Formulir ini digunakan sebagai catatan hasil inspeksi keberadaan dan fungsi pengawas Digitalisasi yang dilaksanakan di PT Borneo Indobara', pageWidth / 2, yPosition + 5, { align: 'center' });
 
-    // Info table - 4 column layout matching template
-    const infoData = [
-        ['Tanggal', data.session.tanggal || '', 'Lokasi', data.session.lokasi || ''],
-        ['Shift', data.session.shift || '', 'Waktu sampai', data.session.waktu || ''],
-        ['', '', 'Jumlah Sampel', (data.session.totalSampel || data.records.length).toString()]
+    yPosition += 12;
+
+    // ========================================
+    // INFO HEADER TABLE (Tanggal/Shift, Lokasi, Waktu, Jumlah Sampel)
+    // ========================================
+    const colWidth1 = 35;
+    const colWidth2 = (availableWidth - colWidth1 * 2) / 2;
+
+    // Draw info boxes
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setLineWidth(0.2);
+
+    // Row 1: Tanggal/Shift and Lokasi
+    pdf.rect(margin, yPosition, colWidth1, 7);
+    pdf.rect(margin + colWidth1, yPosition, colWidth2, 7);
+    pdf.rect(margin + colWidth1 + colWidth2, yPosition, colWidth1, 7);
+    pdf.rect(margin + colWidth1 * 2 + colWidth2, yPosition, colWidth2, 7);
+
+    pdf.text('Tanggal/ Shift', margin + 2, yPosition + 5);
+    pdf.text(`${data.session.tanggal || ''} / ${data.session.shift || ''}`, margin + colWidth1 + 2, yPosition + 5);
+    pdf.text('Lokasi', margin + colWidth1 + colWidth2 + 2, yPosition + 5);
+    pdf.text(data.session.lokasi || '', margin + colWidth1 * 2 + colWidth2 + 2, yPosition + 5);
+
+    yPosition += 7;
+
+    // Row 2: Waktu and Jumlah Sampel
+    pdf.rect(margin, yPosition, colWidth1, 7);
+    pdf.rect(margin + colWidth1, yPosition, colWidth2, 7);
+    pdf.rect(margin + colWidth1 + colWidth2, yPosition, colWidth1, 7);
+    pdf.rect(margin + colWidth1 * 2 + colWidth2, yPosition, colWidth2, 7);
+
+    pdf.text('Waktu', margin + 2, yPosition + 5);
+    pdf.text(`sampai ${data.session.waktu || ''}`, margin + colWidth1 + 2, yPosition + 5);
+    pdf.text('Jumlah Sampel', margin + colWidth1 + colWidth2 + 2, yPosition + 5);
+    pdf.text((data.session.totalSampel || data.records.length).toString(), margin + colWidth1 * 2 + colWidth2 + 2, yPosition + 5);
+
+    yPosition += 10;
+
+    // ========================================
+    // MAIN DATA TABLE WITH ROTATED HEADERS
+    // ========================================
+
+    // Define questions for rotated headers
+    const questions = [
+        'Apakah pengawas berada di lokasi kerja sesuai tugasnya dan aktif mengawasi?',
+        'Apakah pengawas telah mengerjakan SAP pelaporan hazard?',
+        'Apakah pengawas telah mengerjakan SAP pelaporan inspeksi?',
+        'Apakah pengawas telah mengerjakan SAP pelaporan observasi?',
+        'Apakah pengawas telah melakukan validasi pada semua temuan yang ada pada Famous?',
+        'Apakah pengawas mampu mengidentifikasi potensi bahaya dan segera mengambil tindakan korektif?',
+        'Apakah pengawas memastikan pekerja mengikuti prosedur keselamatan dan aturan kerja?'
     ];
 
-    autoTable(pdf, {
-        startY: yPosition,
-        body: infoData,
-        theme: 'plain',
-        tableWidth: availableWidth,
-        styles: { fontSize: 8, cellPadding: 1.5, lineWidth: 0.1, lineColor: [0, 0, 0] },
-        columnStyles: {
-            0: { cellWidth: 40, fillColor: [240, 240, 240] },
-            1: { cellWidth: availableWidth / 2 - 40 },
-            2: { cellWidth: 40, fillColor: [240, 240, 240] },
-            3: { cellWidth: availableWidth / 2 - 40 },
-        },
-        margin: { left: margin, right: margin },
-    });
+    // Column widths
+    const colNo = 10;
+    const colNama = 40;
+    const colNik = 30;
+    const colPerusahaan = 35;
+    const colQ = 15; // Each question column
+    const colKet = availableWidth - colNo - colNama - colNik - colPerusahaan - (colQ * 7);
 
-    yPosition = (pdf as any).lastAutoTable.finalY + 2;
+    // Header row height for rotated text
+    const headerHeight = 45;
+    const rowHeight = 8;
 
-    // Main data table with 13 columns matching template
-    // Columns: No, Nama, NIK, Perusahaan, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Keterangan
-    const tableHeaders = [['No', 'Nama', 'NIK', 'Perusahaan', 'Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6', 'Q7', 'Ket']];
-    const tableData = data.records.map((record, idx) => [
-        (idx + 1).toString(),
-        record.nama || '',
-        record.nik || '',
-        record.perusahaan || '',
-        // Use V/X for checkmark columns (matching template style)
-        record.q1_lokasiKerja ? 'V' : 'X',
-        record.q2_sapHazard ? 'V' : 'X',
-        record.q3_sapInspeksi ? 'V' : 'X',
-        record.q4_sapObservasi ? 'V' : 'X',
-        record.q5_validasiFamous ? 'V' : 'X',
-        record.q6_identifikasiBahaya ? 'V' : 'X',
-        record.q7_prosedurKeselamatan ? 'V' : 'X',
-        record.keterangan || ''
-    ]);
+    // Draw header background
+    pdf.setFillColor(245, 245, 245);
+    pdf.rect(margin, yPosition, availableWidth, headerHeight, 'FD');
 
-    // Ensure minimum 10 rows
-    while (tableData.length < 10) {
-        tableData.push([(tableData.length + 1).toString(), '', '', '', '', '', '', '', '', '', '', '']);
+    // Draw header cells
+    let xPos = margin;
+
+    // No column
+    pdf.rect(xPos, yPosition, colNo, headerHeight);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    pdf.text('No', xPos + colNo / 2, yPosition + headerHeight / 2 + 2, { align: 'center' });
+    xPos += colNo;
+
+    // Nama column
+    pdf.rect(xPos, yPosition, colNama, headerHeight);
+    pdf.text('Nama', xPos + colNama / 2, yPosition + headerHeight / 2 + 2, { align: 'center' });
+    xPos += colNama;
+
+    // NIK column
+    pdf.rect(xPos, yPosition, colNik, headerHeight);
+    pdf.text('NIK', xPos + colNik / 2, yPosition + headerHeight / 2 + 2, { align: 'center' });
+    xPos += colNik;
+
+    // Perusahaan column
+    pdf.rect(xPos, yPosition, colPerusahaan, headerHeight);
+    pdf.text('Perusahaan', xPos + colPerusahaan / 2, yPosition + headerHeight / 2 + 2, { align: 'center' });
+    xPos += colPerusahaan;
+
+    // Question columns with rotated text
+    pdf.setFontSize(6);
+    for (let i = 0; i < 7; i++) {
+        pdf.rect(xPos, yPosition, colQ, headerHeight);
+
+        // Save state and rotate text
+        pdf.saveGraphicsState();
+        const centerX = xPos + colQ / 2;
+        const centerY = yPosition + headerHeight - 3;
+
+        // Rotate 90 degrees counter-clockwise
+        const cos = Math.cos(-Math.PI / 2);
+        const sin = Math.sin(-Math.PI / 2);
+
+        // Split long text into lines
+        const words = questions[i].split(' ');
+        let lines: string[] = [];
+        let currentLine = '';
+
+        for (const word of words) {
+            if ((currentLine + ' ' + word).length > 25) {
+                lines.push(currentLine.trim());
+                currentLine = word;
+            } else {
+                currentLine += ' ' + word;
+            }
+        }
+        if (currentLine.trim()) lines.push(currentLine.trim());
+
+        // Draw rotated text
+        pdf.internal.write(
+            'q',
+            cos.toFixed(4), sin.toFixed(4), (-sin).toFixed(4), cos.toFixed(4),
+            (centerX * (1 - cos) + centerY * sin).toFixed(2),
+            (centerY * (1 - cos) - centerX * sin).toFixed(2),
+            'cm'
+        );
+
+        let textY = yPosition + 5;
+        for (const line of lines) {
+            pdf.text(line, centerX, textY);
+            textY += 4;
+        }
+
+        pdf.internal.write('Q');
+        pdf.restoreGraphicsState();
+
+        xPos += colQ;
     }
 
-    autoTable(pdf, {
-        startY: yPosition,
-        head: tableHeaders,
-        body: tableData,
-        theme: 'grid',
-        tableWidth: availableWidth,
-        styles: { fontSize: 7, cellPadding: 1, halign: 'center', valign: 'middle', lineWidth: 0.15, minCellHeight: 6 },
-        headStyles: { fillColor: [220, 220, 220], textColor: [0, 0, 0], fontStyle: 'bold' },
-        columnStyles: {
-            0: { cellWidth: 8 },
-            1: { cellWidth: 35, halign: 'left' },
-            2: { cellWidth: 20 },
-            3: { cellWidth: 30, halign: 'left' },
-            4: { cellWidth: 10 },
-            5: { cellWidth: 10 },
-            6: { cellWidth: 10 },
-            7: { cellWidth: 10 },
-            8: { cellWidth: 10 },
-            9: { cellWidth: 10 },
-            10: { cellWidth: 10 },
-            11: { cellWidth: 'auto', halign: 'left' },
-        },
-        margin: { left: margin, right: margin },
-    });
-
-    // Add Legend for Questions
-    const finalY = (pdf as any).lastAutoTable.finalY + 2;
-    pdf.setFontSize(7);
-    pdf.text('Keterangan Pertanyaan:', margin, finalY);
-    pdf.text('Q1: Apakah pengawas berada di lokasi kerja sesuai tugasnya dan aktif mengawasi?', margin, finalY + 4);
-    pdf.text('Q2: Apakah pengawas telah mengerjakan SAP pelaporan hazard?', margin, finalY + 8);
-    pdf.text('Q3: Apakah pengawas telah mengerjakan SAP pelaporan inspeksi?', margin, finalY + 12);
-    pdf.text('Q4: Apakah pengawas telah mengerjakan SAP pelaporan observasi?', margin, finalY + 16);
-    pdf.text('Q5: Apakah pengawas telah melakukan validasi pada semua temuan yang ada pada Famous?', margin + 100, finalY + 4);
-    pdf.text('Q6: Apakah pengawas mampu mengidentifikasi potensi bahaya dan segera mengambil tindakan korektif?', margin + 100, finalY + 8);
-    pdf.text('Q7: Apakah pengawas memastikan pekerja mengikuti prosedur keselamatan dan aturan kerja?', margin + 100, finalY + 12);
-
-    yPosition = finalY + 20;
-
-    // Observer sign-off section - 2 rows x 4 columns (max 8 observers)
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(9);
-    pdf.text('Inspektur/Pemantau:', margin, yPosition);
-    yPosition += 4;
-
-    const getObs = (i: number) => data.observers[i] || null;
-    const obsData = [
-        [
-            '1', getObs(0)?.nama || '', getObs(0)?.perusahaan || '', '',
-            '2', getObs(1)?.nama || '', getObs(1)?.perusahaan || '', '',
-            '3', getObs(2)?.nama || '', getObs(2)?.perusahaan || '', '',
-            '4', getObs(3)?.nama || '', getObs(3)?.perusahaan || '', ''
-        ],
-        [
-            '5', getObs(4)?.nama || '', getObs(4)?.perusahaan || '', '',
-            '6', getObs(5)?.nama || '', getObs(5)?.perusahaan || '', '',
-            '7', getObs(6)?.nama || '', getObs(6)?.perusahaan || '', '',
-            '8', getObs(7)?.nama || '', getObs(7)?.perusahaan || '', ''
-        ],
-    ];
-
-    autoTable(pdf, {
-        startY: yPosition,
-        head: [[
-            'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan',
-            'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan',
-            'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan',
-            'No', 'Nama Pemantau', 'Perusahaan', 'Tanda Tangan'
-        ]],
-        body: obsData,
-        theme: 'grid',
-        tableWidth: availableWidth,
-        styles: { fontSize: 6, cellPadding: 1, valign: 'middle', minCellHeight: 12, lineWidth: 0.15 },
-        headStyles: { fillColor: [220, 220, 220], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
-        columnStyles: {
-            // Group 1
-            0: { cellWidth: 6, halign: 'center' },
-            1: { cellWidth: 20 },
-            2: { cellWidth: 15 },
-            3: { cellWidth: 18 },
-            // Group 2
-            4: { cellWidth: 6, halign: 'center' },
-            5: { cellWidth: 20 },
-            6: { cellWidth: 15 },
-            7: { cellWidth: 18 },
-            // Group 3
-            8: { cellWidth: 6, halign: 'center' },
-            9: { cellWidth: 20 },
-            10: { cellWidth: 15 },
-            11: { cellWidth: 18 },
-            // Group 4
-            12: { cellWidth: 6, halign: 'center' },
-            13: { cellWidth: 20 },
-            14: { cellWidth: 15 },
-            15: { cellWidth: 18 },
-        },
-        didDrawCell: (cellData) => {
-            // Signature columns: 3, 7, 11, 15
-            if ([3, 7, 11, 15].includes(cellData.column.index) && cellData.section === 'body') {
-                const obsIdx = cellData.row.index * 4 + Math.floor(cellData.column.index / 4);
-                const obs = getObs(obsIdx);
-                if (obs?.tandaTangan) {
-                    try {
-                        pdf.addImage(obs.tandaTangan, obs.tandaTangan.includes('png') ? 'PNG' : 'JPEG',
-                            cellData.cell.x + 1, cellData.cell.y + 1,
-                            cellData.cell.width - 2, cellData.cell.height - 2, undefined, 'FAST');
-                    } catch { }
-                }
-            }
-        },
-        margin: { left: margin, right: margin },
-    });
-
+    // Keterangan column
+    pdf.rect(xPos, yPosition, colKet, headerHeight);
     pdf.setFontSize(8);
+    pdf.text('Keterangan', xPos + colKet / 2, yPosition + headerHeight / 2 + 2, { align: 'center' });
+
+    yPosition += headerHeight;
+
+    // Draw data rows (10 rows minimum)
+    const allRecords = [...data.records];
+    while (allRecords.length < 10) {
+        allRecords.push({} as SidakDigitalRecord);
+    }
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(7);
+
+    for (let rowIdx = 0; rowIdx < 10; rowIdx++) {
+        const record = allRecords[rowIdx];
+        xPos = margin;
+
+        // No
+        pdf.rect(xPos, yPosition, colNo, rowHeight);
+        pdf.text((rowIdx + 1).toString() + '.', xPos + 2, yPosition + 5);
+        xPos += colNo;
+
+        // Nama
+        pdf.rect(xPos, yPosition, colNama, rowHeight);
+        pdf.text(record?.nama || '', xPos + 2, yPosition + 5);
+        xPos += colNama;
+
+        // NIK
+        pdf.rect(xPos, yPosition, colNik, rowHeight);
+        pdf.text(record?.nik || '', xPos + 2, yPosition + 5);
+        xPos += colNik;
+
+        // Perusahaan
+        pdf.rect(xPos, yPosition, colPerusahaan, rowHeight);
+        pdf.text(record?.perusahaan || '', xPos + 2, yPosition + 5);
+        xPos += colPerusahaan;
+
+        // Q1-Q7 checkboxes
+        const qValues = [
+            record?.q1_lokasiKerja,
+            record?.q2_sapHazard,
+            record?.q3_sapInspeksi,
+            record?.q4_sapObservasi,
+            record?.q5_validasiFamous,
+            record?.q6_identifikasiBahaya,
+            record?.q7_prosedurKeselamatan
+        ];
+
+        for (let i = 0; i < 7; i++) {
+            pdf.rect(xPos, yPosition, colQ, rowHeight);
+            if (record?.nama) {
+                pdf.text(qValues[i] ? '✓' : '✗', xPos + colQ / 2, yPosition + 5, { align: 'center' });
+            }
+            xPos += colQ;
+        }
+
+        // Keterangan
+        pdf.rect(xPos, yPosition, colKet, rowHeight);
+        pdf.text(record?.keterangan || '', xPos + 2, yPosition + 5);
+
+        yPosition += rowHeight;
+    }
+
+    yPosition += 5;
+
+    // ========================================
+    // OBSERVER/PEMANTAU TABLE
+    // ========================================
+
+    // Table header
+    const obsColNo = 10;
+    const obsColNama = 45;
+    const obsColPerusahaan = 35;
+    const obsColTTD = 40;
+    const obsGroupWidth = obsColNo + obsColNama + obsColPerusahaan + obsColTTD;
+
+    // Draw observer table (2 groups side by side)
+    const obsHeaderHeight = 8;
+    const obsRowHeight = 12;
+
+    pdf.setFillColor(245, 245, 245);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(7);
+
+    // Header row for both groups
+    xPos = margin;
+
+    // Group 1 header (1-4)
+    pdf.rect(xPos, yPosition, obsColNo, obsHeaderHeight, 'FD');
+    pdf.text('No', xPos + obsColNo / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColNo;
+
+    pdf.rect(xPos, yPosition, obsColNama, obsHeaderHeight, 'FD');
+    pdf.text('Nama Pemantau', xPos + obsColNama / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColNama;
+
+    pdf.rect(xPos, yPosition, obsColPerusahaan, obsHeaderHeight, 'FD');
+    pdf.text('Perusahaan', xPos + obsColPerusahaan / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColPerusahaan;
+
+    pdf.rect(xPos, yPosition, obsColTTD, obsHeaderHeight, 'FD');
+    pdf.text('Tanda Tangan', xPos + obsColTTD / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColTTD;
+
+    // Group 2 header (5-8)
+    pdf.rect(xPos, yPosition, obsColNo, obsHeaderHeight, 'FD');
+    pdf.text('No', xPos + obsColNo / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColNo;
+
+    pdf.rect(xPos, yPosition, obsColNama, obsHeaderHeight, 'FD');
+    pdf.text('Nama Pemantau', xPos + obsColNama / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColNama;
+
+    pdf.rect(xPos, yPosition, obsColPerusahaan, obsHeaderHeight, 'FD');
+    pdf.text('Perusahaan', xPos + obsColPerusahaan / 2, yPosition + 5, { align: 'center' });
+    xPos += obsColPerusahaan;
+
+    pdf.rect(xPos, yPosition, obsColTTD, obsHeaderHeight, 'FD');
+    pdf.text('Tanda Tangan', xPos + obsColTTD / 2, yPosition + 5, { align: 'center' });
+
+    yPosition += obsHeaderHeight;
+
+    // Draw 4 rows for observers (1-4 left, 5-8 right)
+    pdf.setFont('helvetica', 'normal');
+
+    for (let row = 0; row < 4; row++) {
+        xPos = margin;
+        const leftObs = data.observers[row] || null;
+        const rightObs = data.observers[row + 4] || null;
+
+        // Left side (1-4)
+        pdf.rect(xPos, yPosition, obsColNo, obsRowHeight);
+        pdf.text((row + 1).toString() + '.', xPos + 2, yPosition + 7);
+        xPos += obsColNo;
+
+        pdf.rect(xPos, yPosition, obsColNama, obsRowHeight);
+        pdf.text(leftObs?.nama || '', xPos + 2, yPosition + 7);
+        xPos += obsColNama;
+
+        pdf.rect(xPos, yPosition, obsColPerusahaan, obsRowHeight);
+        pdf.text(leftObs?.perusahaan || '', xPos + 2, yPosition + 7);
+        xPos += obsColPerusahaan;
+
+        pdf.rect(xPos, yPosition, obsColTTD, obsRowHeight);
+        // Add signature if available
+        if (leftObs?.tandaTangan) {
+            try {
+                pdf.addImage(leftObs.tandaTangan, leftObs.tandaTangan.includes('png') ? 'PNG' : 'JPEG',
+                    xPos + 2, yPosition + 1, obsColTTD - 4, obsRowHeight - 2, undefined, 'FAST');
+            } catch { }
+        }
+        xPos += obsColTTD;
+
+        // Right side (5-8)
+        pdf.rect(xPos, yPosition, obsColNo, obsRowHeight);
+        pdf.text((row + 5).toString() + '.', xPos + 2, yPosition + 7);
+        xPos += obsColNo;
+
+        pdf.rect(xPos, yPosition, obsColNama, obsRowHeight);
+        pdf.text(rightObs?.nama || '', xPos + 2, yPosition + 7);
+        xPos += obsColNama;
+
+        pdf.rect(xPos, yPosition, obsColPerusahaan, obsRowHeight);
+        pdf.text(rightObs?.perusahaan || '', xPos + 2, yPosition + 7);
+        xPos += obsColPerusahaan;
+
+        pdf.rect(xPos, yPosition, obsColTTD, obsRowHeight);
+        // Add signature if available
+        if (rightObs?.tandaTangan) {
+            try {
+                pdf.addImage(rightObs.tandaTangan, rightObs.tandaTangan.includes('png') ? 'PNG' : 'JPEG',
+                    xPos + 2, yPosition + 1, obsColTTD - 4, obsRowHeight - 2, undefined, 'FAST');
+            } catch { }
+        }
+
+        yPosition += obsRowHeight;
+    }
+
+    // Footer
+    pdf.setFontSize(8);
+    pdf.text('April 2025/R0', margin, pageHeight - 5);
     pdf.text('Page 1 of 1', pageWidth - margin, pageHeight - 5, { align: 'right' });
 
     return pdf;

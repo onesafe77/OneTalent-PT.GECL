@@ -55,7 +55,7 @@ import { Link } from "wouter";
 
 // --- Configuration ---
 const CSV_URL =
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vTX9zYvZSIKyKXx-DfhyXZCdTMuqhPY_kXu_WxMWEZ-MHPR779_x_0NklR1VjDGN1e7aoloMaDf5jk9/pub?gid=1467622739&single=true&output=csv";
+    "https://docs.google.com/spreadsheets/d/14g6DzhrUZEevEOllHQ7a4ZXTdzAuhDgstiZWcEylf8o/gviz/tq?tqx=out:csv&sheet=engine%20dashboard";
 const COMPANY_FILTER_DEFAULT = "GEC";
 const DASHBOARD_ID = "overspeed";
 

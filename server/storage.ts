@@ -241,6 +241,9 @@ import {
   // Project Tracker
   projects, type Project, type InsertProject,
   projectFiles, type ProjectFile, type InsertProjectFile,
+  // Simper Perpanjangan
+  simperPerpanjangan, type SimperPerpanjangan, type InsertSimperPerpanjangan,
+  simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -8831,6 +8834,124 @@ export class DrizzleStorage implements IStorage {
   async deleteSickLeave(id: string): Promise<boolean> {
     const result = await db.delete(sickLeaves).where(eq(sickLeaves.id, id));
     return result.rowCount > 0;
+  }
+
+  // ============================================
+  // SIMPER PERPANJANGAN METHODS
+  // ============================================
+
+  async getSimperPerpanjanganPaginated(
+    page: number,
+    limit: number,
+    search?: string,
+    status?: string,
+    jenis?: string
+  ): Promise<{ data: SimperPerpanjangan[], total: number }> {
+    const offset = (page - 1) * limit;
+    const conditions: any[] = [];
+
+    // Search condition
+    if (search && search.trim() !== "") {
+      const lowerSearch = `%${search.toLowerCase()}%`;
+      conditions.push(
+        or(
+          ilike(simperPerpanjangan.nama, lowerSearch),
+          ilike(simperPerpanjangan.nik, lowerSearch),
+          ilike(simperPerpanjangan.nomorLambung, lowerSearch)
+        )
+      );
+    }
+
+    // Status filter
+    if (status && status !== "all") {
+      conditions.push(eq(simperPerpanjangan.statusPerpanjangan, status));
+    }
+
+    // Jenis filter
+    if (jenis && jenis !== "all") {
+      conditions.push(eq(simperPerpanjangan.jenisSimper, jenis));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    // Get total count
+    const [countResult] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(simperPerpanjangan)
+      .where(whereClause);
+
+    const total = Number(countResult?.count || 0);
+
+    // Get data
+    const data = await db
+      .select()
+      .from(simperPerpanjangan)
+      .where(whereClause)
+      .orderBy(desc(simperPerpanjangan.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total };
+  }
+
+  async getSimperPerpanjanganById(id: string): Promise<SimperPerpanjangan | undefined> {
+    const [result] = await db
+      .select()
+      .from(simperPerpanjangan)
+      .where(eq(simperPerpanjangan.id, id));
+    return result;
+  }
+
+  async createSimperPerpanjangan(data: InsertSimperPerpanjangan): Promise<SimperPerpanjangan> {
+    const [result] = await db
+      .insert(simperPerpanjangan)
+      .values({
+        ...data,
+        diajukanPada: new Date(),
+      })
+      .returning();
+    return result;
+  }
+
+  async updateSimperPerpanjangan(id: string, data: Partial<InsertSimperPerpanjangan>): Promise<SimperPerpanjangan | undefined> {
+    const [result] = await db
+      .update(simperPerpanjangan)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(simperPerpanjangan.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSimperPerpanjangan(id: string): Promise<boolean> {
+    // First delete related history
+    await db
+      .delete(simperPerpanjanganHistory)
+      .where(eq(simperPerpanjanganHistory.simperPerpanjanganId, id));
+
+    // Then delete the main record
+    const result = await db
+      .delete(simperPerpanjangan)
+      .where(eq(simperPerpanjangan.id, id));
+    return result.rowCount > 0;
+  }
+
+  async getSimperPerpanjanganHistory(simperPerpanjanganId: string): Promise<SimperPerpanjanganHistory[]> {
+    return await db
+      .select()
+      .from(simperPerpanjanganHistory)
+      .where(eq(simperPerpanjanganHistory.simperPerpanjanganId, simperPerpanjanganId))
+      .orderBy(desc(simperPerpanjanganHistory.createdAt));
+  }
+
+  async createSimperPerpanjanganHistory(data: InsertSimperPerpanjanganHistory): Promise<SimperPerpanjanganHistory> {
+    const [result] = await db
+      .insert(simperPerpanjanganHistory)
+      .values(data)
+      .returning();
+    return result;
   }
 }
 

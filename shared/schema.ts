@@ -2900,3 +2900,94 @@ export const insertUploadedFileSchema = createInsertSchema(uploadedFiles).omit({
 
 export type UploadedFile = typeof uploadedFiles.$inferSelect;
 export type InsertUploadedFile = z.infer<typeof insertUploadedFileSchema>;
+
+// ============================================
+// MONITORING PERPANJANGAN SIMPER
+// Fitur monitoring perpanjangan SIMPER untuk karyawan
+// Mirip dengan Pengajuan SIMPER EV tetapi tanpa URL CSV
+// ============================================
+
+export const simperPerpanjangan = pgTable("simper_perpanjangan", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+
+  // Data Karyawan
+  nama: text("nama").notNull(),
+  nik: text("nik").notNull(),
+  nomorLambung: text("nomor_lambung"),
+  jabatan: text("jabatan"),
+  departemen: text("departemen"),
+  perusahaan: text("perusahaan"),
+  noHp: text("no_hp"),
+
+  // Data SIMPER
+  jenisSimper: text("jenis_simper").notNull(), // "BIB", "TIA", "BOTH"
+
+  // Tanggal expired SIMPER
+  expiredSimperBib: text("expired_simper_bib"), // Format: YYYY-MM-DD
+  expiredSimperTia: text("expired_simper_tia"), // Format: YYYY-MM-DD
+
+  // Status Perpanjangan
+  statusPerpanjangan: text("status_perpanjangan").notNull().default("Belum Diproses"),
+  // Status: "Belum Diproses", "Dalam Proses", "Menunggu Approval", "Approved", "Rejected", "Selesai"
+
+  // Tahapan Workflow
+  tahapanWorkflow: text("tahapan_workflow"),
+  // Contoh: "Pengajuan Admin", "Verifikasi HSE", "Approval Manager", "Selesai"
+
+  // Catatan
+  catatan: text("catatan"),
+
+  // Dokumen pendukung
+  dokumenUrl: text("dokumen_url"), // URL/path to supporting documents
+
+  // Tracking
+  diajukanOleh: text("diajukan_oleh"), // NIK admin yang mengajukan
+  diajukanPada: timestamp("diajukan_pada"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_simper_perpanjangan_nik").on(table.nik),
+  index("IDX_simper_perpanjangan_status").on(table.statusPerpanjangan),
+  index("IDX_simper_perpanjangan_jenis").on(table.jenisSimper),
+]);
+
+// History perpanjangan SIMPER
+export const simperPerpanjanganHistory = pgTable("simper_perpanjangan_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  simperPerpanjanganId: varchar("simper_perpanjangan_id").notNull().references(() => simperPerpanjangan.id, { onDelete: "cascade" }),
+
+  // Status change
+  statusSebelum: text("status_sebelum"),
+  statusSesudah: text("status_sesudah").notNull(),
+
+  // Approver info
+  approver: text("approver"),
+  approverNik: text("approver_nik"),
+
+  // Tahapan
+  tahapan: text("tahapan"),
+
+  // Catatan
+  catatan: text("catatan"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_simper_perp_history_perpanjangan").on(table.simperPerpanjanganId),
+]);
+
+export const insertSimperPerpanjanganSchema = createInsertSchema(simperPerpanjangan).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertSimperPerpanjanganHistorySchema = createInsertSchema(simperPerpanjanganHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SimperPerpanjangan = typeof simperPerpanjangan.$inferSelect;
+export type InsertSimperPerpanjangan = z.infer<typeof insertSimperPerpanjanganSchema>;
+export type SimperPerpanjanganHistory = typeof simperPerpanjanganHistory.$inferSelect;
+export type InsertSimperPerpanjanganHistory = z.infer<typeof insertSimperPerpanjanganHistorySchema>;

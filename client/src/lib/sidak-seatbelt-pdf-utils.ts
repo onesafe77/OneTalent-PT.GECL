@@ -179,10 +179,10 @@ export async function generateSidakSeatbeltPdf(data: SidakSeatbeltData): Promise
             record.nama || '',
             record.nomorLambung || '',
             record.perusahaan || '',
-            record.seatbeltDriverCondition ? 'V' : 'X',
-            record.seatbeltPassengerCondition ? 'V' : 'X',
-            record.seatbeltDriverUsage ? 'V' : 'X',
-            record.seatbeltPassengerUsage ? 'V' : 'X',
+            record.seatbeltDriverCondition ? '✓' : 'X',
+            record.seatbeltPassengerCondition ? '✓' : 'X',
+            record.seatbeltDriverUsage ? '✓' : 'X',
+            record.seatbeltPassengerUsage ? '✓' : 'X',
             record.keterangan || ''
         ]);
     });
@@ -289,7 +289,7 @@ export async function generateSidakSeatbeltPdf(data: SidakSeatbeltData): Promise
             if ([4, 5, 6, 7].includes(cellData.column.index) && cellData.section === 'body') {
                 const cellValue = cellData.cell.raw as string;
 
-                if (cellValue === 'V' || cellValue === 'X') {
+                if (cellValue === '✓' || cellValue === 'X') {
                     const cellX = cellData.cell.x;
                     const cellY = cellData.cell.y;
                     const cellWidth = cellData.cell.width;
@@ -306,7 +306,7 @@ export async function generateSidakSeatbeltPdf(data: SidakSeatbeltData): Promise
 
                     // Draw checkmark or X using lines (not text)
 
-                    if (cellValue === 'V') {
+                    if (cellValue === '✓') {
                         // Draw checkmark manually using lines
                         const centerX = cellX + cellWidth / 2;
                         const centerY = cellY + cellHeight / 2;

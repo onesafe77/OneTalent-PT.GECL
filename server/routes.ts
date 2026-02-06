@@ -13763,6 +13763,164 @@ Format sebagai bullet points singkat per insight.`;
   });
 
 
+  // ============================================
+  // MONITORING PERPANJANGAN SIMPER ROUTES
+  // ============================================
+
+  // Get all Simper Perpanjangan (with pagination, search, and filters)
+  app.get("/api/simper-perpanjangan", async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const search = (req.query.search as string) || "";
+      const status = (req.query.status as string) || "all";
+      const jenis = (req.query.jenis as string) || "all";
+
+      console.log(`[SimperPerpanjangan] GET all - page: ${page}, limit: ${limit}, search: "${search}", status: "${status}", jenis: "${jenis}"`);
+
+      const result = await storage.getSimperPerpanjanganPaginated(page, limit, search, status, jenis);
+      res.json(result);
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Get Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Get single Simper Perpanjangan by ID
+  app.get("/api/simper-perpanjangan/:id", async (req, res) => {
+    try {
+      const record = await storage.getSimperPerpanjanganById(req.params.id);
+      if (!record) {
+        return res.status(404).json({ error: "Record not found" });
+      }
+      res.json(record);
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Get By ID Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Create Simper Perpanjangan
+  app.post("/api/simper-perpanjangan", async (req, res) => {
+    try {
+      console.log("[SimperPerpanjangan] Creating new record:", req.body);
+      const result = await storage.createSimperPerpanjangan(req.body);
+
+      // Create initial history entry
+      await storage.createSimperPerpanjanganHistory({
+        simperPerpanjanganId: result.id,
+        statusSebelum: null,
+        statusSesudah: result.statusPerpanjangan || "Belum Diproses",
+        tahapan: result.tahapanWorkflow || "Pengajuan Admin",
+        approver: (req as any).user?.nama || "Admin",
+        approverNik: (req as any).user?.nik || "SYSTEM",
+        catatan: "Data perpanjangan SIMPER baru dibuat"
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Create Error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  // Update Simper Perpanjangan
+  app.put("/api/simper-perpanjangan/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log(`[SimperPerpanjangan] Updating record ${id}:`, req.body);
+
+      // Get old record for history
+      const oldRecord = await storage.getSimperPerpanjanganById(id);
+      if (!oldRecord) {
+        return res.status(404).json({ error: "Record not found" });
+      }
+
+      const result = await storage.updateSimperPerpanjangan(id, req.body);
+
+      // Create history entry if status changed
+      if (oldRecord.statusPerpanjangan !== req.body.statusPerpanjangan) {
+        await storage.createSimperPerpanjanganHistory({
+          simperPerpanjanganId: id,
+          statusSebelum: oldRecord.statusPerpanjangan,
+          statusSesudah: req.body.statusPerpanjangan,
+          tahapan: req.body.tahapanWorkflow || oldRecord.tahapanWorkflow,
+          approver: (req as any).user?.nama || "Admin",
+          approverNik: (req as any).user?.nik || "SYSTEM",
+          catatan: req.body.catatan || `Status diubah dari ${oldRecord.statusPerpanjangan} ke ${req.body.statusPerpanjangan}`
+        });
+      }
+
+      res.json(result);
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Update Error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  // Delete Simper Perpanjangan
+  app.delete("/api/simper-perpanjangan/:id", async (req, res) => {
+    try {
+      console.log(`[SimperPerpanjangan] Deleting record ${req.params.id}`);
+      const success = await storage.deleteSimperPerpanjangan(req.params.id);
+      if (!success) {
+        return res.status(404).json({ error: "Record not found" });
+      }
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Delete Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Get History for Simper Perpanjangan
+  app.get("/api/simper-perpanjangan/:id/history", async (req, res) => {
+    try {
+      const history = await storage.getSimperPerpanjanganHistory(req.params.id);
+      res.json(history);
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Get History Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+  // Create History for Simper Perpanjangan
+  app.post("/api/simper-perpanjangan/:id/history", async (req, res) => {
+    try {
+      const result = await storage.createSimperPerpanjanganHistory({
+        ...req.body,
+        simperPerpanjanganId: req.params.id,
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Create History Error:", error);
+      res.status(400).json({ error: (error as Error).message });
+    }
+  });
+
+  // Bulk delete Simper Perpanjangan
+  app.delete("/api/simper-perpanjangan", async (req, res) => {
+    try {
+      const { ids } = req.body;
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "IDs are required" });
+      }
+
+      console.log(`[SimperPerpanjangan] Bulk deleting ${ids.length} records`);
+      let deletedCount = 0;
+      for (const id of ids) {
+        const success = await storage.deleteSimperPerpanjangan(id);
+        if (success) deletedCount++;
+      }
+
+      res.json({ success: true, deletedCount });
+    } catch (error) {
+      console.error("[SimperPerpanjangan] Bulk Delete Error:", error);
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
+
 
   const httpServer = createServer(app);
 

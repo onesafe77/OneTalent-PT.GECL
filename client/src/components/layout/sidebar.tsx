@@ -93,6 +93,7 @@ export const navigationGroups: NavGroup[] = [
           { name: "Cuti", href: "/workspace/leave", icon: ClipboardList, requiredPermissions: [Permission.VIEW_LEAVE] },
           { name: "SIMPER", href: "/workspace/simper-monitoring", icon: Shield, requiredPermissions: [Permission.VIEW_EMPLOYEES, Permission.MANAGE_EMPLOYEES] },
           { name: "Monitoring Simper EV", href: "/workspace/monitoring-simper-ev-admin", icon: Car, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
+          { name: "Perpanjangan SIMPER", href: "/workspace/monitoring-simper-perpanjangan", icon: Calendar, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
           { name: "Laporan", href: "/workspace/reports", icon: FileText, requiredPermissions: [Permission.VIEW_REPORTS] },
         ]
       },
