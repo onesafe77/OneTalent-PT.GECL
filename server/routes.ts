@@ -81,6 +81,7 @@ import {
   insertInductionQuestionSchema,
   insertInductionScheduleSchema,
   insertInductionAnswerSchema,
+  insertPublicInductionAttendanceSchema,
   insertProjectSchema,
   insertProjectFileSchema,
 } from "@shared/schema";
@@ -14037,6 +14038,108 @@ Format sebagai bullet points singkat per insight.`;
 
   const httpServer = createServer(app);
 
+  // ============================================
+  // PUBLIC INDUCTION ATTENDANCE
+  // ============================================
+  app.post("/api/induction-attendance/submit", async (req, res) => {
+    try {
+      const parsed = insertPublicInductionAttendanceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid data", details: parsed.error });
+      }
+
+      const result = await storage.createPublicInductionAttendance(parsed.data);
+      res.json({ message: "Absensi berhasil dicatat", data: result });
+    } catch (error: any) {
+      console.error("Error submitting induction attendance:", error);
+      res.status(500).json({ error: error.message || "Gagal mencatat absensi" });
+    }
+  });
+
+  app.get("/api/induction-attendance/all", async (req, res) => {
+    try {
+      // Permission check could be added here if needed, but for now we assume it's for HR admin
+      const { year, search } = req.query;
+      const results = await storage.getAllPublicInductionAttendance(
+        year as string,
+        search as string
+      );
+      res.json(results);
+    } catch (error: any) {
+      console.error("Error fetching induction attendance:", error);
+      res.status(500).json({ error: error.message || "Gagal mengambil data absensi" });
+    }
+  });
+
+  // ============================================
+  // SIDAK P3K ROUTES
+  // ============================================
+
+  app.post("/api/sidak-p3k", async (req, res) => {
+    try {
+      const { session, items } = req.body;
+      const result = await storage.createSidakP3k(session, items);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error creating Sidak P3K:", error);
+      res.status(500).json({ error: error.message || "Failed to create Sidak P3K" });
+    }
+  });
+
+  app.get("/api/sidak-p3k", async (req, res) => {
+    try {
+      const results = await storage.getSidakP3kHistory();
+      res.json(results);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/sidak-p3k/:id", async (req, res) => {
+    try {
+      const result = await storage.getSidakP3kSession(req.params.id);
+      if (!result) return res.status(404).json({ error: "Session not found" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/sidak-p3k/:id", async (req, res) => {
+    try {
+      const result = await storage.updateSidakP3kSession(req.params.id, req.body);
+      if (!result) return res.status(404).json({ error: "Session not found" });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+
+  // ============================================
+  // SIDAK P3K API
+  // ============================================
+
+  // P3K Photo Upload
+  app.post("/api/sidak-p3k/upload", upload.single("photo"), async (req, res) => {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ message: "No photo uploaded" });
+      }
+
+      // Store relative path for URL access
+      const photoUrl = `/uploads/${file.filename}`;
+      console.log(`[P3K] Photo uploaded: ${photoUrl}`);
+
+      res.json({ url: photoUrl });
+    } catch (error) {
+      console.error("Error uploading P3K photo:", error);
+      res.status(500).json({ message: "Failed to upload photo" });
+    }
+  });
+
   return httpServer;
 }
+
 

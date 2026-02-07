@@ -22,19 +22,19 @@ export async function generateSidakDigitalPDF(data: SidakDigitalData): Promise<j
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
     } catch {
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10);
-        pdf.text('PT BORNEO INDOBARA', margin, yPosition + 6);
+        pdf.text('PT. GECL', margin, yPosition + 6);
     }
 
     // Official document code (top right)
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
-    pdf.text('BIB – HSE – ES – F – 3.02 – 88', pageWidth - margin, yPosition + 6, { align: 'right' });
+    pdf.text('GECL – HSE – ES – F – 3.02 – 88', pageWidth - margin, yPosition + 6, { align: 'right' });
 
     yPosition += 14;
 
@@ -47,7 +47,7 @@ export async function generateSidakDigitalPDF(data: SidakDigitalData): Promise<j
 
     pdf.setFont('helvetica', 'italic');
     pdf.setFontSize(8);
-    pdf.text('Formulir ini digunakan sebagai catatan hasil inspeksi keberadaan dan fungsi pengawas Digitalisasi yang dilaksanakan di PT Borneo Indobara', pageWidth / 2, yPosition + 5, { align: 'center' });
+    pdf.text('Formulir ini digunakan sebagai catatan hasil inspeksi keberadaan dan fungsi pengawas Digitalisasi yang dilaksanakan di PT. GECL', pageWidth / 2, yPosition + 5, { align: 'center' });
 
     yPosition += 12;
 

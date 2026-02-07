@@ -14,7 +14,7 @@ import type {
 
 // ============================================
 // SIDAK FATIGUE PDF GENERATOR
-// Form: BIB-HSE-ES-F-3.02-16
+// Form: GECL-HSE-ES-F-3.02-16
 // ============================================
 
 interface SidakFatigueData {
@@ -35,7 +35,7 @@ export async function downloadSidakFatigueAsJpg(data: SidakFatigueData, filename
 
 // ============================================
 // SIDAK ROSTER PDF GENERATOR
-// Form: BIB-HSE-PPO-F
+// Form: GECL-HSE-PPO-F
 // ============================================
 
 interface SidakRosterData {
@@ -55,7 +55,7 @@ export async function downloadSidakRosterAsJpg(data: SidakRosterData, filename: 
 
 // ============================================
 // SIDAK SEATBELT PDF GENERATOR
-// Form: BIB-HSE-ES-F-3.02-86
+// Form: GECL-HSE-ES-F-3.02-86
 // ============================================
 
 interface SidakSeatbeltData {
@@ -77,7 +77,7 @@ export async function generateSidakSeatbeltPdf(data: SidakSeatbeltData): Promise
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
 
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
@@ -92,7 +92,7 @@ export async function generateSidakSeatbeltPdf(data: SidakSeatbeltData): Promise
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(0, 0, 0);
-    pdf.text('BIB – HSE – ES – F – 3.02 – 86', pageWidth - margin, yPosition + 4, { align: 'right' });
+    pdf.text('GECL – HSE – ES – F – 3.02 – 86', pageWidth - margin, yPosition + 4, { align: 'right' });
 
     yPosition += 12;
 

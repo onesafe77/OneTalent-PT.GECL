@@ -81,6 +81,10 @@ import {
   type InsertSidakPencahayaanObserver,
   type User,
   type UpsertUser,
+  type InductionAnswer,
+  type InsertInductionAnswer,
+  type PublicInductionAttendance,
+  type InsertPublicInductionAttendance,
   users,
   authUsers,
   employees,
@@ -206,8 +210,6 @@ import {
   type InsertInductionQuestion,
   type InductionSchedule,
   type InsertInductionSchedule,
-  type InductionAnswer,
-  type InsertInductionAnswer,
 
   mcuRecords,
   type McuRecord,
@@ -236,14 +238,21 @@ import {
   sickLeaves,
   type SickLeave,
   type InsertSickLeave,
-  type SickLeave,
-  type InsertSickLeave,
   // Project Tracker
   projects, type Project, type InsertProject,
   projectFiles, type ProjectFile, type InsertProjectFile,
   // Simper Perpanjangan
   simperPerpanjangan, type SimperPerpanjangan, type InsertSimperPerpanjangan,
   simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
+  simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
+  publicInductionAttendance,
+  // Sidak P3K
+  type SidakP3kSession,
+  type InsertSidakP3kSession,
+  type SidakP3kItem,
+  type InsertSidakP3kItem,
+  sidakP3kSessions,
+  sidakP3kItems,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -550,6 +559,10 @@ export interface IStorage {
     byWeek: any[];
   }>;
 
+  // Induction Public
+  createPublicInductionAttendance(attendance: InsertPublicInductionAttendance): Promise<PublicInductionAttendance>;
+  getAllPublicInductionAttendance(year?: string, search?: string): Promise<PublicInductionAttendance[]>;
+
   // Induction Methods
   getInductionMaterials(): Promise<InductionMaterial[]>;
   getInductionMaterial(id: string): Promise<InductionMaterial | undefined>;
@@ -592,7 +605,14 @@ export interface IStorage {
   getSimperEvHistoryById(id: string): Promise<SimperEvHistory | undefined>;
   createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory>;
   updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined>;
+  updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined>;
   deleteSimperEvHistory(id: string): Promise<boolean>;
+
+  // Sidak P3K Methods
+  createSidakP3k(session: InsertSidakP3kSession, items: InsertSidakP3kItem[]): Promise<SidakP3kSession>;
+  getSidakP3kHistory(): Promise<SidakP3kSession[]>;
+  getSidakP3kSession(id: string): Promise<(SidakP3kSession & { items: SidakP3kItem[] }) | undefined>;
+  updateSidakP3kSession(id: string, updates: Partial<InsertSidakP3kSession>): Promise<SidakP3kSession | undefined>;
 
   // WhatsApp Notification Logs
   createWhatsappNotificationLog(data: InsertWhatsappNotificationLog): Promise<WhatsappNotificationLog>;
@@ -1783,6 +1803,10 @@ export class MemStorage implements IStorage {
   }
   async createSimperPerpanjanganHistory(data: InsertSimperPerpanjanganHistory): Promise<SimperPerpanjanganHistory> {
     throw new Error("Simper Perpanjangan not implemented in MemStorage. Use DrizzleStorage.");
+  }
+
+  async updateSidakP3kSession(id: string, updates: Partial<InsertSidakP3kSession>): Promise<SidakP3kSession | undefined> {
+    throw new Error("Sidak P3K update not implemented in MemStorage. Use DrizzleStorage.");
   }
 }
 
@@ -5599,18 +5623,18 @@ export class DrizzleStorage implements IStorage {
         const contentWidth = pageWidth - (margin * 2);
 
         // --- HEADER SECTION ---
-        const logoPath = path.join(process.cwd(), 'client', 'public', 'blogo.png');
+        const logoPath = path.join(process.cwd(), 'client', 'public', 'assets', 'logo-gecl.png');
 
         // 1. Logo (Left)
         if (fs.existsSync(logoPath)) {
           doc.image(logoPath, margin, margin, { height: 35 });
         } else {
-          doc.font('Helvetica-Bold').fontSize(14).text('PT BORNEO INDOBARA', margin, margin);
+          doc.font('Helvetica-Bold').fontSize(14).text('PT. GECL', margin, margin);
         }
 
         // 2. Doc Code (Right)
         doc.font('Helvetica').fontSize(9)
-          .text('BIB - HSE - ES - F - 3.02 - 83', margin + contentWidth - 200, margin + 10, { width: 200, align: 'right' });
+          .text('GECL - HSE - ES - F - 3.02 - 83', margin + contentWidth - 200, margin + 10, { width: 200, align: 'right' });
 
         // 3. Title Box
         const titleY = margin + 45;
@@ -5620,7 +5644,7 @@ export class DrizzleStorage implements IStorage {
         doc.font('Helvetica-Bold').fontSize(14)
           .text('INSPEKSI KEPATUHAN LOTO', margin, titleY + 7, { width: contentWidth, align: 'center' });
         doc.font('Helvetica-Oblique').fontSize(9)
-          .text('Formulir ini digunakan sebagai catatan hasil inspeksi LOTO yang dilaksanakan di PT Borneo Indobara', margin, titleY + 22, { width: contentWidth, align: 'center' });
+          .text('Formulir ini digunakan sebagai catatan hasil inspeksi LOTO yang dilaksanakan di PT. GECL', margin, titleY + 22, { width: contentWidth, align: 'center' });
 
 
         // --- INFO SECTION ---
@@ -7727,18 +7751,19 @@ export class DrizzleStorage implements IStorage {
     // Build dynamic filter conditions
     const conditions: any[] = [];
 
-    // Date range filter
+    // Unified Date & Time Filter using violationTimestamp
     if (startDate && endDate) {
-      conditions.push(sql`${fmsViolations.violationDate} >= ${startDate}`);
-      conditions.push(sql`${fmsViolations.violationDate} <= ${endDate}`);
-    }
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
 
-    // Time range filter (optional)
-    if (options?.startTime) {
-      conditions.push(sql`${fmsViolations.violationTime}::time >= ${options.startTime}::time`);
-    }
-    if (options?.endTime) {
-      conditions.push(sql`${fmsViolations.violationTime}::time <= ${options.endTime}::time`);
+      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
+      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
+    } else if (startDate) {
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
+    } else if (endDate) {
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     }
 
     // Violation type filter (multi-select: comma-separated values)
@@ -7802,11 +7827,18 @@ export class DrizzleStorage implements IStorage {
     // Better Strategy: Rebuild the conditions for available types
     const conditionsForAvailableTypes: any[] = [];
     if (startDate && endDate) {
-      conditionsForAvailableTypes.push(sql`${fmsViolations.violationDate} >= ${startDate}`);
-      conditionsForAvailableTypes.push(sql`${fmsViolations.violationDate} <= ${endDate}`);
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
+      conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
+    } else if (startDate) {
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
+    } else if (endDate) {
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     }
-    if (options?.startTime) conditionsForAvailableTypes.push(sql`${fmsViolations.violationTime}::time >= ${options.startTime}::time`);
-    if (options?.endTime) conditionsForAvailableTypes.push(sql`${fmsViolations.violationTime}::time <= ${options.endTime}::time`);
+
     // Skip Violation Type filter
     if (options?.shift && options.shift !== 'all') {
       const shifts = options.shift.split(',').map(s => s.trim()).filter(s => s);
@@ -7831,20 +7863,19 @@ export class DrizzleStorage implements IStorage {
     // 10. Available Weeks Filter (Similar strategy: include Date but exclude Week filter)
     const conditionsForAvailableWeeks: any[] = [];
     if (startDate && endDate) {
-      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationDate} >= ${startDate}`);
-      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationDate} <= ${endDate}`);
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
+      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
+    } else if (startDate) {
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
+    } else if (endDate) {
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     }
-    // Include other filters if needed (e.g. shift, violationType etc. might be irrelevant for limiting weeks available in a date range, but let's keep it consistent)
-    // Actually, usually users want to see "What weeks contain data for 'Overspeed'?" so we SHOULD include other filters.
-    // So distinct Available Weeks should be filtered by everything EXCEPT 'week'.
 
-    // Simplified approach: Re-use 'conditions' but filter out the 'week' condition
-    // Since we can't easily filter the 'conditions' array because they are SQL objects, we rebuild it.
-
-    // Rebuild conditions EXCLUDING Week
-    if (options?.startTime) conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTime}::time >= ${options.startTime}::time`);
-    if (options?.endTime) conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTime}::time <= ${options.endTime}::time`);
-
+    // Include other filters if needed 
     if (options?.violationType && options.violationType !== 'all') {
       const types = options.violationType.split(',').map(t => t.trim()).filter(t => t);
       if (types.length === 1) conditionsForAvailableWeeks.push(eq(fmsViolations.violationType, types[0]));
@@ -8153,6 +8184,37 @@ export class DrizzleStorage implements IStorage {
 
   async getInductionAnswers(scheduleId: string): Promise<InductionAnswer[]> {
     return await this.db.select().from(inductionAnswers).where(eq(inductionAnswers.scheduleId, scheduleId));
+  }
+
+  async createPublicInductionAttendance(attendance: InsertPublicInductionAttendance): Promise<PublicInductionAttendance> {
+    const [result] = await this.db.insert(publicInductionAttendance).values(attendance).returning();
+    return result;
+  }
+
+  async getAllPublicInductionAttendance(year?: string, search?: string): Promise<PublicInductionAttendance[]> {
+    let conditions = [];
+
+    if (year) {
+      // Assuming tanggal_refresh_induksi is YYYY-MM-DD
+      conditions.push(ilike(publicInductionAttendance.tanggalRefreshInduksi, `${year}-%`));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          ilike(publicInductionAttendance.namaKaryawan, `%${search}%`),
+          ilike(publicInductionAttendance.nik, `%${search}%`)
+        )
+      );
+    }
+
+    const query = this.db.select().from(publicInductionAttendance);
+
+    if (conditions.length > 0) {
+      return await query.where(and(...conditions)).orderBy(desc(publicInductionAttendance.createdAt));
+    }
+
+    return await query.orderBy(desc(publicInductionAttendance.createdAt));
   }
 
   // ============================================
@@ -9025,6 +9087,52 @@ export class DrizzleStorage implements IStorage {
     const [result] = await db
       .insert(simperPerpanjanganHistory)
       .values(data)
+      .returning();
+    return result;
+  }
+  async createSidakP3k(session: InsertSidakP3kSession, items: InsertSidakP3kItem[]): Promise<SidakP3kSession> {
+    return await db.transaction(async (tx) => {
+      const [newSession] = await tx.insert(sidakP3kSessions).values(session).returning();
+
+      if (items.length > 0) {
+        await tx.insert(sidakP3kItems).values(
+          items.map(item => ({ ...item, sessionId: newSession.id }))
+        );
+      }
+
+      return newSession;
+    });
+  }
+
+  async getSidakP3kHistory(): Promise<SidakP3kSession[]> {
+    return await db
+      .select()
+      .from(sidakP3kSessions)
+      .orderBy(desc(sidakP3kSessions.createdAt));
+  }
+
+  async getSidakP3kSession(id: string): Promise<(SidakP3kSession & { items: SidakP3kItem[] }) | undefined> {
+    const [session] = await db
+      .select()
+      .from(sidakP3kSessions)
+      .where(eq(sidakP3kSessions.id, id));
+
+    if (!session) return undefined;
+
+    const items = await db
+      .select()
+      .from(sidakP3kItems)
+      .where(eq(sidakP3kItems.sessionId, id))
+      .orderBy(asc(sidakP3kItems.ordinal));
+
+    return { ...session, items };
+  }
+
+  async updateSidakP3kSession(id: string, updates: Partial<InsertSidakP3kSession>): Promise<SidakP3kSession | undefined> {
+    const [result] = await this.db
+      .update(sidakP3kSessions)
+      .set(updates)
+      .where(eq(sidakP3kSessions.id, id))
       .returning();
     return result;
   }

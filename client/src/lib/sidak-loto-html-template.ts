@@ -321,7 +321,7 @@ export function getSidakLotoHtml(data: SidakLotoData): string {
 
             <!-- Doc Footer -->
             <div class="doc-footer">
-                <div>BIB – HSE – ES – F – 3.02 – 83</div>
+                <div>GECL – HSE – ES – F – 3.02 – 83</div>
                 <div>Maret 2025/R0</div>
                 <div>Page 1 of 1</div>
             </div>

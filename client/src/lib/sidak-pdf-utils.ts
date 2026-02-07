@@ -11,7 +11,7 @@ import type {
 
 // ============================================
 // SIDAK FATIGUE PDF GENERATOR
-// Form: BIB-HSE-ES-F-3.02-16
+// Form: GECL-HSE-ES-F-3.02-16
 // ============================================
 
 interface SidakFatigueData {
@@ -34,7 +34,7 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error('Failed to load logo'));
-      img.src = '/assets/logo.png';
+      img.src = '/assets/logo-gecl.png';
     });
   } catch (error) {
     console.error('Logo loading failed, will use text fallback:', error);
@@ -60,7 +60,7 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(0, 0, 0);
-    pdf.text('BIB – HSE – ES – F – 3.02 – 16', pageWidth - margin, yPosition + 4, { align: 'right' });
+    pdf.text('GECL – HSE – ES – F – 3.02 – 16', pageWidth - margin, yPosition + 4, { align: 'right' });
 
     yPosition += 12;
 
@@ -475,7 +475,7 @@ export async function downloadSidakFatigueAsJpg(data: SidakFatigueData, filename
 
 // ============================================
 // SIDAK ROSTER PDF GENERATOR
-// Form: BIB-HSE-PPO-F
+// Form: GECL-HSE-PPO-F
 // ============================================
 
 interface SidakRosterData {
@@ -499,7 +499,7 @@ export async function generateSidakRosterPdf(data: SidakRosterData): Promise<jsP
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = reject;
-      img.src = '/assets/logo.png';
+      img.src = '/assets/logo-gecl.png';
     });
 
     // Add logo to top-left corner with proper dimensions
@@ -516,7 +516,7 @@ export async function generateSidakRosterPdf(data: SidakRosterData): Promise<jsP
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
   pdf.setTextColor(0, 0, 0);
-  pdf.text('BIB – HSE – PPO – F – xxx - xx', pageWidth - margin, yPosition + 4, { align: 'right' });
+  pdf.text('GECL – HSE – PPO – F – xxx - xx', pageWidth - margin, yPosition + 4, { align: 'right' });
 
   yPosition += 12; // Space after logo for proper layout
 

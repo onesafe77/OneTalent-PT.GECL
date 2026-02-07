@@ -11,6 +11,7 @@ interface MobileSidakLayoutProps {
     onBack: () => void;
     children: React.ReactNode;
     bottomAction?: React.ReactNode;
+    headerRight?: React.ReactNode;
 }
 
 export function MobileSidakLayout({
@@ -20,7 +21,8 @@ export function MobileSidakLayout({
     totalSteps,
     onBack,
     children,
-    bottomAction
+    bottomAction,
+    headerRight
 }: MobileSidakLayoutProps) {
     const progress = (step / totalSteps) * 100;
 
@@ -45,6 +47,7 @@ export function MobileSidakLayout({
                             <p className="text-xs text-gray-500 dark:text-gray-400">{subtitle}</p>
                         )}
                     </div>
+                    {headerRight}
                     <div className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">
                         Step {step}/{totalSteps}
                     </div>

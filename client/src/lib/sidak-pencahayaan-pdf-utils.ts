@@ -21,19 +21,19 @@ export async function generateSidakPencahayaanPDF(data: SidakPencahayaanData): P
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
     } catch {
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10);
-        pdf.text('PT BORNEO INDOBARA', margin, yPosition + 6);
+        pdf.text('PT. GECL', margin, yPosition + 6);
     }
 
     // Official document code (top right)
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
-    pdf.text('BIB – HSE – ES – F – 3.02 – 25', pageWidth - margin, yPosition + 3, { align: 'right' });
+    pdf.text('GECL – HSE – ES – F – 3.02 – 25', pageWidth - margin, yPosition + 3, { align: 'right' });
     pdf.text('Mei 2020/R0', pageWidth - margin, yPosition + 7, { align: 'right' });
 
     yPosition += 14;
@@ -44,7 +44,7 @@ export async function generateSidakPencahayaanPDF(data: SidakPencahayaanData): P
     pdf.text('PEMERIKSAAN DAN PENGUJIAN PENCAHAYAAN', pageWidth / 2, yPosition, { align: 'center' });
     pdf.setFontSize(10);
     pdf.text('Formulir ini digunakan sebagai catatan hasil pengecekan dan pengujian pencahayaan', pageWidth / 2, yPosition + 5, { align: 'center' });
-    pdf.text('yang dilaksanakan di PT Borneo Indobara', pageWidth / 2, yPosition + 9, { align: 'center' });
+    pdf.text('yang dilaksanakan di PT. GECL', pageWidth / 2, yPosition + 9, { align: 'center' });
 
     yPosition += 16;
 

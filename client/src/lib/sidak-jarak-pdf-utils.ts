@@ -25,20 +25,20 @@ export async function generateSidakJarakPdf(data: SidakJarakData): Promise<jsPDF
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
     } catch (error) {
         pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(10);
         pdf.setTextColor(0, 0, 0);
-        pdf.text('PT BORNEO INDOBARA', margin, yPosition + 6);
+        pdf.text('PT. GECL', margin, yPosition + 6);
     }
 
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(0, 0, 0);
-    pdf.text('BIB - HSE - PPO - F - 072 - 17', pageWidth - margin, yPosition + 6, { align: 'right' });
+    pdf.text('GECL - HSE - PPO - F - 072 - 17', pageWidth - margin, yPosition + 6, { align: 'right' });
 
     yPosition += 14;
 
@@ -56,7 +56,7 @@ export async function generateSidakJarakPdf(data: SidakJarakData): Promise<jsPDF
 
     pdf.setFont('helvetica', 'italic');
     pdf.setFontSize(8);
-    pdf.text('Formulir ini digunakan sebagai catatan hasil pengecekan jarak aman beriringan antar kendaraan yang dilaksanakan di PT Borneo Indobara', pageWidth / 2, titleYStart + 11, { align: 'center' });
+    pdf.text('Formulir ini digunakan sebagai catatan hasil pengecekan jarak aman beriringan antar kendaraan yang dilaksanakan di PT. GECL', pageWidth / 2, titleYStart + 11, { align: 'center' });
 
     yPosition += 16;
 

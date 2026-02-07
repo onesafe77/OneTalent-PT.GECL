@@ -21,7 +21,7 @@ export async function generateSidakKecepatanPdf(data: SidakKecepatanData): Promi
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
     } catch {
@@ -32,7 +32,7 @@ export async function generateSidakKecepatanPdf(data: SidakKecepatanData): Promi
 
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
-    pdf.text('BIB – HSE – PPO – F – 072 – 18', pageWidth - margin, yPosition + 6, { align: 'right' });
+    pdf.text('GECL – HSE – PPO – F – 072 – 18', pageWidth - margin, yPosition + 6, { align: 'right' });
 
     yPosition += 15;
 
@@ -47,7 +47,7 @@ export async function generateSidakKecepatanPdf(data: SidakKecepatanData): Promi
     yPosition += 12;
     pdf.setFont('helvetica', 'italic');
     pdf.setFontSize(8);
-    pdf.text('Formulir ini digunakan sebagai catatan hasil monitoring kecepatan berkendara para pengemudi yang dilaksanakan di PT Borneo Indobara', pageWidth / 2, yPosition + 3, { align: 'center' });
+    pdf.text('Formulir ini digunakan sebagai catatan hasil monitoring kecepatan berkendara para pengemudi yang dilaksanakan di PT. GECL', pageWidth / 2, yPosition + 3, { align: 'center' });
 
     yPosition += 5;
 

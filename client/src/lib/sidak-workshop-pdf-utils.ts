@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 
 // ============================================
 // SIDAK WORKSHOP EQUIPMENT INSPECTION PDF GENERATOR
-// Document Code: BIB - HSE - ES - F - 3.02 - 87
+// Document Code: GECL - HSE - ES - F - 3.02 - 87
 // Revision: April 2025/R0
 // Portrait format, 3 pages
 // ============================================
@@ -49,7 +49,7 @@ function normalizeEquipmentType(type: string): string {
     return type.replace(/_/g, ' ');
 }
 
-// Equipment inspection items by category - UPDATED to match official BIB template (April 2025/R0)
+// Equipment inspection items by category - UPDATED to match official GECL template (April 2025/R0)
 // IDs match the form component for consistency
 const EQUIPMENT_ITEMS: Record<string, { id: string; description: string }[]> = {
     'APAR': [
@@ -200,7 +200,7 @@ export async function generateSidakWorkshopPDF(data: WorkshopPDFData): Promise<j
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = () => reject(new Error('Failed to load logo'));
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
     } catch (error) {
         console.error('Logo loading failed, will use text fallback:', error);
@@ -217,14 +217,14 @@ export async function generateSidakWorkshopPDF(data: WorkshopPDFData): Promise<j
             pdf.setFont('helvetica', 'bold');
             pdf.setFontSize(9);
             pdf.setTextColor(0, 0, 139);
-            pdf.text('PT BORNEO INDOBARA', margin, yPosition + 5);
+            pdf.text('PT. GECL', margin, yPosition + 5);
         }
 
         // Document code (right)
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(8);
         pdf.setTextColor(0, 0, 0);
-        pdf.text('BIB - HSE - ES - F - 3.02 - 87', pageWidth - margin, yPosition + 5, { align: 'right' });
+        pdf.text('GECL - HSE - ES - F - 3.02 - 87', pageWidth - margin, yPosition + 5, { align: 'right' });
 
         yPosition += 12;
 

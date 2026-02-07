@@ -105,7 +105,7 @@ export default function SidakSeatbeltForm() {
         nama: "",
         nik: "",
         nomorLambung: "",
-        perusahaan: "",
+        perusahaan: "GECL",
         seatbeltDriverCondition: true,
         seatbeltPassengerCondition: true,
         seatbeltDriverUsage: true,
@@ -252,7 +252,7 @@ export default function SidakSeatbeltForm() {
                 nama: "",
                 nik: "",
                 nomorLambung: "",
-                perusahaan: "",
+                perusahaan: "GECL",
                 seatbeltDriverCondition: true,
                 seatbeltPassengerCondition: true,
                 seatbeltDriverUsage: true,
@@ -310,7 +310,7 @@ export default function SidakSeatbeltForm() {
             nama: employee.name,
             nik: employee.id,
             nomorLambung: employee.nomorLambung || "",
-            perusahaan: employee.investorGroup || "PT. Goden Energi Cemerlang Lesrari"
+            perusahaan: "GECL"
         }));
         setNameSearch(employee.name);
         setSearchOpen(false);

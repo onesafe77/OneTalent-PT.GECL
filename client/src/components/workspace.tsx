@@ -50,6 +50,8 @@ import SidakDigitalForm from "@/pages/sidak-digital-form";
 import SidakDigitalHistory from "@/pages/sidak-digital-history";
 import SidakWorkshopForm from "@/pages/sidak-workshop-form";
 import SidakWorkshopHistory from "@/pages/sidak-workshop-history";
+import SidakP3kForm from "@/pages/sidak-p3k-form";
+import SidakP3kHistory from "@/pages/sidak-p3k-history";
 import EvaluasiDriver from "@/pages/evaluasi-driver";
 import DashboardOverspeed from "@/pages/dashboard-overspeed";
 import DashboardJarak from "@/pages/dashboard-jarak";
@@ -57,6 +59,7 @@ import DashboardStatistics from "@/pages/dashboard-statistics";
 import GoogleSheetsConfig from "@/pages/google-sheets-config";
 
 import FmsFatigueValidationDashboard from "@/pages/hse/fatigue/dashboard-validation";
+import HrInductionAttendance from "@/pages/hr-induction-attendance";
 
 import SafetyPatrol from "@/pages/safety-patrol";
 import SickLeavePage from "@/pages/hse/sick-leave-page";
@@ -130,6 +133,8 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/digital/history", component: SidakDigitalHistory, title: "Riwayat Sidak Digital" },
   { path: "/workspace/sidak/workshop/new", component: SidakWorkshopForm, title: "Form Sidak Workshop" },
   { path: "/workspace/sidak/workshop/history", component: SidakWorkshopHistory, title: "Riwayat Sidak Workshop" },
+  { path: "/workspace/sidak/p3k/new", component: SidakP3kForm, title: "Form Inspeksi Kotak P3K" },
+  { path: "/workspace/sidak/p3k/history", component: SidakP3kHistory, title: "Riwayat Inspeksi Kotak P3K" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
@@ -161,6 +166,7 @@ const workspaceRoutes = [
   { path: "/workspace/hse/fms-dashboard", component: FmsDashboard, title: "FMS Violation Command Center" },
   { path: "/workspace/hse/induction-admin", component: InductionAdmin, title: "Admin Induksi K3" },
   { path: "/workspace/hse/induction-quiz", component: InductionQuiz, title: "Quiz Induksi K3" },
+  { path: "/workspace/hr/induction-attendance", component: HrInductionAttendance, title: "Monitoring Absensi Induksi" },
 ];
 
 export function Workspace() {
@@ -278,6 +284,8 @@ export function Workspace() {
               <Route path="/workspace/sidak/digital/history" component={SidakDigitalHistory} />
               <Route path="/workspace/sidak/workshop/new" component={SidakWorkshopForm} />
               <Route path="/workspace/sidak/workshop/history" component={SidakWorkshopHistory} />
+              <Route path="/workspace/sidak/p3k/new" component={SidakP3kForm} />
+              <Route path="/workspace/sidak/p3k/history" component={SidakP3kHistory} />
               <Route path="/workspace/sidak/riwayat">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_SIDAK]}>
                   <SidakHistoryMenu />
@@ -351,6 +359,11 @@ export function Workspace() {
               <Route path="/workspace/hse/fms-dashboard" component={FmsDashboard} />
               <Route path="/workspace/hse/induction-admin" component={InductionAdmin} />
               <Route path="/workspace/hse/induction-quiz" component={InductionQuiz} />
+              <Route path="/workspace/hr/induction-attendance">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_REPORTS]}>
+                  <HrInductionAttendance />
+                </PermissionGuard>
+              </Route>
               <Route path="/workspace/hse/mcu" component={McuPage} />
 
               <Route component={Dashboard} />

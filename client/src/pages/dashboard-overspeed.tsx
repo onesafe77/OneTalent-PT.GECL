@@ -55,7 +55,7 @@ import { Link } from "wouter";
 
 // --- Configuration ---
 const CSV_URL =
-    "https://docs.google.com/spreadsheets/d/14g6DzhrUZEevEOllHQ7a4ZXTdzAuhDgstiZWcEylf8o/gviz/tq?tqx=out:csv&sheet=engine%20dashboard";
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vTX9zYvZSIKyKXx-DfhyXZCdTMuqhPY_kXu_WxMWEZ-MHPR779_x_0NklR1VjDGN1e7aoloMaDf5jk9/pub?gid=1467622739&single=true&output=csv";
 const COMPANY_FILTER_DEFAULT = "GEC";
 const DASHBOARD_ID = "overspeed";
 
@@ -113,17 +113,41 @@ interface OverspeedData {
 
 // --- Utils ---
 const parseDate = (dateStr: string) => {
-    // Assuming format DD/MM/YYYY
     if (!dateStr) return new Date();
-    const parts = dateStr.split("/");
-    if (parts.length === 3) {
-        return new Date(
-            parseInt(parts[2]),
-            parseInt(parts[1]) - 1,
-            parseInt(parts[0])
-        );
+
+    // Handle DD/MM/YYYY
+    if (dateStr.includes("/")) {
+        const parts = dateStr.split("/");
+        if (parts.length === 3) {
+            return new Date(
+                parseInt(parts[2]),
+                parseInt(parts[1]) - 1,
+                parseInt(parts[0])
+            );
+        }
     }
-    return new Date();
+    // Handle YYYY-MM-DD
+    else if (dateStr.includes("-")) {
+        const parts = dateStr.split("-");
+        if (parts.length === 3) {
+            if (parts[0].length === 4) { // YYYY-MM-DD
+                return new Date(
+                    parseInt(parts[0]),
+                    parseInt(parts[1]) - 1,
+                    parseInt(parts[2])
+                );
+            } else if (parts[2].length === 4) { // DD-MM-YYYY
+                return new Date(
+                    parseInt(parts[2]),
+                    parseInt(parts[1]) - 1,
+                    parseInt(parts[0])
+                );
+            }
+        }
+    }
+
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
 const getMonthName = (monthIndex: number) => {
@@ -160,38 +184,39 @@ export default function DashboardOverspeed() {
     }, []);
 
     const processRows = (rows: any[], headers: string[]) => {
-        // Simple mapping if headers match, but we need to ensure numbers
         return rows.map(r => {
-            const dStr = r["Date"] || r["Date Opr"] || "";
+            // Find Date - prioritize 'Date' then 'Date Opr'
+            const dStr = r["Date"] || r["Date Opr"] || r["Date Opr "] || "";
             const d = parseDate(dStr);
 
             // Parse Speed Numbers
-            const speed = parseFloat(r["Speed (Kph)"] || r["Speed"] || "0");
-            const limit = parseFloat(r["Speed Limit"] || r["SpeedLimit"] || "0");
-            const shift = r["Shift"] || r["Shift "] || "Unknown"; // Handle "Shift " with space
+            const speedValue = parseFloat(r["Speed (Kph)"] || r["Speed"] || r["Speed "] || "0");
+            const limitValue = parseFloat(r["Speed Limit"] || r["SpeedLimit"] || r["Speed Limit "] || r["SpeedLimit "] || "0");
+            const shiftValue = r["Shift"] || r["Shift "] || "Unknown";
 
             // Fix Mapping Status (Handle unexpected CSV headers)
-            // CSV Header might be: "Status", "Status ", "Status Pelanggaran ", "Status Closed NC "
-            const ticketStatus = r["Status"] || r["TicketStatus"] || "Open";
+            const ticketStatus = r["Status"] || r["Status "] || r["TicketStatus"] || "Open";
             const validationStatus = r["Status Pelanggaran "] || r["Status Pelanggaran"] || r["ValidationStatus"] || "";
             const statusClosedNC = r["Status Closed NC "] || r["Status Closed NC"] || r["StatusClosedNC"] || "";
             const durasiClose = r["Durasi Close"] || r["Durasi Close "] || "0";
 
             return {
                 ...r,
-                Shift: shift.trim(),
-                Speed: isNaN(speed) ? 0 : speed,
-                SpeedLimit: isNaN(limit) ? 0 : limit,
+                Shift: shiftValue.toString().trim(),
+                Speed: isNaN(speedValue) ? 0 : speedValue,
+                SpeedLimit: isNaN(limitValue) ? 0 : limitValue,
                 _dateObj: d,
                 _year: d.getFullYear() || 0,
                 _monthIndex: d.getMonth() || 0,
-                // Explicitly map these fields to ensure they are populated
                 TicketStatus: ticketStatus,
                 ValidationStatus: validationStatus,
                 StatusClosedNC: statusClosedNC,
                 "Durasi Close": durasiClose
             };
-        }).filter(r => r.Company === COMPANY_FILTER_DEFAULT || !r.Company); // Default filter
+        }).filter(r => {
+            const company = (r.Company || "").toString().trim().toUpperCase();
+            return company === COMPANY_FILTER_DEFAULT || company === "";
+        });
     };
 
     const fetchData = async () => {
@@ -244,8 +269,8 @@ export default function DashboardOverspeed() {
     const filteredData = useMemo(() => {
         if (!rawData) return [];
         return rawData.filter((r: any) => {
-            const yearStr = (r?._year || "").toString();
-            const monthStr = (r?._monthIndex || "").toString();
+            const yearStr = (r?._year !== undefined && r?._year !== null) ? r._year.toString() : "";
+            const monthStr = (r?._monthIndex !== undefined && r?._monthIndex !== null) ? r._monthIndex.toString() : "";
 
             const matchYear = filterYear === "All" || yearStr === filterYear;
             const matchMonth = filterMonth === "All" || monthStr === filterMonth;
@@ -484,7 +509,7 @@ export default function DashboardOverspeed() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl p-6 rounded-2xl shadow-sm border border-white/50 sticky top-0 z-50">
                 <div>
                     <h1 className="text-3xl font-black text-gray-900 tracking-tight bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
-                        Overspeed Monitor
+                        FMS Violation Monitoring
                     </h1>
                     <div className="flex items-center gap-2 mt-2">
                         <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200 px-3 py-1">
@@ -563,7 +588,7 @@ export default function DashboardOverspeed() {
                         value: filteredData.length,
                         icon: AlertCircle,
                         color: "red",
-                        subtext: `${stats?.violationOverspeed || 0} Overspeed`
+                        subtext: `${stats?.violationOverspeed || 0} OS • ${stats?.violationMerokok || 0} Merokok`
                     },
                     {
                         title: "AVERAGE DURATION",

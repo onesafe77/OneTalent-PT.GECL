@@ -221,6 +221,21 @@ export default function SidakHistoryMenu() {
                                 </div>
                             </Button>
                         </Link>
+                        <Link href="/workspace/sidak/p3k/history" data-testid="link-p3k-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-red-50 hover:text-red-700 hover:border-red-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <BriefcaseMedical className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-red-700">Riwayat P3K</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
                     </div>
                 </div>
             </div>

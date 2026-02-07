@@ -27,6 +27,7 @@ import {
   Activity,
   Clock,
   User,
+  UserCheck,
   Bot,
   MessageSquare,
   Database,
@@ -95,6 +96,7 @@ export const navigationGroups: NavGroup[] = [
           { name: "Monitoring Simper EV", href: "/workspace/monitoring-simper-ev-admin", icon: Car, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
           { name: "Perpanjangan SIMPER", href: "/workspace/monitoring-simper-perpanjangan", icon: Calendar, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
           { name: "Laporan", href: "/workspace/reports", icon: FileText, requiredPermissions: [Permission.VIEW_REPORTS] },
+          { name: "Absensi Induksi", href: "/workspace/hr/induction-attendance", icon: UserCheck, requiredPermissions: [Permission.VIEW_REPORTS] },
         ]
       },
       {

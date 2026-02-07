@@ -1107,7 +1107,7 @@ export const safetyPatrolRawMessages = pgTable("safety_patrol_raw_messages", {
   rawPayload: jsonb("raw_payload"), // Full webhook payload
   messageTimestamp: timestamp("message_timestamp"), // WhatsApp message timestamp (from unixTimestamp)
   processed: boolean("processed").notNull().default(false),
-  reportId: varchar("report_id").references(() => safetyPatrolReports.id),
+  reportId: varchar("report_id").references(() => safetyPatrolReports.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_sp_raw_sender").on(table.senderPhone),
@@ -2991,7 +2991,73 @@ export const insertSimperPerpanjanganHistorySchema = createInsertSchema(simperPe
   createdAt: true,
 });
 
+export const publicInductionAttendance = pgTable("public_induction_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  nik: varchar("nik", { length: 50 }).notNull(),
+  namaKaryawan: varchar("nama_karyawan", { length: 255 }).notNull(),
+  jabatan: varchar("jabatan", { length: 100 }).notNull(),
+  nomorTelepon: varchar("nomor_telepon", { length: 20 }),
+  pemateri: varchar("pemateri", { length: 255 }).notNull(),
+  tandaTangan: text("tanda_tangan").notNull(), // Base64 data URL
+  tanggalRefreshInduksi: varchar("tanggal_refresh_induksi", { length: 20 }).notNull(), // YYYY-MM-DD
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPublicInductionAttendanceSchema = createInsertSchema(publicInductionAttendance).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type PublicInductionAttendance = typeof publicInductionAttendance.$inferSelect;
+export type InsertPublicInductionAttendance = z.infer<typeof insertPublicInductionAttendanceSchema>;
+
 export type SimperPerpanjangan = typeof simperPerpanjangan.$inferSelect;
 export type InsertSimperPerpanjangan = z.infer<typeof insertSimperPerpanjanganSchema>;
 export type SimperPerpanjanganHistory = typeof simperPerpanjanganHistory.$inferSelect;
 export type InsertSimperPerpanjanganHistory = z.infer<typeof insertSimperPerpanjanganHistorySchema>;
+
+// ============================================
+// SIDAK P3K (Inspeksi Kotak P3K)
+// ============================================
+
+export const sidakP3kSessions = pgTable("sidak_p3k_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(), // Format: YYYY-MM-DD
+  waktu: text("waktu").notNull(), // Format: HH:MM
+  lokasi: text("lokasi").notNull(),
+  inspectorName: text("inspector_name").notNull(),
+  inspectorSignature: text("inspector_signature"), // Base64
+  areaResponsibleName: text("area_responsible_name"),
+  areaResponsibleSignature: text("area_responsible_signature"), // Base64
+  activityPhotos: text("activity_photos").array(), // Array of photo URLs
+  notes: text("notes"), // Catatan tambahan
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sidakP3kItems = pgTable("sidak_p3k_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakP3kSessions.id, { onDelete: "cascade" }),
+  itemName: text("item_name").notNull(),
+  minQty: integer("min_qty").notNull().default(0),
+  isAvailable: boolean("is_available").notNull().default(false),
+  notes: text("notes"),
+  ordinal: integer("ordinal").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_p3k_items_session").on(table.sessionId),
+]);
+
+export const insertSidakP3kSessionSchema = createInsertSchema(sidakP3kSessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertSidakP3kItemSchema = createInsertSchema(sidakP3kItems).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type SidakP3kSession = typeof sidakP3kSessions.$inferSelect;
+export type InsertSidakP3kSession = z.infer<typeof insertSidakP3kSessionSchema>;
+export type SidakP3kItem = typeof sidakP3kItems.$inferSelect;
+export type InsertSidakP3kItem = z.infer<typeof insertSidakP3kItemSchema>;

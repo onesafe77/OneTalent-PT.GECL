@@ -20,6 +20,7 @@ const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
 const MonitoringSimperEvPublic = lazy(() => import("@/pages/monitoring-simper-ev-public"));
 const MonitoringSimperPerpanjanganPublic = lazy(() => import("@/pages/monitoring-simper-perpanjangan-public"));
 const PublicSimperTracking = lazy(() => import("@/pages/public-simper-tracking"));
+const AbsensiInduksiPublic = lazy(() => import("@/pages/absensi-induksi-public"));
 
 /**
  * Router component dengan landing page dan workspace
@@ -144,6 +145,15 @@ function Router() {
           }
           return <div>Redirecting to meeting scanner...</div>;
         }}
+      </Route>
+
+      {/* Public Induction Attendance */}
+      <Route path="/absensi-induksi">
+        {() => (
+          <Suspense fallback={<LoadingScreen isLoading={true} />}>
+            <AbsensiInduksiPublic />
+          </Suspense>
+        )}
       </Route>
 
       {/* QR Redirect */}

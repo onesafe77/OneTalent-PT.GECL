@@ -8,7 +8,7 @@ import type {
 
 // ============================================
 // SIDAK RAMBU PDF GENERATOR - BALANCED & CLEAN
-// Form: BIB-HSE-PPO-F-072-24
+// Form: GECL-HSE-PPO-F-072-24
 // - Balanced Column Widths (Checklist 15mm, Desc 54mm)
 // - Consistent Line Widths (0.15mm everywhere) for perfect grid
 // ============================================
@@ -36,7 +36,7 @@ export async function generateSidakRambuPdf(data: SidakRambuData): Promise<jsPDF
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = '/assets/logo.png';
+            img.src = '/assets/logo-gecl.png';
         });
         pdf.addImage(logoImg, 'PNG', margin, margin, 40, 9);
     } catch (error) {
@@ -50,7 +50,7 @@ export async function generateSidakRambuPdf(data: SidakRambuData): Promise<jsPDF
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
     pdf.setTextColor(0, 0, 0);
-    pdf.text('BIB – HSE – PPO – F – 072 – 24', pageWidth - margin, yPosition + 4, { align: 'right' });
+    pdf.text('GECL – HSE – PPO – F – 072 – 24', pageWidth - margin, yPosition + 4, { align: 'right' });
 
     yPosition += 10;
 
