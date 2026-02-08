@@ -9,6 +9,13 @@ import { useAuth } from "@/lib/auth-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "wouter";
 import { navigationGroups } from "@/components/layout/sidebar";
+import { SafetyPatrolWidget } from "@/components/dashboard/safety-patrol-widget";
+import { InductionWidget } from "@/components/dashboard/induction-widget";
+import { FmsWidget } from "@/components/dashboard/fms-widget";
+import { SidakWidget } from "@/components/dashboard/sidak-widget";
+import { SimperWidget } from "@/components/dashboard/simper-widget";
+import { IotSafetyWidget } from "@/components/dashboard/iot-safety-widget";
+import { ProjectWidget } from "@/components/dashboard/project-widget";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -174,9 +181,9 @@ export default function Dashboard() {
                   {visibleItems.map(item => {
                     const Icon = item.icon;
                     return (
-                      <Link key={item.name} href={item.href} className="flex flex-col items-center gap-2 group">
+                      <Link key={item.name} href={item.href || '#'} className="flex flex-col items-center gap-2 group">
                         <div className="w-14 h-14 rounded-[1.2rem] bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-300 shadow-sm border border-gray-100 dark:border-gray-700 hover:bg-white hover:shadow-md hover:scale-105 transition-all duration-200">
-                          <Icon className="w-6 h-6" />
+                          {Icon && <Icon className="w-6 h-6" />}
                         </div>
                         <span className="text-[11px] font-medium text-center text-gray-600 dark:text-gray-400 leading-tight line-clamp-2 max-w-[64px]">{item.name}</span>
                       </Link>
@@ -289,14 +296,11 @@ export default function Dashboard() {
       {/* =======================
           DESKTOP LAYOUT (hidden lg:block)
           ======================= */}
-      {/* =======================
-          DESKTOP LAYOUT (hidden lg:block)
-          ======================= */}
       <div className="hidden lg:block p-8 space-y-8 bg-gray-50 dark:bg-gray-900/50 min-h-screen">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Dashboard Overview</h1>
-            <p className="text-muted-foreground mt-1">Welcome back, {user?.name}!</p>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Command Center</h1>
+            <p className="text-muted-foreground mt-1">Integrated Operational Dashboard</p>
           </div>
           <div className="flex items-center gap-2">
             <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-[180px] bg-white" />
@@ -304,6 +308,7 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* TOP ROW: HR Stats (Existing) */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card className="hover:shadow-md transition-all duration-200 border-none shadow-sm bg-white">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -349,6 +354,24 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* MIDDLE SECTION: Operational & Compliance Widgets */}
+
+        {/* Row 1: Operations (Safety Patrol, Sidak, IoT) */}
+        <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-3 h-[320px]">
+          <SafetyPatrolWidget />
+          <SidakWidget />
+          <IotSafetyWidget />
+        </div>
+
+        {/* Row 2: Compliance & Management (Induction, Simper, FMS, Project) */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 h-[300px]">
+          <InductionWidget />
+          <SimperWidget />
+          <FmsWidget />
+          <ProjectWidget />
+        </div>
+
+        {/* BOTTOM ROW: Detailed Charts & Logs */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-4 border-none shadow-sm bg-white">
             <CardHeader>

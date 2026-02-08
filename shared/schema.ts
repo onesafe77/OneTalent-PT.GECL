@@ -3000,6 +3000,7 @@ export const publicInductionAttendance = pgTable("public_induction_attendance", 
   pemateri: varchar("pemateri", { length: 255 }).notNull(),
   tandaTangan: text("tanda_tangan").notNull(), // Base64 data URL
   tanggalRefreshInduksi: varchar("tanggal_refresh_induksi", { length: 20 }).notNull(), // YYYY-MM-DD
+  waktu: varchar("waktu", { length: 20 }), // HH:mm:ss
   createdAt: timestamp("created_at").defaultNow(),
 });
 

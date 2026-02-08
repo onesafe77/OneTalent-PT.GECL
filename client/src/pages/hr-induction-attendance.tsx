@@ -5,16 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, FileSpreadsheet, FileText, UserCheck, Calendar, Phone, Briefcase } from "lucide-react";
+import { Search, Download, FileSpreadsheet, FileText, UserCheck, Calendar, Phone, Briefcase, Clock } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
-import { QrCode, Copy, Check } from "lucide-react";
+import { QrCode, Copy, Check, BarChart3, List } from "lucide-react";
 import { generateQRCodeDataURL } from "@/lib/qr-utils";
 import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InductionStats } from "@/components/hr/induction-stats";
 
 interface InductionAttendance {
     id: string;
@@ -25,6 +27,7 @@ interface InductionAttendance {
     pemateri: string;
     tandaTangan: string;
     tanggalRefreshInduksi: string;
+    waktu: string | null;
     createdAt: string;
 }
 
@@ -77,6 +80,7 @@ export default function HrInductionAttendance() {
 
         const exportData = attendanceData.map((item) => ({
             "Tanggal Refresh Induksi": item.tanggalRefreshInduksi,
+            "Waktu": item.waktu || "-",
             "NIK": item.nik,
             "Nama Karyawan": item.namaKaryawan,
             "Jabatan": item.jabatan,
@@ -99,6 +103,7 @@ export default function HrInductionAttendance() {
 
         const tableData = attendanceData.map((item) => [
             item.tanggalRefreshInduksi,
+            item.waktu || "-",
             item.nik,
             item.namaKaryawan,
             item.jabatan,
@@ -107,7 +112,7 @@ export default function HrInductionAttendance() {
         ]);
 
         autoTable(doc, {
-            head: [["Tanggal", "NIK", "Nama Karyawan", "Jabatan", "No. Telepon", "Pemateri"]],
+            head: [["Tanggal", "Waktu", "NIK", "Nama Karyawan", "Jabatan", "No. Telepon", "Pemateri"]],
             body: tableData,
             startY: 20,
             theme: "striped",
@@ -118,7 +123,7 @@ export default function HrInductionAttendance() {
     };
 
     return (
-        <div className="p-4 md:p-8 space-y-6">
+        <div className="p-4 sm:-mx-4 lg:-mx-6 px-4 space-y-6 w-auto max-w-none">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
@@ -185,112 +190,140 @@ export default function HrInductionAttendance() {
                 </div>
             </div>
 
-            <Card className="shadow-sm">
-                <CardHeader className="pb-3">
-                    <CardTitle className="text-lg">Filter & Pencarian</CardTitle>
-                    <CardDescription>Cari berdasarkan nama atau NIK dan filter per tahun.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <Input
-                                placeholder="Cari Nama atau NIK..."
-                                className="pl-9"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <div className="w-full md:w-48">
-                            <Select value={yearFilter} onValueChange={setYearFilter}>
-                                <SelectTrigger>
-                                    <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-                                    <SelectValue placeholder="Pilih Tahun" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {years.map((y) => (
-                                        <SelectItem key={y} value={y}>{y}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader className="bg-gray-50">
-                            <TableRow>
-                                <TableHead className="w-[150px]">Tanggal Refresh</TableHead>
-                                <TableHead>NIK</TableHead>
-                                <TableHead>Nama Karyawan</TableHead>
-                                <TableHead>Jabatan</TableHead>
-                                <TableHead>No. Telepon</TableHead>
-                                <TableHead>Pemateri</TableHead>
-                                <TableHead className="text-center">Tanda Tangan</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center">
-                                        Memuat data...
-                                    </TableCell>
-                                </TableRow>
-                            ) : attendanceData?.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="h-24 text-center text-gray-500">
-                                        Tidak ada data ditemukan.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                attendanceData?.map((item) => (
-                                    <TableRow key={item.id} className="hover:bg-gray-50/50">
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <Calendar className="w-3 h-3 text-red-600" />
-                                                {item.tanggalRefreshInduksi}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="font-mono">{item.nik}</Badge>
-                                        </TableCell>
-                                        <TableCell className="font-semibold">{item.namaKaryawan}</TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-1">
-                                                <Briefcase className="w-3 h-3 text-gray-400" />
-                                                {item.jabatan}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.nomorTelepon ? (
-                                                <div className="flex items-center gap-1">
-                                                    <Phone className="w-3 h-3 text-gray-400" />
-                                                    {item.nomorTelepon}
-                                                </div>
-                                            ) : "-"}
-                                        </TableCell>
-                                        <TableCell>{item.pemateri}</TableCell>
-                                        <TableCell className="text-center">
-                                            {item.tandaTangan && (
-                                                <div className="flex justify-center">
-                                                    <img
-                                                        src={item.tandaTangan}
-                                                        alt="TTD"
-                                                        className="h-10 w-20 object-contain border rounded bg-white p-0.5"
-                                                    />
-                                                </div>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+            <Tabs defaultValue="list" className="w-full">
+                <div className="flex items-center justify-between mb-4">
+                    <TabsList>
+                        <TabsTrigger value="list" className="flex items-center gap-2">
+                            <List className="w-4 h-4" />
+                            Data List
+                        </TabsTrigger>
+                        <TabsTrigger value="dashboard" className="flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4" />
+                            Dashboard Evaluasi
+                        </TabsTrigger>
+                    </TabsList>
                 </div>
-            </Card>
+
+                <TabsContent value="list" className="space-y-6">
+                    <Card className="shadow-sm">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-lg">Filter & Pencarian</CardTitle>
+                            <CardDescription>Cari berdasarkan nama atau NIK dan filter per tahun.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <div className="relative flex-1">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                    <Input
+                                        placeholder="Cari Nama atau NIK..."
+                                        className="pl-9"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <div className="w-full md:w-48">
+                                    <Select value={yearFilter} onValueChange={setYearFilter}>
+                                        <SelectTrigger>
+                                            <Calendar className="w-4 h-4 mr-2 text-gray-400" />
+                                            <SelectValue placeholder="Pilih Tahun" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {years.map((y) => (
+                                                <SelectItem key={y} value={y}>{y}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader className="bg-gray-50">
+                                    <TableRow>
+                                        <TableHead className="w-[150px]">Tanggal Refresh</TableHead>
+                                        <TableHead>Waktu</TableHead>
+                                        <TableHead>NIK</TableHead>
+                                        <TableHead>Nama Karyawan</TableHead>
+                                        <TableHead>Jabatan</TableHead>
+                                        <TableHead>No. Telepon</TableHead>
+                                        <TableHead>Pemateri</TableHead>
+                                        <TableHead className="text-center">Tanda Tangan</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="h-24 text-center">
+                                                Memuat data...
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : attendanceData?.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="h-24 text-center text-gray-500">
+                                                Tidak ada data ditemukan.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        attendanceData?.map((item) => (
+                                            <TableRow key={item.id} className="hover:bg-gray-50/50">
+                                                <TableCell className="font-medium">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="w-3 h-3 text-red-600" />
+                                                        {item.tanggalRefreshInduksi}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-1">
+                                                        <Clock className="w-3 h-3 text-gray-400" />
+                                                        {item.waktu || "-"}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className="font-mono">{item.nik}</Badge>
+                                                </TableCell>
+                                                <TableCell className="font-semibold">{item.namaKaryawan}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-1">
+                                                        <Briefcase className="w-3 h-3 text-gray-400" />
+                                                        {item.jabatan}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.nomorTelepon ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <Phone className="w-3 h-3 text-gray-400" />
+                                                            {item.nomorTelepon}
+                                                        </div>
+                                                    ) : "-"}
+                                                </TableCell>
+                                                <TableCell>{item.pemateri}</TableCell>
+                                                <TableCell className="text-center">
+                                                    {item.tandaTangan && (
+                                                        <div className="flex justify-center">
+                                                            <img
+                                                                src={item.tandaTangan}
+                                                                alt="TTD"
+                                                                className="h-10 w-20 object-contain border rounded bg-white p-0.5"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="dashboard">
+                    <InductionStats data={attendanceData || []} year={yearFilter} />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
