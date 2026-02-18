@@ -50,8 +50,7 @@ export default function TrainingMaster() {
 
     const createMutation = useMutation({
         mutationFn: async (data: typeof newTraining) => {
-            const res = await apiRequest("POST", "/api/hse/trainings", data);
-            return res.json();
+            return await apiRequest("/api/hse/trainings", "POST", data);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/hse/trainings"] });

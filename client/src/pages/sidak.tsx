@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, User, ChevronRight, BriefcaseMedical } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, User, ChevronRight, BriefcaseMedical, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -258,6 +258,24 @@ export default function SidakDashboard() {
                 </span>
               </div>
               <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-yellow-100 group-hover:text-yellow-600 transition-colors">
+                <ChevronRight className="w-4 h-4" />
+              </div>
+            </div>
+          </Link>
+
+          <Link href="/workspace/sidak/behavior/new" data-testid="link-sidak-behavior">
+            <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+              <div className="h-16 w-16 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-4 flex-shrink-0">
+                <Users className="h-8 w-8" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">Sidak Tingkah Laku</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Driver Behavior Check</p>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  Unlimited
+                </span>
+              </div>
+              <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
                 <ChevronRight className="w-4 h-4" />
               </div>
             </div>

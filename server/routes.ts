@@ -42,6 +42,9 @@ import {
   insertSidakSeatbeltSessionSchema,
   insertSidakSeatbeltRecordSchema,
   insertSidakSeatbeltObserverSchema,
+  insertSidakBehaviorSessionSchema,
+  insertSidakBehaviorRecordSchema,
+  insertSidakBehaviorObserverSchema,
   insertAnnouncementSchema,
   insertNewsSchema,
   insertPushSubscriptionSchema,
@@ -4342,7 +4345,7 @@ Format sebagai bullet points singkat per insight.`;
       // Check if this is a meeting QR code
       if (qrData.type === "meeting" && qrData.token) {
         // Redirect to meeting scanner with the meeting token
-        return res.redirect(`/workspace/meeting-scanner?token=${qrData.token}`);
+        return res.redirect(`/meeting-scanner?token=${qrData.token}`);
       }
 
       const { id: employeeId, token } = qrData;
@@ -5082,6 +5085,10 @@ Format sebagai bullet points singkat per insight.`;
       });
 
       const record = await storage.createSidakFatigueRecord(validatedData);
+
+      // Update session sample count
+      await storage.updateSidakFatigueSessionSampleCount(id);
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Sidak Fatigue record:", error);
@@ -5195,6 +5202,91 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error confirming upload:", error);
       res.status(500).json({ error: "Failed to confirm upload" });
+    }
+  });
+
+  // ============================================
+  // SIDAK TINGKAH LAKU DRIVER (Behavior)
+  // ============================================
+  app.post("/api/sidak-behavior", async (req, res) => {
+    try {
+      const validatedData = insertSidakBehaviorSessionSchema.parse(req.body);
+      const session = await storage.createSidakBehaviorSession(validatedData);
+      res.json(session);
+    } catch (error: any) {
+      console.error("Error creating Sidak Behavior session:", error);
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal membuat sesi Sidak Behavior: " + (error?.message || 'Unknown error') });
+    }
+  });
+
+  app.get("/api/sidak-behavior", async (req, res) => {
+    try {
+      const sessions = await storage.getAllSidakBehaviorSessions();
+      res.json(sessions);
+    } catch (error) {
+      console.error("Error fetching Sidak Behavior sessions:", error);
+      res.status(500).json({ message: "Gagal mengambil data Sidak Behavior" });
+    }
+  });
+
+  app.get("/api/sidak-behavior/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [session, records, observers] = await Promise.all([
+        storage.getSidakBehaviorSession(id),
+        storage.getSidakBehaviorRecords(id),
+        storage.getSidakBehaviorObservers(id)
+      ]);
+
+      if (!session) {
+        return res.status(404).json({ message: "Sesi Sidak Behavior tidak ditemukan" });
+      }
+
+      res.json({ ...session, records, observers });
+    } catch (error) {
+      console.error("Error fetching Sidak Behavior detail:", error);
+      res.status(500).json({ message: "Gagal mengambil detail Sidak Behavior" });
+    }
+  });
+
+  app.post("/api/sidak-behavior/:id/records", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakBehaviorRecordSchema.parse(req.body);
+
+      const record = await storage.createSidakBehaviorRecord({
+        ...validatedData,
+        sessionId: id
+      });
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error adding Sidak Behavior record:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal menambahkan data behavior driver" });
+    }
+  });
+
+  app.post("/api/sidak-behavior/:id/observers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakBehaviorObserverSchema.parse(req.body);
+
+      const observer = await storage.createSidakBehaviorObserver({
+        ...validatedData,
+        sessionId: id
+      });
+      res.json(observer);
+    } catch (error: any) {
+      console.error("Error adding Sidak Behavior observer:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal menambahkan observer" });
     }
   });
 
@@ -6785,7 +6877,7 @@ Format sebagai bullet points singkat per insight.`;
       const [
         fatigue, roster, seatbelt, rambu,
         antrian, jarak, kecepatan,
-        pencahayaan, loto, digital, workshop
+        pencahayaan, loto, digital, workshop, behavior
       ] = await Promise.all([
         fetch('Fatigue', storage.getAllSidakFatigueSessions()),
         fetch('Roster', storage.getAllSidakRosterSessions()),
@@ -6797,7 +6889,8 @@ Format sebagai bullet points singkat per insight.`;
         fetch('Pencahayaan', storage.getAllSidakPencahayaanSessions()),
         fetch('LOTO', storage.getAllSidakLotoSessions()),
         fetch('Digital', storage.getAllSidakDigitalSessions()),
-        fetch('Workshop', storage.getAllSidakWorkshopSessions())
+        fetch('Workshop', storage.getAllSidakWorkshopSessions()),
+        fetch('Behavior', storage.getAllSidakBehaviorSessions())
       ]);
 
       const mapSession = (s: any, type: string) => {
@@ -6835,7 +6928,8 @@ Format sebagai bullet points singkat per insight.`;
         ...pencahayaan.map((s: any) => mapSession(s, 'Pencahayaan')),
         ...loto.map((s: any) => mapSession(s, 'LOTO')),
         ...digital.map((s: any) => mapSession(s, 'Digital')),
-        ...workshop.map((s: any) => mapSession(s, 'Workshop'))
+        ...workshop.map((s: any) => mapSession(s, 'Workshop')),
+        ...behavior.map((s: any) => mapSession(s, 'Behavior'))
       ];
 
       // Resolve supervisor NIKs to names
@@ -6877,6 +6971,8 @@ Format sebagai bullet points singkat per insight.`;
               return (await storage.getSidakDigitalRecords(session.id)).length;
             case 'Workshop':
               return (await storage.getSidakWorkshopRecords(session.id)).length;
+            case 'Behavior':
+              return (await storage.getSidakBehaviorRecords(session.id)).length;
             default:
               return 0;
           }
@@ -6914,6 +7010,7 @@ Format sebagai bullet points singkat per insight.`;
         totalLoto: loto.length,
         totalDigital: digital.length,
         totalWorkshop: workshop.length,
+        totalBehavior: behavior.length,
         totalKaryawanDiperiksa: allSessions.reduce((acc, curr) => acc + (curr.totalSampel || 0), 0),
         supervisorStats: [] as any[]
       };
@@ -6926,7 +7023,7 @@ Format sebagai bullet points singkat per insight.`;
             supervisorMap.set(name, {
               name,
               fatigue: 0, roster: 0, seatbelt: 0, rambu: 0, antrian: 0,
-              jarak: 0, kecepatan: 0, pencahayaan: 0, loto: 0, digital: 0, workshop: 0,
+              jarak: 0, kecepatan: 0, pencahayaan: 0, loto: 0, digital: 0, workshop: 0, behavior: 0,
               total: 0
             });
           }
@@ -7622,6 +7719,10 @@ Format sebagai bullet points singkat per insight.`;
       });
 
       const observer = await storage.createSidakFatigueObserver(validatedData);
+
+      // Trigger sample count update
+      await storage.updateSidakFatigueSessionSampleCount(id);
+
       res.json(observer);
     } catch (error: any) {
       console.error("Error adding Sidak Fatigue observer:", error);
@@ -7629,6 +7730,48 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
       }
       res.status(500).json({ message: "Gagal menambahkan observer" });
+    }
+  });
+
+  // Update Sidak Fatigue Record (Intervention/Follow-up)
+  app.patch("/api/sidak-fatigue/records/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validFields = [
+        "catatanIntervensi", "buktiIntervensi",
+        "konsumiObat", "masalahPribadi", "pemeriksaanRespon",
+        "pemeriksaanKonsentrasi", "pemeriksaanKesehatan",
+        "karyawanSiapBekerja", "fitUntukBekerja", "istirahatDanMonitor",
+        "istirahatLebihdariSatuJam", "tidakBolehBekerja"
+      ];
+
+      const updateData: any = {};
+
+      // Only allow updating specific fields
+      for (const key of Object.keys(req.body)) {
+        if (validFields.includes(key)) {
+          updateData[key] = req.body[key];
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ message: "Tidak ada data yang diupdate" });
+      }
+
+      const updatedRecord = await storage.updateSidakFatigueRecord(id, updateData);
+
+      if (!updatedRecord) {
+        return res.status(404).json({ message: "Record tidak ditemukan" });
+      }
+
+      res.json({
+        ...updatedRecord,
+        _debug_received_body: req.body,
+        _debug_update_data: updateData
+      });
+    } catch (error) {
+      console.error("Error updating fatigue record:", error);
+      res.status(500).json({ message: "Gagal mengupdate data fatigue" });
     }
   });
 
@@ -12741,6 +12884,69 @@ Format sebagai bullet points singkat per insight.`;
 
     } catch (e: any) {
       console.error("Evaluasi Driver API Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Get checks detail for a specific driver in a specific month
+  app.get("/api/evaluasi-driver/:employeeId/details", async (req, res) => {
+    try {
+      const { employeeId } = req.params;
+      const { month } = req.query;
+
+      if (!month || typeof month !== 'string') {
+        return res.status(400).json({ error: "Month (YYYY-MM) is required" });
+      }
+
+      console.log(`[API] Fetching Driver Details for ${employeeId} in ${month}`);
+
+      // 1. Get employee data
+      const employee = await storage.getEmployee(employeeId);
+      if (!employee) {
+        return res.status(404).json({ error: "Employee not found" });
+      }
+
+      // 2. Get all fatigue sessions for the month
+      const allSessions = await storage.getAllSidakFatigueSessions();
+      const monthSessions = allSessions.filter(s => s.tanggal.startsWith(month));
+      const sessionIds = monthSessions.map(s => s.id);
+
+      if (sessionIds.length === 0) {
+        return res.json({ employee, records: [] });
+      }
+
+      // 3. Get all records for these sessions
+      const allRecords = await storage.getSidakFatigueRecordsBySessionIds(sessionIds);
+
+      // 4. Filter for this specific employee
+      // Match by employeeId OR nik
+      const employeeRecords = allRecords.filter(r =>
+        r.employeeId === employeeId || r.nik === employee.nik || r.nik === employeeId
+      );
+
+      // 5. Enrich with session info (Date, Location, etc)
+      const enrichedRecords = employeeRecords.map(record => {
+        const session = monthSessions.find(s => s.id === record.sessionId);
+        return {
+          ...record,
+          tanggal: session?.tanggal || "-",
+          waktu: session?.waktu || "-",
+          lokasi: session?.lokasi || "-",
+          shift: session?.shift || "-",
+          evaluator: session?.createdBy || "System"
+        };
+      });
+
+      // Sort by date desc
+      enrichedRecords.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+
+      res.json({
+        employee,
+        records: enrichedRecords
+      });
+
+    } catch (e: any) {
+      console.error("Driver Details API Error:", e);
       res.status(500).json({ error: e.message });
     }
   });

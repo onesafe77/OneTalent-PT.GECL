@@ -1,26 +1,21 @@
 
-import { db } from "./server/db";
-import { trainings } from "./shared/schema";
+import { storage } from "./server/storage";
 import { sql } from "drizzle-orm";
 
-async function checkData() {
+async function checkColumns() {
     try {
-        console.log("Checking DB...");
-        const count = await db.select({ count: sql<number>`count(*)` }).from(trainings);
-        console.log("Trainings URL in DB:", count[0].count);
-
-        if (count[0].count == 0) {
-            console.log("DB IS EMPTY!");
-        } else {
-            // Fetch a sample
-            const sample = await db.select().from(trainings).limit(3);
-            console.log("Sample data:", sample.map(s => s.name));
-        }
+        const result = await (storage as any).db.execute(sql`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'sidak_fatigue_records'
+    `);
+        console.log("Columns in sidak_fatigue_records:");
+        console.log(JSON.stringify(result, null, 2));
         process.exit(0);
-    } catch (e) {
-        console.error("DB Check Failed:", e);
+    } catch (err) {
+        console.error("Error checking columns:", err);
         process.exit(1);
     }
 }
 
-checkData();
+checkColumns();

@@ -54,16 +54,19 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { SeatbeltFormPreview } from "@/components/seatbelt-form-preview";
-import { Check, X } from "lucide-react";
+import { Check, X, Pencil } from "lucide-react";
+import { FatigueEvidenceDialog } from "@/components/sidak/fatigue-evidence-dialog";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { toast } from "@/hooks/use-toast";
 
 interface SidakSession {
   id: string;
-  type: 'Fatigue' | 'Roster' | 'Seatbelt' | 'Rambu' | 'Antrian' | 'APD' | 'Jarak' | 'Kecepatan' | 'Pencahayaan' | 'LOTO' | 'Digital' | 'Workshop';
+  type: 'Fatigue' | 'Roster' | 'Seatbelt' | 'Rambu' | 'Antrian' | 'APD' | 'Jarak' | 'Kecepatan' | 'Pencahayaan' | 'LOTO' | 'Digital' | 'Workshop' | 'Behavior';
   tanggal: string;
   waktu: string;
   shift: string;
@@ -93,6 +96,7 @@ interface SupervisorStats {
   loto: number;
   digital: number;
   workshop: number;
+  behavior: number;
   total: number;
 }
 
@@ -112,6 +116,7 @@ interface RecapData {
     totalLoto: number;
     totalDigital: number;
     totalWorkshop: number;
+    totalBehavior: number;
     totalKaryawanDiperiksa: number;
     supervisorStats: SupervisorStats[];
   };
@@ -136,6 +141,8 @@ interface FatigueRecord {
   istirahatLebihdariSatuJam: boolean;
   tidakBolehBekerja: boolean;
   employeeSignature: string | null;
+  catatanIntervensi?: string | null;
+  buktiIntervensi?: string | null;
 }
 
 interface RosterRecord {
@@ -248,6 +255,32 @@ interface WorkshopRecord {
   keterangan: string | null;
 }
 
+interface BehaviorRecord {
+  id: string;
+  ordinal: number;
+  nama: string;
+  nik: string;
+  nomorLambung: string | null;
+  position: string | null;
+  tipeUnit: string | null;
+  kecepatan: boolean;
+  sabukPengaman: boolean;
+  handphone: boolean;
+  fatigue: boolean;
+  merokok: boolean;
+  makanMinum: boolean;
+  rambuLaluLintas: boolean;
+  markaJalan: boolean;
+  jarakAman: boolean;
+  stopSempurna: boolean;
+  lampuUtama: boolean;
+  lampuRotari: boolean;
+  lampuSign: boolean;
+  klakson: boolean;
+  keterangan: string | null;
+  tindakan: string;
+}
+
 interface Observer {
   id: string;
   nama: string;
@@ -266,7 +299,7 @@ interface SessionDetail {
     totalSampel?: number;
     photos?: string[];
   };
-  records: FatigueRecord[] | RosterRecord[] | SeatbeltRecord[] | RambuRecord[] | AntrianRecord[] | JarakRecord[] | KecepatanRecord[] | PencahayaanRecord[] | LotoRecord[] | DigitalRecord[] | WorkshopRecord[];
+  records: FatigueRecord[] | RosterRecord[] | SeatbeltRecord[] | RambuRecord[] | AntrianRecord[] | JarakRecord[] | KecepatanRecord[] | PencahayaanRecord[] | LotoRecord[] | DigitalRecord[] | WorkshopRecord[] | BehaviorRecord[];
   observers: Observer[];
 }
 
@@ -319,6 +352,8 @@ function FatigueFormPreview({ session, records, observers }: {
               <th className="border p-1 w-10">Siap</th>
               <th className="border p-1 w-10">FTW</th>
               <th className="border p-1 w-16">TTD</th>
+              <th className="border p-1 w-10">Intv</th>
+              <th className="border p-1 w-10">Aksi</th>
             </tr>
           </thead>
           <tbody>
@@ -341,10 +376,55 @@ function FatigueFormPreview({ session, records, observers }: {
                     <img src={record.employeeSignature} alt="TTD" className="h-8 w-full object-contain" />
                   )}
                 </td>
+                <td className="border p-1 text-center">
+                  {record.catatanIntervensi || record.buktiIntervensi ? (
+                    <Badge variant="default" className="bg-blue-600 text-[8px] px-1 h-3">YA</Badge>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
+                </td>
+                <td className="border p-1 text-center">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-blue-600 hover:text-blue-800"
+                    onClick={() => (window as any).onEditFatigueRecord?.(record)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Tindak Lanjut Section (New) */}
+      <div className="mt-4 space-y-3">
+        <h3 className="font-semibold text-sm border-b pb-1">Tindak Lanjut & Intervensi:</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {records.filter(r => r.catatanIntervensi || r.buktiIntervensi).map(record => (
+            <div key={`tl-${record.id}`} className="border rounded p-3 bg-blue-50/30">
+              <div className="flex justify-between items-start mb-2">
+                <p className="font-medium text-xs">{record.nama}</p>
+                <Badge variant="outline" className="text-[10px] bg-blue-100">Intervensi</Badge>
+              </div>
+              <div className="flex gap-3">
+                {record.buktiIntervensi && (
+                  <div className="w-20 h-20 border rounded overflow-hidden flex-shrink-0 bg-white">
+                    <img src={record.buktiIntervensi} alt="Bukti" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <p className="text-xs text-black font-medium leading-relaxed">{record.catatanIntervensi || 'Tanpa catatan'}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {records.filter(r => r.catatanIntervensi || r.buktiIntervensi).length === 0 && (
+            <p className="text-xs text-gray-500 italic">Belum ada data tindak lanjut yang diinput.</p>
+          )}
+        </div>
       </div>
 
       {/* Legend */}
@@ -1182,7 +1262,157 @@ function WorkshopFormPreview({ session, records, observers }: {
     </div>
   );
 }
+
+function BehaviorFormPreview({ session, records, observers }: {
+  session: SessionDetail['session'];
+  records: BehaviorRecord[];
+  observers: Observer[]
+}) {
+  return (
+    <div className="space-y-4 p-4 bg-white text-black text-sm">
+      <div className="text-center border-b pb-3">
+        <h2 className="text-lg font-bold">OBSERVASI TINGKAH LAKU PENGEMUDI</h2>
+        <p className="text-gray-600">PT. Goden Energi Cemerlang Lestari</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 text-sm border p-3 rounded bg-gray-50">
+        <div><span className="font-semibold">Tanggal:</span> {session.tanggal}</div>
+        <div><span className="font-semibold">Waktu:</span> {session.waktuMulai} - {session.waktuSelesai}</div>
+        <div><span className="font-semibold">Lokasi:</span> {session.lokasi}</div>
+        <div><span className="font-semibold">Shift:</span> {session.shift}</div>
+        <div className="col-span-2"><span className="font-semibold">Supervisor:</span> {session.supervisorName}</div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border text-[10px]">
+          <thead>
+            <tr className="bg-blue-600 text-white leading-tight">
+              <th className="border p-1" rowSpan={2}>No</th>
+              <th className="border p-1" rowSpan={2}>Driver / No Unit</th>
+              <th className="border p-1" colSpan={6}>Driving Behavior</th>
+              <th className="border p-1" colSpan={4}>Traffic Compliance</th>
+              <th className="border p-1" colSpan={4}>Vehicle Safety</th>
+              <th className="border p-1 text-center" rowSpan={2}>Tindakan</th>
+            </tr>
+            <tr className="bg-blue-500 text-white text-[8px] uppercase">
+              <th className="border p-1">Spd</th>
+              <th className="border p-1">Selt</th>
+              <th className="border p-1">HP</th>
+              <th className="border p-1">Ftg</th>
+              <th className="border p-1">Smk</th>
+              <th className="border p-1">E&D</th>
+              <th className="border p-1">Sign</th>
+              <th className="border p-1">Mark</th>
+              <th className="border p-1">Gap</th>
+              <th className="border p-1">Stop</th>
+              <th className="border p-1">Main</th>
+              <th className="border p-1">Rot</th>
+              <th className="border p-1">Sign</th>
+              <th className="border p-1">Horn</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((record, idx) => (
+              <tr key={record.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <td className="border p-1 text-center font-bold">{record.ordinal}</td>
+                <td className="border p-1">
+                  <p className="font-bold">{record.nama}</p>
+                  <p className="text-[8px] text-gray-500 font-mono">{record.nomorLambung || '-'}</p>
+                </td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.kecepatan} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.sabukPengaman} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.handphone} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.fatigue} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.merokok} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.makanMinum} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.rambuLaluLintas} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.markaJalan} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.jarakAman} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.stopSempurna} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.lampuUtama} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.lampuRotari} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.lampuSign} /></td>
+                <td className="border p-1 text-center"><CheckIcon checked={record.klakson} /></td>
+                <td className="border p-1 text-center">
+                  <Badge variant="outline" className={`text-[8px] px-1 py-0 h-4 border-none ${record.tindakan === 'Apresiasi' ? 'bg-green-100 text-green-700' :
+                    record.tindakan === 'Teguran' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700 font-bold'
+                    }`}>
+                    {record.tindakan}
+                  </Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="border rounded p-3 bg-gray-50">
+          <h3 className="font-semibold mb-2 flex items-center gap-2">
+            <Signature className="h-4 w-4 text-primary" />
+            Observer / Pengamat:
+          </h3>
+          <div className="space-y-2">
+            {observers.map((obs) => (
+              <div key={obs.id} className="flex items-center gap-3 border p-2 rounded bg-white">
+                <div className="flex-1">
+                  <p className="font-bold text-xs">{obs.nama}</p>
+                  <p className="text-[10px] text-gray-500">{obs.nik || '-'}</p>
+                </div>
+                {obs.tandaTangan && (
+                  <img src={obs.tandaTangan} alt="TTD" className="h-10 w-16 object-contain" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="text-xs text-gray-500 border rounded p-3 bg-blue-50/30">
+          <h3 className="font-semibold text-blue-700 mb-2">Keterangan Singkatan:</h3>
+          <div className="grid grid-cols-2 gap-1 text-[9px]">
+            <p><strong>Spd:</strong> Kecepatan</p>
+            <p><strong>Selt:</strong> Sabuk Pengaman</p>
+            <p><strong>HP:</strong> Penggunaan Handphone</p>
+            <p><strong>Ftg:</strong> Tanda Fatigue</p>
+            <p><strong>Smk:</strong> Merokok</p>
+            <p><strong>E&D:</strong> Makan & Minum</p>
+            <p><strong>Sign:</strong> Rambu & Isyarat</p>
+            <p><strong>Rot:</strong> Lampu Rotari</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SidakRecap() {
+  const [editingFatigueRecord, setEditingFatigueRecord] = useState<FatigueRecord | null>(null);
+
+  // Expose edit handler to FatigueFormPreview
+  useEffect(() => {
+    (window as any).onEditFatigueRecord = (record: FatigueRecord) => {
+      setEditingFatigueRecord(record);
+    };
+    return () => {
+      delete (window as any).onEditFatigueRecord;
+    };
+  }, []);
+
+  const handleSaveIntervention = async (id: string, evidence: string | null, note: string) => {
+    try {
+      await apiRequest(`/api/sidak-fatigue/records/${id}`, "PATCH", {
+        buktiIntervensi: evidence,
+        catatanIntervensi: note
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/sidak-recap"] });
+      // Invalidate the detail query as well
+      if (detailUrl) {
+        queryClient.invalidateQueries({ queryKey: [detailUrl] });
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -1507,6 +1737,20 @@ export default function SidakRecap() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+                <Activity className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalBehavior || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Behavior</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Supervisor Stats */}
@@ -1576,6 +1820,11 @@ export default function SidakRecap() {
                           W: {supervisor.workshop}
                         </Badge>
                       )}
+                      {supervisor.behavior > 0 && (
+                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700">
+                          B: {supervisor.behavior}
+                        </Badge>
+                      )}
                       <Badge className="text-xs">
                         {supervisor.total}
                       </Badge>
@@ -1639,6 +1888,7 @@ export default function SidakRecap() {
                   <SelectItem value="LOTO">LOTO</SelectItem>
                   <SelectItem value="Digital">Digital</SelectItem>
                   <SelectItem value="Workshop">Workshop</SelectItem>
+                  <SelectItem value="Behavior">Driver Behavior</SelectItem>
 
                 </SelectContent>
               </Select>
@@ -1730,7 +1980,9 @@ export default function SidakRecap() {
                                               ? 'bg-blue-50 text-blue-700 border-blue-200'
                                               : session.type === 'Workshop'
                                                 ? 'bg-orange-50 text-orange-700 border-orange-200'
-                                                : 'bg-gray-50 text-gray-700 border-gray-200'
+                                                : session.type === 'Behavior'
+                                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                                  : 'bg-gray-50 text-gray-700 border-gray-200'
                           }
                         >
                           {session.type}
@@ -1847,7 +2099,8 @@ export default function SidakRecap() {
                                       selectedSession?.type === 'LOTO' ? 'bg-orange-50 text-orange-700' :
                                         selectedSession?.type === 'Digital' ? 'bg-blue-50 text-blue-700' :
                                           selectedSession?.type === 'Workshop' ? 'bg-orange-50 text-orange-700' :
-                                            'bg-gray-50 text-gray-700'
+                                            selectedSession?.type === 'Behavior' ? 'bg-indigo-50 text-indigo-700' :
+                                              'bg-gray-50 text-gray-700'
                   }>
                     {selectedSession?.type}
                   </Badge>
@@ -1925,6 +2178,12 @@ export default function SidakRecap() {
                         records={detailData.records as WorkshopRecord[]}
                         observers={detailData.observers}
                       />
+                    ) : selectedSession?.type === 'Behavior' ? (
+                      <BehaviorFormPreview
+                        session={detailData.session}
+                        records={detailData.records as BehaviorRecord[]}
+                        observers={detailData.observers}
+                      />
                     ) : (
                       <RosterFormPreview
                         session={detailData.session}
@@ -1944,7 +2203,10 @@ export default function SidakRecap() {
                             <TableHead>NIK</TableHead>
                             <TableHead>Jabatan</TableHead>
                             <TableHead className="text-center">Jam Tidur</TableHead>
+                            <TableHead className="text-center">PVT</TableHead>
                             <TableHead className="text-center">FTW</TableHead>
+                            <TableHead className="text-center">Intervensi</TableHead>
+                            <TableHead className="text-center">Foto</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1955,10 +2217,23 @@ export default function SidakRecap() {
                               <TableCell>{record.nik}</TableCell>
                               <TableCell>{record.jabatan}</TableCell>
                               <TableCell className="text-center">{record.jamTidur}h</TableCell>
+                              <TableCell className="text-center font-mono text-xs">
+                                {record.pvtMeanRT ? `${record.pvtMeanRT}ms` : '-'}
+                              </TableCell>
                               <TableCell className="text-center">
                                 <Badge variant={record.fitUntukBekerja ? "default" : "destructive"}>
                                   {record.fitUntukBekerja ? 'Ya' : 'Tidak'}
                                 </Badge>
+                              </TableCell>
+                              <TableCell className="text-center max-w-[150px] truncate italic text-xs">
+                                {record.catatanIntervensi || '-'}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {record.buktiIntervensi ? (
+                                  <div className="w-8 h-8 mx-auto border rounded overflow-hidden">
+                                    <img src={record.buktiIntervensi} alt="Bukti" className="w-full h-full object-cover" />
+                                  </div>
+                                ) : '-'}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -2268,6 +2543,37 @@ export default function SidakRecap() {
                           ))}
                         </TableBody>
                       </Table>
+                    ) : selectedSession?.type === 'Behavior' ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>No</TableHead>
+                            <TableHead>Nama Driver</TableHead>
+                            <TableHead>No Unit</TableHead>
+                            <TableHead className="text-center">Tindakan</TableHead>
+                            <TableHead>Keterangan</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(detailData.records as BehaviorRecord[])?.map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell>{record.ordinal}</TableCell>
+                              <TableCell className="font-medium">{record.nama}</TableCell>
+                              <TableCell>{record.nomorLambung || '-'}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant="outline" className={
+                                  record.tindakan === 'Apresiasi' ? 'bg-green-100 text-green-700' :
+                                    record.tindakan === 'Teguran' ? 'bg-yellow-100 text-yellow-700' :
+                                      'bg-red-100 text-red-700'
+                                }>
+                                  {record.tindakan}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-500 italic">{record.keterangan || '-'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
                     ) : (
                       <Table>
                         <TableHeader>
@@ -2360,6 +2666,13 @@ export default function SidakRecap() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+
+      <FatigueEvidenceDialog
+        open={!!editingFatigueRecord}
+        onOpenChange={(open) => !open && setEditingFatigueRecord(null)}
+        record={editingFatigueRecord}
+        onSave={handleSaveIntervention}
+      />
     </div >
   );
 }

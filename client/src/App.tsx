@@ -21,6 +21,7 @@ const MonitoringSimperEvPublic = lazy(() => import("@/pages/monitoring-simper-ev
 const MonitoringSimperPerpanjanganPublic = lazy(() => import("@/pages/monitoring-simper-perpanjangan-public"));
 const PublicSimperTracking = lazy(() => import("@/pages/public-simper-tracking"));
 const AbsensiInduksiPublic = lazy(() => import("@/pages/absensi-induksi-public"));
+const MeetingScanner = lazy(() => import("@/pages/meeting-scanner"));
 
 /**
  * Router component dengan landing page dan workspace
@@ -134,17 +135,13 @@ function Router() {
         )}
       </Route>
 
-      {/* Meeting Scanner Route */}
+      {/* Meeting Scanner Route - Public */}
       <Route path="/meeting-scanner">
-        {() => {
-          const token = urlParams.get('token');
-          if (token) {
-            window.location.href = `/workspace/meeting-scanner?token=${token}`;
-          } else {
-            window.location.href = `/workspace/meeting-scanner`;
-          }
-          return <div>Redirecting to meeting scanner...</div>;
-        }}
+        {() => (
+          <Suspense fallback={<LoadingScreen isLoading={true} />}>
+            <MeetingScanner />
+          </Suspense>
+        )}
       </Route>
 
       {/* Public Induction Attendance */}
@@ -166,7 +163,7 @@ function Router() {
 
               // Handle meeting QR codes
               if (parsedData.type === "meeting" && parsedData.token) {
-                window.location.href = `/workspace/meeting-scanner?token=${parsedData.token}`;
+                window.location.href = `/meeting-scanner?token=${parsedData.token}`;
                 return <div>Redirecting to meeting scanner...</div>;
               }
 

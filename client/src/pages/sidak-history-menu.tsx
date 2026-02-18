@@ -226,13 +226,28 @@ export default function SidakHistoryMenu() {
                                 <div className="absolute inset-0 bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                                 <div className="relative flex items-center w-full">
                                     <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
-                                        <BriefcaseMedical className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                        <Truck className="h-5 w-5 text-red-600 dark:text-red-400" />
                                     </div>
                                     <div className="text-left flex-1">
                                         <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-red-700">Riwayat P3K</div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
                                     </div>
                                     <div className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/behavior/history" data-testid="link-behavior-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-indigo-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <PenTool className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-indigo-700">Riwayat Tingkah Laku</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
                                 </div>
                             </Button>
                         </Link>

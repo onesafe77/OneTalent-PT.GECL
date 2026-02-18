@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { ClipboardCheck, ArrowRight, Activity, AlertTriangle, TrafficCone, Truck, Shield } from "lucide-react";
+import { ClipboardCheck, ArrowRight, Activity, AlertTriangle, TrafficCone, Truck, Shield, Users } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface SidakStats {
@@ -20,6 +20,7 @@ interface SidakStats {
     totalLoto: number;
     totalDigital: number;
     totalWorkshop: number;
+    totalBehavior: number;
 }
 
 interface RecapData {
@@ -49,6 +50,7 @@ export function SidakWidget() {
         { label: "Roster", value: stats?.totalRoster || 0, icon: ClipboardCheck, color: "text-purple-500", bg: "bg-purple-50" },
         { label: "Seatbelt", value: stats?.totalSeatbelt || 0, icon: Shield, color: "text-green-500", bg: "bg-green-50" },
         { label: "Rambu", value: stats?.totalRambu || 0, icon: TrafficCone, color: "text-amber-500", bg: "bg-amber-50" },
+        { label: "Behavior", value: stats?.totalBehavior || 0, icon: Users, color: "text-indigo-500", bg: "bg-indigo-50" },
     ];
 
     return (

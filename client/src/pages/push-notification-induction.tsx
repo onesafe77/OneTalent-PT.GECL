@@ -42,8 +42,7 @@ export default function PushNotificationInduction() {
     // Generate H-1 mutation
     const generateMutation = useMutation({
         mutationFn: async () => {
-            const res = await apiRequest("POST", "/api/induction/generate-schedules", {});
-            return res.json();
+            return await apiRequest("/api/induction/generate-schedules", "POST", {});
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["/api/induction/schedules"] });
@@ -60,8 +59,7 @@ export default function PushNotificationInduction() {
     // Mutations
     const sendReminderMutation = useMutation({
         mutationFn: async (scheduleId: string) => {
-            const res = await apiRequest("POST", "/api/induction/send-reminder", { scheduleId });
-            return res.json();
+            return await apiRequest("/api/induction/send-reminder", "POST", { scheduleId });
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/induction/schedules"] });

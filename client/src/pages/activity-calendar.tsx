@@ -64,8 +64,7 @@ export default function ActivityCalendar() {
                 reminderMinutes: parseInt(data.reminderMinutes.toString()),
             };
 
-            const res = await apiRequest("POST", "/api/activities", payload);
-            return res.json();
+            return await apiRequest("/api/activities", "POST", payload);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/activities"] });
@@ -89,7 +88,7 @@ export default function ActivityCalendar() {
     // Delete mutation
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            await apiRequest("DELETE", `/api/activities/${id}`);
+            await apiRequest(`/api/activities/${id}`, "DELETE");
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/activities"] });

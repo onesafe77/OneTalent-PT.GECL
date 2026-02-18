@@ -46,7 +46,7 @@ export default function McuPage() {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: string) => {
-            await apiRequest("DELETE", `/api/hse/mcu/${id}`);
+            await apiRequest(`/api/hse/mcu/${id}`, "DELETE");
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/hse/mcu"] });

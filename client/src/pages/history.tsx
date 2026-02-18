@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, FileText, History, BriefcaseMedical } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, FileText, History, BriefcaseMedical, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth-context";
@@ -223,6 +223,21 @@ export default function HistoryPage() {
                                 <p className="text-xs text-gray-500 dark:text-gray-400">Data Logs & PDF</p>
                             </div>
                             <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                                <ChevronRight className="w-4 h-4" />
+                            </div>
+                        </div>
+                    </Link>
+
+                    <Link href="/workspace/sidak/behavior/history">
+                        <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                            <div className="h-16 w-16 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-4 flex-shrink-0">
+                                <Eye className="h-8 w-8" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">Riwayat Tingkah Laku</h3>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Data Logs & PDF</p>
+                            </div>
+                            <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
                                 <ChevronRight className="w-4 h-4" />
                             </div>
                         </div>

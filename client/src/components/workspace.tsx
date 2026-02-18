@@ -52,6 +52,8 @@ import SidakWorkshopForm from "@/pages/sidak-workshop-form";
 import SidakWorkshopHistory from "@/pages/sidak-workshop-history";
 import SidakP3kForm from "@/pages/sidak-p3k-form";
 import SidakP3kHistory from "@/pages/sidak-p3k-history";
+import SidakBehaviorForm from "@/pages/sidak-behavior-form";
+import SidakBehaviorHistory from "@/pages/sidak-behavior-history";
 import EvaluasiDriver from "@/pages/evaluasi-driver";
 import DashboardOverspeed from "@/pages/dashboard-overspeed";
 import DashboardJarak from "@/pages/dashboard-jarak";
@@ -286,6 +288,8 @@ export function Workspace() {
               <Route path="/workspace/sidak/workshop/history" component={SidakWorkshopHistory} />
               <Route path="/workspace/sidak/p3k/new" component={SidakP3kForm} />
               <Route path="/workspace/sidak/p3k/history" component={SidakP3kHistory} />
+              <Route path="/workspace/sidak/behavior/new" component={SidakBehaviorForm} />
+              <Route path="/workspace/sidak/behavior/history" component={SidakBehaviorHistory} />
               <Route path="/workspace/sidak/riwayat">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_SIDAK]}>
                   <SidakHistoryMenu />

@@ -42,11 +42,10 @@ export default function InductionQuiz() {
     // Submit mutation
     const submitMutation = useMutation({
         mutationFn: async (answers: { questionId: string; selectedAnswerIndex: number }[]) => {
-            const res = await apiRequest("POST", "/api/induction/submit-quiz", {
+            return await apiRequest("/api/induction/submit-quiz", "POST", {
                 scheduleId: schedule?.id,
                 answers
             });
-            return res.json();
         },
         onSuccess: (data) => {
             setQuizResult(data);

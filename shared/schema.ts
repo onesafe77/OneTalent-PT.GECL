@@ -477,6 +477,13 @@ export const sidakFatigueRecords = pgTable("sidak_fatigue_records", {
   // Tanda tangan karyawan
   employeeSignature: text("employee_signature"), // Base64 encoded signature image
 
+  // Tindak Lanjut & Bukti (Intervensi)
+  catatanIntervensi: text("catatan_intervensi"),
+  buktiIntervensi: text("bukti_intervensi"), // URL foto bukti
+
+  // PVT Data
+  pvtMeanRT: integer("pvt_mean_rt"), // Rata-rata waktu reaksi dalam ms
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_fatigue_records_session").on(table.sessionId),
@@ -3062,3 +3069,97 @@ export type SidakP3kSession = typeof sidakP3kSessions.$inferSelect;
 export type InsertSidakP3kSession = z.infer<typeof insertSidakP3kSessionSchema>;
 export type SidakP3kItem = typeof sidakP3kItems.$inferSelect;
 export type InsertSidakP3kItem = z.infer<typeof insertSidakP3kItemSchema>;
+
+// ============================================
+// SIDAK TINGKAH LAKU DRIVER (Driver Behavior)
+// ============================================
+
+export const sidakBehaviorSessions = pgTable("sidak_behavior_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(), // Format: YYYY-MM-DD
+  waktu: text("waktu").notNull(),
+  shift: text("shift").notNull(), // "Shift 1" or "Shift 2"
+  lokasi: text("lokasi").notNull(),
+  metodeSidak: text("metode_sidak").notNull(), // "Acak", "Alarm FMS", ">4 Jam Kerja", "Permintaan Pengawas"
+  totalSampel: integer("total_sampel").notNull().default(0),
+  createdBy: varchar("created_by"), // NIK of supervisor
+  activityPhotos: text("activity_photos").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_behavior_sessions_created_by").on(table.createdBy),
+]);
+
+export const sidakBehaviorRecords = pgTable("sidak_behavior_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakBehaviorSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  namaDriver: text("nama_driver").notNull(),
+  nomorLambung: text("nomor_lambung").notNull(),
+
+  // Behavior Parameters
+  mataTertutup: boolean("mata_tertutup").notNull().default(false),
+  seringMengedip: boolean("sering_mengedip").notNull().default(false),
+  menguapBerulang: boolean("menguap_berulang").notNull().default(false),
+  kepalaMengangguk: boolean("kepala_mengangguk").notNull().default(false),
+  posturMembungkuk: boolean("postur_membungkuk").notNull().default(false),
+  keluarJalur: boolean("keluar_jalur").notNull().default(false),
+  reaksiRadioLambat: boolean("reaksi_radio_lambat").notNull().default(false),
+  tidakMeresponRadio: boolean("tidak_merespon_radio").notNull().default(false),
+  alarmFatigueFmsAktif: boolean("alarm_fatigue_fms_aktif").notNull().default(false),
+  mengemudiTidakStabil: boolean("mengemudi_tidak_stabil").notNull().default(false),
+
+  // Actions
+  edukasiTwoWay: boolean("edukasi_two_way").notNull().default(false),
+  monitoringUlang: boolean("monitoring_ulang").notNull().default(false),
+  instruksiBerhenti: boolean("instruksi_berhenti").notNull().default(false),
+  stretchingMinum: boolean("stretching_minum").notNull().default(false),
+  parkirAman: boolean("parkir_aman").notNull().default(false),
+  gantiDriver: boolean("ganti_driver").notNull().default(false),
+  mandatoryRest: boolean("mandatory_rest").notNull().default(false),
+  koordinasiPengawas: boolean("koordinasi_pengawas").notNull().default(false),
+
+  driverSignature: text("driver_signature"), // Base64 signature
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_behavior_records_session").on(table.sessionId),
+  uniqueIndex("sidak_behavior_session_ordinal_unique").on(table.sessionId, table.ordinal),
+]);
+
+export const sidakBehaviorObservers = pgTable("sidak_behavior_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakBehaviorSessions.id, { onDelete: "cascade" }),
+  nama: text("nama").notNull(),
+  nik: text("nik").notNull(),
+  perusahaan: text("perusahaan").notNull(),
+  jabatan: text("jabatan").notNull(),
+  signatureDataUrl: text("signature_data_url").notNull(), // Base64 signature
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_behavior_observers_session").on(table.sessionId),
+]);
+
+export const insertSidakBehaviorSessionSchema = createInsertSchema(sidakBehaviorSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  totalSampel: true
+});
+export const insertSidakBehaviorRecordSchema = createInsertSchema(sidakBehaviorRecords).omit({
+  id: true,
+  createdAt: true,
+  ordinal: true,
+  sessionId: true
+});
+export const insertSidakBehaviorObserverSchema = createInsertSchema(sidakBehaviorObservers).omit({
+  id: true,
+  createdAt: true,
+  sessionId: true
+});
+
+export type SidakBehaviorSession = typeof sidakBehaviorSessions.$inferSelect;
+export type InsertSidakBehaviorSession = z.infer<typeof insertSidakBehaviorSessionSchema>;
+export type SidakBehaviorRecord = typeof sidakBehaviorRecords.$inferSelect;
+export type InsertSidakBehaviorRecord = z.infer<typeof insertSidakBehaviorRecordSchema>;
+export type SidakBehaviorObserver = typeof sidakBehaviorObservers.$inferSelect;
+export type InsertSidakBehaviorObserver = z.infer<typeof insertSidakBehaviorObserverSchema>;

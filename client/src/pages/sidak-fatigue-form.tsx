@@ -17,7 +17,9 @@ import { SidakObserverScanner } from "@/components/sidak/sidak-observer-scanner"
 import { SidakEmployeeScanner } from "@/components/sidak/sidak-employee-scanner";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { DraftRecoveryDialog } from "@/components/sidak/draft-recovery-dialog";
+import { PVTTestDialog } from "@/components/sidak/pvt-test-dialog";
 import { useSidakDraft } from "@/hooks/use-sidak-draft";
+import { FatigueInterventionDialog } from "@/components/sidak/fatigue-intervention-dialog";
 import type { Employee } from "@shared/schema";
 
 interface EmployeeRecord {
@@ -38,6 +40,9 @@ interface EmployeeRecord {
   istirahatLebihdariSatuJam: boolean | null;
   tidakBolehBekerja: boolean | null;
   employeeSignature?: string; // Base64 encoded signature image
+  buktiIntervensi?: string;
+  catatanIntervensi?: string;
+  pvtMeanRT?: number;
 }
 
 interface Observer {
@@ -153,6 +158,7 @@ export default function SidakFatigueForm() {
   const [observers, setObservers] = useState<Observer[]>([]);
   const [showScanner, setShowScanner] = useState(false);
   const [showEmployeeScanner, setShowEmployeeScanner] = useState(false);
+  const [showPVT, setShowPVT] = useState(false);
   const [isLoadedFromQr, setIsLoadedFromQr] = useState(false);
 
   // Manual observer input state
@@ -161,6 +167,121 @@ export default function SidakFatigueForm() {
     perusahaan: "",
     signatureDataUrl: ""
   });
+
+  // Intervention State
+  const [showInterventionDialog, setShowInterventionDialog] = useState(false);
+  const [interventionEmployeeId, setInterventionEmployeeId] = useState<string | null>(null);
+
+  const handleOpenIntervention = (nik: string) => {
+    setInterventionEmployeeId(nik);
+    setShowInterventionDialog(true);
+  };
+
+  const handleInterventionComplete = (evidence: string, note: string) => {
+    // 1. Temporarily save evidence/note
+    // 2. Open PVT for re-test
+    setShowInterventionDialog(false);
+
+    // Set current employee context to the one being intervened
+    const employeeToFix = employees.find(e => e.nik === interventionEmployeeId);
+    if (employeeToFix) {
+      setCurrentEmployee({
+        ...employeeToFix,
+        buktiIntervensi: evidence,
+        catatanIntervensi: note
+      });
+      setShowPVT(true);
+    }
+  };
+
+  // Override handlePVTComplete to handle re-test context
+  const handlePVTComplete = (result: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }) => {
+    const isRetest = !!interventionEmployeeId;
+
+    if (result.status === 'green' || result.status === 'yellow') {
+      const updatedData = {
+        pemeriksaanRespon: true,
+        pemeriksaanKonsentrasi: true,
+        karyawanSiapBekerja: true, // Now fit
+        tidakBolehBekerja: false,
+        fitUntukBekerja: true,
+      };
+
+      if (isRetest) {
+        // Update existing employee in list using mutation logic (or direct cache update if offline)
+        // Here we just update currentEmployee state, but we need to actually UPDATE the list.
+        // Since we don't have an "Update" mutation, we might need to remove and re-add or handle it in state.
+
+        // For simplicity in this flow: 
+        // 1. We remove the old "Unfit" record from local state
+        // 2. We set currentEmployee to the "Fixed" version
+        // 3. User clicks "Simpan" again to save the "Fit" version
+
+        setEmployees(prev => prev.filter(e => e.nik !== interventionEmployeeId));
+
+        setCurrentEmployee(prev => ({
+          ...prev,
+          ...updatedData
+        }));
+
+        setInterventionEmployeeId(null);
+
+        toast({
+          title: "Tes Ulang Lulus",
+          description: "Karyawan dinyatakan FIT. Silakan simpan data.",
+          className: "bg-green-50 border-green-200 text-green-800"
+        });
+      } else {
+        // Normal flow
+        setCurrentEmployee(prev => ({
+          ...prev,
+          ...updatedData
+        }));
+
+        if (result.status === 'yellow') {
+          toast({
+            title: "Fatigue Ringan Terdeteksi",
+            description: "Respons agak lambat. Mohon review supervisor.",
+            className: "bg-yellow-50 border-yellow-200 text-yellow-800"
+          });
+        } else {
+          toast({
+            title: "Tes Lulus",
+            description: `Respons sangat baik (${result.meanRT} ms). Data otomatis diisi.`,
+            className: "bg-green-50 border-green-200 text-green-800"
+          });
+        }
+      }
+
+      // Always save the mean RT for both normal and re-test green/yellow
+      setCurrentEmployee(prev => ({
+        ...prev,
+        ...updatedData,
+        pvtMeanRT: result.meanRT
+      }));
+    } else {
+      // Red status
+      const updatedData = {
+        pemeriksaanRespon: false,
+        pemeriksaanKonsentrasi: false,
+        karyawanSiapBekerja: false,
+        fitUntukBekerja: false,
+        tidakBolehBekerja: true
+      };
+
+      setCurrentEmployee(prev => ({
+        ...prev,
+        ...updatedData,
+        pvtMeanRT: result.meanRT
+      }));
+
+      toast({
+        title: "Fatigue Berat Terdeteksi",
+        description: isRetest ? "Tes Ulang Gagal. Karyawan tetap tidak boleh bekerja." : "Respons sangat lambat. Karyawan tidak disarankan bekerja.",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Auto-save effect - save current form state to draft
   useEffect(() => {
@@ -179,6 +300,19 @@ export default function SidakFatigueForm() {
   const handleRestoreDraft = async () => {
     const restoredData = restoreDraft();
     if (restoredData) {
+      const today = new Date().toISOString().split('T')[0];
+      const isToday = restoredData.headerData.tanggal === today;
+
+      if (!isToday && restoredData.sessionId) {
+        toast({
+          title: "Draft Kedaluwarsa",
+          description: "Draft sesi dari hari sebelumnya ditemukan. Silakan mulai sesi baru untuk hari ini.",
+          variant: "destructive",
+        });
+        ignoreDraft(); // Clear old draft
+        return;
+      }
+
       setHeaderData(restoredData.headerData);
       setEmployees(restoredData.employees);
       setCurrentEmployee(restoredData.currentEmployee);
@@ -272,8 +406,15 @@ export default function SidakFatigueForm() {
         istirahatDanMonitor: employee.istirahatDanMonitor ?? false,
         istirahatLebihdariSatuJam: employee.istirahatLebihdariSatuJam ?? false,
         tidakBolehBekerja: employee.tidakBolehBekerja ?? false,
-        employeeSignature: employee.employeeSignature
+
+        employeeSignature: employee.employeeSignature,
+        buktiIntervensi: employee.buktiIntervensi,
+        catatanIntervensi: employee.catatanIntervensi,
+        pvtMeanRT: employee.pvtMeanRT
       };
+
+      console.log('Sending employee data:', JSON.stringify(employeeData, null, 2));
+
       const response = await apiRequest(`/api/sidak-fatigue/${sessionId}/records`, "POST", employeeData);
       return response;
     },
@@ -371,6 +512,19 @@ export default function SidakFatigueForm() {
 
     const unsetFields = booleanFields.filter(field => currentEmployee[field.key as keyof EmployeeRecord] === null);
 
+    // Validasi khusus untuk field yang memerlukan Tes Reaksi
+    const requiredPVTFields = ['pemeriksaanRespon', 'pemeriksaanKonsentrasi'];
+    const missingPVT = unsetFields.filter(f => requiredPVTFields.includes(f.key));
+
+    if (missingPVT.length > 0) {
+      toast({
+        title: "Wajib Tes Reaksi",
+        description: "Mohon lakukan Tes Reaksi terlebih dahulu untuk mengisi data Respon dan Konsentrasi",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (unsetFields.length > 0) {
       toast({
         title: "Pemeriksaan belum lengkap",
@@ -392,6 +546,17 @@ export default function SidakFatigueForm() {
       });
       return;
     }
+
+    const unfitEmployees = employees.filter(e => !e.karyawanSiapBekerja);
+    if (unfitEmployees.length > 0) {
+      toast({
+        title: "Tindak Lanjut Diperlukan",
+        description: `Ada ${unfitEmployees.length} karyawan dengan status Fatigue (Unfit). Harap lakukan intervensi dan tes ulang.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setStep(3);
   };
 
@@ -457,6 +622,8 @@ export default function SidakFatigueForm() {
       signatureDataUrl: ""
     });
   };
+
+
 
   const maxEmployees = 20;
   const canAddMore = employees.length < maxEmployees;
@@ -538,6 +705,21 @@ export default function SidakFatigueForm() {
         timestamp={draftTimestamp}
         formType="fatigue"
       />
+
+      <PVTTestDialog
+        open={showPVT}
+        onOpenChange={setShowPVT}
+        onComplete={handlePVTComplete}
+      />
+
+      {interventionEmployeeId && (
+        <FatigueInterventionDialog
+          open={showInterventionDialog}
+          onOpenChange={setShowInterventionDialog}
+          employeeName={employees.find(e => e.nik === interventionEmployeeId)?.nama || "Karyawan"}
+          onProcceedToRetest={handleInterventionComplete}
+        />
+      )}
 
       <MobileSidakLayout
         title="Sidak Fatigue"
@@ -720,6 +902,46 @@ export default function SidakFatigueForm() {
                 </div>
               </div>
 
+              {/* Employee List with Intervention Action */}
+              {employees.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Daftar Karyawan ({employees.length})</h3>
+                  {employees.map((emp, idx) => (
+                    <div key={idx} className={cn(
+                      "p-4 rounded-xl border flex items-center justify-between",
+                      emp.karyawanSiapBekerja
+                        ? "bg-white border-gray-100"
+                        : "bg-red-50 border-red-200"
+                    )}>
+                      <div>
+                        <p className="font-medium">{emp.nama}</p>
+                        <p className="text-xs text-gray-500">{emp.nik} - {emp.jabatan}</p>
+                        {!emp.karyawanSiapBekerja && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 mt-1">
+                            Unfit / Fatigue
+                          </span>
+                        )}
+                      </div>
+
+                      {!emp.karyawanSiapBekerja ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleOpenIntervention(emp.nik)}
+                          className="shadow-sm"
+                        >
+                          Tindak Lanjut
+                        </Button>
+                      ) : (
+                        <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                          <Check className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Sleep Hours - Big Input */}
               <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -769,13 +991,32 @@ export default function SidakFatigueForm() {
                   { key: 'tidakBolehBekerja', label: 'Tidak Boleh Bekerja?', desc: 'Tidak diijinkan untuk bekerja' },
                 ].map((field) => {
                   const value = currentEmployee[field.key as keyof EmployeeRecord] as boolean | null;
+                  const isPVTField = field.key === 'pemeriksaanRespon' || field.key === 'pemeriksaanKonsentrasi';
+
                   return (
-                    <div key={field.key} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all">
+                    <div key={field.key} className={cn(
+                      "bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm transition-all",
+                      isPVTField && "bg-gray-50 dark:bg-gray-900/50"
+                    )}>
                       <div className="flex justify-between items-start mb-3">
                         <div>
-                          <p className="font-semibold text-gray-900 dark:text-white">{field.label}</p>
+                          <p className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            {field.label}
+                            {isPVTField && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold uppercase">Auto</span>}
+                          </p>
                           <p className="text-xs text-gray-500">{field.desc}</p>
                         </div>
+                        {field.key === 'pemeriksaanRespon' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800 ml-auto mr-2"
+                            onClick={() => setShowPVT(true)}
+                          >
+                            <Activity className="w-3 h-3 mr-1" />
+                            Tes Reaksi
+                          </Button>
+                        )}
                         {value !== null && (
                           <div className={cn(
                             "h-6 w-6 rounded-full flex items-center justify-center",
@@ -785,25 +1026,37 @@ export default function SidakFatigueForm() {
                           </div>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 relative">
+                        {isPVTField && (
+                          <div className="absolute inset-0 z-10 bg-white/10 cursor-not-allowed" title="Wajib menggunakan Tes Reaksi" onClick={() => {
+                            toast({
+                              description: "Silakan gunakan tombol 'Tes Reaksi' di atas",
+                              variant: "default"
+                            });
+                          }} />
+                        )}
                         <button
+                          disabled={isPVTField}
                           onClick={() => setCurrentEmployee({ ...currentEmployee, [field.key]: true })}
                           className={cn(
                             "py-3 rounded-lg font-medium text-sm transition-all border",
                             value === true
                               ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 dark:shadow-none"
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+                            isPVTField && "opacity-60"
                           )}
                         >
                           Ya
                         </button>
                         <button
+                          disabled={isPVTField}
                           onClick={() => setCurrentEmployee({ ...currentEmployee, [field.key]: false })}
                           className={cn(
                             "py-3 rounded-lg font-medium text-sm transition-all border",
                             value === false
                               ? "bg-red-600 text-white border-red-600 shadow-lg shadow-red-200 dark:shadow-none"
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+                            isPVTField && "opacity-60"
                           )}
                         >
                           Tidak

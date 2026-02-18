@@ -1,12 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileDown, Users, CheckCircle, XCircle, ClipboardList, Search, Loader2, Calendar, Filter, GripHorizontal } from "lucide-react";
+import { FileDown, Users, CheckCircle, XCircle, ClipboardList, Search, Loader2, Calendar, Filter, GripHorizontal, Eye, Clock, Activity, Pen } from "lucide-react";
 import { Bar, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -60,6 +62,18 @@ export default function EvaluasiDriver() {
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [statusFilter, setStatusFilter] = useState("semua");
   const [searchQuery, setSearchQuery] = useState("");
+
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+
+  // Fetch detail data when dialog is open
+  const { data: detailData, isLoading: isLoadingDetail } = useQuery<{
+    employee: { name: string; nik: string; position: string };
+    records: any[];
+  }>({
+    queryKey: [`/api/evaluasi-driver/${selectedDriverId}/details?month=${selectedMonth}`],
+    enabled: !!selectedDriverId && showDetailDialog,
+  });
 
   // Fetch evaluation data
   const { data, isLoading } = useQuery<EvaluationData>({
@@ -486,12 +500,13 @@ export default function EvaluasiDriver() {
                   <TableHead className="font-bold text-gray-600">NIK</TableHead>
                   <TableHead className="text-center font-bold text-gray-600">Total SIDAK</TableHead>
                   <TableHead className="text-center font-bold text-gray-600">Status</TableHead>
+                  <TableHead className="text-center font-bold text-gray-600">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={6} className="text-center py-12 text-gray-500">
                       <div className="flex flex-col items-center gap-2">
                         <XCircle className="w-8 h-8 text-gray-300" />
                         <p>Tidak ada data driver ditemukan</p>
@@ -514,12 +529,25 @@ export default function EvaluasiDriver() {
                       <TableCell className="text-center">
                         <Badge
                           className={`px-3 py-1 rounded-full font-medium ${driver.totalSidak > 0
-                              ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
-                              : "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
+                            ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
+                            : "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
                             }`}
                         >
                           {driver.status}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            setSelectedDriverId(driver.id);
+                            setShowDetailDialog(true);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -529,6 +557,167 @@ export default function EvaluasiDriver() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Riwayat Pemeriksaan Driver</DialogTitle>
+            <DialogDescription>
+              Detail hasil SIDAK Fatigue untuk periode {selectedMonth}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingDetail ? (
+            <div className="flex justify-center p-8">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            </div>
+          ) : detailData?.employee ? (
+            <div className="flex flex-col gap-4 overflow-hidden">
+              {/* Employee Info */}
+              <div className="bg-blue-50 p-4 rounded-lg flex items-center gap-4">
+                <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold border border-blue-100">
+                  {detailData.employee.name.charAt(0)}
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">{detailData.employee.name}</h3>
+                  <p className="text-sm text-gray-500">{detailData.employee.position || 'Driver'} • {detailData.employee.nik}</p>
+                </div>
+                <div className="ml-auto text-right">
+                  <span className="text-xs text-gray-500">Total Temuan</span>
+                  <p className="text-xl font-bold">{detailData.records.length}</p>
+                </div>
+              </div>
+
+              {/* Records List */}
+              <ScrollArea className="flex-1 -mx-6 px-6">
+                <div className="space-y-3 pb-4">
+                  {detailData.records.length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      Belum ada data pemeriksaan bulan ini
+                    </div>
+                  ) : (
+                    detailData.records.map((record: any, idx: number) => (
+                      <div key={idx} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="bg-gray-100">
+                              {record.tanggal}
+                            </Badge>
+                            <Badge variant="outline" className="bg-gray-50">
+                              {record.waktu}
+                            </Badge>
+                            <span className="text-xs text-gray-400">• {record.lokasi}</span>
+                          </div>
+                          <Badge className={record.karyawanSiapBekerja ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-700 hover:bg-red-200"}>
+                            {record.karyawanSiapBekerja ? "FIT" : "UNFIT"}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              <Clock className="w-3 h-3" /> Jam Tidur
+                            </span>
+                            <span className="font-medium">{record.jamTidur} Jam</span>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              <Activity className="w-3 h-3" /> Respon
+                            </span>
+                            <span className={record.pemeriksaanRespon ? "text-green-600 font-medium" : "text-red-600 font-bold"}>
+                              {record.pemeriksaanRespon ? "Baik" : "Lambat"}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500">Konsentrasi</span>
+                            <span className={record.pemeriksaanKonsentrasi ? "text-green-600 font-medium" : "text-red-600 font-bold"}>
+                              {record.pemeriksaanKonsentrasi ? "Fokus" : "Terganggu"}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs text-gray-500">Kesehatan</span>
+                            <span className={record.pemeriksaanKesehatan ? "text-green-600 font-medium" : "text-red-600 font-bold"}>
+                              {record.pemeriksaanKesehatan ? "Sehat" : "Sakit"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Warnings if any */}
+                        {(record.konsumiObat || record.masalahPribadi || record.tidakBolehBekerja) && (
+                          <div className="mt-3 pt-3 border-t grid gap-2">
+                            {record.konsumiObat && (
+                              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-2">
+                                ⚠️ Sedang mengonsumsi obat
+                              </div>
+                            )}
+                            {record.masalahPribadi && (
+                              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-2">
+                                ⚠️ Ada masalah pribadi
+                              </div>
+                            )}
+                            {record.tidakBolehBekerja && (
+                              <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded flex items-center gap-2 font-bold">
+                                ⛔ DILARANG BEKERJA
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Intervention Data */}
+                        {(record.catatanIntervensi || record.buktiIntervensi) && (
+                          <div className="mt-3 pt-3 border-t bg-blue-50/50 -mx-4 px-4 pb-2">
+                            <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2 flex items-center gap-2 mt-2">
+                              <Pen className="w-3 h-3" /> Tindak Lanjut & Bukti
+                            </h4>
+
+                            {record.catatanIntervensi && (
+                              <div className="mb-3">
+                                <span className="text-xs text-blue-600 block mb-1">Catatan Intervensi:</span>
+                                <p className="text-sm text-gray-700 bg-white p-2 rounded border border-blue-100">
+                                  {record.catatanIntervensi}
+                                </p>
+                              </div>
+                            )}
+
+                            {record.buktiIntervensi && (
+                              <div>
+                                <span className="text-xs text-blue-600 block mb-1">Bukti Foto:</span>
+                                <div className="relative group overflow-hidden rounded-lg border border-blue-100 max-w-sm">
+                                  <img
+                                    src={record.buktiIntervensi}
+                                    alt="Bukti Intervensi"
+                                    className="w-full h-auto object-cover max-h-[200px] hover:scale-105 transition-transform duration-300"
+                                  />
+                                  <a
+                                    href={record.buktiIntervensi}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded hover:bg-black/70 backdrop-blur-sm"
+                                  >
+                                    Lihat Full
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          ) : (
+            <div className="p-4 text-center text-red-500">
+              Gagal memuat data driver
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

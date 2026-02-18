@@ -100,7 +100,7 @@ export default function InductionAdmin() {
 
     const deleteMaterialMutation = useMutation({
         mutationFn: async (id: string) => {
-            await apiRequest("DELETE", `/api/induction/materials/${id}`);
+            await apiRequest(`/api/induction/materials/${id}`, "DELETE");
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/induction/materials"] });
@@ -111,7 +111,7 @@ export default function InductionAdmin() {
     // MUTATIONS - QUESTIONS
     const createQuestionMutation = useMutation({
         mutationFn: async (data: any) => {
-            await apiRequest("POST", "/api/induction/questions", {
+            await apiRequest("/api/induction/questions", "POST", {
                 ...data,
                 isActive: true,
                 order: (questions?.length || 0) + 1
@@ -132,7 +132,7 @@ export default function InductionAdmin() {
 
     const deleteQuestionMutation = useMutation({
         mutationFn: async (id: string) => {
-            await apiRequest("DELETE", `/api/induction/questions/${id}`);
+            await apiRequest(`/api/induction/questions/${id}`, "DELETE");
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["/api/induction/questions"] });
@@ -142,8 +142,7 @@ export default function InductionAdmin() {
 
     const generateAiMutation = useMutation({
         mutationFn: async (materialId: string) => {
-            const res = await apiRequest("POST", "/api/induction/questions/generate-from-material", { materialId });
-            return res.json();
+            return await apiRequest("/api/induction/questions/generate-from-material", "POST", { materialId });
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["/api/induction/questions"] });

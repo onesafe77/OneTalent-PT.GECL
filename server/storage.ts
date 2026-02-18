@@ -168,6 +168,15 @@ import {
   sidakLotoSessions,
   sidakLotoRecords,
   sidakLotoObservers,
+  type SidakBehaviorSession,
+  type InsertSidakBehaviorSession,
+  type SidakBehaviorRecord,
+  type InsertSidakBehaviorRecord,
+  type SidakBehaviorObserver,
+  type InsertSidakBehaviorObserver,
+  sidakBehaviorSessions,
+  sidakBehaviorRecords,
+  sidakBehaviorObservers,
   type SidakDigitalSession,
   type InsertSidakDigitalSession,
   type SidakDigitalRecord,
@@ -394,7 +403,19 @@ export interface IStorage {
   getSidakFatigueRecordsBySessionIds(sessionIds: string[]): Promise<SidakFatigueRecord[]>;
   createSidakFatigueRecord(record: InsertSidakFatigueRecord): Promise<SidakFatigueRecord>;
   getSidakFatigueObservers(sessionId: string): Promise<SidakFatigueObserver[]>;
+  updateSidakFatigueSessionSampleCount(sessionId: string): Promise<void>;
   createSidakFatigueObserver(observer: InsertSidakFatigueObserver): Promise<SidakFatigueObserver>;
+
+  // Sidak Behavior Driver methods
+  getSidakBehaviorSession(id: string): Promise<SidakBehaviorSession | undefined>;
+  getAllSidakBehaviorSessions(): Promise<SidakBehaviorSession[]>;
+  createSidakBehaviorSession(session: InsertSidakBehaviorSession): Promise<SidakBehaviorSession>;
+  updateSidakBehaviorSession(id: string, updates: Partial<InsertSidakBehaviorSession>): Promise<SidakBehaviorSession | undefined>;
+  getSidakBehaviorRecords(sessionId: string): Promise<SidakBehaviorRecord[]>;
+  createSidakBehaviorRecord(record: InsertSidakBehaviorRecord & { sessionId: string }): Promise<SidakBehaviorRecord>;
+  getSidakBehaviorObservers(sessionId: string): Promise<SidakBehaviorObserver[]>;
+  createSidakBehaviorObserver(observer: InsertSidakBehaviorObserver & { sessionId: string }): Promise<SidakBehaviorObserver>;
+  updateSidakBehaviorSessionSampleCount(sessionId: string): Promise<void>;
 
   // Sidak Roster methods
   getSidakRosterSession(id: string): Promise<SidakRosterSession | undefined>;
@@ -1423,9 +1444,22 @@ export class MemStorage implements IStorage {
   async getSidakFatigueObservers(sessionId: string): Promise<SidakFatigueObserver[]> {
     throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
   }
+  async updateSidakFatigueSessionSampleCount(sessionId: string): Promise<void> {
+    throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
+  }
   async createSidakFatigueObserver(observer: InsertSidakFatigueObserver): Promise<SidakFatigueObserver> {
     throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
   }
+
+  async getSidakBehaviorSession(id: string): Promise<SidakBehaviorSession | undefined> { throw new Error("Not implemented in MemStorage"); }
+  async getAllSidakBehaviorSessions(): Promise<SidakBehaviorSession[]> { throw new Error("Not implemented in MemStorage"); }
+  async createSidakBehaviorSession(session: InsertSidakBehaviorSession): Promise<SidakBehaviorSession> { throw new Error("Not implemented in MemStorage"); }
+  async updateSidakBehaviorSession(id: string, updates: Partial<InsertSidakBehaviorSession>): Promise<SidakBehaviorSession | undefined> { throw new Error("Not implemented in MemStorage"); }
+  async getSidakBehaviorRecords(sessionId: string): Promise<SidakBehaviorRecord[]> { throw new Error("Not implemented in MemStorage"); }
+  async createSidakBehaviorRecord(record: InsertSidakBehaviorRecord & { sessionId: string }): Promise<SidakBehaviorRecord> { throw new Error("Not implemented in MemStorage"); }
+  async getSidakBehaviorObservers(sessionId: string): Promise<SidakBehaviorObserver[]> { throw new Error("Not implemented in MemStorage"); }
+  async createSidakBehaviorObserver(observer: InsertSidakBehaviorObserver & { sessionId: string }): Promise<SidakBehaviorObserver> { throw new Error("Not implemented in MemStorage"); }
+  async updateSidakBehaviorSessionSampleCount(sessionId: string): Promise<void> { throw new Error("Not implemented in MemStorage"); }
 
   // Sidak Roster methods - Not implemented in MemStorage (use DrizzleStorage)
   async getSidakRosterSession(id: string): Promise<SidakRosterSession | undefined> {
@@ -2755,12 +2789,29 @@ export class DrizzleStorage implements IStorage {
     throw new Error(`Gagal menambahkan karyawan setelah ${MAX_RETRIES} percobaan: ${lastError?.message || 'Unknown error'}`);
   }
 
+  async updateSidakFatigueRecord(id: string, recordData: Partial<InsertSidakFatigueRecord>): Promise<SidakFatigueRecord | undefined> {
+    const [result] = await this.db
+      .update(sidakFatigueRecords)
+      .set(recordData)
+      .where(eq(sidakFatigueRecords.id, id))
+      .returning();
+    return result;
+  }
+
   async getSidakFatigueObservers(sessionId: string): Promise<SidakFatigueObserver[]> {
     return await this.db
       .select()
       .from(sidakFatigueObservers)
       .where(eq(sidakFatigueObservers.sessionId, sessionId))
       .orderBy(sql`created_at ASC`);
+  }
+
+  async updateSidakFatigueSessionSampleCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakFatigueRecords(sessionId);
+    await this.db
+      .update(sidakFatigueSessions)
+      .set({ totalSampel: records.length })
+      .where(eq(sidakFatigueSessions.id, sessionId));
   }
 
   async createSidakFatigueObserver(observerData: InsertSidakFatigueObserver): Promise<SidakFatigueObserver> {
@@ -9135,6 +9186,64 @@ export class DrizzleStorage implements IStorage {
       .where(eq(sidakP3kSessions.id, id))
       .returning();
     return result;
+  }
+
+  // Sidak Behavior methods
+  async getSidakBehaviorSession(id: string): Promise<SidakBehaviorSession | undefined> {
+    const [result] = await this.db.select().from(sidakBehaviorSessions).where(eq(sidakBehaviorSessions.id, id));
+    return result;
+  }
+
+  async getAllSidakBehaviorSessions(): Promise<SidakBehaviorSession[]> {
+    return await this.db.select().from(sidakBehaviorSessions).orderBy(sql`${sidakBehaviorSessions.createdAt} DESC`);
+  }
+
+  async createSidakBehaviorSession(session: InsertSidakBehaviorSession): Promise<SidakBehaviorSession> {
+    const [result] = await this.db.insert(sidakBehaviorSessions).values(session).returning();
+    return result;
+  }
+
+  async updateSidakBehaviorSession(id: string, updates: Partial<InsertSidakBehaviorSession>): Promise<SidakBehaviorSession | undefined> {
+    const [result] = await this.db.update(sidakBehaviorSessions).set(updates).where(eq(sidakBehaviorSessions.id, id)).returning();
+    return result;
+  }
+
+  async getSidakBehaviorRecords(sessionId: string): Promise<SidakBehaviorRecord[]> {
+    return await this.db.select().from(sidakBehaviorRecords).where(eq(sidakBehaviorRecords.sessionId, sessionId)).orderBy(sql`${sidakBehaviorRecords.ordinal} ASC`);
+  }
+
+  async createSidakBehaviorRecord(record: InsertSidakBehaviorRecord & { sessionId: string }): Promise<SidakBehaviorRecord> {
+    // Determine next ordinal
+    const maxOrdinalResult = await this.db
+      .select({ max: sql<number>`COALESCE(MAX(ordinal), 0)` })
+      .from(sidakBehaviorRecords)
+      .where(eq(sidakBehaviorRecords.sessionId, record.sessionId));
+
+    const nextOrdinal = (maxOrdinalResult[0]?.max || 0) + 1;
+
+    const [result] = await this.db.insert(sidakBehaviorRecords).values({ ...record, ordinal: nextOrdinal }).returning();
+
+    // Auto sync sample count
+    await this.updateSidakBehaviorSessionSampleCount(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakBehaviorObservers(sessionId: string): Promise<SidakBehaviorObserver[]> {
+    return await this.db.select().from(sidakBehaviorObservers).where(eq(sidakBehaviorObservers.sessionId, sessionId)).orderBy(sql`${sidakBehaviorObservers.createdAt} ASC`);
+  }
+
+  async createSidakBehaviorObserver(observer: InsertSidakBehaviorObserver & { sessionId: string }): Promise<SidakBehaviorObserver> {
+    const [result] = await this.db.insert(sidakBehaviorObservers).values(observer).returning();
+    return result;
+  }
+
+  async updateSidakBehaviorSessionSampleCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakBehaviorRecords(sessionId);
+    await this.db
+      .update(sidakBehaviorSessions)
+      .set({ totalSampel: records.length })
+      .where(eq(sidakBehaviorSessions.id, sessionId));
   }
 }
 
