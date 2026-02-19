@@ -1398,6 +1398,7 @@ export class MemStorage implements IStorage {
       deviceInfo: insertAttendance.deviceInfo ?? null,
       attendanceType: insertAttendance.attendanceType || "qr_scan",
       manualName: insertAttendance.manualName ?? null,
+      manualNik: insertAttendance.manualNik ?? null,
       manualPosition: insertAttendance.manualPosition ?? null,
       manualDepartment: insertAttendance.manualDepartment ?? null,
       createdAt: new Date()

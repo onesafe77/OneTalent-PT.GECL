@@ -24,6 +24,7 @@ import type { Employee } from "@shared/schema";
 
 interface EmployeeRecord {
   employeeId?: string;
+  backendRecordId?: string; // ID from DB after save, used for PATCH updates
   nama: string;
   nik: string;
   jabatan: string;
@@ -195,7 +196,7 @@ export default function SidakFatigueForm() {
   };
 
   // Override handlePVTComplete to handle re-test context
-  const handlePVTComplete = (result: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }) => {
+  const handlePVTComplete = async (result: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }) => {
     const isRetest = !!interventionEmployeeId;
 
     if (result.status === 'green' || result.status === 'yellow') {
@@ -208,34 +209,84 @@ export default function SidakFatigueForm() {
       };
 
       if (isRetest) {
-        // Update existing employee in list using mutation logic (or direct cache update if offline)
-        // Here we just update currentEmployee state, but we need to actually UPDATE the list.
-        // Since we don't have an "Update" mutation, we might need to remove and re-add or handle it in state.
+        // Find the employee being retested and their backend record ID
+        const employeeToUpdate = employees.find(e => e.nik === interventionEmployeeId);
+        const backendId = employeeToUpdate?.backendRecordId;
 
-        // For simplicity in this flow: 
-        // 1. We remove the old "Unfit" record from local state
-        // 2. We set currentEmployee to the "Fixed" version
-        // 3. User clicks "Simpan" again to save the "Fit" version
+        // Auto-PATCH the existing DB record with intervention data + updated fit status
+        if (backendId) {
+          try {
+            const patchData = {
+              ...updatedData,
+              buktiIntervensi: currentEmployee.buktiIntervensi,
+              catatanIntervensi: currentEmployee.catatanIntervensi,
+              pvtMeanRT: result.meanRT,
+            };
+            console.log('[RETEST] Auto-patching record:', backendId, patchData);
+            await apiRequest(`/api/sidak-fatigue/records/${backendId}`, "PATCH", patchData);
 
-        setEmployees(prev => prev.filter(e => e.nik !== interventionEmployeeId));
+            // Update local employees state in-place (no remove + re-add)
+            setEmployees(prev => prev.map(e =>
+              e.nik === interventionEmployeeId
+                ? { ...e, ...updatedData, buktiIntervensi: currentEmployee.buktiIntervensi, catatanIntervensi: currentEmployee.catatanIntervensi, pvtMeanRT: result.meanRT }
+                : e
+            ));
 
-        setCurrentEmployee(prev => ({
-          ...prev,
-          ...updatedData
-        }));
+            toast({
+              title: "Tes Ulang Lulus ✅",
+              description: "Karyawan dinyatakan FIT. Data intervensi tersimpan otomatis.",
+              className: "bg-green-50 border-green-200 text-green-800"
+            });
+          } catch (error) {
+            console.error('[RETEST] Failed to auto-patch record:', error);
+            toast({
+              title: "Gagal Menyimpan",
+              description: "Gagal menyimpan data intervensi. Silakan coba lagi.",
+              variant: "destructive"
+            });
+          }
+        } else {
+          // Fallback: no backend ID, just update local state
+          console.warn('[RETEST] No backendRecordId found, updating local state only');
+          setEmployees(prev => prev.map(e =>
+            e.nik === interventionEmployeeId
+              ? { ...e, ...updatedData, buktiIntervensi: currentEmployee.buktiIntervensi, catatanIntervensi: currentEmployee.catatanIntervensi, pvtMeanRT: result.meanRT }
+              : e
+          ));
 
+          toast({
+            title: "Tes Ulang Lulus",
+            description: "Karyawan dinyatakan FIT. Data disimpan secara lokal.",
+            className: "bg-green-50 border-green-200 text-green-800"
+          });
+        }
+
+        // Reset intervention state and currentEmployee form for next employee
         setInterventionEmployeeId(null);
-
-        toast({
-          title: "Tes Ulang Lulus",
-          description: "Karyawan dinyatakan FIT. Silakan simpan data.",
-          className: "bg-green-50 border-green-200 text-green-800"
+        setCurrentEmployee({
+          nama: "",
+          nik: "",
+          jabatan: "",
+          nomorLambung: "",
+          jamTidur: 0,
+          konsumiObat: null,
+          masalahPribadi: null,
+          pemeriksaanRespon: null,
+          pemeriksaanKonsentrasi: null,
+          pemeriksaanKesehatan: null,
+          karyawanSiapBekerja: null,
+          fitUntukBekerja: null,
+          istirahatDanMonitor: null,
+          istirahatLebihdariSatuJam: null,
+          tidakBolehBekerja: null,
         });
+        setIsLoadedFromQr(false);
       } else {
-        // Normal flow
+        // Normal flow (first-time PVT, not a retest)
         setCurrentEmployee(prev => ({
           ...prev,
-          ...updatedData
+          ...updatedData,
+          pvtMeanRT: result.meanRT
         }));
 
         if (result.status === 'yellow') {
@@ -252,13 +303,6 @@ export default function SidakFatigueForm() {
           });
         }
       }
-
-      // Always save the mean RT for both normal and re-test green/yellow
-      setCurrentEmployee(prev => ({
-        ...prev,
-        ...updatedData,
-        pvtMeanRT: result.meanRT
-      }));
     } else {
       // Red status
       const updatedData = {
@@ -418,9 +462,11 @@ export default function SidakFatigueForm() {
       const response = await apiRequest(`/api/sidak-fatigue/${sessionId}/records`, "POST", employeeData);
       return response;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      // Store backend record ID so we can PATCH it later during retest
+      const savedEmployee = { ...currentEmployee, backendRecordId: data?.id };
       setEmployees(prev => {
-        const updatedEmployees = [...prev, currentEmployee];
+        const updatedEmployees = [...prev, savedEmployee];
         toast({
           title: "Karyawan ditambahkan",
           description: `Karyawan ${updatedEmployees.length}/10 berhasil disimpan`,

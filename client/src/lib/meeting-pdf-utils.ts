@@ -17,6 +17,7 @@ interface MeetingAttendance {
   deviceInfo?: string | null;
   attendanceType: string;
   manualName?: string | null;
+  manualNik?: string | null;
   manualPosition?: string | null;
   manualDepartment?: string | null;
   employee?: Employee;
@@ -47,7 +48,7 @@ async function imageUrlToBase64(url: string): Promise<{ data: string; format: 'J
     const response = await fetch(url);
     const blob = await response.blob();
     const mimeType = blob.type;
-    
+
     // Detect format from MIME type
     let format: 'JPEG' | 'PNG' = 'JPEG';
     if (mimeType === 'image/png') {
@@ -55,12 +56,12 @@ async function imageUrlToBase64(url: string): Promise<{ data: string; format: 'J
     } else if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
       format = 'JPEG';
     }
-    
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve({ 
-        data: reader.result as string, 
-        format 
+      reader.onloadend = () => resolve({
+        data: reader.result as string,
+        format
       });
       reader.onerror = reject;
       reader.readAsDataURL(blob);
@@ -76,105 +77,105 @@ async function addMeetingPhotosPages(pdf: jsPDF, photoUrls: string[]): Promise<v
   // Split photos into groups of 2 (2 photos per page)
   const photosPerPage = 2;
   const photoGroups: string[][] = [];
-  
+
   for (let i = 0; i < photoUrls.length; i += photosPerPage) {
     photoGroups.push(photoUrls.slice(i, i + photosPerPage));
   }
-  
+
   // Get base page number before adding photo pages
   const basePage = pdf.getNumberOfPages();
-  
+
   // Process each group on a separate page
   for (let groupIndex = 0; groupIndex < photoGroups.length; groupIndex++) {
     const group = photoGroups[groupIndex];
-    
+
     // Add new page in landscape orientation
     pdf.addPage('landscape');
-    
+
     const pageWidth = pdf.internal.pageSize.width;
     const pageHeight = pdf.internal.pageSize.height;
     const margin = 15; // Margin minimal untuk maksimalkan foto
-    
+
     // ==================== HEADER SECTION ====================
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(18);
     pdf.setTextColor(220, 38, 38); // Red color
     pdf.text('Foto Meeting', pageWidth / 2, margin + 8, { align: 'center' });
-    
+
     // Underline dengan garis merah
     pdf.setLineWidth(2);
     pdf.setDrawColor(220, 38, 38);
     pdf.line(margin + 50, margin + 12, pageWidth - margin - 50, margin + 12);
-    
+
     const yStart = margin + 28; // Start position untuk foto (lebih rapat ke header)
-    
+
     // ==================== LAYOUT 2 FOTO VERTIKAL (ATAS-BAWAH) ====================
     // Calculate dimensions untuk 2 foto vertikal dalam A4 landscape
     const spaceBetween = 8; // Jarak tipis antar foto (atas-bawah)
     const availableWidth = pageWidth - (2 * margin);
     const availableHeight = pageHeight - yStart - margin;
-    
+
     // Lebar penuh untuk setiap foto
     const maxPhotoWidth = availableWidth;
-    
+
     // Calculate slot height untuk setiap foto
     const slotHeight = (availableHeight - spaceBetween) / 2;
-    
+
     // Process each photo in the group (max 2)
     for (let index = 0; index < group.length; index++) {
       const photoUrl = group[index];
-      
+
       try {
         // Load and convert image to base64 with format detection
         const { data: base64Image, format } = await imageUrlToBase64(photoUrl);
-        
+
         // Get image properties
         const imageProps = pdf.getImageProperties(base64Image);
         const aspectRatio = imageProps.width / imageProps.height;
-        
+
         // Calculate optimal dimensions dengan aspect ratio terjaga
         // Start dengan lebar penuh
         let finalWidth = maxPhotoWidth;
         let finalHeight = finalWidth / aspectRatio;
-        
+
         // Jika tinggi melebihi slot height, scale down berdasarkan tinggi
         if (finalHeight > slotHeight) {
           finalHeight = slotHeight;
           finalWidth = finalHeight * aspectRatio;
         }
-        
+
         // Calculate slot top position untuk foto ini
         const slotTop = yStart + (index * (slotHeight + spaceBetween));
-        
+
         // Center foto secara vertikal dalam slot
         const photoY = slotTop + (slotHeight - finalHeight) / 2;
-        
+
         // Center foto secara horizontal
         const photoX = margin + (maxPhotoWidth - finalWidth) / 2;
-        
+
         // Add image to PDF with detected format (JPEG or PNG)
         pdf.addImage(base64Image, format, photoX, photoY, finalWidth, finalHeight);
-        
+
         // Add border around image untuk tampilan professional
         pdf.setDrawColor(200, 200, 200);
         pdf.setLineWidth(0.8);
         pdf.rect(photoX, photoY, finalWidth, finalHeight);
-        
+
       } catch (error) {
         console.error('Error adding image to PDF:', error);
-        
+
         // Add placeholder jika foto gagal dimuat
         const slotTop = yStart + (index * (slotHeight + spaceBetween));
         pdf.setFillColor(240, 240, 240);
         pdf.rect(margin, slotTop, maxPhotoWidth, slotHeight, 'F');
-        
+
         pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(12);
         pdf.setTextColor(128, 128, 128);
         pdf.text('Gambar tidak dapat dimuat', pageWidth / 2, slotTop + slotHeight / 2, { align: 'center' });
       }
     }
-    
+
     // Add page footer
     const footerY = pageHeight - 20;
     pdf.setFont('helvetica', 'normal');
@@ -207,13 +208,13 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     // Clean background with subtle shadow effect
     pdf.setFillColor(250, 250, 250);
     pdf.rect(0, 0, pageWidth, 50, 'F');
-    
+
     // Company branding area - subtle
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(120, 120, 120);
     pdf.text('PT. GECL - Sistem Manajemen Meeting', margin, 12);
-    
+
     // Print timestamp - top right, modern styling
     pdf.setFontSize(9);
     pdf.setTextColor(100, 100, 100);
@@ -229,7 +230,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setLineWidth(2);
     pdf.setDrawColor(220, 38, 38); // Modern red
     pdf.line(margin + 30, 37, pageWidth - margin - 30, 37);
-    
+
     // Subtle accent line
     pdf.setLineWidth(0.5);
     pdf.setDrawColor(156, 163, 175); // Cool gray
@@ -240,21 +241,21 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     const cardHeight = 65;
     const cardMargin = margin + 5;
     const cardWidth = pageWidth - 2 * cardMargin;
-    
+
     // Modern card with shadow effect
     pdf.setFillColor(248, 249, 250);
     pdf.rect(cardMargin, yPosition, cardWidth, cardHeight, 'F');
-    
+
     // Subtle border with modern styling
     pdf.setLineWidth(0.8);
     pdf.setDrawColor(229, 231, 235);
     pdf.rect(cardMargin, yPosition, cardWidth, cardHeight, 'S');
-    
+
     // Left accent line - modern red
     pdf.setLineWidth(4);
     pdf.setDrawColor(220, 38, 38);
     pdf.line(cardMargin, yPosition, cardMargin, yPosition + cardHeight);
-    
+
     // Modern header section
     pdf.setFillColor(220, 38, 38);
     pdf.rect(cardMargin + 1, yPosition + 1, cardWidth - 2, 18, 'F');
@@ -262,20 +263,20 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(255, 255, 255);
     pdf.text('INFORMASI MEETING', cardMargin + 10, yPosition + 12);
-    
+
     // Content area with proper spacing
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(9);
     pdf.setTextColor(55, 65, 81);
     yPosition += 25;
     const lineHeight = 8;
-    
+
     const meetingDate = new Date(data.meeting.date);
-    
+
     // Compact 2-column layout
     const leftColX = cardMargin + 10;
     const rightColX = cardMargin + cardWidth / 2 + 5;
-    
+
     // Left column - compact styling
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
@@ -285,7 +286,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFontSize(9);
     pdf.setTextColor(31, 41, 55);
     pdf.text(data.meeting.title.length > 30 ? data.meeting.title.substring(0, 27) + '...' : data.meeting.title, leftColX, yPosition + 5);
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
@@ -294,7 +295,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFontSize(9);
     pdf.setTextColor(31, 41, 55);
     pdf.text(meetingDate.toLocaleDateString('id-ID'), leftColX, yPosition + lineHeight * 2 + 5);
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
@@ -303,7 +304,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFontSize(9);
     pdf.setTextColor(31, 41, 55);
     pdf.text(`${data.meeting.startTime} - ${data.meeting.endTime}`, leftColX, yPosition + lineHeight * 4 + 5);
-    
+
     // Right column
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
@@ -313,7 +314,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFontSize(9);
     pdf.setTextColor(31, 41, 55);
     pdf.text(data.meeting.location, rightColX, yPosition + 5);
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
@@ -322,7 +323,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFontSize(9);
     pdf.setTextColor(31, 41, 55);
     pdf.text(data.meeting.organizer, rightColX, yPosition + lineHeight * 2 + 5);
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
@@ -338,17 +339,17 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     // Simple section header
     pdf.setFillColor(249, 250, 251);
     pdf.rect(margin, yPosition - 5, pageWidth - 2 * margin, 18, 'F');
-    
+
     // Left accent line
     pdf.setLineWidth(3);
     pdf.setDrawColor(220, 38, 38);
     pdf.line(margin, yPosition - 5, margin, yPosition + 13);
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(14);
     pdf.setTextColor(220, 38, 38);
     pdf.text('DAFTAR KEHADIRAN', margin + 8, yPosition + 6);
-    
+
     // Compact participant count badge
     pdf.setFillColor(220, 38, 38);
     pdf.roundedRect(pageWidth - margin - 55, yPosition - 2, 45, 10, 2, 2, 'F');
@@ -356,16 +357,16 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     pdf.setFontSize(8);
     pdf.setTextColor(255, 255, 255);
     pdf.text(`${data.totalAttendees} Peserta`, pageWidth - margin - 52, yPosition + 3);
-    
+
     yPosition += 20;
 
     if (data.attendance && data.attendance.length > 0) {
       console.log(`📊 PDF: Processing ${data.attendance.length} attendance records for table`);
-      
+
       const tableData = data.attendance.map((attendance, index) => {
         const row = [
           (index + 1).toString(), // Simple number format
-          attendance.attendanceType === 'manual_entry' ? '-' : (attendance.employee?.id || '-'),
+          attendance.attendanceType === 'manual_entry' ? (attendance.manualNik || '-') : (attendance.employee?.id || '-'),
           attendance.attendanceType === 'manual_entry' ? (attendance.manualName || '-') : (attendance.employee?.name || 'Unknown'),
           attendance.attendanceType === 'manual_entry' ? (attendance.manualPosition || '-') : (attendance.employee?.position || '-'),
           attendance.attendanceType === 'manual_entry' ? (attendance.manualDepartment || '-') : (attendance.employee?.department || '-'),
@@ -431,7 +432,7 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
       pdf.setLineWidth(1);
       pdf.setDrawColor(229, 231, 235);
       pdf.rect(margin, yPosition, pageWidth - 2 * margin, 30, 'S');
-      
+
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(11);
       pdf.setTextColor(107, 114, 128);
@@ -440,45 +441,45 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
 
     // ==================== MODERN FOOTER SECTION ====================
     const footerY = pageHeight - 40;
-    
+
     // Clean footer background
     pdf.setFillColor(249, 250, 251);
     pdf.rect(0, footerY - 10, pageWidth, 50, 'F');
-    
+
     // Elegant separator line
     pdf.setLineWidth(1);
     pdf.setDrawColor(220, 38, 38);
     pdf.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-    
+
     // Modern footer text - left aligned
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
     pdf.text('Laporan dibuat oleh Sistem Manajemen Meeting PT.GECL', margin, footerY + 5);
-    
+
     // Print timestamp - right aligned as requested
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
     pdf.text(`Dicetak pada: ${currentDateTime.toLocaleDateString('id-ID')} ${currentDateTime.toLocaleTimeString('id-ID')}`, pageWidth - margin, footerY + 5, { align: 'right' });
-    
+
     // Modern signature area - simplified and elegant
     const signatureX = pageWidth - 100;
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(9);
     pdf.setTextColor(55, 65, 81);
     pdf.text('Mengetahui,', signatureX, footerY + 15);
-    
+
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
     pdf.setTextColor(107, 114, 128);
     pdf.text('Penyelenggara Meeting', signatureX, footerY + 22);
-    
+
     // Clean signature line
     pdf.setLineWidth(0.8);
     pdf.setDrawColor(156, 163, 175);
     pdf.line(signatureX, footerY + 30, signatureX + 70, footerY + 30);
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(8);
     pdf.setTextColor(55, 65, 81);
@@ -545,7 +546,7 @@ export function generateMeetingQRCodePDF(meeting: Meeting, qrDataURL: string): v
 
   pdf.setFontSize(12);
   pdf.setFont('helvetica', 'normal');
-  
+
   let yPos = 80;
   pdf.text(`Tanggal: ${new Date(meeting.date).toLocaleDateString('id-ID')}`, pageWidth / 2, yPos, { align: 'center' });
   yPos += 10;
@@ -559,7 +560,7 @@ export function generateMeetingQRCodePDF(meeting: Meeting, qrDataURL: string): v
     const qrSize = 120;
     const qrX = (pageWidth - qrSize) / 2;
     const qrY = yPos;
-    
+
     pdf.addImage(qrDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
     yPos += qrSize + 20;
   }
@@ -572,7 +573,7 @@ export function generateMeetingQRCodePDF(meeting: Meeting, qrDataURL: string): v
 
   pdf.setFontSize(10);
   pdf.setFont('helvetica', 'normal');
-  
+
   const instructions = [
     '1. Buka halaman "Scan QR Meeting" di aplikasi atau browser mobile',
     '2. Masukkan NIK karyawan pada form yang tersedia',

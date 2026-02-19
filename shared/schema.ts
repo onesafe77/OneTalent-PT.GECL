@@ -319,6 +319,7 @@ export const meetingAttendance = pgTable("meeting_attendance", {
 
   // Manual entry fields for investor group
   manualName: varchar("manual_name"), // Nama karyawan for manual entry
+  manualNik: varchar("manual_nik"), // NIK for manual entry (optional)
   manualPosition: varchar("manual_position"), // "Investor" | "Korlap"
   manualDepartment: varchar("manual_department"), // Selected from investorGroup
 
@@ -351,6 +352,7 @@ export const insertMeetingAttendanceSchema = createInsertSchema(meetingAttendanc
 export const insertManualAttendanceSchema = insertMeetingAttendanceSchema.extend({
   attendanceType: z.literal("manual_entry"),
   manualName: z.string().min(1, "Nama karyawan required"),
+  manualNik: z.string().optional(), // NIK optional for manual entry
   manualPosition: z.enum(["Investor", "Korlap"], { required_error: "Position required" }),
   manualDepartment: z.string().min(1, "Department required"),
 }).omit({

@@ -7742,7 +7742,8 @@ Format sebagai bullet points singkat per insight.`;
         "konsumiObat", "masalahPribadi", "pemeriksaanRespon",
         "pemeriksaanKonsentrasi", "pemeriksaanKesehatan",
         "karyawanSiapBekerja", "fitUntukBekerja", "istirahatDanMonitor",
-        "istirahatLebihdariSatuJam", "tidakBolehBekerja"
+        "istirahatLebihdariSatuJam", "tidakBolehBekerja",
+        "pvtMeanRT"
       ];
 
       const updateData: any = {};

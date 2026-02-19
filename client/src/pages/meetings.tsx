@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Download, FileText, Camera, X, Upload } from "lucide-react";
+import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Download, FileText, Camera, X, Upload, Pencil } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Meeting, InsertMeeting, MeetingAttendance } from "@shared/schema";
 import QRCode from "qrcode";
@@ -40,7 +40,7 @@ function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
         try {
           // Generate QR code with direct meeting-scanner URL for instant access
           const qrUrl = `${window.location.origin}/meeting-scanner?token=${meeting.qrToken}`;
-          
+
           const dataURL = await QRCode.toDataURL(qrUrl, {
             width: 300,
             margin: 2,
@@ -60,7 +60,7 @@ function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
 
   const downloadQR = async () => {
     if (!qrDataURL) return;
-    
+
     try {
       const link = document.createElement('a');
       link.href = qrDataURL;
@@ -68,7 +68,7 @@ function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast({
         title: "QR Code Downloaded",
         description: `QR code untuk meeting "${meeting.title}" berhasil didownload`,
@@ -102,15 +102,15 @@ function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
     <div className="text-center py-6">
       {qrDataURL && (
         <div className="mx-auto mb-4 inline-block p-4 bg-white rounded-lg shadow-sm">
-          <img 
-            src={qrDataURL} 
+          <img
+            src={qrDataURL}
             alt={`QR Code for ${meeting.title}`}
             className="mx-auto"
             style={{ width: 300, height: 300 }}
           />
         </div>
       )}
-      
+
       <div className="space-y-4">
         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
           <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
@@ -141,7 +141,7 @@ function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
         </div>
 
         <div className="flex gap-2 justify-center">
-          <Button 
+          <Button
             onClick={downloadQR}
             className="bg-red-600 hover:bg-red-700"
             data-testid="button-download-qr-dialog"
@@ -149,8 +149,8 @@ function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
             <Download className="w-4 h-4 mr-2" />
             Download QR Code
           </Button>
-          
-          <Button 
+
+          <Button
             onClick={copyMeetingScanURL}
             variant="outline"
             data-testid="button-copy-scan-url"
@@ -170,6 +170,10 @@ export default function Meetings() {
   const [isAttendanceOpen, setIsAttendanceOpen] = useState(false);
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState<InsertMeeting>({
+    title: "", description: "", date: "", startTime: "", endTime: "", location: "", organizer: "", status: "scheduled"
+  });
   const [uploadedPhotos, setUploadedPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const { toast } = useToast();
@@ -247,17 +251,17 @@ export default function Meetings() {
       photos.forEach((photo) => {
         formData.append('photos', photo);
       });
-      
+
       const response = await fetch(`/api/meetings/${meetingId}/upload-photos`, {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Upload failed');
       }
-      
+
       return response.json();
     },
     onSuccess: (data) => {
@@ -299,12 +303,55 @@ export default function Meetings() {
     }
   };
 
+  // Edit meeting mutation
+  const updateMeetingMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: InsertMeeting }) => {
+      return await apiRequest(`/api/meetings/${id}`, "PUT", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      setIsEditOpen(false);
+      toast({
+        title: "Meeting Diperbarui",
+        description: "Data meeting berhasil diperbarui",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Gagal memperbarui meeting",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const openEditDialog = (meeting: Meeting) => {
+    setSelectedMeeting(meeting);
+    setEditFormData({
+      title: meeting.title,
+      description: meeting.description || "",
+      date: meeting.date,
+      startTime: meeting.startTime,
+      endTime: meeting.endTime,
+      location: meeting.location,
+      organizer: meeting.organizer,
+      status: meeting.status,
+    });
+    setIsEditOpen(true);
+  };
+
+  const handleEditMeeting = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMeeting) return;
+    updateMeetingMutation.mutate({ id: selectedMeeting.id, data: editFormData });
+  };
+
   const handlePhotoSelect = (files: FileList | null) => {
     if (!files || !selectedMeeting) return;
-    
+
     const existingPhotosCount = selectedMeeting.meetingPhotos?.length || 0;
     const remainingSlots = 4 - existingPhotosCount;
-    
+
     if (remainingSlots <= 0) {
       toast({
         title: "Maksimal Foto Tercapai",
@@ -313,13 +360,13 @@ export default function Meetings() {
       });
       return;
     }
-    
+
     const newPhotos: File[] = [];
     const newPreviewUrls: string[] = [];
-    
+
     for (let i = 0; i < Math.min(files.length, remainingSlots); i++) {
       const file = files[i];
-      
+
       if (!file.type.startsWith('image/')) {
         toast({
           title: "File Tidak Valid",
@@ -328,7 +375,7 @@ export default function Meetings() {
         });
         continue;
       }
-      
+
       if (file.size > 5 * 1024 * 1024) {
         toast({
           title: "File Terlalu Besar",
@@ -337,11 +384,11 @@ export default function Meetings() {
         });
         continue;
       }
-      
+
       newPhotos.push(file);
       newPreviewUrls.push(URL.createObjectURL(file));
     }
-    
+
     setUploadedPhotos(prev => [...prev, ...newPhotos]);
     setPhotoPreviewUrls(prev => [...prev, ...newPreviewUrls]);
   };
@@ -357,7 +404,7 @@ export default function Meetings() {
 
   const handlePhotoUpload = () => {
     if (!selectedMeeting || uploadedPhotos.length === 0) return;
-    
+
     uploadPhotosMutation.mutate({
       meetingId: selectedMeeting.id,
       photos: uploadedPhotos,
@@ -375,7 +422,7 @@ export default function Meetings() {
     try {
       // Generate QR code with direct meeting-scanner URL for instant access
       const qrUrl = `${window.location.origin}/meeting-scanner?token=${qrToken}`;
-      
+
       return await QRCode.toDataURL(qrUrl, {
         width: 300,
         margin: 2,
@@ -392,10 +439,10 @@ export default function Meetings() {
 
   const downloadQRCode = async (meeting: Meeting) => {
     if (!meeting.qrToken) return;
-    
+
     try {
       const qrDataURL = await generateQRCodeDataURL(meeting.qrToken);
-      
+
       // Create download link
       const link = document.createElement('a');
       link.href = qrDataURL;
@@ -403,7 +450,7 @@ export default function Meetings() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       toast({
         title: "QR Code Downloaded",
         description: `QR code untuk meeting "${meeting.title}" berhasil didownload`,
@@ -419,7 +466,7 @@ export default function Meetings() {
 
   const downloadAttendanceReport = async () => {
     console.log('📄 Download PDF requested', { selectedMeeting, attendanceData });
-    
+
     if (!selectedMeeting) {
       toast({
         title: "Error",
@@ -428,20 +475,20 @@ export default function Meetings() {
       });
       return;
     }
-    
+
     if (!attendanceData) {
       toast({
-        title: "Error", 
+        title: "Error",
         description: "Data attendance tidak tersedia",
         variant: "destructive",
       });
       return;
     }
-    
+
     try {
       console.log(`📊 Total attendance from API: ${attendanceData.attendance.length}`);
       console.log(`📊 Total attendees count: ${attendanceData.totalAttendees}`);
-      
+
       // Prepare and validate data for PDF generation
       const pdfData = {
         meeting: {
@@ -459,11 +506,11 @@ export default function Meetings() {
         attendance: attendanceData.attendance || [],
         totalAttendees: attendanceData.totalAttendees || 0
       };
-      
+
       console.log(`✅ Passing ${pdfData.attendance.length} attendance records to PDF generator`);
       console.log('📋 Attendance data:', pdfData.attendance);
       await generateMeetingAttendancePDF(pdfData);
-      
+
       toast({
         title: "PDF Berhasil Didownload",
         description: `Laporan meeting "${selectedMeeting.title}" telah didownload`,
@@ -486,7 +533,7 @@ export default function Meetings() {
       completed: { label: "Selesai", variant: "outline" as const },
       cancelled: { label: "Dibatalkan", variant: "destructive" as const },
     };
-    
+
     const statusInfo = statusMap[status as keyof typeof statusMap] || statusMap.scheduled;
     return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
   };
@@ -513,7 +560,7 @@ export default function Meetings() {
             Kelola meeting dan absensi peserta dengan QR code
           </p>
         </div>
-        
+
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button data-testid="button-create-meeting" className="bg-red-600 hover:bg-red-700">
@@ -528,7 +575,7 @@ export default function Meetings() {
                 Buat meeting baru dengan QR code untuk absensi peserta
               </DialogDescription>
             </DialogHeader>
-            
+
             <form onSubmit={handleCreateMeeting} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -542,7 +589,7 @@ export default function Meetings() {
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="organizer">Penyelenggara *</Label>
                   <Input
@@ -555,7 +602,7 @@ export default function Meetings() {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="description">Deskripsi</Label>
                 <Textarea
@@ -566,7 +613,7 @@ export default function Meetings() {
                   placeholder="Deskripsi meeting (opsional)"
                 />
               </div>
-              
+
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="date">Tanggal *</Label>
@@ -579,7 +626,7 @@ export default function Meetings() {
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="startTime">Waktu Mulai *</Label>
                   <Input
@@ -591,7 +638,7 @@ export default function Meetings() {
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="endTime">Waktu Selesai *</Label>
                   <Input
@@ -604,7 +651,7 @@ export default function Meetings() {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="location">Lokasi *</Label>
                 <Input
@@ -616,18 +663,18 @@ export default function Meetings() {
                   required
                 />
               </div>
-              
+
               <div className="flex gap-2 pt-4">
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={createMeetingMutation.isPending}
                   data-testid="button-submit-meeting"
                   className="bg-red-600 hover:bg-red-700"
                 >
                   {createMeetingMutation.isPending ? "Membuat..." : "Buat Meeting"}
                 </Button>
-                <Button 
-                  type="button" 
+                <Button
+                  type="button"
                   variant="outline"
                   onClick={() => setIsCreateOpen(false)}
                   data-testid="button-cancel-meeting"
@@ -660,7 +707,7 @@ export default function Meetings() {
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Buat meeting pertama untuk mulai menggunakan sistem absensi QR code
               </p>
-              <Button 
+              <Button
                 onClick={() => setIsCreateOpen(true)}
                 className="bg-red-600 hover:bg-red-700"
                 data-testid="button-create-first-meeting"
@@ -726,6 +773,16 @@ export default function Meetings() {
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => openEditDialog(meeting)}
+                          data-testid={`button-edit-meeting-${meeting.id}`}
+                          title="Edit Meeting"
+                        >
+                          <Pencil className="w-4 h-4 text-blue-600" />
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => {
                             setSelectedMeeting(meeting);
                             setIsQrOpen(true);
@@ -735,7 +792,7 @@ export default function Meetings() {
                         >
                           <QrCode className="w-4 h-4" />
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -745,7 +802,7 @@ export default function Meetings() {
                         >
                           <Download className="w-4 h-4" />
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -758,7 +815,7 @@ export default function Meetings() {
                         >
                           <Users className="w-4 h-4" />
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -768,7 +825,7 @@ export default function Meetings() {
                         >
                           <Camera className="w-4 h-4" />
                         </Button>
-                        
+
                         <Button
                           size="sm"
                           variant="outline"
@@ -797,7 +854,7 @@ export default function Meetings() {
               QR code untuk absensi meeting: {selectedMeeting?.title}
             </DialogDescription>
           </DialogHeader>
-          
+
           {selectedMeeting?.qrToken && (
             <QRCodeDisplay meeting={selectedMeeting} />
           )}
@@ -826,7 +883,7 @@ export default function Meetings() {
               Meeting: {selectedMeeting?.title} - {attendanceData?.totalAttendees || 0} peserta hadir
             </DialogDescription>
           </DialogHeader>
-          
+
           {attendanceData?.attendance?.length === 0 ? (
             <div className="text-center py-12">
               <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -902,7 +959,7 @@ export default function Meetings() {
               Upload foto dokumentasi untuk meeting: {selectedMeeting?.title} (Maksimal 4 foto)
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             {/* Existing Photos */}
             {selectedMeeting?.meetingPhotos && selectedMeeting.meetingPhotos.length > 0 && (
@@ -930,14 +987,14 @@ export default function Meetings() {
                 </div>
               </div>
             )}
-            
+
             {/* Upload New Photos */}
             <div>
               <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
                 <Upload className="w-4 h-4 mr-2" />
                 Upload Foto Baru ({(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length}/4)
               </Label>
-              
+
               <div className="space-y-3">
                 {/* File Input */}
                 <div>
@@ -953,11 +1010,10 @@ export default function Meetings() {
                   />
                   <label
                     htmlFor="meeting-photos-input"
-                    className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                      (selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4
-                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 dark:bg-gray-800 dark:border-gray-600'
-                        : 'border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                    }`}
+                    className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4
+                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 dark:bg-gray-800 dark:border-gray-600'
+                      : 'border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                      }`}
                     data-testid="label-upload-photos"
                   >
                     <Upload className="w-5 h-5 mr-2" />
@@ -967,7 +1023,7 @@ export default function Meetings() {
                     }
                   </label>
                 </div>
-                
+
                 {/* New Photos Preview Grid */}
                 {uploadedPhotos.length > 0 && (
                   <div className="grid grid-cols-2 gap-3">
@@ -985,7 +1041,7 @@ export default function Meetings() {
                             data-testid={`img-new-photo-preview-${index}`}
                           />
                         </div>
-                        
+
                         {/* Delete button */}
                         <button
                           onClick={() => removePhoto(index)}
@@ -999,7 +1055,7 @@ export default function Meetings() {
                     ))}
                   </div>
                 )}
-                
+
                 {uploadedPhotos.length > 0 && (
                   <p className="text-xs text-gray-600 dark:text-gray-400">
                     {uploadedPhotos.length} foto siap diupload
@@ -1007,7 +1063,7 @@ export default function Meetings() {
                 )}
               </div>
             </div>
-            
+
             {/* Action Buttons */}
             <div className="flex gap-2 pt-4">
               <Button
@@ -1028,7 +1084,7 @@ export default function Meetings() {
                   </>
                 )}
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1042,6 +1098,125 @@ export default function Meetings() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+      {/* Edit Meeting Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Meeting</DialogTitle>
+            <DialogDescription>
+              Perbarui informasi meeting
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleEditMeeting} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">Judul Meeting *</Label>
+                <Input
+                  id="edit-title"
+                  data-testid="input-edit-meeting-title"
+                  value={editFormData.title}
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                  placeholder="Contoh: Rapat Mingguan"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-organizer">Penyelenggara *</Label>
+                <Input
+                  id="edit-organizer"
+                  data-testid="input-edit-meeting-organizer"
+                  value={editFormData.organizer}
+                  onChange={(e) => setEditFormData({ ...editFormData, organizer: e.target.value })}
+                  placeholder="Nama penyelenggara"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Deskripsi</Label>
+              <Textarea
+                id="edit-description"
+                data-testid="input-edit-meeting-description"
+                value={editFormData.description || ""}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                placeholder="Deskripsi meeting (opsional)"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-date">Tanggal *</Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  data-testid="input-edit-meeting-date"
+                  value={editFormData.date}
+                  onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-startTime">Waktu Mulai *</Label>
+                <Input
+                  id="edit-startTime"
+                  type="time"
+                  data-testid="input-edit-meeting-start-time"
+                  value={editFormData.startTime}
+                  onChange={(e) => setEditFormData({ ...editFormData, startTime: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-endTime">Waktu Selesai *</Label>
+                <Input
+                  id="edit-endTime"
+                  type="time"
+                  data-testid="input-edit-meeting-end-time"
+                  value={editFormData.endTime}
+                  onChange={(e) => setEditFormData({ ...editFormData, endTime: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-location">Lokasi *</Label>
+              <Input
+                id="edit-location"
+                data-testid="input-edit-meeting-location"
+                value={editFormData.location}
+                onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
+                placeholder="Contoh: Ruang Meeting A, Lantai 2"
+                required
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button
+                type="submit"
+                disabled={updateMeetingMutation.isPending}
+                data-testid="button-submit-edit-meeting"
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {updateMeetingMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditOpen(false)}
+                data-testid="button-cancel-edit-meeting"
+              >
+                Batal
+              </Button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

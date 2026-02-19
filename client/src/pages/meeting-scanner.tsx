@@ -30,8 +30,9 @@ export default function MeetingScanner() {
   // Manual attendance form schema
   const manualAttendanceSchema = z.object({
     namaKaryawan: z.string().min(1, "Nama karyawan wajib diisi"),
-    position: z.enum(["Investor", "Korlap"], { 
-      required_error: "Position wajib dipilih" 
+    nik: z.string().optional(),
+    position: z.enum(["Investor", "Korlap"], {
+      required_error: "Position wajib dipilih"
     }),
     department: z.string().min(1, "Department wajib dipilih"),
   });
@@ -40,6 +41,7 @@ export default function MeetingScanner() {
     resolver: zodResolver(manualAttendanceSchema),
     defaultValues: {
       namaKaryawan: "",
+      nik: "",
       position: undefined,
       department: "",
     },
@@ -83,7 +85,7 @@ export default function MeetingScanner() {
     onError: (error: any) => {
       let errorMessage = error.message || "Gagal melakukan absensi";
       let errorTitle = "Absensi Gagal";
-      
+
       // Handle specific meeting errors  
       if (error.message?.includes("Already attended")) {
         errorTitle = "Sudah Absen";
@@ -95,7 +97,7 @@ export default function MeetingScanner() {
         errorTitle = "Meeting Tidak Ditemukan";
         errorMessage = "QR Code meeting tidak valid atau meeting sudah tidak aktif";
       }
-      
+
       setLastScanResult({ error: errorMessage });
       toast({
         title: errorTitle,
@@ -112,6 +114,7 @@ export default function MeetingScanner() {
       return await apiRequest(`/api/meetings/${meeting.id}/manual-attendance`, "POST", {
         attendanceType: "manual_entry",
         manualName: data.namaKaryawan,
+        manualNik: data.nik || undefined,
         manualPosition: data.position,
         manualDepartment: data.department,
         scanTime: new Date().toTimeString().split(' ')[0],
@@ -173,12 +176,12 @@ export default function MeetingScanner() {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" } // Use back camera if available
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         streamRef.current = stream;
         setIsScanning(true);
-        
+
         // Start scanning process
         const scanQR = () => {
           if (videoRef.current && canvasRef.current && isScanning) {
@@ -190,13 +193,13 @@ export default function MeetingScanner() {
               canvas.height = video.videoHeight;
               canvas.width = video.videoWidth;
               context.drawImage(video, 0, 0, canvas.width, canvas.height);
-              
+
               const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
               const code = jsQR(imageData.data, imageData.width, imageData.height);
 
               if (code && code.data) {
                 let qrToken = null;
-                
+
                 // Try to parse as JSON first
                 try {
                   const qrData = JSON.parse(code.data);
@@ -207,7 +210,7 @@ export default function MeetingScanner() {
                   // If JSON parsing fails, try to parse as URL
                   try {
                     const url = new URL(code.data);
-                    
+
                     // Handle direct meeting scanner URLs
                     if (url.pathname.includes('/meeting-scanner')) {
                       qrToken = url.searchParams.get('token');
@@ -232,18 +235,18 @@ export default function MeetingScanner() {
                     console.log('QR code format not recognized:', code.data);
                   }
                 }
-                
+
                 // If we found a valid meeting token and have employee ID
                 if (qrToken && employeeId) {
                   // Stop scanning when QR code is detected
                   stopCamera();
-                  
+
                   // Show loading state
                   toast({
                     title: "QR Code Detected",
                     description: "Memproses absensi meeting...",
                   });
-                  
+
                   attendanceMutation.mutate({
                     qrToken: qrToken,
                     employeeId: employeeId
@@ -252,12 +255,12 @@ export default function MeetingScanner() {
                 }
               }
             }
-            
+
             // Continue scanning
             requestAnimationFrame(scanQR);
           }
         };
-        
+
         // Start scanning loop
         videoRef.current.addEventListener('loadedmetadata', () => {
           scanQR();
@@ -304,7 +307,7 @@ export default function MeetingScanner() {
           <p className="text-gray-600 dark:text-gray-400 mt-2">
             {meetingToken ? "Form absensi meeting" : "Scan QR code meeting untuk melakukan absensi"}
           </p>
-          
+
           {meetingToken && (
             <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mt-4">
               <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -458,7 +461,7 @@ export default function MeetingScanner() {
                         ref={canvasRef}
                         className="hidden"
                       />
-                      
+
                       {/* Scanning overlay */}
                       <div className="absolute inset-0 border-2 border-red-500 rounded-lg pointer-events-none">
                         <div className="absolute top-4 left-4 w-6 h-6 border-t-4 border-l-4 border-red-500"></div>
@@ -466,7 +469,7 @@ export default function MeetingScanner() {
                         <div className="absolute bottom-4 left-4 w-6 h-6 border-b-4 border-l-4 border-red-500"></div>
                         <div className="absolute bottom-4 right-4 w-6 h-6 border-b-4 border-r-4 border-red-500"></div>
                       </div>
-                      
+
                       <div className="absolute bottom-2 left-2 right-2 bg-black bg-opacity-50 text-white text-xs p-2 rounded text-center">
                         Memindai QR code meeting...
                       </div>
@@ -533,6 +536,25 @@ export default function MeetingScanner() {
                               <Input
                                 placeholder="Masukkan nama lengkap karyawan"
                                 data-testid="input-manual-name"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* NIK (Optional) */}
+                      <FormField
+                        control={manualForm.control}
+                        name="nik"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>NIK Karyawan (Opsional)</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Masukkan NIK jika tersedia"
+                                data-testid="input-manual-nik"
                                 {...field}
                               />
                             </FormControl>
@@ -650,7 +672,7 @@ export default function MeetingScanner() {
                   <div className="text-green-600 font-medium">
                     {lastScanResult.message}
                   </div>
-                  
+
                   {lastScanResult.meeting && (
                     <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                       <div><strong>Meeting:</strong> {lastScanResult.meeting.title}</div>
@@ -659,7 +681,7 @@ export default function MeetingScanner() {
                       <div><strong>Lokasi:</strong> {lastScanResult.meeting.location}</div>
                     </div>
                   )}
-                  
+
                   {lastScanResult.employee && (
                     <div className="text-sm text-gray-600 dark:text-gray-400 mt-3 pt-3 border-t space-y-1">
                       <div><strong>Nama:</strong> {lastScanResult.employee.name}</div>
@@ -699,21 +721,21 @@ export default function MeetingScanner() {
                     </div>
                     <div>Masukkan NIK karyawan pada form di atas</div>
                   </div>
-                  
+
                   <div className="flex items-start gap-2">
                     <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       2
                     </div>
                     <div>Tekan tombol "Mulai Scan QR Code" untuk mengaktifkan kamera</div>
                   </div>
-                  
+
                   <div className="flex items-start gap-2">
                     <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       3
                     </div>
                     <div>Arahkan kamera ke QR code meeting yang telah disediakan</div>
                   </div>
-                  
+
                   <div className="flex items-start gap-2">
                     <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       4
@@ -731,28 +753,28 @@ export default function MeetingScanner() {
                     </div>
                     <div>Pastikan QR code meeting telah discan terlebih dahulu</div>
                   </div>
-                  
+
                   <div className="flex items-start gap-2">
                     <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       2
                     </div>
                     <div>Pilih tab "Entry Manual" untuk mengakses form manual</div>
                   </div>
-                  
+
                   <div className="flex items-start gap-2">
                     <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       3
                     </div>
                     <div>Isi nama karyawan, pilih posisi (Investor/Korlap), dan pilih department</div>
                   </div>
-                  
+
                   <div className="flex items-start gap-2">
                     <div className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       4
                     </div>
                     <div>Tekan "Simpan Absensi Manual" untuk mencatat kehadiran</div>
                   </div>
-                  
+
                   <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
                     <p className="text-xs text-yellow-800 dark:text-yellow-200">
                       <strong>Catatan:</strong> Entry manual hanya dapat digunakan setelah QR code meeting berhasil discan dan untuk peserta yang tidak memiliki NIK terdaftar dalam sistem.
