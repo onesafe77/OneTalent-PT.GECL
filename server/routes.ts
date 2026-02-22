@@ -99,11 +99,6 @@ import { inductionAiService } from "./services/induction-ai-service";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // DEBUG ENDPOINT
-  app.get("/api/ping-debug", (req, res) => {
-    res.json({ message: "PONG - Code is live!", time: new Date().toISOString() });
-  });
-
   setupAuth(app);
 
   // Report cache invalidation and update notification system
@@ -5459,6 +5454,7 @@ Format sebagai bullet points singkat per insight.`;
   createSidakPhotoEndpoints('digital', (id) => storage.getSidakDigitalSession(id), (id, data) => storage.updateSidakDigitalSession(id, data));
   createSidakPhotoEndpoints('antrian', (id) => storage.getSidakAntrianSession(id), (id, data) => storage.updateSidakAntrianSession(id, data));
   createSidakPhotoEndpoints('workshop', (id) => storage.getSidakWorkshopSession(id), (id, data) => storage.updateSidakWorkshopSession(id, data));
+  createSidakPhotoEndpoints('behavior', (id) => storage.getSidakBehaviorSession(id), (id, data) => storage.updateSidakBehaviorSession(id, data));
 
 
 
@@ -12948,6 +12944,181 @@ Format sebagai bullet points singkat per insight.`;
 
     } catch (e: any) {
       console.error("Driver Details API Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/evaluasi-pvt", async (req, res) => {
+    try {
+      const { month, status, pvtStatus } = req.query;
+
+      if (!month || typeof month !== 'string') {
+        return res.status(400).json({ error: "Month (YYYY-MM) is required" });
+      }
+
+      console.log(`[API] Fetching Evaluasi PVT for ${month}, status: ${status}, pvtStatus: ${pvtStatus}`);
+
+      // 1. Get all active employees
+      const allEmployees = await storage.getAllEmployees();
+      const activeEmployees = allEmployees.filter(e => e.status === 'active');
+
+      // 2. Get all fatigue sessions for the month
+      const allSessions = await storage.getAllSidakFatigueSessions();
+      const monthSessions = allSessions.filter(s => s.tanggal.startsWith(month));
+      const sessionIds = monthSessions.map(s => s.id);
+
+      // 3. Get all records for these sessions
+      let records: any[] = [];
+      if (sessionIds.length > 0) {
+        records = await storage.getSidakFatigueRecordsBySessionIds(sessionIds);
+      }
+
+      // Filter only records that have PVT data
+      const pvtRecords = records.filter(r => r.pvtMeanRT !== null && r.pvtMeanRT !== undefined);
+
+      // 4. Aggregate data
+      const driverPvtStats = new Map<string, { totalRT: number, count: number, latestRT: number }>();
+
+      pvtRecords.forEach(record => {
+        let empKey = record.employeeId;
+        if (!empKey && record.nik) {
+          const emp = activeEmployees.find(e => e.id === record.nik);
+          if (emp) empKey = emp.id;
+        }
+
+        if (empKey) {
+          const current = driverPvtStats.get(empKey) || { totalRT: 0, count: 0, latestRT: 0 };
+          current.totalRT += record.pvtMeanRT!;
+          current.count += 1;
+          current.latestRT = record.pvtMeanRT!;
+          driverPvtStats.set(empKey, current);
+        }
+      });
+
+      // 5. Build response list
+      const allDriverStats = activeEmployees.map(emp => {
+        const stats = driverPvtStats.get(emp.id);
+        const avgRT = stats ? Math.round(stats.totalRT / stats.count) : null;
+        const totalTests = stats ? stats.count : 0;
+
+        let pvtStatus = "Normal";
+        if (avgRT) {
+          if (avgRT <= 350) pvtStatus = "Sangat Baik";
+          else if (avgRT <= 500) pvtStatus = "Cukup";
+          else pvtStatus = "Lambat";
+        } else {
+          pvtStatus = "Belum Ada Data";
+        }
+
+        return {
+          id: emp.id,
+          nama: emp.name,
+          nik: emp.id,
+          avgRT,
+          lastRT: stats?.latestRT || null,
+          totalTests,
+          status: pvtStatus
+        };
+      });
+
+      const totalDrivers = activeEmployees.length;
+      const totalTested = allDriverStats.filter(d => d.totalTests > 0).length;
+      const avgSystemRT = pvtRecords.length > 0
+        ? Math.round(pvtRecords.reduce((acc, r) => acc + (r.pvtMeanRT || 0), 0) / pvtRecords.length)
+        : 0;
+
+      const summary = {
+        totalDrivers,
+        totalTested,
+        totalUntested: totalDrivers - totalTested,
+        avgSystemRT,
+        totalTests: pvtRecords.length
+      };
+
+      // 6. Filter returned drivers list
+      let filteredDrivers = allDriverStats;
+      if (status === 'tested') {
+        filteredDrivers = allDriverStats.filter(d => d.totalTests > 0);
+      } else if (status === 'untested') {
+        filteredDrivers = allDriverStats.filter(d => d.totalTests === 0);
+      }
+
+      if (pvtStatus && pvtStatus !== 'semua') {
+        filteredDrivers = filteredDrivers.filter(d => d.status === pvtStatus);
+      }
+
+      // Sorting: Lowest average RT first (best performers)
+      filteredDrivers.sort((a, b) => {
+        if (a.avgRT === null) return 1;
+        if (b.avgRT === null) return -1;
+        return a.avgRT - b.avgRT;
+      });
+
+      res.json({
+        summary,
+        drivers: filteredDrivers,
+        month
+      });
+
+    } catch (e: any) {
+      console.error("Evaluasi PVT API Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/evaluasi-pvt/:employeeId/details", async (req, res) => {
+    try {
+      const { employeeId } = req.params;
+      const { month } = req.query;
+
+      if (!month || typeof month !== 'string') {
+        return res.status(400).json({ error: "Month (YYYY-MM) is required" });
+      }
+
+      const employee = await storage.getEmployee(employeeId);
+      if (!employee) {
+        return res.status(404).json({ error: "Employee not found" });
+      }
+
+      const allSessions = await storage.getAllSidakFatigueSessions();
+      const monthSessions = allSessions.filter(s => s.tanggal.startsWith(month));
+      const sessionIds = monthSessions.map(s => s.id);
+
+      if (sessionIds.length === 0) {
+        return res.json({ employee, records: [] });
+      }
+
+      const allRecords = await storage.getSidakFatigueRecordsBySessionIds(sessionIds);
+      const employeeRecords = allRecords.filter(r =>
+        (r.employeeId === employeeId || r.nik === employee.nik || r.nik === employeeId) &&
+        r.pvtMeanRT !== null && r.pvtMeanRT !== undefined
+      );
+
+      const enrichedRecords = employeeRecords.map(record => {
+        const session = monthSessions.find(s => s.id === record.sessionId);
+        return {
+          ...record,
+          tanggal: session?.tanggal || "-",
+          waktu: session?.waktu || "-",
+          lokasi: session?.lokasi || "-",
+          shift: session?.shift || "-",
+          evaluator: session?.createdBy || "System"
+        };
+      });
+
+      enrichedRecords.sort((a, b) => {
+        const dateA = new Date(a.tanggal + "T" + (a.waktu || "00:00")).getTime();
+        const dateB = new Date(b.tanggal + "T" + (b.waktu || "00:00")).getTime();
+        return dateB - dateA;
+      });
+
+      res.json({
+        employee,
+        records: enrichedRecords
+      });
+
+    } catch (e: any) {
+      console.error("PVT Details API Error:", e);
       res.status(500).json({ error: e.message });
     }
   });

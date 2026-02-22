@@ -33,7 +33,8 @@ import {
   Database,
   Bell,
   Car,
-  BookOpen
+  BookOpen,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import oneTalentLogo from "@assets/onetalent-logo.png";
@@ -125,6 +126,7 @@ export const navigationGroups: NavGroup[] = [
                   { name: "Sidak", href: "/workspace/sidak", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Rekap Sidak", href: "/workspace/sidak/rekap", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Evaluasi Driver", href: "/workspace/evaluasi-driver", icon: TrendingUp, requiredPermissions: [Permission.VIEW_EVALUASI] },
+                  { name: "Evaluasi Data PVT", href: "/workspace/hse/evaluasi-pvt", icon: Zap, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Safety Patrol", href: "/workspace/safety-patrol", icon: Shield, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                   // Kept items present in old menu but missed in strict list to avoid data loss, clustered in Kegiatan
                   { name: "Pengumuman", href: "/workspace/announcements", icon: Megaphone, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },

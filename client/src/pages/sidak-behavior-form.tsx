@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { MobileSidakLayout } from "@/components/sidak/mobile-sidak-layout";
 import { cn } from "@/lib/utils";
-import { Activity, Check, X, ArrowLeft, ArrowRight, Save, Users, Pen, UserPlus, Car, AlertCircle, ClipboardCheck, Camera } from "lucide-react";
+import { Activity, Check, X, ArrowLeft, ArrowRight, Save, Users, Pen, UserPlus, Car, AlertCircle, ClipboardCheck, Camera, Search } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { useSidakDraft } from "@/hooks/use-sidak-draft";
@@ -137,6 +137,42 @@ export default function SidakBehaviorForm() {
         signatureDataUrl: ""
     });
 
+    // Driver search autocomplete
+    const [driverSearch, setDriverSearch] = useState("");
+    const [showDriverDropdown, setShowDriverDropdown] = useState(false);
+    const driverSearchRef = useRef<HTMLDivElement>(null);
+
+    // Fetch all employees for autocomplete
+    const { data: employeesData } = useQuery<Employee[] | { data: Employee[], total: number }>({
+        queryKey: ["/api/employees?per_page=1000"],
+    });
+
+    const allEmployees: Employee[] = Array.isArray(employeesData)
+        ? employeesData
+        : (employeesData as any)?.data || [];
+
+    // Filter employees by search text
+    const filteredEmployees = allEmployees.filter((emp) => {
+        if (!driverSearch.trim()) return false;
+        const q = driverSearch.toLowerCase();
+        return (
+            emp.name?.toLowerCase().includes(q) ||
+            emp.nomorLambung?.toLowerCase().includes(q) ||
+            emp.id?.toLowerCase().includes(q)
+        );
+    }).slice(0, 10); // max 10 results
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (driverSearchRef.current && !driverSearchRef.current.contains(e.target as Node)) {
+                setShowDriverDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     // Sync state with draft on save
     useEffect(() => {
         saveDraft({
@@ -234,12 +270,12 @@ export default function SidakBehaviorForm() {
     };
 
     const handleAddDriver = () => {
-        if (!currentRecord.namaDriver || !currentRecord.nomorLambung) {
-            toast({ title: "Peringatan", description: "Nama dan Lambung wajib diisi.", variant: "destructive" });
+        if (records.length >= 10) {
+            toast({ title: "Batas Maksimum", description: "Maksimum 10 driver per sesi.", variant: "destructive" });
             return;
         }
-        if (!currentRecord.driverSignature) {
-            toast({ title: "Peringatan", description: "Driver harus tanda tangan.", variant: "destructive" });
+        if (!currentRecord.namaDriver || !currentRecord.nomorLambung) {
+            toast({ title: "Peringatan", description: "Nama dan Lambung wajib diisi.", variant: "destructive" });
             return;
         }
         addRecordMutation.mutate(currentRecord);
@@ -264,10 +300,10 @@ export default function SidakBehaviorForm() {
                     <Button
                         className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold"
                         onClick={handleAddDriver}
-                        disabled={addRecordMutation.isPending}
+                        disabled={addRecordMutation.isPending || records.length >= 10}
                     >
                         <UserPlus className="mr-2 h-5 w-5" />
-                        {addRecordMutation.isPending ? "Menyimpan..." : "Simpan & Tambah Driver Lagi"}
+                        {records.length >= 10 ? "Maksimum 10 Driver Tercapai" : addRecordMutation.isPending ? "Menyimpan..." : "Simpan & Tambah Driver Lagi"}
                     </Button>
 
                     {records.length > 0 && (
@@ -432,42 +468,113 @@ export default function SidakBehaviorForm() {
                 {/* Step 2: Driver Records */}
                 {step === 2 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-                        {records.length > 0 && (
-                            <Card className="bg-green-50 border-green-200">
-                                <CardContent className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-green-500 rounded-full p-1">
-                                            <Check className="w-4 h-4 text-white" />
-                                        </div>
-                                        <span className="text-sm font-bold text-green-700">{records.length} Driver telah ditambahkan</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-
                         <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                                <div>
-                                    <CardTitle className="text-lg">Data Driver</CardTitle>
-                                    <CardDescription>Input gejala dan tindak lanjut</CardDescription>
+                            <CardHeader className="pb-3">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <div className={`rounded-full p-1.5 ${records.length >= 10 ? 'bg-green-500' : 'bg-blue-500'}`}>
+                                            <Car className="w-4 h-4 text-white" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-base">Data Driver</CardTitle>
+                                            <CardDescription className="text-xs">
+                                                {records.length}/10 sampel driver
+                                                {records.length >= 10 && <span className="ml-1 text-green-600 font-bold">✓ Lengkap</span>}
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                    {records.length >= 10 && (
+                                        <span className="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-bold">MAX</span>
+                                    )}
                                 </div>
+                                {/* Progress bar */}
+                                <div className="mt-2">
+                                    <Progress value={records.length * 10} className="h-1.5" />
+                                </div>
+                                {records.length < 10 && (
+                                    <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1">
+                                        <AlertCircle className="w-3 h-3 shrink-0" />
+                                        Minimal <strong>10 sampel</strong> per sesi sidak
+                                    </p>
+                                )}
                             </CardHeader>
                             <CardContent className="space-y-6">
+                                <div className="space-y-2" ref={driverSearchRef}>
+                                    <Label className="flex items-center gap-1">
+                                        <Search className="w-3 h-3" />
+                                        Cari Driver (dari Roster)
+                                    </Label>
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="Ketik nama atau nomor lambung..."
+                                            value={driverSearch}
+                                            onChange={(e) => {
+                                                setDriverSearch(e.target.value);
+                                                setShowDriverDropdown(true);
+                                            }}
+                                            onFocus={() => driverSearch.trim() && setShowDriverDropdown(true)}
+                                            className="pr-8"
+                                        />
+                                        <Search className="w-4 h-4 absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+
+                                        {showDriverDropdown && filteredEmployees.length > 0 && (
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                                                {filteredEmployees.map((emp) => (
+                                                    <button
+                                                        key={emp.id}
+                                                        type="button"
+                                                        className="w-full text-left px-3 py-2.5 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                                                        onClick={() => {
+                                                            setCurrentRecord({
+                                                                ...currentRecord,
+                                                                namaDriver: emp.name || '',
+                                                                nomorLambung: emp.nomorLambung || ''
+                                                            });
+                                                            setDriverSearch('');
+                                                            setShowDriverDropdown(false);
+                                                        }}
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-medium text-sm text-gray-900">{emp.name}</span>
+                                                            {emp.nomorLambung && (
+                                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-mono">
+                                                                    {emp.nomorLambung}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-400 mt-0.5">
+                                                            NIK: {emp.id} {emp.position ? `• ${emp.position}` : ''}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {showDriverDropdown && driverSearch.trim().length >= 2 && filteredEmployees.length === 0 && (
+                                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-center text-xs text-gray-500">
+                                                Tidak ditemukan driver "{driverSearch}"
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <Label>Nama Driver</Label>
                                         <Input
-                                            placeholder="Input nama"
+                                            placeholder="Auto dari pencarian"
                                             value={currentRecord.namaDriver}
                                             onChange={(e) => setCurrentRecord({ ...currentRecord, namaDriver: e.target.value })}
+                                            className={currentRecord.namaDriver ? "bg-green-50 border-green-200" : ""}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>No. Lambung</Label>
                                         <Input
-                                            placeholder="Input lambung"
+                                            placeholder="Auto dari pencarian"
                                             value={currentRecord.nomorLambung}
                                             onChange={(e) => setCurrentRecord({ ...currentRecord, nomorLambung: e.target.value })}
+                                            className={currentRecord.nomorLambung ? "bg-green-50 border-green-200" : ""}
                                         />
                                     </div>
                                 </div>
@@ -536,9 +643,6 @@ export default function SidakBehaviorForm() {
                                     </div>
                                 </div>
 
-                                <SignaturePad
-                                    onSave={(url) => setCurrentRecord({ ...currentRecord, driverSignature: url })}
-                                />
                             </CardContent>
                         </Card>
                     </div>

@@ -59,6 +59,7 @@ import DashboardOverspeed from "@/pages/dashboard-overspeed";
 import DashboardJarak from "@/pages/dashboard-jarak";
 import DashboardStatistics from "@/pages/dashboard-statistics";
 import GoogleSheetsConfig from "@/pages/google-sheets-config";
+import EvaluasiPvt from "@/pages/evaluasi-pvt";
 
 import FmsFatigueValidationDashboard from "@/pages/hse/fatigue/dashboard-validation";
 import HrInductionAttendance from "@/pages/hr-induction-attendance";
@@ -141,6 +142,7 @@ const workspaceRoutes = [
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
+  { path: "/workspace/hse/evaluasi-pvt", component: EvaluasiPvt, title: "Evaluasi Data PVT (Reaction Time)" },
   { path: "/workspace/announcements", component: Announcements, title: "Kelola Pengumuman" },
   { path: "/workspace/news", component: News, title: "Kelola Berita" },
   { path: "/workspace/news-feed", component: NewsFeed, title: "Berita Perusahaan" },
@@ -311,6 +313,7 @@ export function Workspace() {
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/evaluasi-driver" component={EvaluasiDriver} />
+              <Route path="/workspace/hse/evaluasi-pvt" component={EvaluasiPvt} />
               <Route path="/workspace/announcements">
                 <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
                   <Announcements />

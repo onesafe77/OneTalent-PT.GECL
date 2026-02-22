@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Activity, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, FileText, Image, Camera, X, Upload, Trash2, User, AlertTriangle, Eye, ClipboardList } from "lucide-react";
+import { Activity, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, FileText, Image, Camera, X, Upload, Trash2, User, AlertTriangle, Eye, ClipboardList, Loader2 } from "lucide-react";
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { useState, useRef } from "react";
+import { downloadSidakBehaviorAsPdf, downloadSidakBehaviorAsJpg } from "@/lib/sidak-behavior-pdf-utils";
 
 interface BehaviorSession {
     id: string;
@@ -44,7 +45,52 @@ export default function SidakBehaviorHistory() {
     const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
     const [selectedSession, setSelectedSession] = useState<BehaviorSession | null>(null);
     const [uploadingPhotos, setUploadingPhotos] = useState(false);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const fetchSessionDetail = async (sessionId: string) => {
+        const res = await fetch(`/api/sidak-behavior/${sessionId}`);
+        if (!res.ok) throw new Error('Failed to fetch session detail');
+        return res.json();
+    };
+
+    const handleDownloadPdf = async (session: BehaviorSession) => {
+        try {
+            setDownloadingId(session.id);
+            const detail = await fetchSessionDetail(session.id);
+            const filename = `Sidak_Behavior_${session.shift}_${format(new Date(session.tanggal), 'dd-MM-yyyy')}.pdf`;
+            await downloadSidakBehaviorAsPdf({
+                session: detail,
+                records: detail.records || [],
+                observers: detail.observers || [],
+            }, filename);
+            toast({ title: "PDF berhasil didownload", description: filename });
+        } catch (error: any) {
+            console.error('PDF download error:', error);
+            toast({ title: "Gagal download PDF", description: error.message, variant: "destructive" });
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
+    const handleDownloadJpg = async (session: BehaviorSession) => {
+        try {
+            setDownloadingId(session.id);
+            const detail = await fetchSessionDetail(session.id);
+            const filename = `Sidak_Behavior_${session.shift}_${format(new Date(session.tanggal), 'dd-MM-yyyy')}.jpg`;
+            await downloadSidakBehaviorAsJpg({
+                session: detail,
+                records: detail.records || [],
+                observers: detail.observers || [],
+            }, filename);
+            toast({ title: "JPG berhasil didownload", description: filename });
+        } catch (error: any) {
+            console.error('JPG download error:', error);
+            toast({ title: "Gagal download JPG", description: error.message, variant: "destructive" });
+        } finally {
+            setDownloadingId(null);
+        }
+    };
 
     const { data: sessions, isLoading } = useQuery<BehaviorSession[]>({
         queryKey: ['/api/sidak-behavior'],
@@ -332,19 +378,14 @@ export default function SidakBehaviorHistory() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-xl p-1 shadow-xl border-gray-200 dark:border-gray-700">
-                                            {(!session.activityPhotos || session.activityPhotos.length === 0) && (
-                                                <div className="px-3 py-2 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 rounded-lg mb-1 flex items-start gap-2">
-                                                    <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
-                                                    <span>Upload foto terlebih dahulu untuk mengunduh laporan lengkap</span>
-                                                </div>
-                                            )}
                                             <DropdownMenuItem
-                                                disabled={!session.activityPhotos || session.activityPhotos.length === 0}
-                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                disabled={downloadingId === session.id}
+                                                onClick={() => handleDownloadPdf(session)}
+                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer`}
                                                 data-testid={`button-download-pdf-${session.id}`}
                                             >
                                                 <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
-                                                    <FileText className="h-4 w-4" />
+                                                    {downloadingId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="font-medium">Download PDF</span>
@@ -352,12 +393,13 @@ export default function SidakBehaviorHistory() {
                                                 </div>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                disabled={!session.activityPhotos || session.activityPhotos.length === 0}
-                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                disabled={downloadingId === session.id}
+                                                onClick={() => handleDownloadJpg(session)}
+                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer`}
                                                 data-testid={`button-download-jpg-${session.id}`}
                                             >
                                                 <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
-                                                    <Image className="h-4 w-4" />
+                                                    {downloadingId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="font-medium">Download JPG</span>

@@ -1,5 +1,5 @@
 import { format, parse, parseISO } from "date-fns";
-import { eq, desc, and, or, sql, ilike } from "drizzle-orm";
+import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns } from "drizzle-orm";
 import {
   type Employee,
   type InsertEmployee,
@@ -253,7 +253,6 @@ import {
   // Simper Perpanjangan
   simperPerpanjangan, type SimperPerpanjangan, type InsertSimperPerpanjangan,
   simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
-  simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
   publicInductionAttendance,
   // Sidak P3K
   type SidakP3kSession,
@@ -265,7 +264,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-import { eq, and, inArray, desc, asc, getTableColumns, or, ilike, sql } from "drizzle-orm";
+
 import { db } from "./db";
 import PDFDocument from "pdfkit";
 import path from "path";
