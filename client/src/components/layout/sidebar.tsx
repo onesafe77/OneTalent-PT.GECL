@@ -116,6 +116,7 @@ export const navigationGroups: NavGroup[] = [
                   { name: "Dashboard Overspeed", href: "/workspace/hse/overspeed", icon: AlertTriangle, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Dashboard Jarak Aman", href: "/workspace/hse/jarak", icon: TrendingUp, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Monitoring Validasi Fatigue", href: "/workspace/hse/fatigue-validation", icon: Monitor, requiredPermissions: [Permission.VIEW_SIDAK] },
+                  { name: "Monitoring Fatigue", href: "/workspace/hse/fatigue-monitoring", icon: Activity, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "FMS Violation", href: "/workspace/hse/fms-dashboard", icon: Car, requiredPermissions: [Permission.VIEW_SIDAK] },
                 ]
               },

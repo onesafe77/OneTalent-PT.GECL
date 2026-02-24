@@ -1268,6 +1268,9 @@ function BehaviorFormPreview({ session, records, observers }: {
   records: BehaviorRecord[];
   observers: Observer[]
 }) {
+  const renderViolation = (val: boolean) => val ? <span className="text-red-600 font-bold">✓</span> : null;
+  const renderAction = (val: boolean) => val ? <span className="text-green-600 font-bold">✓</span> : null;
+
   return (
     <div className="space-y-4 p-4 bg-white text-black text-sm">
       <div className="text-center border-b pb-3">
@@ -1288,96 +1291,103 @@ function BehaviorFormPreview({ session, records, observers }: {
           <thead>
             <tr className="bg-blue-600 text-white leading-tight">
               <th className="border p-1" rowSpan={2}>No</th>
-              <th className="border p-1" rowSpan={2}>Driver / No Unit</th>
-              <th className="border p-1" colSpan={6}>Driving Behavior</th>
-              <th className="border p-1" colSpan={4}>Traffic Compliance</th>
-              <th className="border p-1" colSpan={4}>Vehicle Safety</th>
-              <th className="border p-1 text-center" rowSpan={2}>Tindakan</th>
+              <th className="border p-1" rowSpan={2}>Nama Driver</th>
+              <th className="border p-1" rowSpan={2}>No Unit</th>
+              <th className="border p-1" colSpan={10}>Parameter Perilaku</th>
+              <th className="border p-1" colSpan={8}>Tindakan</th>
             </tr>
             <tr className="bg-blue-500 text-white text-[8px] uppercase">
-              <th className="border p-1">Spd</th>
-              <th className="border p-1">Selt</th>
-              <th className="border p-1">HP</th>
-              <th className="border p-1">Ftg</th>
-              <th className="border p-1">Smk</th>
-              <th className="border p-1">E&D</th>
-              <th className="border p-1">Sign</th>
-              <th className="border p-1">Mark</th>
-              <th className="border p-1">Gap</th>
-              <th className="border p-1">Stop</th>
-              <th className="border p-1">Main</th>
-              <th className="border p-1">Rot</th>
-              <th className="border p-1">Sign</th>
-              <th className="border p-1">Horn</th>
+              <th className="border p-1">MT</th>
+              <th className="border p-1">SM</th>
+              <th className="border p-1">MB</th>
+              <th className="border p-1">KM</th>
+              <th className="border p-1">PM</th>
+              <th className="border p-1">KJ</th>
+              <th className="border p-1">RRL</th>
+              <th className="border p-1">TRR</th>
+              <th className="border p-1">AFA</th>
+              <th className="border p-1">MTS</th>
+              <th className="border p-1">ETW</th>
+              <th className="border p-1">MU</th>
+              <th className="border p-1">IB</th>
+              <th className="border p-1">S/M</th>
+              <th className="border p-1">PA</th>
+              <th className="border p-1">GD</th>
+              <th className="border p-1">MR</th>
+              <th className="border p-1">KP</th>
             </tr>
           </thead>
           <tbody>
-            {records.map((record, idx) => (
+            {records.map((record: any, idx) => (
               <tr key={record.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                 <td className="border p-1 text-center font-bold">{record.ordinal}</td>
-                <td className="border p-1">
-                  <p className="font-bold">{record.nama}</p>
-                  <p className="text-[8px] text-gray-500 font-mono">{record.nomorLambung || '-'}</p>
-                </td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.kecepatan} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.sabukPengaman} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.handphone} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.fatigue} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.merokok} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.makanMinum} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.rambuLaluLintas} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.markaJalan} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.jarakAman} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.stopSempurna} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.lampuUtama} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.lampuRotari} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.lampuSign} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.klakson} /></td>
-                <td className="border p-1 text-center">
-                  <Badge variant="outline" className={`text-[8px] px-1 py-0 h-4 border-none ${record.tindakan === 'Apresiasi' ? 'bg-green-100 text-green-700' :
-                    record.tindakan === 'Teguran' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700 font-bold'
-                    }`}>
-                    {record.tindakan}
-                  </Badge>
-                </td>
+                <td className="border p-1 font-bold">{record.namaDriver || record.nama}</td>
+                <td className="border p-1 text-center text-[8px] text-gray-500 font-mono">{record.nomorLambung || '-'}</td>
+                <td className="border p-1 text-center">{renderViolation(record.mataTertutup)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.seringMengedip)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.menguapBerulang)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.kepalaMengangguk)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.posturMembungkuk)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.keluarJalur)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.reaksiRadioLambat)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.tidakMeresponRadio)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.alarmFatigueFmsAktif)}</td>
+                <td className="border p-1 text-center">{renderViolation(record.mengemudiTidakStabil)}</td>
+                <td className="border p-1 text-center">{renderAction(record.edukasiTwoWay)}</td>
+                <td className="border p-1 text-center">{renderAction(record.monitoringUlang)}</td>
+                <td className="border p-1 text-center">{renderAction(record.instruksiBerhenti)}</td>
+                <td className="border p-1 text-center">{renderAction(record.stretchingMinum)}</td>
+                <td className="border p-1 text-center">{renderAction(record.parkirAman)}</td>
+                <td className="border p-1 text-center">{renderAction(record.gantiDriver)}</td>
+                <td className="border p-1 text-center">{renderAction(record.mandatoryRest)}</td>
+                <td className="border p-1 text-center">{renderAction(record.koordinasiPengawas)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4">
+        <div className="text-xs text-gray-500 border rounded p-3 bg-blue-50/30">
+          <h3 className="font-semibold text-blue-700 mb-2">Keterangan Singkatan:</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-2 gap-y-1 text-[9px]">
+            <p><strong>[MT]</strong> Mata Tertutup &gt; 2d</p>
+            <p><strong>[SM]</strong> Sering Mengedip</p>
+            <p><strong>[MB]</strong> Menguap Berulang</p>
+            <p><strong>[KM]</strong> Kepala Mengangguk</p>
+            <p><strong>[PM]</strong> Postur Membungkuk</p>
+            <p><strong>[KJ]</strong> Keluar Jalur / Zig-zag</p>
+            <p><strong>[RRL]</strong> Reaksi Radio Lambat</p>
+            <p><strong>[TRR]</strong> Tidak Respon Radio</p>
+            <p><strong>[AFA]</strong> Alarm FMS Aktif</p>
+            <p><strong>[MTS]</strong> Mengemudi T.Stabil</p>
+            <p><strong>[ETW]</strong> Edukasi Two-Way</p>
+            <p><strong>[MU]</strong> Monitoring Ulang</p>
+            <p><strong>[IB]</strong> Instruksi Berhenti</p>
+            <p><strong>[S/M]</strong> Stretching / Minum</p>
+            <p><strong>[PA]</strong> Parkir Aman</p>
+            <p><strong>[GD]</strong> Ganti Driver</p>
+            <p><strong>[MR]</strong> Mandatory Rest</p>
+            <p><strong>[KP]</strong> Koord. Pengawas</p>
+          </div>
+        </div>
         <div className="border rounded p-3 bg-gray-50">
           <h3 className="font-semibold mb-2 flex items-center gap-2">
             <Signature className="h-4 w-4 text-primary" />
             Observer / Pengamat:
           </h3>
-          <div className="space-y-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {observers.map((obs) => (
-              <div key={obs.id} className="flex items-center gap-3 border p-2 rounded bg-white">
-                <div className="flex-1">
-                  <p className="font-bold text-xs">{obs.nama}</p>
-                  <p className="text-[10px] text-gray-500">{obs.nik || '-'}</p>
+              <div key={obs.id} className="flex flex-col gap-1 border p-2 rounded bg-white">
+                <div>
+                  <p className="font-bold text-[10px]">{obs.nama}</p>
+                  <p className="text-[9px] text-gray-500">{obs.nik || '-'}</p>
                 </div>
                 {obs.tandaTangan && (
-                  <img src={obs.tandaTangan} alt="TTD" className="h-10 w-16 object-contain" />
+                  <img src={obs.tandaTangan} alt="TTD" className="h-8 object-contain mt-1" />
                 )}
               </div>
             ))}
-          </div>
-        </div>
-        <div className="text-xs text-gray-500 border rounded p-3 bg-blue-50/30">
-          <h3 className="font-semibold text-blue-700 mb-2">Keterangan Singkatan:</h3>
-          <div className="grid grid-cols-2 gap-1 text-[9px]">
-            <p><strong>Spd:</strong> Kecepatan</p>
-            <p><strong>Selt:</strong> Sabuk Pengaman</p>
-            <p><strong>HP:</strong> Penggunaan Handphone</p>
-            <p><strong>Ftg:</strong> Tanda Fatigue</p>
-            <p><strong>Smk:</strong> Merokok</p>
-            <p><strong>E&D:</strong> Makan & Minum</p>
-            <p><strong>Sign:</strong> Rambu & Isyarat</p>
-            <p><strong>Rot:</strong> Lampu Rotari</p>
           </div>
         </div>
       </div>
@@ -2552,13 +2562,14 @@ export default function SidakRecap() {
                             <TableHead>No Unit</TableHead>
                             <TableHead className="text-center">Tindakan</TableHead>
                             <TableHead>Keterangan</TableHead>
+                            <TableHead className="text-center">Foto Evidence</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {(detailData.records as BehaviorRecord[])?.map((record) => (
                             <TableRow key={record.id}>
                               <TableCell>{record.ordinal}</TableCell>
-                              <TableCell className="font-medium">{record.nama}</TableCell>
+                              <TableCell className="font-medium">{record.namaDriver || record.nama}</TableCell>
                               <TableCell>{record.nomorLambung || '-'}</TableCell>
                               <TableCell className="text-center">
                                 <Badge variant="outline" className={
@@ -2570,6 +2581,15 @@ export default function SidakRecap() {
                                 </Badge>
                               </TableCell>
                               <TableCell className="text-sm text-gray-500 italic">{record.keterangan || '-'}</TableCell>
+                              <TableCell className="text-center">
+                                {record.evidenceUrl ? (
+                                  <a href={record.evidenceUrl} target="_blank" rel="noopener noreferrer">
+                                    <div className="w-10 h-10 mx-auto border rounded overflow-hidden">
+                                      <img src={record.evidenceUrl} alt="Evidence" className="w-full h-full object-cover" />
+                                    </div>
+                                  </a>
+                                ) : '-'}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

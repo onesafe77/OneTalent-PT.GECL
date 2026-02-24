@@ -250,6 +250,7 @@ import {
   // Project Tracker
   projects, type Project, type InsertProject,
   projectFiles, type ProjectFile, type InsertProjectFile,
+  employees,
   // Simper Perpanjangan
   simperPerpanjangan, type SimperPerpanjangan, type InsertSimperPerpanjangan,
   simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
@@ -567,17 +568,37 @@ export interface IStorage {
 
   // FMS Violations Methods
   batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number }>;
-  getFmsAnalytics(startDate?: string, endDate?: string): Promise<{
+  getFmsAnalytics(startDate?: string, endDate?: string, options?: {
+    startTime?: string;
+    endTime?: string;
+    violationType?: string;
+    shift?: string;
+    validationStatus?: string;
+    week?: string;
+    month?: string;
+  }): Promise<{
     byShift: any[];
     byViolation: any[];
     byDate: any[];
     byHour: any[];
+    byWeek: any[];
+    byMonth: any[];
+    topDrivers: any[];
+    allDrivers: any[];
     summary: any;
     validationStats: any[];
     availableViolationTypes: any[];
-    topDrivers: any[];
-    byWeek: any[];
+    availableWeeks: any[];
   }>;
+  getFmsViolations(options?: {
+    vehicleNo?: string;
+    violationType?: string;
+    month?: string;
+    week?: string;
+    validationStatus?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<FmsViolation[]>;
 
   // Induction Public
   createPublicInductionAttendance(attendance: InsertPublicInductionAttendance): Promise<PublicInductionAttendance>;
@@ -7786,6 +7807,7 @@ export class DrizzleStorage implements IStorage {
       shift?: string;
       validationStatus?: string;
       week?: string; // Week filter (comma-separated: "1,2,3")
+      month?: string; // Month filter (comma-separated: "Januari,Februari")
     }
   ): Promise<{
     byShift: any[];
@@ -7799,6 +7821,9 @@ export class DrizzleStorage implements IStorage {
     availableViolationTypes: any[];
     availableWeeks: any[];
   }> {
+
+    console.log("[DEBUG getFmsAnalytics] Passed Month:", options?.month, "Options:", options);
+
     // Build dynamic filter conditions
     const conditions: any[] = [];
 
@@ -7862,6 +7887,16 @@ export class DrizzleStorage implements IStorage {
         conditions.push(eq(fmsViolations.week, weeks[0]));
       } else if (weeks.length > 1) {
         conditions.push(inArray(fmsViolations.week, weeks));
+      }
+    }
+
+    // Month filter (multi-select: comma-separated strings)
+    if (options?.month && options.month !== 'all') {
+      const months = options.month.split(',').map(m => m.trim()).filter(m => m);
+      if (months.length === 1) {
+        conditions.push(eq(fmsViolations.month, months[0]));
+      } else if (months.length > 1) {
+        conditions.push(inArray(fmsViolations.month, months));
       }
     }
 
@@ -8024,41 +8059,85 @@ export class DrizzleStorage implements IStorage {
       .orderBy(desc(sql`count(*)`));
 
     // 7. By Week - NEW
-    const byWeek = await db
-      .select({
-        week: fmsViolations.week,
-        total: sql<number>`count(*)::integer`,
-        valid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
-        invalid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Tidak Valid' OR ${fmsViolations.validationStatus} = 'False')::integer`,
-      })
-      .from(fmsViolations)
-      .where(dateFilter)
-      .groupBy(fmsViolations.week)
-      .orderBy(asc(fmsViolations.week));
+    let byWeek: any[] = [];
+    try {
+      byWeek = await db
+        .select({
+          week: fmsViolations.week,
+          total: sql<number>`count(*)::integer`,
+          valid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
+          invalid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Tidak Valid' OR ${fmsViolations.validationStatus} = 'False')::integer`,
+        })
+        .from(fmsViolations)
+        .where(dateFilter)
+        .groupBy(fmsViolations.week)
+        .orderBy(asc(fmsViolations.week));
+    } catch (e) {
+      console.error("[getFmsAnalytics] byWeek query failed:", e);
+    }
+
+    // 7.5 By Month - NEW
+    let byMonth: any[] = [];
+    try {
+      byMonth = await db
+        .select({
+          month: fmsViolations.month,
+          total: sql<number>`count(*)::integer`,
+          valid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
+          invalid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Tidak Valid' OR ${fmsViolations.validationStatus} = 'False')::integer`,
+        })
+        .from(fmsViolations)
+        .where(dateFilter)
+        .groupBy(fmsViolations.month)
+        // Avoid TO_DATE for Indonesian month names causing syntax error
+        .orderBy(asc(fmsViolations.month));
+    } catch (e) {
+      console.error("[getFmsAnalytics] byMonth query failed:", e);
+    }
+
 
     // 8. Top 10 Drivers with Most VALID Violations - NEW
-    // LEFT JOIN with employees table to get driver name and NIK
-    const topDriversRaw = await db
-      .select({
-        vehicleNo: fmsViolations.vehicleNo,
-        validCount: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
-        driverName: employees.name,
-        driverNik: employees.id,
-      })
-      .from(fmsViolations)
-      .leftJoin(employees, eq(fmsViolations.vehicleNo, employees.nomorLambung))
-      .where(dateFilter)
-      .groupBy(fmsViolations.vehicleNo, employees.name, employees.id)
-      .orderBy(desc(sql`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')`))
-      .limit(10);
+    // 8. Top 10 Drivers with Most VALID Violations - NEW
+    let topDriversRaw: any[] = [];
+    try {
+      topDriversRaw = await db
+        .select({
+          vehicleNo: fmsViolations.vehicleNo,
+          validCount: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
+          totalCount: sql<number>`count(*)::integer`,
+          mataTertutupCount: sql<number>`count(*) filter (where ${fmsViolations.violationType} = 'Mata Tertutup')::integer`,
+          mengantukCount: sql<number>`count(*) filter (where ${fmsViolations.violationType} = 'Mengantuk')::integer`,
+          kelelahanCount: sql<number>`count(*) filter (where ${fmsViolations.violationType} = 'Kelelahan')::integer`,
+        })
+        .from(fmsViolations)
+        .where(dateFilter)
+        .groupBy(fmsViolations.vehicleNo)
+        .orderBy(desc(sql`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')`));
+    } catch (e) {
+      console.error("[getFmsAnalytics] topDriversRaw query failed:", e);
+    }
 
-    const topDrivers = topDriversRaw.map((d, idx) => ({
-      rank: idx + 1,
-      vehicleNo: d.vehicleNo,
-      driverName: d.driverName || "Tidak Diketahui",
-      driverNik: d.driverNik || "-",
-      validCount: Number(d.validCount || 0),
-    }));
+    // Get all employee data in memory to match with vehicleNo
+    const allEmps = await db.select({ name: employees.name, id: employees.id, lambung: employees.nomorLambung }).from(employees);
+    const empMap = new Map(allEmps.filter(e => e.lambung).map(e => [e.lambung, e]));
+
+    const allDrivers = topDriversRaw.map((d, idx) => {
+      const emp = empMap.get(d.vehicleNo);
+      return {
+        rank: idx + 1,
+        vehicleNo: d.vehicleNo,
+        driverName: emp?.name || "Tidak Diketahui",
+        driverNik: emp?.id?.toString() || "-",
+        validCount: Number(d.validCount || 0),
+        totalCount: Number(d.totalCount || 0),
+        mataTertutupCount: Number(d.mataTertutupCount || 0),
+        mengantukCount: Number(d.mengantukCount || 0),
+        kelelahanCount: Number(d.kelelahanCount || 0),
+      };
+    });
+
+    const topDrivers = allDrivers.slice(0, 10);
+
 
     // 9. Available Violation Types (Independent of violationType filter) - NEW
     const availableViolationTypes = await db
@@ -8099,7 +8178,14 @@ export class DrizzleStorage implements IStorage {
         valid: Number(w.valid || 0),
         invalid: Number(w.invalid || 0),
       })),
+      byMonth: byMonth.map(m => ({
+        month: m.month,
+        total: Number(m.total || 0),
+        valid: Number(m.valid || 0),
+        invalid: Number(m.invalid || 0),
+      })),
       topDrivers,
+      allDrivers,
       validationStats: validationStats.map(v => ({
         ...v,
         total: Number(v.total || 0),
@@ -8108,6 +8194,85 @@ export class DrizzleStorage implements IStorage {
       })),
       availableWeeks: availableWeeks.map(w => w.week)
     };
+  }
+
+  async getFmsViolations(options?: {
+    vehicleNo?: string;
+    violationType?: string;
+    month?: string;
+    week?: string;
+    validationStatus?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<FmsViolation[]> {
+    const conditions: any[] = [];
+
+    if (options?.vehicleNo) {
+      const vNo = options.vehicleNo.trim();
+      console.log(`[DEBUG getFmsViolations] Adding vehicleNo filter: "${vNo}" (using ilike)`);
+      conditions.push(ilike(fmsViolations.vehicleNo, vNo));
+    }
+
+    if (options?.violationType && options.violationType !== 'all') {
+      const types = options.violationType.split(',').map(t => t.trim()).filter(t => t);
+      console.log(`[DEBUG getFmsViolations] Adding violationType filter: ${types.join(', ')}`);
+      if (types.length === 1) {
+        conditions.push(eq(fmsViolations.violationType, types[0]));
+      } else if (types.length > 1) {
+        conditions.push(inArray(fmsViolations.violationType, types));
+      }
+    }
+
+    if (options?.month && options.month !== 'all') {
+      console.log(`[DEBUG getFmsViolations] Adding month filter: ${options.month}`);
+      const months = options.month.split(',').map(m => m.trim()).filter(m => m);
+      if (months.length === 1) {
+        conditions.push(eq(fmsViolations.month, months[0]));
+      } else if (months.length > 1) {
+        conditions.push(inArray(fmsViolations.month, months));
+      }
+    }
+
+    if (options?.week && options.week !== 'all') {
+      console.log(`[DEBUG getFmsViolations] Adding week filter: ${options.week}`);
+      const weeks = options.week.split(',').map(w => parseInt(w.trim())).filter(w => !isNaN(w));
+      if (weeks.length === 1) {
+        conditions.push(eq(fmsViolations.week, weeks[0]));
+      } else if (weeks.length > 1) {
+        conditions.push(inArray(fmsViolations.week, weeks));
+      }
+    }
+
+    if (options?.validationStatus && options.validationStatus !== 'all') {
+      console.log(`[DEBUG getFmsViolations] Adding validationStatus filter: ${options.validationStatus}`);
+      const statuses = options.validationStatus.split(',').map(s => s.trim()).filter(s => s);
+      const statusConditions: any[] = [];
+      for (const status of statuses) {
+        if (status === 'Valid') {
+          statusConditions.push(or(eq(fmsViolations.validationStatus, 'Valid'), eq(fmsViolations.validationStatus, 'True')));
+        } else if (status === 'Tidak Valid') {
+          statusConditions.push(or(eq(fmsViolations.validationStatus, 'Tidak Valid'), eq(fmsViolations.validationStatus, 'False')));
+        }
+      }
+      if (statusConditions.length > 0) {
+        conditions.push(or(...statusConditions));
+      }
+    }
+
+    if (options?.startDate && options?.endDate) {
+      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${options.startDate}::timestamp`);
+      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${options.endDate}::timestamp`);
+    }
+
+    console.log(`[DEBUG getFmsViolations] Querying with ${conditions.length} conditions`);
+    const results = await db
+      .select()
+      .from(fmsViolations)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(fmsViolations.violationTimestamp));
+
+    console.log(`[DEBUG getFmsViolations] DB returned ${results.length} rows`);
+    return results;
   }
 
   // Induction Methods Implementation

@@ -15,3 +15,23 @@ uploads/
 temp/
 nul
 .claude/
+
+# Logs
+*.log
+*_log.txt
+FMS_UPLOAD_ERROR_LOG.txt
+tsc_errors.txt
+
+# Debug Scripts
+check_behavior_*.js
+check_behavior_*.ts
+check_list_api.js
+debug-pvt.ts
+status-check.ts
+test-db-queries-month.ts
+debug_fms_data*.ts
+test-storage-logic.ts
+
+# Misc
+dummy.jpg
+sidak/*.pdf

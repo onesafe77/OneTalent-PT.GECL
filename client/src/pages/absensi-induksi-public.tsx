@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,7 +22,7 @@ const inductionAttendanceSchema = z.object({
     nik: z.string().min(1, "NIK wajib diisi"),
     namaKaryawan: z.string().min(1, "Nama karyawan wajib diisi"),
     jabatan: z.string().min(1, "Jabatan wajib diisi"),
-    nomorTelepon: z.string().optional(),
+    nomorTelepon: z.string().min(5, "Nomor telepon wajib diisi"),
     pemateri: z.string().min(1, "Pemateri wajib diisi"),
     tanggalRefreshInduksi: z.string().min(1, "Tanggal wajib diisi"),
     tandaTangan: z.string().min(1, "Tanda tangan wajib diisi"),
@@ -309,7 +310,7 @@ export default function AbsensiInduksiPublic() {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-sm font-medium text-gray-700">
-                                                    No. Telepon <span className="text-gray-400 font-normal text-xs">(Opsional)</span>
+                                                    No. Telepon <span className="text-red-500 font-normal text-xs">*</span>
                                                 </FormLabel>
                                                 <FormControl>
                                                     <div className="relative group">
@@ -333,16 +334,20 @@ export default function AbsensiInduksiPublic() {
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-sm font-medium text-gray-700">Pemateri</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative group">
-                                                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-red-500 transition-colors" />
-                                                        <Input
-                                                            placeholder="Nama Pemateri Induksi"
-                                                            className="pl-9 h-11 border-gray-200 focus:border-red-500 focus:ring-red-100 bg-white transition-all rounded-lg"
-                                                            {...field}
-                                                        />
-                                                    </div>
-                                                </FormControl>
+                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                    <FormControl>
+                                                        <div className="relative group">
+                                                            <User className="absolute left-3 top-3 h-4 w-4 z-10 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                                                            <SelectTrigger className="pl-9 h-11 border-gray-200 focus:border-red-500 focus:ring-red-100 bg-white transition-all rounded-lg">
+                                                                <SelectValue placeholder="Pilih Pemateri Induksi" />
+                                                            </SelectTrigger>
+                                                        </div>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="BAGUS ANDYKA FIRMANSYAH">BAGUS ANDYKA FIRMANSYAH</SelectItem>
+                                                        <SelectItem value="ARIS MUHAMMAD S">ARIS MUHAMMAD S</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
                                                 <FormMessage className="text-xs" />
                                             </FormItem>
                                         )}

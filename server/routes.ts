@@ -5203,10 +5203,55 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
   // SIDAK TINGKAH LAKU DRIVER (Behavior)
   // ============================================
+
+  const sidakBehaviorPhotoUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(process.cwd(), 'uploads', 'sidak-behavior');
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, `behavior-${uniqueSuffix}${path.extname(file.originalname)}`);
+      }
+    }),
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only images are allowed'));
+      }
+    }
+  });
+
+  app.post("/api/sidak-behavior/upload", sidakBehaviorPhotoUpload.single("photo"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No photo uploaded" });
+      }
+      const photoUrl = `/uploads/sidak-behavior/${req.file.filename}`;
+      res.json({ url: photoUrl });
+    } catch (error) {
+      console.error("Error uploading behavior evidence photo:", error);
+      res.status(500).json({ error: "Failed to upload photo" });
+    }
+  });
+
   app.post("/api/sidak-behavior", async (req, res) => {
     try {
       const validatedData = insertSidakBehaviorSessionSchema.parse(req.body);
-      const session = await storage.createSidakBehaviorSession(validatedData);
+
+      // Get logged-in user's NIK to track who created this SIDAK
+      const sessionUser = (req.session as any).user;
+      const createdBy = sessionUser?.nik || null;
+
+      const session = await storage.createSidakBehaviorSession({
+        ...validatedData,
+        createdBy
+      });
       res.json(session);
     } catch (error: any) {
       console.error("Error creating Sidak Behavior session:", error);
@@ -5219,8 +5264,30 @@ Format sebagai bullet points singkat per insight.`;
 
   app.get("/api/sidak-behavior", async (req, res) => {
     try {
-      const sessions = await storage.getAllSidakBehaviorSessions();
-      res.json(sessions);
+      let sessions = await storage.getAllSidakBehaviorSessions();
+
+      const sessionUser = (req.session as any)?.user;
+      if (sessionUser && sessionUser.role !== 'ADMIN') {
+        sessions = sessions.filter(s => s.createdBy === sessionUser.nik);
+      }
+
+      // Add computed totalSampel (actual count from records) and observers to each session
+      const sessionsWithDetails = await Promise.all(
+        sessions.map(async (session) => {
+          const [records, observers] = await Promise.all([
+            storage.getSidakBehaviorRecords(session.id),
+            storage.getSidakBehaviorObservers(session.id)
+          ]);
+          return {
+            ...session,
+            totalSampel: records.length,
+            records,
+            observers
+          };
+        })
+      );
+
+      res.json(sessionsWithDetails);
     } catch (error) {
       console.error("Error fetching Sidak Behavior sessions:", error);
       res.status(500).json({ message: "Gagal mengambil data Sidak Behavior" });
@@ -6908,7 +6975,7 @@ Format sebagai bullet points singkat per insight.`;
           observerCount: 0,
           observers: "",
           createdBy: s.createdBy || null,
-          supervisorName: s.createdBy || s.supervisorName || s.picName || s.nama || "-",
+          supervisorName: s.createdBy || s.namaSupervisor || s.supervisorName || s.picName || s.nama || "-",
           createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString()
         };
       };
@@ -6931,7 +6998,12 @@ Format sebagai bullet points singkat per insight.`;
       // Resolve supervisor NIKs to names
       const nikCache = new Map<string, string>();
       for (const session of allSessions) {
-        const nik = session.createdBy;
+        let nik = session.createdBy;
+        // If supervisorName looks like an NIK, try to resolve it too
+        if (session.supervisorName && (session.supervisorName.startsWith('C-') || session.supervisorName.startsWith('P-'))) {
+          nik = session.supervisorName;
+        }
+
         if (nik && (nik.startsWith('C-') || nik.startsWith('P-'))) {
           if (!nikCache.has(nik)) {
             const employee = await storage.getEmployee(nik);
@@ -7309,6 +7381,29 @@ Format sebagai bullet points singkat per insight.`;
           session: {
             ...session,
             type: 'Workshop',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+
+      if (type === 'Behavior') {
+        const session = await storage.getSidakBehaviorSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: "Session not found" });
+        const records = await storage.getSidakBehaviorRecords(sessionId as string);
+        const observers = await storage.getSidakBehaviorObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'Behavior',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            shift: session.shift,
+            lokasi: session.lokasi,
             supervisorName,
             photos: session.activityPhotos
           },
@@ -12158,7 +12253,7 @@ Format sebagai bullet points singkat per insight.`;
   // 1. Get Analytics Dashboard Data
   app.get("/api/fms/analytics", async (req, res) => {
     try {
-      const { startDate, endDate, startTime, endTime, violationType, shift, validationStatus, week } = req.query;
+      const { startDate, endDate, startTime, endTime, violationType, shift, validationStatus, week, month } = req.query;
 
       const stats = await storage.getFmsAnalytics(
         typeof startDate === 'string' ? startDate : undefined,
@@ -12170,6 +12265,7 @@ Format sebagai bullet points singkat per insight.`;
           shift: typeof shift === 'string' ? shift : undefined,
           validationStatus: typeof validationStatus === 'string' ? validationStatus : undefined,
           week: typeof week === 'string' ? week : undefined,
+          month: typeof month === 'string' ? month : undefined,
         }
       );
 
@@ -12177,6 +12273,28 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error fetching FMS analytics:", error);
       res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  // 1.5. Get Detailed Violations
+  app.get("/api/fms/violations", async (req, res) => {
+    try {
+      const { vehicleNo, violationType, month, week, validationStatus, startDate, endDate } = req.query;
+
+      const violations = await storage.getFmsViolations({
+        vehicleNo: typeof vehicleNo === 'string' ? vehicleNo : undefined,
+        violationType: typeof violationType === 'string' ? violationType : undefined,
+        month: typeof month === 'string' ? month : undefined,
+        week: typeof week === 'string' ? week : undefined,
+        validationStatus: typeof validationStatus === 'string' ? validationStatus : undefined,
+        startDate: typeof startDate === 'string' ? startDate : undefined,
+        endDate: typeof endDate === 'string' ? endDate : undefined,
+      });
+
+      res.json(violations);
+    } catch (error) {
+      console.error("Error fetching FMS violations:", error);
+      res.status(500).json({ error: "Failed to fetch violations" });
     }
   });
 

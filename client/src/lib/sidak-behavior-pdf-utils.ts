@@ -32,27 +32,27 @@ const BLACK = "#000000";
 // PARAMETERS (labels from InspectionPDF_v2, keys from our DB schema)
 // ============================================================
 const PARAMETER_PERILAKU = [
-    { key: "mataTertutup", label: "Makan Tertidur" },
-    { key: "seringMengedip", label: "Sering Menguap" },
-    { key: "menguapBerulang", label: "Mengucek Garuk" },
-    { key: "kepalaMengangguk", label: "Kurang Tanggap" },
-    { key: "posturMembungkuk", label: "Posisi Duduk" },
-    { key: "keluarJalur", label: "Keluar Jalur" },
-    { key: "reaksiRadioLambat", label: "Reaksi Lambat" },
-    { key: "tidakMeresponRadio", label: "Tidak Konsentrasi" },
-    { key: "alarmFatigueFmsAktif", label: "Fatigue Mgt Rules" },
-    { key: "mengemudiTidakStabil", label: "Tidak Stabil" },
-    { key: "edukasiTwoWay", label: "Estimasi Jarak" },
-    { key: "monitoringUlang", label: "Monitor Lalin" },
-    { key: "instruksiBerhenti", label: "Tindakan Bantuan" },
-    { key: "stretchingMinum", label: "Syarat SIA MHE" },
+    { key: "mataTertutup", label: "Mata Tertutup > 2d" },
+    { key: "seringMengedip", label: "Sering Mengedip" },
+    { key: "menguapBerulang", label: "Menguap Berulang" },
+    { key: "kepalaMengangguk", label: "Kepala Mengangguk" },
+    { key: "posturMembungkuk", label: "Postur Membungkuk" },
+    { key: "keluarJalur", label: "Keluar Jalur/Zig-zag" },
+    { key: "reaksiRadioLambat", label: "Reaksi Radio Lambat" },
+    { key: "tidakMeresponRadio", label: "Tdk Respon Radio" },
+    { key: "alarmFatigueFmsAktif", label: "Alarm FMS Aktif" },
+    { key: "mengemudiTidakStabil", label: "Mengemudi T.Stabil" },
 ];
 
 const TINDAKAN = [
-    { key: "parkirAman", label: "Pelanggaran" },
+    { key: "edukasiTwoWay", label: "Edukasi Two-Way" },
+    { key: "monitoringUlang", label: "Monitoring Ulang" },
+    { key: "instruksiBerhenti", label: "Instruksi Berhenti" },
+    { key: "stretchingMinum", label: "Stretching/Minum" },
+    { key: "parkirAman", label: "Parkir Aman" },
     { key: "gantiDriver", label: "Ganti Driver" },
     { key: "mandatoryRest", label: "Mandatory Rest" },
-    { key: "koordinasiPengawas", label: "Koordinasi Pengawas" },
+    { key: "koordinasiPengawas", label: "Koord. Pengawas" },
 ];
 
 const ALL_PARAMS = [...PARAMETER_PERILAKU, ...TINDAKAN];
@@ -62,7 +62,8 @@ const ALL_PARAMS = [...PARAMETER_PERILAKU, ...TINDAKAN];
 // "Hello" => "H\ne\nl\nl\no"
 // ============================================================
 function verticalText(text: string): string {
-    return text.split("").join("\n");
+    // Split by spaces so it stacked words vertically instead of letters, far more readable.
+    return text.split(" ").join("\n");
 }
 
 // ============================================================
@@ -74,7 +75,7 @@ const MARGIN = 20;
 const CONTENT_W = PAGE_W - MARGIN * 2;
 
 const COL_NO = 18;
-const COL_NAMA = 50;
+const COL_NAMA = 40;
 const COL_LAMBUNG = 40;
 const FIXED_W = COL_NO + COL_NAMA + COL_LAMBUNG;
 const PARAM_W = (CONTENT_W - FIXED_W) / ALL_PARAMS.length; // ~40.8 per col
@@ -146,81 +147,80 @@ const s = StyleSheet.create({
     // Main table
     table: { marginTop: 5 },
 
-    // Group header (PARAMETER PERILAKU / TINDAKAN)
-    groupRow: {
-        flexDirection: "row" as const,
+    // Main Header Row (Combined)
+    tableHeaderContainer: {
+        flexDirection: 'row',
         border: `0.5pt solid ${BLACK}`,
-        borderBottom: "none",
+        borderBottom: 'none',
+        height: 100,
     },
-    groupSpacer: {
-        width: FIXED_W,
+    headerColNo: {
+        width: COL_NO,
         backgroundColor: GRAY,
+        justifyContent: 'center',
+        alignItems: 'center',
         borderRight: `0.5pt solid ${BLACK}`,
+    },
+    headerColNama: {
+        width: COL_NAMA,
+        backgroundColor: GRAY,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRight: `0.5pt solid ${BLACK}`,
+    },
+    headerColLambung: {
+        width: COL_LAMBUNG,
+        backgroundColor: GRAY,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRight: `0.5pt solid ${BLACK}`,
+    },
+    colHeader: { fontSize: 6, fontFamily: "Helvetica-Bold", textAlign: "center" as const },
+
+    headerGroupCol: {
+        flexDirection: 'column',
+        width: PARAM_W * ALL_PARAMS.length,
+        borderRight: `0.5pt solid ${BLACK}`,
+    },
+    groupHeaderRow: {
+        flexDirection: 'row',
+        height: 18,
+        borderBottom: `0.5pt solid ${BLACK}`,
     },
     groupParam: {
         width: PARAM_W * PARAMETER_PERILAKU.length,
         backgroundColor: GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
-        padding: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
         borderRight: `0.5pt solid ${BLACK}`,
     },
     groupTindakan: {
         width: PARAM_W * TINDAKAN.length,
         backgroundColor: GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
-        padding: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     groupText: { fontSize: 6, fontFamily: "Helvetica-Bold" },
 
-    // Column headers with vertical text
-    colHeaderRow: {
-        flexDirection: "row" as const,
-        border: `0.5pt solid ${BLACK}`,
-        borderBottom: "none",
-        height: 100, // tall enough for vertical text
+    paramHeaderRow: {
+        flexDirection: 'row',
+        flex: 1,
     },
-    colNo: {
-        width: COL_NO,
-        backgroundColor: GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
-        borderRight: `0.5pt solid ${BLACK}`,
-    },
-    colNama: {
-        width: COL_NAMA,
-        backgroundColor: GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
-        borderRight: `0.5pt solid ${BLACK}`,
-    },
-    colLambung: {
-        width: COL_LAMBUNG,
-        backgroundColor: GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
-        borderRight: `0.5pt solid ${BLACK}`,
-    },
-    colHeader: { fontSize: 6, fontFamily: "Helvetica-Bold", textAlign: "center" as const },
-
     paramColHeader: {
         width: PARAM_W,
         backgroundColor: LIGHT_GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
+        justifyContent: 'center',
+        alignItems: 'center',
         borderRight: `0.5pt solid ${BLACK}`,
-        padding: "2 0",
     },
     paramColHeaderLast: {
         width: PARAM_W,
         backgroundColor: LIGHT_GRAY,
-        justifyContent: "center" as const,
-        alignItems: "center" as const,
-        padding: "2 0",
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     verticalLabel: {
-        fontSize: 5,
+        fontSize: 6,
         textAlign: "center" as const,
         lineHeight: 1.1,
         fontFamily: "Helvetica",
@@ -231,12 +231,12 @@ const s = StyleSheet.create({
         flexDirection: "row" as const,
         border: `0.5pt solid ${BLACK}`,
         borderBottom: "none",
-        minHeight: 14,
+        minHeight: 24,
     },
     dataRowLast: {
         flexDirection: "row" as const,
         border: `0.5pt solid ${BLACK}`,
-        minHeight: 14,
+        minHeight: 24,
     },
     cellNo: {
         width: COL_NO,
@@ -298,7 +298,7 @@ const s = StyleSheet.create({
         fontFamily: "Helvetica-Bold",
     },
     obsColNama: {
-        flex: 2,
+        flex: 1,
         justifyContent: "center" as const,
         paddingLeft: 3,
         borderRight: `0.5pt solid ${BLACK}`,
@@ -411,36 +411,29 @@ function SidakBehaviorPDFDocument({ data }: { data: SidakBehaviorData }) {
             // MAIN TABLE
             h(View, { style: s.table },
 
-                // Group Header Row
-                h(View, { style: s.groupRow },
-                    h(View, { style: s.groupSpacer }),
-                    h(View, { style: s.groupParam },
-                        h(Text, { style: s.groupText }, "PARAMETER PERILAKU"),
-                    ),
-                    h(View, { style: s.groupTindakan },
-                        h(Text, { style: s.groupText }, "TINDAKAN"),
-                    ),
-                ),
+                // Main Table Header
+                h(View, { style: s.tableHeaderContainer },
+                    // Left Fixed Columns
+                    h(View, { style: s.headerColNo }, h(Text, { style: s.colHeader }, "No")),
+                    h(View, { style: s.headerColNama }, h(Text, { style: s.colHeader }, "Nama\nDriver")),
+                    h(View, { style: s.headerColLambung }, h(Text, { style: s.colHeader }, "No.\nLambung")),
 
-                // Column Header Row - VERTICAL TEXT
-                h(View, { style: s.colHeaderRow },
-                    h(View, { style: s.colNo },
-                        h(Text, { style: s.colHeader }, "No"),
-                    ),
-                    h(View, { style: s.colNama },
-                        h(Text, { style: s.colHeader }, "Nama\nDriver"),
-                    ),
-                    h(View, { style: s.colLambung },
-                        h(Text, { style: s.colHeader }, "No.\nLambung"),
-                    ),
-
-                    ...ALL_PARAMS.map((p, i) =>
-                        h(View, {
-                            key: p.key,
-                            style: i < ALL_PARAMS.length - 1 ? s.paramColHeader : s.paramColHeaderLast,
-                        },
-                            h(Text, { style: s.verticalLabel }, verticalText(p.label)),
+                    // Center Grouped Columns
+                    h(View, { style: s.headerGroupCol },
+                        h(View, { style: s.groupHeaderRow },
+                            h(View, { style: s.groupParam }, h(Text, { style: s.groupText }, "PARAMETER PERILAKU")),
+                            h(View, { style: s.groupTindakan }, h(Text, { style: s.groupText }, "TINDAKAN"))
                         ),
+                        h(View, { style: s.paramHeaderRow },
+                            ...ALL_PARAMS.map((p, i) =>
+                                h(View, {
+                                    key: p.key,
+                                    style: i < ALL_PARAMS.length - 1 ? s.paramColHeader : s.paramColHeaderLast,
+                                },
+                                    h(Text, { style: s.verticalLabel }, verticalText(p.label))
+                                )
+                            )
+                        )
                     ),
                 ),
 
@@ -468,7 +461,7 @@ function SidakBehaviorPDFDocument({ data }: { data: SidakBehaviorData }) {
                             },
                                 checked ? h(Text, { style: s.checkText }, "V") : null,
                             );
-                        }),
+                        })
                     ),
                 ),
             ),

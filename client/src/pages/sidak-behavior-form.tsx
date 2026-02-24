@@ -43,6 +43,7 @@ interface BehaviorRecord {
     mandatoryRest: boolean;
     koordinasiPengawas: boolean;
     driverSignature?: string;
+    evidenceUrl?: string;
 }
 
 interface Observer {
@@ -89,6 +90,7 @@ const initialRecord: BehaviorRecord = {
     gantiDriver: false,
     mandatoryRest: false,
     koordinasiPengawas: false,
+    evidenceUrl: "",
 };
 
 const initialDraftData: BehaviorDraftData = {
@@ -241,6 +243,34 @@ export default function SidakBehaviorForm() {
             // res is response object from apiRequest
         }
     });
+
+    const handleEvidenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("photo", file);
+
+        try {
+            const res = await fetch("/api/sidak-behavior/upload", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!res.ok) throw new Error("Upload failed");
+
+            const data = await res.json();
+            setCurrentRecord(prev => ({
+                ...prev,
+                evidenceUrl: data.url
+            }));
+
+            toast({ title: "Foto Evidance Diunggah", description: "Foto berhasil ditambahkan ke record driver ini." });
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Gagal Mengunggah", description: "Terjadi kesalahan saat mengunggah foto.", variant: "destructive" });
+        }
+    };
 
     const handleNextStep = () => {
         if (step === 1) {
@@ -640,6 +670,36 @@ export default function SidakBehaviorForm() {
                                                 />
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-4">
+                                    <Label className="text-gray-700 font-bold flex items-center gap-2">
+                                        <Camera className="w-4 h-4 text-blue-600" />
+                                        LAMPIRAN EVIDANCE (OPSIONAL)
+                                    </Label>
+                                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 flex flex-col gap-3">
+                                        {currentRecord.evidenceUrl ? (
+                                            <div className="relative aspect-video rounded-lg overflow-hidden border border-gray-200 group">
+                                                <img src={currentRecord.evidenceUrl} alt="Evidance" className="w-full h-full object-cover" />
+                                                <button
+                                                    onClick={() => setCurrentRecord(prev => ({ ...prev, evidenceUrl: "" }))}
+                                                    className="absolute top-2 right-2 bg-red-500/80 text-white p-1.5 rounded-full opacity-100 hover:bg-red-600 transition-colors shadow-sm"
+                                                    title="Hapus Foto"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors group">
+                                                <Camera className="h-8 w-8 text-gray-400 group-hover:text-amber-500 mb-2 transition-colors" />
+                                                <span className="text-sm text-gray-600 font-medium">Klik untuk Unggah / Ambil Foto</span>
+                                                <span className="text-xs text-gray-400 text-center mt-1">Bukti temuan pelanggaran (jika ada)</span>
+                                                <input type="file" accept="image/*" className="hidden" onChange={handleEvidenceUpload} />
+                                            </label>
+                                        )}
                                     </div>
                                 </div>
 

@@ -62,6 +62,7 @@ import GoogleSheetsConfig from "@/pages/google-sheets-config";
 import EvaluasiPvt from "@/pages/evaluasi-pvt";
 
 import FmsFatigueValidationDashboard from "@/pages/hse/fatigue/dashboard-validation";
+import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashboard";
 import HrInductionAttendance from "@/pages/hr-induction-attendance";
 
 import SafetyPatrol from "@/pages/safety-patrol";
@@ -333,6 +334,7 @@ export function Workspace() {
               <Route path="/workspace/hse/overspeed" component={DashboardOverspeed} />
               <Route path="/workspace/hse/jarak" component={DashboardJarak} />
               <Route path="/workspace/hse/fatigue-validation" component={FmsFatigueValidationDashboard} />
+              <Route path="/workspace/hse/fatigue-monitoring" component={FmsFatigueMonitoringDashboard} />
               <Route path="/workspace/hse/statistics" component={DashboardStatistics} />
               <Route path="/workspace/settings/google-sheets" component={GoogleSheetsConfig} />
 

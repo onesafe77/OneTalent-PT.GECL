@@ -3122,6 +3122,7 @@ export const sidakBehaviorRecords = pgTable("sidak_behavior_records", {
   koordinasiPengawas: boolean("koordinasi_pengawas").notNull().default(false),
 
   driverSignature: text("driver_signature"), // Base64 signature
+  evidenceUrl: text("evidence_url"), // Path to the uploaded evidence photo
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_behavior_records_session").on(table.sessionId),

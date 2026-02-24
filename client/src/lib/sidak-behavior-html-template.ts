@@ -45,12 +45,13 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
             .loto-report-container {
                 font-family: Arial, sans-serif;
                 background: #fff;
-                width: 297mm; /* A4 Landscape width */
-                min-height: 210mm; /* A4 Landscape height */
-                padding: 10mm;
+                width: 1122px; /* A4 Landscape width at 96dpi */
+                height: 793px; /* A4 Landscape height at 96dpi */
+                padding: 30px;
                 box-sizing: border-box;
                 position: relative;
                 color: #000;
+                overflow: hidden;
             }
             
             .loto-report-container * {
@@ -170,11 +171,15 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
                 padding-bottom: 5px;
             }
 
+            .main-table tbody tr {
+                height: 48px; /* Maximize vertical empty space */
+            }
+
 
 
             /* Vertical Text Styles - Robust wrapper approach */
             .header-wrapper {
-                height: 250px;
+                height: 100px;
                 position: relative;
                 width: 100%;
                 margin: 0 auto;
@@ -184,16 +189,16 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
 
             .rotated-text {
                 position: absolute;
-                bottom: 10px;
+                bottom: 8px;
                 left: 50%;
                 transform: translateX(-50%) rotate(-90deg);
                 transform-origin: center center;
                 
-                width: 250px; 
-                white-space: normal;
+                width: 100px; 
+                white-space: nowrap;
                 text-align: left;
-                font-size: 9px;
-                line-height: 1.25;
+                font-size: 7px;
+                line-height: 1;
                 font-weight: normal;
                 
                 /* Ensure visibility */
@@ -205,7 +210,6 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
             .col-name { width: 120px; text-align: left !important; }
             .col-lambung { width: 70px; }
             .col-check { width: 40px; } 
-            .col-sig { width: 65px; }
 
             .main-col-name { text-align: left !important; padding-left: 5px !important; }
 
@@ -233,13 +237,13 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
             }
 
             .sig-cell {
-                height: 40px;
+                height: 35px;
                 min-width: 80px;
             }
 
             .sig-img {
-                max-height: 35px;
-                max-width: 75px;
+                max-height: 30px;
+                max-width: 70px;
                 display: block;
                 margin: 0 auto;
             }
@@ -316,79 +320,83 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
                         <th class="col-no" rowspan="2">No</th>
                         <th class="col-name" rowspan="2">Nama Driver</th>
                         <th class="col-lambung" rowspan="2">No. Lambung</th>
+                        <th colspan="10" style="background:#c0c0c0; font-weight:bold; font-size:8px; padding:4px;">PARAMETER PERILAKU</th>
+                        <th colspan="8" style="background:#c0c0c0; font-weight:bold; font-size:8px; padding:4px;">TINDAKAN</th>
+                    </tr>
+                    <tr>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Makan Tertidur</div>
+                                <div class="rotated-text">Mata Tertutup > 2d</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Sering Menguap</div>
+                                <div class="rotated-text">Sering Mengedip</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Mengucek/Garuk</div>
+                                <div class="rotated-text">Menguap Berulang</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Kurang Tanggap</div>
+                                <div class="rotated-text">Kepala Mengangguk</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Posisi Duduk</div>
+                                <div class="rotated-text">Postur Membungkuk</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Keluar Jalur</div>
+                                <div class="rotated-text">Keluar Jalur/Zig-zag</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Reaksi Berat/Lambat</div>
+                                <div class="rotated-text">Reaksi Radio Lambat</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Tidak Konsentrasi</div>
+                                <div class="rotated-text">Tdk Respon Radio</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Aturan Fatigue Mgt Rules</div>
+                                <div class="rotated-text">Alarm FMS Aktif</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Mengendarai Tidak Stabil</div>
+                                <div class="rotated-text">Mengemudi T.Stabil</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Estimasi Jarak</div>
+                                <div class="rotated-text">Edukasi Two-Way</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Monitoring Lalu Lintas</div>
+                                <div class="rotated-text">Monitoring Ulang</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Tindakan Bantuan</div>
+                                <div class="rotated-text">Instruksi Berhenti</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Syarat SIA/MHE</div>
+                                <div class="rotated-text">Stretching/Minum</div>
                             </div>
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Pelanggaran</div>
+                                <div class="rotated-text">Parkir Aman</div>
                             </div>
                         </th>
                         <th class="col-check">
@@ -403,14 +411,9 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
                         </th>
                         <th class="col-check">
                             <div class="header-wrapper">
-                                <div class="rotated-text">Koordinasi Pengawas</div>
+                                <div class="rotated-text">Koord. Pengawas</div>
                             </div>
                         </th>
-                        <th class="col-sig" rowspan="2">TTD Driver</th>
-                    </tr>
-                    <tr>
-                        <th colspan="14" style="background:#c0c0c0; font-weight:bold; font-size:8px; padding:4px;">PARAMETER PERILAKU</th>
-                        <th colspan="4" style="background:#c0c0c0; font-weight:bold; font-size:8px; padding:4px;">TINDAKAN</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -439,7 +442,6 @@ export function getSidakBehaviorHtml(data: SidakBehaviorData): string {
                         <td>${getCheck(rec.gantiDriver)}</td>
                         <td>${getCheck(rec.mandatoryRest)}</td>
                         <td>${getCheck(rec.koordinasiPengawas)}</td>
-                        <td class="sig-cell">${rec.driverSignature ? `<img src="${rec.driverSignature}" class="sig-img" />` : ''}</td>
                     </tr>
                     `).join('')}
                 </tbody>
