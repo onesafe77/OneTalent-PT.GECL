@@ -8226,7 +8226,8 @@ export class DrizzleStorage implements IStorage {
     if (options?.vehicleNo) {
       const vNo = options.vehicleNo.trim();
       console.log(`[DEBUG getFmsViolations] Adding vehicleNo filter: "${vNo}"`);
-      conditions.push(ilike(fmsViolations.vehicleNo, vNo));
+      // Use standard ilike with wildcard to ensure it matches even with trailing spaces in DB
+      conditions.push(ilike(fmsViolations.vehicleNo, `%${vNo}%`));
     }
 
     if (options?.violationType && options.violationType !== 'all') {
@@ -8276,8 +8277,8 @@ export class DrizzleStorage implements IStorage {
     }
 
     if (options?.startDate && options?.endDate) {
-      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${options.startDate}::timestamp`);
-      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${options.endDate}::timestamp`);
+      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${options.startDate + ' 00:00:00'}::timestamp`);
+      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${options.endDate + ' 23:59:59'}::timestamp`);
     }
 
     console.log(`[DEBUG getFmsViolations] Querying with ${conditions.length} conditions`);
