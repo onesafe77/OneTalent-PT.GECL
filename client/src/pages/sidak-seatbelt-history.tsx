@@ -311,8 +311,7 @@ export default function SidakSeatbeltHistory() {
                                                     <span className="text-[10px] uppercase font-bold tracking-wider">Observer</span>
                                                 </div>
                                                 <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
-                                                    {session.observers[0].nama}
-                                                    {session.observers.length > 1 && ` +${session.observers.length - 1}`}
+                                                    {session.observers.map(o => o.nama).join(', ')}
                                                 </p>
                                             </div>
                                         )}
@@ -486,6 +485,6 @@ export default function SidakSeatbeltHistory() {
                     )}
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
     );
 }

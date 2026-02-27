@@ -2483,6 +2483,11 @@ export const fmsViolations = pgTable("fms_violations", {
 
   validationStatus: varchar("validation_status", { length: 50 }).default('Tidak Valid'), // 'Valid', 'Tidak Valid'
 
+  // Manual overrides for driver identification
+  manualDriverName: varchar("manual_driver_name", { length: 150 }),
+  manualDriverNik: varchar("manual_driver_nik", { length: 50 }),
+  evidenceUrl: text("evidence_url"),
+
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 }, (table) => {
   return {

@@ -87,6 +87,7 @@ import {
   insertPublicInductionAttendanceSchema,
   insertProjectSchema,
   insertProjectFileSchema,
+  fmsViolations,
 } from "@shared/schema";
 import { eq, ilike, and, desc, sql, asc } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
@@ -1922,9 +1923,23 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       // Step 2: Delete old rosters ONLY after successful insertion
+      const createdIds = new Set(createdSchedules.map((s: any) => s.id));
       const allRosters = await storage.getRosterByDateRange(startDate, endDate);
-      const rostersToDelete = allRosters.filter((r: any) => r.employeeId === employeeId);
+      const rostersToDelete = allRosters.filter((r: any) => r.employeeId === employeeId && !createdIds.has(r.id));
 
+      const debugData = {
+        createdIds: Array.from(createdIds),
+        myRostersCount: 0,
+        myRostersIds: [] as string[]
+      };
+
+      console.log(`[DEBUG] createdIds size: ${createdIds.size}, createdIds: ${Array.from(createdIds).join(', ')}`);
+      if (allRosters.length > 0) {
+        const myRosters = allRosters.filter((r: any) => r.employeeId === employeeId);
+        debugData.myRostersCount = myRosters.length;
+        debugData.myRostersIds = myRosters.map((r: any) => r.id);
+        console.log(`[DEBUG] Found ${myRosters.length} rosters for ${employeeId} in month. IDs: ${myRosters.map((r: any) => r.id).join(', ')}`);
+      }
       console.log(`🗑️ Deleting ${rostersToDelete.length} existing rosters for ${month}`);
 
       for (const roster of rostersToDelete) {
@@ -1944,15 +1959,16 @@ Format sebagai bullet points singkat per insight.`;
       const monthName = monthNames[monthNum - 1];
 
       res.json({
-        message: `Berhasil update ${createdSchedules.length} jadwal untuk ${employee.name} di ${monthName} ${year}`,
+        message: `Berhasil update ${createdSchedules.length} jadwal untuk ${employee?.name || employeeId} di ${monthName} ${year}`,
         employee: {
-          id: employee.id,
-          name: employee.name
+          id: employee?.id,
+          name: employee?.name || employeeId
         },
         month: month,
         deleted: rostersToDelete.length,
         created: createdSchedules.length,
-        rosters: createdSchedules
+        rosters: createdSchedules,
+        debug: debugData
       });
     } catch (error) {
       console.error('Update employee schedule error:', error);
@@ -12279,10 +12295,12 @@ Format sebagai bullet points singkat per insight.`;
   // 1.5. Get Detailed Violations
   app.get("/api/fms/violations", async (req, res) => {
     try {
-      const { vehicleNo, violationType, month, week, validationStatus, startDate, endDate } = req.query;
+      const { vehicleNo, driverNik, driverName, violationType, month, week, validationStatus, startDate, endDate } = req.query;
 
       const violations = await storage.getFmsViolations({
         vehicleNo: typeof vehicleNo === 'string' ? vehicleNo : undefined,
+        driverNik: typeof driverNik === 'string' ? driverNik : undefined,
+        driverName: typeof driverName === 'string' ? driverName : undefined,
         violationType: typeof violationType === 'string' ? violationType : undefined,
         month: typeof month === 'string' ? month : undefined,
         week: typeof week === 'string' ? week : undefined,
@@ -12295,6 +12313,165 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error fetching FMS violations:", error);
       res.status(500).json({ error: "Failed to fetch violations" });
+    }
+  });
+
+  // 1.6. Update Driver Override (with optional evidence upload)
+  app.patch("/api/fms/violations/:id/driver", upload.single('evidence'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { manualDriverName, manualDriverNik } = req.body;
+
+      let evidenceUrl: string | null = null;
+      if (req.file) {
+        evidenceUrl = `/uploads/${req.file.filename}`;
+      }
+
+      const updated = await storage.updateFmsViolationDriver(id, {
+        manualDriverName: manualDriverName ?? null,
+        manualDriverNik: manualDriverNik ?? null,
+        evidenceUrl: evidenceUrl
+      });
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating FMS violation driver:", error);
+      res.status(500).json({ error: "Failed to update driver override" });
+    }
+  });
+
+  // 1.6b. Get violations by driver name
+  app.get("/api/fms/driver-violations", async (req, res) => {
+    try {
+      const { driverName } = req.query;
+      if (!driverName) {
+        return res.status(400).json({ error: "driverName query parameter is required" });
+      }
+      console.log(`[driver-violations] Searching for driverName: "${driverName}"`);
+
+      const results = await db
+        .select()
+        .from(fmsViolations)
+        .where(ilike(fmsViolations.manualDriverName, String(driverName).trim()))
+        .orderBy(sql`${fmsViolations.violationDate} DESC, ${fmsViolations.violationTime} DESC`);
+
+      console.log(`[driver-violations] Found ${results.length} violations for "${driverName}"`);
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching driver violations:", error);
+      res.status(500).json({ error: "Failed to fetch driver violations" });
+    }
+  });
+  app.get("/api/fms/driver-evaluations", async (req, res) => {
+    try {
+      const { month, week, violationType } = req.query;
+
+      // Get all violations that have manual driver name
+      const violations = await storage.getFmsViolations({
+        violationType: typeof violationType === 'string' ? violationType : 'Mata Tertutup,Mengantuk,Kelelahan',
+        month: typeof month === 'string' ? month : undefined,
+        week: typeof week === 'string' ? week : undefined,
+      });
+
+      // Filter only records with manual driver name
+      const driverViolations = violations.filter(v => v.manualDriverName);
+
+      // Aggregate per driver
+      const driverStats = new Map<string, any>();
+      for (const v of driverViolations) {
+        const key = v.manualDriverName!.trim().toUpperCase();
+        if (!driverStats.has(key)) {
+          driverStats.set(key, {
+            driverName: v.manualDriverName!.trim(),
+            driverNik: v.manualDriverNik || '-',
+            vehicleNos: new Set<string>(),
+            totalAlert: 0,
+            mataTertutup: 0,
+            mengantuk: 0,
+            kelelahan: 0,
+          });
+        }
+        const stat = driverStats.get(key)!;
+        stat.vehicleNos.add(v.vehicleNo);
+        stat.totalAlert++;
+        if (v.violationType === 'Mata Tertutup') stat.mataTertutup++;
+        else if (v.violationType === 'Mengantuk') stat.mengantuk++;
+        else if (v.violationType === 'Kelelahan') stat.kelelahan++;
+      }
+
+      // Get sidak fatigue session counts per employee
+      const sidakCounts = new Map<string, number>();
+      try {
+        const sidakSessions = await db.select({
+          employeeName: sql<string>`UPPER(TRIM(sfr.driver_name))`,
+          count: sql<number>`COUNT(DISTINCT sfs.id)`,
+        })
+          .from(sql`sidak_fatigue_sessions sfs`)
+          .leftJoin(sql`sidak_fatigue_records sfr`, sql`sfr.session_id = sfs.id`)
+          .groupBy(sql`UPPER(TRIM(sfr.driver_name))`);
+
+        for (const s of sidakSessions) {
+          if (s.employeeName) sidakCounts.set(s.employeeName, Number(s.count));
+        }
+      } catch (e) {
+        console.log("[driver-evaluations] Sidak fatigue lookup skipped:", (e as Error).message);
+      }
+
+      // Get PVT data per employee
+      const pvtData = new Map<string, { avgRT: number | null; totalTests: number; status: string }>();
+      try {
+        const pvtResults = await db.select({
+          employeeName: sql<string>`UPPER(TRIM(e.name))`,
+          avgRT: sql<number>`AVG(sfr.pvt_mean_rt)`,
+          totalTests: sql<number>`COUNT(sfr.id)`,
+        })
+          .from(sql`sidak_fatigue_records sfr`)
+          .leftJoin(sql`employees e`, sql`e.id = sfr.employee_id`)
+          .where(sql`sfr.pvt_mean_rt IS NOT NULL`)
+          .groupBy(sql`UPPER(TRIM(e.name))`);
+
+        for (const p of pvtResults) {
+          if (p.employeeName) {
+            const avg = Math.round(Number(p.avgRT));
+            pvtData.set(p.employeeName, {
+              avgRT: avg,
+              totalTests: Number(p.totalTests),
+              status: avg <= 350 ? 'Sangat Baik' : avg <= 500 ? 'Cukup' : 'Lambat',
+            });
+          }
+        }
+      } catch (e) {
+        console.log("[driver-evaluations] PVT lookup skipped:", (e as Error).message);
+      }
+
+      // Combine data
+      const result = Array.from(driverStats.values())
+        .map((stat, index) => {
+          const nameKey = stat.driverName.toUpperCase();
+          const sidak = sidakCounts.get(nameKey) || 0;
+          const pvt = pvtData.get(nameKey) || { avgRT: null, totalTests: 0, status: 'Belum Ada Data' };
+          return {
+            rank: index + 1,
+            driverName: stat.driverName,
+            driverNik: stat.driverNik,
+            vehicleNos: Array.from(stat.vehicleNos).join(', '),
+            totalAlert: stat.totalAlert,
+            mataTertutup: stat.mataTertutup,
+            mengantuk: stat.mengantuk,
+            kelelahan: stat.kelelahan,
+            sidakCount: sidak,
+            pvtAvgRT: pvt.avgRT,
+            pvtTotalTests: pvt.totalTests,
+            pvtStatus: pvt.status,
+          };
+        })
+        .sort((a, b) => b.totalAlert - a.totalAlert)
+        .map((d, i) => ({ ...d, rank: i + 1 }));
+
+      res.json({ drivers: result, total: result.length });
+    } catch (error) {
+      console.error("Error fetching driver evaluations:", error);
+      res.status(500).json({ error: "Failed to fetch driver evaluations" });
     }
   });
 

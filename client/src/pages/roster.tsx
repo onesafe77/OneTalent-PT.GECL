@@ -23,6 +23,7 @@ import { AutoSaveIndicator } from "@/components/AutoSaveIndicator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { saveAs } from 'file-saver';
 import { MonthlyCalendar } from "@/components/MonthlyCalendar";
+import { RosterMatrixView } from "@/components/RosterMatrixView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings2, FileSpreadsheet, ChevronDown, CalendarCheck, MoreHorizontal } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -63,7 +64,7 @@ export default function Roster() {
   // Monthly calendar states
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [viewMode, setViewMode] = useState<'matrix' | 'calendar' | 'list'>('matrix');
   const { toast } = useToast();
 
   const { data: employeesResponse } = useQuery<any>({
@@ -133,7 +134,7 @@ export default function Roster() {
       console.log(`📅 Fetched ${data.length} roster entries for ${selectedYear}-${selectedMonth}`);
       return data;
     },
-    enabled: viewMode === 'calendar', // Only fetch when calendar view is active
+    enabled: viewMode === 'calendar' || viewMode === 'matrix', // Only fetch when calendar or matrix view is active
     staleTime: 0,
     refetchOnWindowFocus: true,
   });
@@ -457,177 +458,126 @@ export default function Roster() {
     setProcessedCount(0);
 
     try {
-      // Phase 1: Read Excel file (20% progress)
       setUploadProgress(10);
       const data = await selectedFile.arrayBuffer();
       const workbook = XLSX.read(data);
 
-      // Read from "Template Roster" sheet specifically (like pandas)
       const sheetName = workbook.SheetNames.includes('Template Roster')
         ? 'Template Roster'
         : workbook.SheetNames[0];
 
-      console.log('📋 Reading from sheet:', sheetName);
+      console.log('📋 Reading from sheet (Matrix format):', sheetName);
       const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
 
       console.log(`Excel file loaded with ${jsonData.length} rows`);
-      console.log('=== RAW EXCEL DATA (first 3 rows) ===');
-      console.log(JSON.stringify(jsonData.slice(0, 3), null, 2));
       setUploadProgress(20);
       setTotalCount(jsonData.length);
 
-      // Phase 2: Process data in chunks (20% to 80% progress)
       const rosterData: InsertRosterSchedule[] = [];
-      const chunkSize = 500; // Process 500 rows at a time for better performance
+      const chunkSize = 100; // Smaller chunk for matrix since each row has 31 entries
+
+      // Use selected month/year as the target if no month is provided in the upload
+      const monthStr = String(selectedMonth).padStart(2, '0');
+      const yearStr = String(selectedYear);
 
       for (let i = 0; i < jsonData.length; i += chunkSize) {
         const chunk = jsonData.slice(i, i + chunkSize);
 
-        const processedChunk = chunk.map((row: any) => {
-          // Parse format Excel user: Jam Kel dan Jam Tld sebagai kolom terpisah
+        const processedChunk: InsertRosterSchedule[] = [];
 
-          // Normalize shift values - handle various formats and variations
-          const rawShift = String(row.Shift || row.shift || '')
-            .trim()
-            .replace(/\s+/g, ' ') // Collapse multiple spaces
-            .replace(/[\u00A0\u2000-\u200B]/g, ' ') // Remove non-breaking spaces
-            .toUpperCase();
-
-          // Map common shift variations to canonical values
-          let normalizedShift = 'SHIFT 1'; // Default
-
-          const shift1Variants = ['SHIFT 1', 'SHIFT1', 'S1', '1', 'SHIFT I'];
-          const shift2Variants = ['SHIFT 2', 'SHIFT2', 'S2', '2', 'SHIFT II'];
-          const overShiftVariants = ['OVER SHIFT', 'OVER', 'OS', 'O/S', 'OVERTIME'];
-          const cutiVariants = ['CUTI', 'OFF', 'LEAVE'];
-
-          if (shift1Variants.includes(rawShift)) {
-            normalizedShift = 'SHIFT 1';
-          } else if (shift2Variants.includes(rawShift)) {
-            normalizedShift = 'SHIFT 2';
-          } else if (overShiftVariants.includes(rawShift)) {
-            normalizedShift = 'OVER SHIFT';
-          } else if (cutiVariants.includes(rawShift)) {
-            normalizedShift = 'CUTI';
-          } else if (rawShift !== '') {
-            // Log unknown shift format
-            console.warn(`⚠️ Unknown shift format: "${rawShift}" - defaulting to SHIFT 1`);
+        chunk.forEach((row: any) => {
+          // Identify if this is a header or instruction row by checking if NIK exists
+          const nik = row.NIK || row.nik || row['Employee ID'] || row.employeeId || '';
+          if (!nik || typeof nik !== 'string' || nik.includes('INSTRUKSI') || nik.includes('Format')) {
+            return;
           }
 
-          // Set default times based on normalized shift
-          let defaultStartTime = '06:00';
-          let defaultEndTime = '16:00';
+          const employeeName = row['NAMA DRIVER'] || row.Nama || row.nama || row.Name || row.name || '';
+          const nomorLambung = row.DRIVER || row['Nomor Lambung'] || row.nomorLambung || row.nomor_lambung || '';
 
-          if (normalizedShift === 'SHIFT 2') {
-            defaultStartTime = '18:00';
-            defaultEndTime = '06:00';
-          } else if (normalizedShift === 'CUTI') {
-            defaultStartTime = '00:00';
-            defaultEndTime = '00:00';
-          } else if (normalizedShift === 'OVER SHIFT') {
-            defaultStartTime = '06:00';
-            defaultEndTime = '18:00';
-          }
+          // Iterate through keys 1 to 31 (could be "01", "1", "02", "2", etc.)
+          Object.keys(row).forEach((key) => {
+            const dayNum = parseInt(key, 10);
+            if (!isNaN(dayNum) && dayNum >= 1 && dayNum <= 31) {
+              const cellValue = String(row[key] || '').trim().replace(/\s+/g, '').toUpperCase();
 
-          // Handle Jam Kel dan Jam Tld sebagai kolom terpisah (format user)
-          const jamKel = row['Jam Kel'] || row.jamKel || '';
-          const jamTld = row['Jam Tld'] || row.jamTld || '';
+              if (cellValue && cellValue !== '-') {
+                // Parse Matrix format: e.g. "DS21" -> Shift "DS", Hari Kerja "21"
+                // Regex: letters followed by numbers
+                const match = cellValue.match(/^([A-Z]+)(\d*)$/);
 
-          const startTime = jamKel && jamKel !== '' ? String(jamKel).trim() : defaultStartTime;
-          const endTime = jamTld && jamTld !== '' ? String(jamTld).trim() : defaultEndTime;
+                if (match) {
+                  const shiftCode = match[1];
+                  const hariKerjaNum = match[2];
 
-          // Handle date formatting - parsing format Indonesia "16 September 2025"
-          let rosterDate = row.Tanggal || row.tanggal || row.Date || row.date || selectedDate;
+                  let normalizedShift = '';
+                  let defaultStartTime = '06:00';
+                  let defaultEndTime = '16:00';
 
-          // Parse format tanggal Indonesia "16 September 2025" 
-          if (typeof rosterDate === 'string' && rosterDate.includes('September')) {
-            const monthMap: { [key: string]: string } = {
-              'Januari': '01', 'Februari': '02', 'Maret': '03', 'April': '04',
-              'Mei': '05', 'Juni': '06', 'Juli': '07', 'Agustus': '08',
-              'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
-            };
+                  if (['DS', 'D', 'S1'].includes(shiftCode)) {
+                    normalizedShift = 'SHIFT 1';
+                  } else if (['NS', 'N', 'S2'].includes(shiftCode)) {
+                    normalizedShift = 'SHIFT 2';
+                    defaultStartTime = '18:00';
+                    defaultEndTime = '06:00';
+                  } else if (['OFF', 'OS', 'OVER'].includes(shiftCode)) {
+                    normalizedShift = 'OVER SHIFT';
+                    defaultStartTime = '06:00';
+                    defaultEndTime = '18:00';
+                  } else if (['CTO', 'CT', 'CUTI'].includes(shiftCode)) {
+                    normalizedShift = 'CUTI';
+                    defaultStartTime = '00:00';
+                    defaultEndTime = '00:00';
+                  } else {
+                    // Fallback to shift code as is if not standard
+                    normalizedShift = shiftCode;
+                  }
 
-            const parts = rosterDate.split(' ');
-            if (parts.length === 3) {
-              const day = parts[0].padStart(2, '0');
-              const month = monthMap[parts[1]] || '01';
-              const year = parts[2];
-              rosterDate = `${year}-${month}-${day}`;
+                  const rosterDate = `${yearStr}-${monthStr}-${String(dayNum).padStart(2, '0')}`;
+
+                  processedChunk.push({
+                    employeeId: nik,
+                    date: rosterDate,
+                    shift: normalizedShift,
+                    startTime: defaultStartTime,
+                    endTime: defaultEndTime,
+                    jamTidur: '',
+                    fitToWork: 'Fit To Work',
+                    hariKerja: hariKerjaNum,
+                    status: 'scheduled'
+                  });
+                }
+              }
             }
-          } else if (typeof rosterDate === 'number') {
-            // Excel serial number conversion - timezone safe
-            const utcDate = new Date(Date.UTC(1899, 11, 30) + (rosterDate * 24 * 60 * 60 * 1000));
-            const year = utcDate.getUTCFullYear();
-            const month = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(utcDate.getUTCDate()).padStart(2, '0');
-            rosterDate = `${year}-${month}-${day}`;
-          } else if (rosterDate && typeof rosterDate === 'string') {
-            // Standard date formats
-            const dateObj = new Date(rosterDate);
-            if (!isNaN(dateObj.getTime())) {
-              rosterDate = dateObj.toISOString().split('T')[0];
-            }
-          }
-
-          const processedRow = {
-            employeeId: row.NIK || row.nik || row['Employee ID'] || row.employeeId || '',
-            employeeName: row.Nama || row.nama || row.Name || row.name || '',
-            nomorLambung: row['Nomor Lambung'] || row.nomorLambung || row.nomor_lambung || '',
-            date: rosterDate,
-            shift: normalizedShift,
-            startTime: startTime,
-            endTime: endTime,
-            jamTidur: String(row['Jam Tidur'] || row.jamTidur || ''),
-            fitToWork: row['Fit To W'] || row['Fit To Work'] || row.fitToWork || 'Fit To Work',
-            hariKerja: String(row['Hari Kerja'] || row.hariKerja || ''),
-            status: row.Status || row.status || 'scheduled'
-          };
-
-          // Debug log untuk melihat mapping data (format user)
-          if (i < 3) { // Log first 3 rows untuk debug
-            console.log(`=== USER EXCEL FORMAT MAPPING ROW ${i + 1} ===`);
-            console.log('📊 Raw Excel row:', row);
-            console.log('🔍 Available columns:', Object.keys(row));
-            console.log('📅 Tanggal (format Indonesia):', row.Tanggal, 'type:', typeof row.Tanggal);
-            console.log('⚡ Shift:', row.Shift, 'type:', typeof row.Shift);
-            console.log('🕐 Jam Kel:', row['Jam Kel'], 'type:', typeof row['Jam Kel']);
-            console.log('🕐 Jam Tld:', row['Jam Tld'], 'type:', typeof row['Jam Tld']);
-            console.log('🎯 Hari Kerja:', row['Hari Kerja'], 'type:', typeof row['Hari Kerja']);
-            console.log('✅ Processed result:', processedRow);
-            console.log('===================');
-          }
-
-          return processedRow;
-        }).filter(row => row.employeeId && row.shift); // Hapus filter startTime/endTime untuk mencegah data hilang
+          });
+        });
 
         rosterData.push(...processedChunk);
 
-        // Update progress (20% to 80%)
         const processProgress = 20 + (60 * (i + chunkSize)) / jsonData.length;
         setUploadProgress(Math.min(processProgress, 80));
         setProcessedCount(i + chunkSize);
 
-        // Reduce delay for faster processing
-        if ((i + chunkSize) % 2000 === 0) {
+        if ((i + chunkSize) % 500 === 0) {
           await new Promise(resolve => setTimeout(resolve, 5));
         }
       }
 
-      console.log(`Processed ${rosterData.length} valid rows out of ${jsonData.length} total rows`);
+      console.log(`Processed ${rosterData.length} valid entries out of ${jsonData.length} matrix rows`);
       setUploadProgress(80);
 
       if (rosterData.length === 0) {
         setIsProcessing(false);
         toast({
           title: "Error",
-          description: "Tidak ada data valid ditemukan. Pastikan format Excel sesuai template",
+          description: "Tidak ada jadwal (shift) ditemukan dalam file. Pastikan format matriks terisi dengan kode shift yang benar.",
           variant: "destructive",
         });
         return;
       }
 
-      // Phase 3: Upload to server (80% to 100%)
+      // Phase 3: Upload to server
       setUploadProgress(90);
       uploadMutation.mutate(rosterData);
       setUploadProgress(100);
@@ -637,61 +587,60 @@ export default function Roster() {
       setIsProcessing(false);
       toast({
         title: "Error",
-        description: "Format file Excel tidak valid",
+        description: "Format file Excel tidak valid saat memproses matriks.",
         variant: "destructive",
       });
     }
   };
 
   const downloadTemplate = () => {
+    // Generate dates from 1 to 31
+    const dayKeys: { [key: string]: string } = {};
+    for (let i = 1; i <= 31; i++) {
+      dayKeys[String(i).padStart(2, '0')] = (i === 1 || i === 2) ? "DS" + i : (i === 3) ? "NS" + i : (i === 4) ? "OFF" + i : (i === 5) ? "CTO" : "";
+    }
+
     const templateData = [
       {
-        NIK: 'C-015227',
-        Nama: 'SYAHRIAL H',
-        'Nomor Lambung': 'GECL 9001',
-        Tanggal: '2025-08-30',
-        Shift: 'Shift 1',
-        'Jam Kerja': '08:00 - 16:00',
-        'Jam Tidur': '6',
-        'Fit To Work': 'Fit To Work',
-        'Hari Kerja': 'Senin',
-        Status: 'scheduled'
-      },
-      {
-        NIK: 'C-004764',
-        Nama: 'SAHRUL HELMI',
-        'Nomor Lambung': 'GECL 9002',
-        Tanggal: '2025-08-30',
-        Shift: 'Shift 2',
-        'Jam Kerja': '18:00 - 06:00',
-        'Jam Tidur': '6',
-        'Fit To Work': 'Fit To Work',
-        'Hari Kerja': 'Senin',
-        Status: 'scheduled'
+        "NO": 1,
+        "NAMA DRIVER": "SUDIRO",
+        "NIK": "C-028937",
+        "DRIVER": "GECL 9005",
+        "MITRA": "MELFIDA",
+        ...dayKeys
       }
     ];
 
-    // Add instructions and empty rows
+    // Empty template rows map
+    const emptyKeys: { [key: string]: string } = {};
+    for (let i = 1; i <= 31; i++) emptyKeys[String(i).padStart(2, '0')] = "";
+
     const instructionData = [
       {},
-      {},
-      { NIK: "INSTRUKSI:", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" },
-      { NIK: "1. Format Tanggal: YYYY-MM-DD (contoh: 2025-08-30)", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" },
-      { NIK: "2. Shift: Shift 1 atau Shift 2", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" },
-      { NIK: "3. Jam Kerja: 08:00 - 16:00 (opsional)", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" },
-      { NIK: "4. Jam Tidur: angka (contoh: 6, 7, 8)", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" },
-      { NIK: "5. Fit To Work: Fit To Work atau Not Fit", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" },
-      { NIK: "6. Hari Kerja: nama hari (contoh: Senin, Selasa)", Nama: "", 'Nomor Lambung': "", Tanggal: "", Shift: "", 'Jam Kerja': "", 'Jam Tidur': "", 'Fit To Work': "", 'Hari Kerja': "", Status: "" }
+      { "NO": "INSTRUKSI PENGISIAN FORMAT MATRIKS:", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
+      { "NO": "1. Isi kode shift dan hari kerja digabung pada sel tanggal.", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
+      { "NO": "2. DS = Shift 1 (contoh: DS1, DS21)", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
+      { "NO": "3. NS = Shift 2 (contoh: NS3, NS24)", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
+      { "NO": "4. OFF = Over Shift (contoh: OFF1)", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
+      { "NO": "5. CTO = Cuti (contoh: CTO)", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
+      { "NO": "6. Kosongkan sel jika tidak ada jadwal pada tanggal tersebut.", "NAMA DRIVER": "", "NIK": "", "DRIVER": "", "MITRA": "", ...emptyKeys },
     ];
 
     const allData = [...templateData, ...instructionData];
-    const worksheet = XLSX.utils.json_to_sheet(allData);
+
+    // Explicitly define headers to prevent JS object keys reordering
+    const headers = ["NO", "NAMA DRIVER", "NIK", "DRIVER", "MITRA"];
+    for (let i = 1; i <= 31; i++) {
+      headers.push(String(i).padStart(2, '0'));
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(allData, { header: headers });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Roster');
 
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
     const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    saveAs(data, 'template-roster.xlsx');
+    saveAs(data, `template-roster-matrix-${selectedYear}-${String(selectedMonth).padStart(2, '0')}.xlsx`);
   };
 
   const getEmployeeName = (employeeId: string) => {
@@ -762,15 +711,19 @@ export default function Roster() {
           </div>
 
           {/* View Mode Tabs */}
-          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'calendar')} className="w-full sm:w-auto">
-            <TabsList className="w-full sm:w-auto grid grid-cols-2 sm:flex">
-              <TabsTrigger value="list" data-testid="tab-list-view" className="text-xs sm:text-sm">
-                <List className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
-                List
+          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'list' | 'calendar' | 'matrix')} className="w-full sm:w-auto">
+            <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:flex">
+              <TabsTrigger value="matrix" data-testid="tab-matrix-view" className="text-xs sm:text-sm">
+                <FileSpreadsheet className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                Matrix Excel
               </TabsTrigger>
               <TabsTrigger value="calendar" data-testid="tab-calendar-view" className="text-xs sm:text-sm">
                 <CalendarDays className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                 Kalender
+              </TabsTrigger>
+              <TabsTrigger value="list" data-testid="tab-list-view" className="text-xs sm:text-sm">
+                <List className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                List
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -868,624 +821,7 @@ export default function Roster() {
               <span className="sm:hidden">Tambah</span>
             </Button>
 
-            {/* Upload Excel Dialog */}
-            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
 
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Upload Excel Roster</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={handleFileUpload}
-                      disabled={isProcessing}
-                      data-testid="excel-file-input"
-                    />
-                  </div>
-                  {selectedFile && (
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                      File dipilih: {selectedFile.name}
-                    </p>
-                  )}
-
-                  {/* Progress Bar Section */}
-                  {isProcessing && (
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Memproses Excel...
-                        </span>
-                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-                          {uploadProgress.toFixed(0)}%
-                        </span>
-                      </div>
-                      <Progress value={uploadProgress} className="w-full" />
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {processedCount > 0 && totalCount > 0 && (
-                          <span>Diproses: {processedCount.toLocaleString()} dari {totalCount.toLocaleString()} baris</span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={processExcelFile}
-                      disabled={!selectedFile || isProcessing || uploadMutation.isPending}
-                      data-testid="process-excel-button"
-                      className="flex-1"
-                    >
-                      {isProcessing ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Memproses...</span>
-                        </div>
-                      ) : uploadMutation.isPending ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Mengupload...</span>
-                        </div>
-                      ) : (
-                        "Upload"
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={isProcessing}
-                      onClick={() => {
-                        setIsUploadDialogOpen(false);
-                        setSelectedFile(null);
-                        setUploadProgress(0);
-                        setIsProcessing(false);
-                        setProcessedCount(0);
-                        setTotalCount(0);
-                      }}
-                    >
-                      Batal
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Update Employee Schedule Dialog */}
-            <Dialog open={isUpdateScheduleDialogOpen} onOpenChange={setIsUpdateScheduleDialogOpen}>
-
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle>Update Jadwal Karyawan (1 Bulan)</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">NIK Karyawan</label>
-                    <Input
-                      type="text"
-                      placeholder="Masukkan NIK karyawan (contoh: C-006441)"
-                      value={nikForUpdate}
-                      onChange={(e) => setNikForUpdate(e.target.value.toUpperCase())}
-                      data-testid="update-schedule-nik-input"
-                      className="w-full"
-                    />
-                    {isLoadingEmployee && nikForUpdate && (
-                      <p className="text-sm text-gray-500 flex items-center">
-                        <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2"></div>
-                        Mencari karyawan...
-                      </p>
-                    )}
-                    {employeeForUpdate && nikForUpdate && (
-                      <p className="text-sm text-green-600 dark:text-green-400 flex items-center">
-                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        {employeeForUpdate.name}
-                      </p>
-                    )}
-                    {employeeError && nikForUpdate && !isLoadingEmployee && (
-                      <p className="text-sm text-red-600 dark:text-red-400">
-                        NIK tidak ditemukan
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Pilih Bulan</label>
-                    <Input
-                      type="month"
-                      value={selectedMonthForUpdate}
-                      onChange={(e) => setSelectedMonthForUpdate(e.target.value)}
-                      data-testid="update-schedule-month-input"
-                      className="w-full"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Upload Excel Jadwal Baru</label>
-                    <Input
-                      type="file"
-                      accept=".xlsx,.xls"
-                      onChange={(e) => setUpdateScheduleFile(e.target.files?.[0] || null)}
-                      disabled={isProcessingUpdate}
-                      data-testid="update-schedule-file-input"
-                    />
-                    {updateScheduleFile && (
-                      <p className="text-sm text-gray-600 dark:text-gray-300">
-                        File dipilih: {updateScheduleFile.name}
-                      </p>
-                    )}
-                  </div>
-
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Excel harus berisi jadwal untuk <strong>{employeeForUpdate ? employeeForUpdate.name : "karyawan yang dipilih"}</strong> saja dalam 1 bulan penuh. Semua jadwal lama di bulan tersebut akan diganti.
-                    </AlertDescription>
-                  </Alert>
-
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={async () => {
-                        if (!nikForUpdate || !employeeForUpdate) {
-                          toast({
-                            title: "Error",
-                            description: nikForUpdate ? "NIK tidak ditemukan" : "Masukkan NIK karyawan terlebih dahulu",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                        if (!selectedMonthForUpdate) {
-                          toast({
-                            title: "Error",
-                            description: "Pilih bulan terlebih dahulu",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-                        if (!updateScheduleFile) {
-                          toast({
-                            title: "Error",
-                            description: "Pilih file Excel terlebih dahulu",
-                            variant: "destructive",
-                          });
-                          return;
-                        }
-
-                        setIsProcessingUpdate(true);
-
-                        try {
-                          // Read Excel file
-                          const data = await updateScheduleFile.arrayBuffer();
-                          const workbook = XLSX.read(data);
-                          const sheetName = workbook.SheetNames.includes('Template Roster')
-                            ? 'Template Roster'
-                            : workbook.SheetNames[0];
-
-                          const worksheet = workbook.Sheets[sheetName];
-                          const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-                          // Process data (reuse same logic from processExcelFile)
-                          const rosterData: InsertRosterSchedule[] = jsonData.map((row: any) => {
-                            const rawShift = String(row.Shift || row.shift || '').trim().toUpperCase();
-                            let normalizedShift = 'SHIFT 1';
-
-                            if (['SHIFT 1', 'SHIFT1', 'S1', '1'].includes(rawShift)) normalizedShift = 'SHIFT 1';
-                            else if (['SHIFT 2', 'SHIFT2', 'S2', '2'].includes(rawShift)) normalizedShift = 'SHIFT 2';
-                            else if (['OVER SHIFT', 'OVER', 'OS'].includes(rawShift)) normalizedShift = 'OVER SHIFT';
-                            else if (['CUTI', 'OFF', 'LEAVE'].includes(rawShift)) normalizedShift = 'CUTI';
-
-                            let defaultStartTime = '06:00', defaultEndTime = '16:00';
-                            if (normalizedShift === 'SHIFT 2') { defaultStartTime = '18:00'; defaultEndTime = '06:00'; }
-                            else if (normalizedShift === 'CUTI') { defaultStartTime = '00:00'; defaultEndTime = '00:00'; }
-                            else if (normalizedShift === 'OVER SHIFT') { defaultStartTime = '06:00'; defaultEndTime = '18:00'; }
-
-                            let rosterDate = row.Tanggal || row.tanggal || row.Date || row.date || '';
-                            if (typeof rosterDate === 'number') {
-                              const utcDate = new Date(Date.UTC(1899, 11, 30) + (rosterDate * 24 * 60 * 60 * 1000));
-                              rosterDate = `${utcDate.getUTCFullYear()}-${String(utcDate.getUTCMonth() + 1).padStart(2, '0')}-${String(utcDate.getUTCDate()).padStart(2, '0')}`;
-                            }
-
-                            return {
-                              employeeId: row.NIK || row.nik || row['Employee ID'] || row.employeeId || '',
-                              date: rosterDate,
-                              shift: normalizedShift,
-                              startTime: row['Jam Kel'] || row.jamKel || defaultStartTime,
-                              endTime: row['Jam Tld'] || row.jamTld || defaultEndTime,
-                              jamTidur: String(row['Jam Tidur'] || row.jamTidur || ''),
-                              fitToWork: row['Fit To W'] || row['Fit To Work'] || row.fitToWork || 'Fit To Work',
-                              hariKerja: String(row['Hari Kerja'] || row.hariKerja || ''),
-                              status: row.Status || row.status || 'scheduled'
-                            };
-                          }).filter(row => row.employeeId && row.shift);
-
-                          if (rosterData.length === 0) {
-                            setIsProcessingUpdate(false);
-                            toast({
-                              title: "Error",
-                              description: "Tidak ada data valid ditemukan di Excel",
-                              variant: "destructive",
-                            });
-                            return;
-                          }
-
-                          // Submit to API
-                          updateScheduleMutation.mutate({
-                            employeeId: nikForUpdate,
-                            month: selectedMonthForUpdate,
-                            rosters: rosterData
-                          });
-                        } catch (error) {
-                          console.error('Update schedule error:', error);
-                          setIsProcessingUpdate(false);
-                          toast({
-                            title: "Error",
-                            description: "Format file Excel tidak valid",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      disabled={!nikForUpdate || !employeeForUpdate || !selectedMonthForUpdate || !updateScheduleFile || isProcessingUpdate || updateScheduleMutation.isPending}
-                      data-testid="process-update-schedule-button"
-                      className="flex-1"
-                    >
-                      {isProcessingUpdate || updateScheduleMutation.isPending ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Memproses...</span>
-                        </div>
-                      ) : (
-                        "Update Jadwal"
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={isProcessingUpdate}
-                      onClick={() => {
-                        setIsUpdateScheduleDialogOpen(false);
-                        setNikForUpdate("");
-                        setSelectedMonthForUpdate("");
-                        setUpdateScheduleFile(null);
-                        setIsProcessingUpdate(false);
-                      }}
-                    >
-                      Batal
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            {/* Add Roster Dialog */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center justify-between">
-                    <span>Tambah Roster</span>
-                    <AutoSaveIndicator status={saveStatus} />
-                  </DialogTitle>
-                </DialogHeader>
-
-                {hasDraft() && (
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Draft tersimpan otomatis akan dipulihkan. Data yang belum disimpan akan tetap aman.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="employeeId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Karyawan</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="roster-employee-select">
-                                <SelectValue placeholder="Pilih karyawan" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {(Array.isArray(employees) ? employees : []).map((employee) => (
-                                <SelectItem key={employee.id} value={employee.id}>
-                                  {employee.id} - {employee.name} ({employee.position || 'No ID'})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="shift"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Shift</FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="roster-shift-select">
-                                <SelectValue placeholder="Pilih shift" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="Shift 1">Shift 1 (06:00 - 18:00)</SelectItem>
-                              <SelectItem value="Shift 2">Shift 2 (18:00 - 06:00)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="startTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Jam Mulai</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="time"
-                                {...field}
-                                data-testid="roster-start-time-input"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="endTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Jam Selesai</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="time"
-                                {...field}
-                                data-testid="roster-end-time-input"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={form.control}
-                      name="jamTidur"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Jam Tidur (contoh: 6 atau 5)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="12"
-                              placeholder="6"
-                              {...field}
-                              value={field.value || ""}
-                              data-testid="roster-jam-tidur-input"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="fitToWork"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status Fit To Work</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="roster-fit-to-work-select">
-                                <SelectValue placeholder="Pilih status fit to work" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="Fit To Work">Fit To Work</SelectItem>
-                              <SelectItem value="Not Fit To Work">Not Fit To Work</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={createMutation.isPending}
-                      data-testid="submit-roster-button"
-                    >
-                      {createMutation.isPending ? "Menyimpan..." : "Simpan"}
-                    </Button>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
-
-            {/* Edit Roster Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Edit Roster</DialogTitle>
-                </DialogHeader>
-                <Form {...editForm}>
-                  <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
-                    <FormField
-                      control={editForm.control}
-                      name="employeeId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Karyawan</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="edit-roster-employee-select">
-                                <SelectValue placeholder="Pilih karyawan" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {(Array.isArray(employees) ? employees : []).map((employee) => (
-                                <SelectItem key={employee.id} value={employee.id}>
-                                  {employee.id} - {employee.name} ({employee.position || 'No ID'})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="shift"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Shift</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="edit-roster-shift-select">
-                                <SelectValue placeholder="Pilih shift" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="Shift 1">Shift 1 (06:00 - 18:00)</SelectItem>
-                              <SelectItem value="Shift 2">Shift 2 (18:00 - 06:00)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={editForm.control}
-                        name="startTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Jam Mulai</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="time"
-                                {...field}
-                                data-testid="edit-roster-start-time-input"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={editForm.control}
-                        name="endTime"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Jam Selesai</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="time"
-                                {...field}
-                                data-testid="edit-roster-end-time-input"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={editForm.control}
-                      name="jamTidur"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Jam Tidur (contoh: 6 atau 5)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min="1"
-                              max="12"
-                              placeholder="6"
-                              {...field}
-                              value={field.value || ""}
-                              data-testid="edit-roster-jam-tidur-input"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="fitToWork"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Status Fit To Work</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger data-testid="edit-roster-fit-to-work-select">
-                                <SelectValue placeholder="Pilih status fit to work" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="Fit To Work">Fit To Work</SelectItem>
-                              <SelectItem value="Not Fit To Work">Not Fit To Work</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={editForm.control}
-                      name="hariKerja"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Hari Kerja</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Contoh: Senin, Selasa"
-                              {...field}
-                              value={field.value || ""}
-                              data-testid="edit-roster-hari-kerja-input"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="flex space-x-2">
-                      <Button
-                        type="submit"
-                        className="flex-1"
-                        disabled={updateMutation.isPending}
-                        data-testid="update-roster-button"
-                      >
-                        {updateMutation.isPending ? "Menyimpan..." : "Update"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsEditDialogOpen(false);
-                          setEditingRoster(null);
-                        }}
-                      >
-                        Batal
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
           </div>
         ) : (
           // Calendar view filters
@@ -1531,6 +867,27 @@ export default function Roster() {
               </SelectContent>
             </Select>
 
+
+            {/* Search by NIK */}
+            <Input
+              type="text"
+              placeholder="Cari NIK..."
+              value={searchNIK}
+              onChange={(e) => setSearchNIK(e.target.value)}
+              className="w-full sm:w-32"
+              data-testid="matrix-search-nik-input"
+            />
+
+            {/* Search by Name */}
+            <Input
+              type="text"
+              placeholder="Cari Nama/Mitra..."
+              value={searchName}
+              onChange={(e) => setSearchName(e.target.value)}
+              className="w-full sm:w-40"
+              data-testid="matrix-search-name-input"
+            />
+
             {/* Shift Filter for Calendar */}
             <Select value={shiftFilter} onValueChange={setShiftFilter}>
               <SelectTrigger className="w-full sm:w-36" data-testid="calendar-shift-filter">
@@ -1544,6 +901,36 @@ export default function Roster() {
                 <SelectItem value="CUTI">CUTI</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Aksi Lainnya Dropdown for Calendar & Matrix */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full sm:w-auto text-xs sm:text-sm">
+                  <MoreHorizontal className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                  <span className="hidden sm:inline">Aksi Lainnya</span>
+                  <span className="sm:hidden">Aksi</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={downloadTemplate} data-testid="download-template-button-matrix">
+                  <Download className="w-4 h-4 mr-2" />
+                  Template Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsUploadDialogOpen(true)} data-testid="upload-excel-button-matrix">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Excel Roster
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setIsUpdateScheduleDialogOpen(true)} data-testid="update-schedule-button-matrix">
+                  <CalendarCheck className="w-4 h-4 mr-2" />
+                  Update Jadwal Karyawan
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setIsDeleteAllDialogOpen(true)} className="text-red-600" data-testid="delete-all-roster-button-matrix">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Hapus Semua Roster
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </CardHeader>
@@ -1814,28 +1201,687 @@ export default function Roster() {
               </table>
             </div>
           </>
-        ) : (
-          // Calendar View
-          <div className="p-2">
-            {isLoadingMonthly ? (
-              <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                Loading kalender...
-              </div>
-            ) : (
-              <MonthlyCalendar
-                year={selectedYear}
-                month={selectedMonth}
-                rosterData={monthlyRoster}
-                shiftFilter={shiftFilter}
-                onDateClick={(date) => {
-                  setSelectedDate(date);
-                  setViewMode('list');
-                }}
-              />
-            )}
-          </div>
-        )}
+        ) : (() => {
+          // Apply filtering logic to monthlyRoster before passing it to MonthlyCalendar and RosterMatrixView
+          const employeeIdsWithShift = new Set(
+            shiftFilter === 'all'
+              ? []
+              : monthlyRoster?.filter(r => r.shift?.toUpperCase() === shiftFilter.toUpperCase()).map(r => r.employeeId)
+          );
+
+          const filteredMonthlyRoster = monthlyRoster?.filter(roster => {
+            const matchNIK = searchNIK === '' || (roster.employee?.nik || '').toLowerCase().includes(searchNIK.toLowerCase());
+            const matchName = searchName === '' ||
+              (roster.employee?.name || '').toLowerCase().includes(searchName.toLowerCase()) ||
+              (roster.employee?.investorGroup || '').toLowerCase().includes(searchName.toLowerCase());
+
+            const matchShift = shiftFilter === 'all' || employeeIdsWithShift.has(roster.employeeId);
+
+            return matchNIK && matchName && matchShift;
+          }) || [];
+
+          return viewMode === 'calendar' ? (
+            // Calendar View
+            <div className="p-2">
+              {isLoadingMonthly ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  Loading kalender...
+                </div>
+              ) : (
+                <MonthlyCalendar
+                  year={selectedYear}
+                  month={selectedMonth}
+                  rosterData={filteredMonthlyRoster}
+                  shiftFilter={shiftFilter}
+                  onDateClick={(date) => {
+                    setSelectedDate(date);
+                    setViewMode('list');
+                  }}
+                />
+              )}
+            </div>
+          ) : (
+            // Matrix View
+            <div className="p-2">
+              {isLoadingMonthly ? (
+                <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+                  Loading matrix...
+                </div>
+              ) : (
+                <RosterMatrixView
+                  year={selectedYear}
+                  month={selectedMonth}
+                  rosterData={filteredMonthlyRoster}
+                  employees={employees}
+                  onOpenUploadForPerson={(empId) => {
+                    setNikForUpdate(empId);
+                    setIsUpdateScheduleDialogOpen(true);
+                  }}
+                />
+              )}
+            </div>
+          );
+        })()}
       </CardContent>
+
+      {/* Upload Excel Dialog */}
+      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Excel Roster</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+                disabled={isProcessing}
+                data-testid="excel-file-input"
+              />
+            </div>
+            {selectedFile && (
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                File dipilih: {selectedFile.name}
+              </p>
+            )}
+
+            {/* Progress Bar Section */}
+            {isProcessing && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Memproses Excel...
+                  </span>
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                    {uploadProgress.toFixed(0)}%
+                  </span>
+                </div>
+                <Progress value={uploadProgress} className="w-full" />
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {processedCount > 0 && totalCount > 0 && (
+                    <span>Diproses: {processedCount.toLocaleString()} dari {totalCount.toLocaleString()} baris</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="flex space-x-2">
+              <Button
+                onClick={processExcelFile}
+                disabled={!selectedFile || isProcessing || uploadMutation.isPending}
+                data-testid="process-excel-button"
+                className="flex-1"
+              >
+                {isProcessing ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Memproses...</span>
+                  </div>
+                ) : uploadMutation.isPending ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Mengupload...</span>
+                  </div>
+                ) : (
+                  "Upload"
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={isProcessing}
+                onClick={() => {
+                  setIsUploadDialogOpen(false);
+                  setSelectedFile(null);
+                  setUploadProgress(0);
+                  setIsProcessing(false);
+                  setProcessedCount(0);
+                  setTotalCount(0);
+                }}
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Employee Schedule Dialog */}
+      <Dialog open={isUpdateScheduleDialogOpen} onOpenChange={setIsUpdateScheduleDialogOpen}>
+
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Update Jadwal Karyawan (1 Bulan)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">NIK Karyawan</label>
+              <Input
+                type="text"
+                placeholder="Masukkan NIK karyawan (contoh: C-006441)"
+                value={nikForUpdate}
+                onChange={(e) => setNikForUpdate(e.target.value.toUpperCase())}
+                data-testid="update-schedule-nik-input"
+                className="w-full"
+              />
+              {isLoadingEmployee && nikForUpdate && (
+                <p className="text-sm text-gray-500 flex items-center">
+                  <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Mencari karyawan...
+                </p>
+              )}
+              {employeeForUpdate && nikForUpdate && (
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center">
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  {employeeForUpdate.name}
+                </p>
+              )}
+              {employeeError && nikForUpdate && !isLoadingEmployee && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  NIK tidak ditemukan
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Pilih Bulan</label>
+              <Input
+                type="month"
+                value={selectedMonthForUpdate}
+                onChange={(e) => setSelectedMonthForUpdate(e.target.value)}
+                data-testid="update-schedule-month-input"
+                className="w-full"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Upload Excel Jadwal Baru</label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => setUpdateScheduleFile(e.target.files?.[0] || null)}
+                disabled={isProcessingUpdate}
+                data-testid="update-schedule-file-input"
+              />
+              {updateScheduleFile && (
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  File dipilih: {updateScheduleFile.name}
+                </p>
+              )}
+            </div>
+
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Excel harus berisi jadwal untuk <strong>{employeeForUpdate ? employeeForUpdate.name : "karyawan yang dipilih"}</strong> saja dalam 1 bulan penuh. Semua jadwal lama di bulan tersebut akan diganti.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex space-x-2">
+              <Button
+                onClick={async () => {
+                  if (!nikForUpdate || !employeeForUpdate) {
+                    toast({
+                      title: "Error",
+                      description: nikForUpdate ? "NIK tidak ditemukan" : "Masukkan NIK karyawan terlebih dahulu",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  if (!selectedMonthForUpdate) {
+                    toast({
+                      title: "Error",
+                      description: "Pilih bulan terlebih dahulu",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  if (!updateScheduleFile) {
+                    toast({
+                      title: "Error",
+                      description: "Pilih file Excel terlebih dahulu",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+
+                  setIsProcessingUpdate(true);
+
+                  try {
+                    // Read Excel file
+                    const data = await updateScheduleFile.arrayBuffer();
+                    const workbook = XLSX.read(data);
+                    const sheetName = workbook.SheetNames.includes('Template Roster')
+                      ? 'Template Roster'
+                      : workbook.SheetNames[0];
+
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    // Process data (reuse same logic from processExcelFile)
+                    const rosterData: InsertRosterSchedule[] = jsonData.map((row: any) => {
+                      const rawShift = String(row.Shift || row.shift || '').trim().toUpperCase();
+                      let normalizedShift = 'SHIFT 1';
+
+                      if (['SHIFT 1', 'SHIFT1', 'S1', '1'].includes(rawShift)) normalizedShift = 'SHIFT 1';
+                      else if (['SHIFT 2', 'SHIFT2', 'S2', '2'].includes(rawShift)) normalizedShift = 'SHIFT 2';
+                      else if (['OVER SHIFT', 'OVER', 'OS'].includes(rawShift)) normalizedShift = 'OVER SHIFT';
+                      else if (['CUTI', 'OFF', 'LEAVE'].includes(rawShift)) normalizedShift = 'CUTI';
+
+                      let defaultStartTime = '06:00', defaultEndTime = '16:00';
+                      if (normalizedShift === 'SHIFT 2') { defaultStartTime = '18:00'; defaultEndTime = '06:00'; }
+                      else if (normalizedShift === 'CUTI') { defaultStartTime = '00:00'; defaultEndTime = '00:00'; }
+                      else if (normalizedShift === 'OVER SHIFT') { defaultStartTime = '06:00'; defaultEndTime = '18:00'; }
+
+                      let rosterDate = row.Tanggal || row.tanggal || row.Date || row.date || '';
+                      if (typeof rosterDate === 'number') {
+                        const utcDate = new Date(Date.UTC(1899, 11, 30) + (rosterDate * 24 * 60 * 60 * 1000));
+                        rosterDate = `${utcDate.getUTCFullYear()}-${String(utcDate.getUTCMonth() + 1).padStart(2, '0')}-${String(utcDate.getUTCDate()).padStart(2, '0')}`;
+                      }
+
+                      return {
+                        employeeId: row.NIK || row.nik || row['Employee ID'] || row.employeeId || '',
+                        date: rosterDate,
+                        shift: normalizedShift,
+                        startTime: row['Jam Kel'] || row.jamKel || defaultStartTime,
+                        endTime: row['Jam Tld'] || row.jamTld || defaultEndTime,
+                        jamTidur: String(row['Jam Tidur'] || row.jamTidur || ''),
+                        fitToWork: row['Fit To W'] || row['Fit To Work'] || row.fitToWork || 'Fit To Work',
+                        hariKerja: String(row['Hari Kerja'] || row.hariKerja || ''),
+                        status: row.Status || row.status || 'scheduled'
+                      };
+                    }).filter(row => row.employeeId && row.shift);
+
+                    if (rosterData.length === 0) {
+                      setIsProcessingUpdate(false);
+                      toast({
+                        title: "Error",
+                        description: "Tidak ada data valid ditemukan di Excel",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+
+                    // Submit to API
+                    updateScheduleMutation.mutate({
+                      employeeId: nikForUpdate,
+                      month: selectedMonthForUpdate,
+                      rosters: rosterData
+                    });
+                  } catch (error) {
+                    console.error('Update schedule error:', error);
+                    setIsProcessingUpdate(false);
+                    toast({
+                      title: "Error",
+                      description: "Format file Excel tidak valid",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                disabled={!nikForUpdate || !employeeForUpdate || !selectedMonthForUpdate || !updateScheduleFile || isProcessingUpdate || updateScheduleMutation.isPending}
+                data-testid="process-update-schedule-button"
+                className="flex-1"
+              >
+                {isProcessingUpdate || updateScheduleMutation.isPending ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Memproses...</span>
+                  </div>
+                ) : (
+                  "Update Jadwal"
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                disabled={isProcessingUpdate}
+                onClick={() => {
+                  setIsUpdateScheduleDialogOpen(false);
+                  setNikForUpdate("");
+                  setSelectedMonthForUpdate("");
+                  setUpdateScheduleFile(null);
+                  setIsProcessingUpdate(false);
+                }}
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Roster Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Tambah Roster</span>
+              <AutoSaveIndicator status={saveStatus} />
+            </DialogTitle>
+          </DialogHeader>
+
+          {hasDraft() && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Draft tersimpan otomatis akan dipulihkan. Data yang belum disimpan akan tetap aman.
+              </AlertDescription>
+            </Alert>
+          )}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="employeeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Karyawan</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="roster-employee-select">
+                          <SelectValue placeholder="Pilih karyawan" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {(Array.isArray(employees) ? employees : []).map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.id} - {employee.name} ({employee.position || 'No ID'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="shift"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Shift</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="roster-shift-select">
+                          <SelectValue placeholder="Pilih shift" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Shift 1">Shift 1 (06:00 - 18:00)</SelectItem>
+                        <SelectItem value="Shift 2">Shift 2 (18:00 - 06:00)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="startTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jam Mulai</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="time"
+                          {...field}
+                          data-testid="roster-start-time-input"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="endTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jam Selesai</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="time"
+                          {...field}
+                          data-testid="roster-end-time-input"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="jamTidur"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Jam Tidur (contoh: 6 atau 5)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="12"
+                        placeholder="6"
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="roster-jam-tidur-input"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="fitToWork"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status Fit To Work</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="roster-fit-to-work-select">
+                          <SelectValue placeholder="Pilih status fit to work" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Fit To Work">Fit To Work</SelectItem>
+                        <SelectItem value="Not Fit To Work">Not Fit To Work</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={createMutation.isPending}
+                data-testid="submit-roster-button"
+              >
+                {createMutation.isPending ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Roster Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Roster</DialogTitle>
+          </DialogHeader>
+          <Form {...editForm}>
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+              <FormField
+                control={editForm.control}
+                name="employeeId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Karyawan</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="edit-roster-employee-select">
+                          <SelectValue placeholder="Pilih karyawan" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {(Array.isArray(employees) ? employees : []).map((employee) => (
+                          <SelectItem key={employee.id} value={employee.id}>
+                            {employee.id} - {employee.name} ({employee.position || 'No ID'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="shift"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Shift</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="edit-roster-shift-select">
+                          <SelectValue placeholder="Pilih shift" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Shift 1">Shift 1 (06:00 - 18:00)</SelectItem>
+                        <SelectItem value="Shift 2">Shift 2 (18:00 - 06:00)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={editForm.control}
+                  name="startTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jam Mulai</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="time"
+                          {...field}
+                          data-testid="edit-roster-start-time-input"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={editForm.control}
+                  name="endTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jam Selesai</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="time"
+                          {...field}
+                          data-testid="edit-roster-end-time-input"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={editForm.control}
+                name="jamTidur"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Jam Tidur (contoh: 6 atau 5)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="12"
+                        placeholder="6"
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="edit-roster-jam-tidur-input"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="fitToWork"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status Fit To Work</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="edit-roster-fit-to-work-select">
+                          <SelectValue placeholder="Pilih status fit to work" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Fit To Work">Fit To Work</SelectItem>
+                        <SelectItem value="Not Fit To Work">Not Fit To Work</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={editForm.control}
+                name="hariKerja"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hari Kerja</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Contoh: Senin, Selasa"
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="edit-roster-hari-kerja-input"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex space-x-2">
+                <Button
+                  type="submit"
+                  className="flex-1"
+                  disabled={updateMutation.isPending}
+                  data-testid="update-roster-button"
+                >
+                  {updateMutation.isPending ? "Menyimpan..." : "Update"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditDialogOpen(false);
+                    setEditingRoster(null);
+                  }}
+                >
+                  Batal
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete All Confirmation Dialog */}
       <Dialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>

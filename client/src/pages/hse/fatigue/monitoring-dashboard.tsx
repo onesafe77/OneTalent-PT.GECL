@@ -1,10 +1,10 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-    LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, LabelList, ComposedChart
+    LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, LabelList, ComposedChart, ReferenceLine
 } from "recharts";
-import { Download, Search, AlertTriangle, Monitor, TrendingUp } from "lucide-react";
+import { Download, Search, AlertTriangle, Monitor, TrendingUp, ChevronDown, Edit2, Check, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,6 +22,9 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useToast } from "@/hooks/use-toast";
 
 // FMS Analytics Type matching what the backend returns
 type FmsAnalyticsData = {
@@ -47,17 +50,6 @@ type FmsAnalyticsData = {
     validationStats: any[];
     availableWeeks: number[];
     availableViolationTypes: any[];
-    topDrivers: any[];
-    allDrivers: {
-        rank: number;
-        vehicleNo: string;
-        driverName: string;
-        driverNik: string;
-        totalCount: number;
-        mataTertutupCount: number;
-        mengantukCount: number;
-        kelelahanCount: number;
-    }[];
 };
 
 type FmsViolation = {
@@ -70,32 +62,106 @@ type FmsViolation = {
     location: string;
     shift: string;
     validationStatus: string;
+    manualDriverName?: string | null;
+    manualDriverNik?: string | null;
+    evidenceUrl?: string | null;
 };
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
 
 export default function FmsFatigueMonitoringDashboard() {
 
+    const [dateFilter, setDateFilter] = useState<string>("");
     const [monthFilter, setMonthFilter] = useState<string>("all");
-    const [weekFilter, setWeekFilter] = useState<string>("all");
+    const [weekFilter, setWeekFilter] = useState<string[]>([]);
     const [validationFilter, setValidationFilter] = useState<string>("all");
+    const [evalThreshold, setEvalThreshold] = useState<number>(100);
+    const [violationTypeFilter, setViolationTypeFilter] = useState<string>("all");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedDriver, setSelectedDriver] = useState<{ vehicleNo: string; driverName: string } | null>(null);
+    const [selectedDriver, setSelectedDriver] = useState<{ vehicleNo: string } | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [overrideName, setOverrideName] = useState("");
+    const [overrideNik, setOverrideNik] = useState("");
+    const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+    const [evidencePreview, setEvidencePreview] = useState<string | null>(null);
+    const [employeeResults, setEmployeeResults] = useState<Array<{ id: string; name: string; nomorLambung?: string }>>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const searchEmployees = useCallback((query: string) => {
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        if (!query || query.length < 2) {
+            setEmployeeResults([]);
+            setIsSearching(false);
+            return;
+        }
+        setIsSearching(true);
+        searchTimeoutRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(`/api/employees?search=${encodeURIComponent(query)}&per_page=10`);
+                if (res.ok) {
+                    const json = await res.json();
+                    const emps = json.data || json || [];
+                    setEmployeeResults(emps.slice(0, 8));
+                }
+            } catch (e) {
+                console.error("Employee search error:", e);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+    }, []);
+
+    const updateDriverMutation = useMutation({
+        mutationFn: async (data: { id: string, manualDriverName: string, manualDriverNik: string, evidence?: File | null }) => {
+            const formData = new FormData();
+            formData.append('manualDriverName', data.manualDriverName);
+            formData.append('manualDriverNik', data.manualDriverNik);
+            if (data.evidence) {
+                formData.append('evidence', data.evidence);
+            }
+            const res = await fetch(`/api/fms/violations/${data.id}/driver`, {
+                method: 'PATCH',
+                body: formData
+            });
+            if (!res.ok) throw new Error("Gagal menyimpan nama driver");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/fms/analytics'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/fms/violations'] });
+            toast({ title: "Berhasil", description: "Nama driver & evidence berhasil disimpan." });
+            setOverrideName("");
+            setOverrideNik("");
+            setEvidenceFile(null);
+            setEvidencePreview(null);
+            setIsModalOpen(false);
+        },
+        onError: (err) => {
+            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+        }
+    });
 
     console.log("[DEBUG Dashboard] month:", monthFilter, "week:", weekFilter, "status:", validationFilter);
 
     // The critical filter for this dashboard
-    const violationTypeFilter = "Mata Tertutup,Mengantuk,Kelelahan";
+    // The critical filter for this dashboard - now dynamic
 
     const { data, isLoading, isError } = useQuery<FmsAnalyticsData>({
-        queryKey: ['/api/fms/analytics', { violationType: violationTypeFilter, month: monthFilter, week: weekFilter, validationStatus: validationFilter }],
+        queryKey: ['/api/fms/analytics', { violationType: violationTypeFilter, date: dateFilter, month: monthFilter, week: weekFilter, validationStatus: validationFilter }],
         queryFn: async () => {
             const params = new URLSearchParams();
 
-            params.append('violationType', violationTypeFilter);
+            params.append('violationType', violationTypeFilter === 'all' ? 'Mata Tertutup,Mengantuk,Kelelahan' : violationTypeFilter);
+            if (dateFilter) {
+                params.append('startDate', dateFilter);
+                params.append('endDate', dateFilter);
+            }
             if (monthFilter !== 'all') params.append('month', monthFilter);
-            if (weekFilter !== 'all') params.append('week', weekFilter);
+            if (weekFilter.length > 0) params.append('week', weekFilter.join(','));
             if (validationFilter !== 'all') params.append('validationStatus', validationFilter);
 
             const res = await fetch(`/api/fms/analytics?${params.toString()}`);
@@ -104,31 +170,30 @@ export default function FmsFatigueMonitoringDashboard() {
         }
     });
 
-    // Fetch detailed violations for a specific driver when selected
+    // Fetch detailed violations for a selected vehicle
     const { data: violationsDetail, isLoading: isLoadingDetail } = useQuery<FmsViolation[]>({
-        queryKey: ['/api/fms/violations', { vehicleNo: selectedDriver?.vehicleNo, month: monthFilter, week: weekFilter, validationStatus: validationFilter, violationType: violationTypeFilter }],
+        queryKey: ['/api/fms/violations', { vehicleNo: selectedDriver?.vehicleNo, date: dateFilter, month: monthFilter, week: weekFilter, validationStatus: validationFilter, violationType: violationTypeFilter }],
         queryFn: async () => {
             if (!selectedDriver) return [];
             const params = new URLSearchParams();
             params.append('vehicleNo', selectedDriver.vehicleNo);
-            params.append('violationType', violationTypeFilter);
+            params.append('violationType', violationTypeFilter === 'all' ? 'Mata Tertutup,Mengantuk,Kelelahan' : violationTypeFilter);
+            if (dateFilter) {
+                params.append('startDate', dateFilter);
+                params.append('endDate', dateFilter);
+            }
             if (monthFilter !== 'all') params.append('month', monthFilter);
-            if (weekFilter !== 'all') params.append('week', weekFilter);
+            if (weekFilter.length > 0) params.append('week', weekFilter.join(','));
             if (validationFilter !== 'all') params.append('validationStatus', validationFilter);
-
-            console.log(`[DEBUG Modal Fetch] fetching for ${selectedDriver.vehicleNo} with params: ${params.toString()}`);
 
             const res = await fetch(`/api/fms/violations?${params.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch violations");
-            const jsonData = await res.json();
-            console.log(`[DEBUG Modal Fetch] Received ${jsonData.length} records`);
-            return jsonData;
+            return res.json();
         },
         enabled: !!selectedDriver && isModalOpen
     });
 
     const filteredTableData = data?.allDrivers?.filter(driver =>
-        driver.driverName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         driver.vehicleNo.toLowerCase().includes(searchQuery.toLowerCase())
     ) || [];
 
@@ -159,6 +224,12 @@ export default function FmsFatigueMonitoringDashboard() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                    <Input
+                        type="date"
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                        className="w-[140px] bg-white text-sm"
+                    />
                     <Select value={monthFilter} onValueChange={setMonthFilter}>
                         <SelectTrigger className="w-[140px] bg-white text-sm">
                             <SelectValue placeholder="Semua Bulan" />
@@ -171,17 +242,49 @@ export default function FmsFatigueMonitoringDashboard() {
                         </SelectContent>
                     </Select>
 
-                    <Select value={weekFilter} onValueChange={setWeekFilter}>
-                        <SelectTrigger className="w-[140px] bg-white text-sm">
-                            <SelectValue placeholder="Semua Minggu" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Semua Minggu</SelectItem>
-                            {data?.availableWeeks?.sort((a, b) => a - b).map(w => (
-                                <SelectItem key={w} value={w.toString()}>Minggu ke-{w}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-[140px] justify-between text-sm bg-white font-normal hover:bg-slate-50">
+                                {weekFilter.length === 0 ? "Semua Minggu" : `Minggu (${weekFilter.length})`}
+                                <ChevronDown className="h-4 w-4 opacity-50" />
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[180px] p-0" align="start">
+                            <div className="p-2 border-b text-xs font-semibold text-gray-500 bg-slate-50">Filter Minggu</div>
+                            <ScrollArea className="h-[200px]">
+                                <div className="p-2 flex flex-col gap-2">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id="week-all"
+                                            checked={weekFilter.length === 0}
+                                            onCheckedChange={() => setWeekFilter([])}
+                                        />
+                                        <label htmlFor="week-all" className="text-sm cursor-pointer font-medium leading-none peer-disabled:cursor-not-allowed flex-1">
+                                            Semua Minggu
+                                        </label>
+                                    </div>
+                                    {data?.availableWeeks?.sort((a, b) => a - b).map(w => (
+                                        <div key={w} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`week-${w}`}
+                                                checked={weekFilter.includes(w.toString())}
+                                                onCheckedChange={(checked) => {
+                                                    if (checked) {
+                                                        setWeekFilter([...weekFilter, w.toString()]);
+                                                    } else {
+                                                        setWeekFilter(weekFilter.filter(ww => ww !== w.toString()));
+                                                    }
+                                                }}
+                                            />
+                                            <label htmlFor={`week-${w}`} className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed flex-1">
+                                                Minggu ke-{w}
+                                            </label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </PopoverContent>
+                    </Popover>
 
                     <Select value={validationFilter} onValueChange={setValidationFilter}>
                         <SelectTrigger className="w-[150px] bg-white text-sm">
@@ -191,6 +294,18 @@ export default function FmsFatigueMonitoringDashboard() {
                             <SelectItem value="all">Semua Status</SelectItem>
                             <SelectItem value="Valid">Valid</SelectItem>
                             <SelectItem value="Tidak Valid">Tidak Valid</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={violationTypeFilter} onValueChange={setViolationTypeFilter}>
+                        <SelectTrigger className="w-[180px] bg-white text-sm">
+                            <SelectValue placeholder="Semua Pelanggaran" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Semua Pelanggaran</SelectItem>
+                            <SelectItem value="Mata Tertutup">Mata Tertutup</SelectItem>
+                            <SelectItem value="Mengantuk">Mengantuk</SelectItem>
+                            <SelectItem value="Kelelahan">Kelelahan</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -353,7 +468,7 @@ export default function FmsFatigueMonitoringDashboard() {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={data.byHour.sort((a, b) => parseInt(a.hour) - parseInt(b.hour))} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                            <XAxis dataKey="hour" tickFormatter={(val) => `${val}:00`} />
+                                            <XAxis dataKey="hour" tickFormatter={(val) => `${String(val).padStart(2, '0')}:00`} tick={{ fontSize: 10, fill: '#6B7280' }} interval={0} angle={-35} textAnchor="end" height={40} />
                                             <YAxis />
                                             <RechartsTooltip formatter={(val) => [val, 'Jumlah Alert']} labelFormatter={(l) => `Pukul ${l}:00`} />
                                             <Bar dataKey="count" fill="#8884d8" radius={[4, 4, 0, 0]}>
@@ -476,9 +591,21 @@ export default function FmsFatigueMonitoringDashboard() {
 
                     {/* Employee Evaluation Combo Chart */}
                     <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 border border-gray-100 rounded-2xl mt-6">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-base font-semibold text-gray-900">Grafik Evaluasi Karyawan</CardTitle>
-                            <CardDescription>Visualisasi gabungan (Combo Chart) untuk Alert Fatigue karyawan</CardDescription>
+                        <CardHeader className="pb-2 flex flex-col md:flex-row justify-between md:items-center gap-4">
+                            <div>
+                                <CardTitle className="text-base font-semibold text-gray-900">Grafik Evaluasi Karyawan</CardTitle>
+                                <CardDescription>Visualisasi gabungan (Combo Chart) untuk Alert Fatigue karyawan</CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                <Label htmlFor="threshold-input" className="text-xs text-slate-600 whitespace-nowrap px-1">Treshold Target:</Label>
+                                <Input
+                                    id="threshold-input"
+                                    type="number"
+                                    className="w-[80px] h-8 text-sm bg-white"
+                                    value={evalThreshold}
+                                    onChange={(e) => setEvalThreshold(Number(e.target.value) || 0)}
+                                />
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="h-[350px] mt-4">
@@ -502,7 +629,10 @@ export default function FmsFatigueMonitoringDashboard() {
                                             formatter={(value, name) => [value, name === 'totalCount' ? 'Total Alert' : name]}
                                         />
                                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                        <Bar dataKey="totalCount" name="Total Alert (Bar)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40} />
+                                        <ReferenceLine y={evalThreshold} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'insideTopLeft', value: `Batas Maksimum (${evalThreshold})`, fill: '#ef4444', fontSize: 12, fontWeight: 'bold' }} />
+                                        <Bar dataKey="totalCount" name="Total Alert (Bar)" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={40}>
+                                            <LabelList dataKey="totalCount" position="top" fill="#6B7280" fontSize={12} fontWeight="bold" />
+                                        </Bar>
                                         <Line type="monotone" dataKey="totalCount" name="Trend Total Alert (Line)" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 6 }} />
                                     </ComposedChart>
                                 </ResponsiveContainer>
@@ -536,8 +666,6 @@ export default function FmsFatigueMonitoringDashboard() {
                                     <TableHeader className="bg-slate-50/80">
                                         <TableRow>
                                             <TableHead className="w-[80px] text-center">Rank</TableHead>
-                                            <TableHead>Nama Karyawan</TableHead>
-                                            <TableHead>NIK / ID</TableHead>
                                             <TableHead>Nomor Lambung</TableHead>
                                             <TableHead className="text-center text-red-600 font-semibold">Total Alert</TableHead>
                                             <TableHead className="text-center">Mata Tertutup</TableHead>
@@ -548,21 +676,19 @@ export default function FmsFatigueMonitoringDashboard() {
                                     <TableBody>
                                         {filteredTableData.length > 0 ? (
                                             filteredTableData.map((driver) => (
-                                                <TableRow key={driver.vehicleNo + driver.driverNik}>
+                                                <TableRow key={driver.vehicleNo}>
                                                     <TableCell className="font-medium text-center">{driver.rank}</TableCell>
                                                     <TableCell className="font-medium">
                                                         <button
                                                             className="text-blue-600 hover:text-blue-800 hover:underline transition-colors font-bold text-left"
                                                             onClick={() => {
-                                                                setSelectedDriver({ vehicleNo: driver.vehicleNo, driverName: driver.driverName });
+                                                                setSelectedDriver({ vehicleNo: driver.vehicleNo });
                                                                 setIsModalOpen(true);
                                                             }}
                                                         >
-                                                            {driver.driverName || "Tidak Diketahui"}
+                                                            {driver.vehicleNo}
                                                         </button>
                                                     </TableCell>
-                                                    <TableCell className="text-gray-500">{driver.driverNik || "-"}</TableCell>
-                                                    <TableCell>{driver.vehicleNo}</TableCell>
                                                     <TableCell className="text-center font-bold text-red-600 bg-red-50/50">
                                                         {driver.totalCount}
                                                     </TableCell>
@@ -573,8 +699,8 @@ export default function FmsFatigueMonitoringDashboard() {
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={8} className="h-24 text-center text-gray-500">
-                                                    Tidak ada data karyawan yang ditemukan.
+                                                <TableCell colSpan={6} className="h-24 text-center text-gray-500">
+                                                    Tidak ada data yang ditemukan.
                                                 </TableCell>
                                             </TableRow>
                                         )}
@@ -590,10 +716,10 @@ export default function FmsFatigueMonitoringDashboard() {
                             <DialogHeader className="p-6 pb-2 border-b">
                                 <DialogTitle className="text-xl flex items-center gap-2">
                                     <AlertTriangle className="h-5 w-5 text-red-500" />
-                                    Rincian Alert: {selectedDriver?.driverName}
+                                    Rincian Alert: {selectedDriver?.vehicleNo}
                                 </DialogTitle>
                                 <DialogDescription>
-                                    Menampilkan daftar lengkap alert fatigue untuk unit {selectedDriver?.vehicleNo}
+                                    Menampilkan daftar lengkap alert fatigue untuk unit {selectedDriver?.vehicleNo}. Klik tombol edit untuk menginput nama driver.
                                 </DialogDescription>
                             </DialogHeader>
 
@@ -609,8 +735,10 @@ export default function FmsFatigueMonitoringDashboard() {
                                                 <TableRow>
                                                     <TableHead className="w-[150px]">Tanggal & Waktu</TableHead>
                                                     <TableHead>Jenis Pelanggaran</TableHead>
+                                                    <TableHead>Driver</TableHead>
                                                     <TableHead>Lokasi</TableHead>
                                                     <TableHead className="text-center">Status</TableHead>
+                                                    <TableHead className="w-[80px]"></TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -631,6 +759,13 @@ export default function FmsFatigueMonitoringDashboard() {
                                                                 {v.violationType}
                                                             </Badge>
                                                         </TableCell>
+                                                        <TableCell className="text-sm">
+                                                            {v.manualDriverName ? (
+                                                                <span className="font-medium text-green-700">{v.manualDriverName}</span>
+                                                            ) : (
+                                                                <span className="text-gray-400 italic">Belum diisi</span>
+                                                            )}
+                                                        </TableCell>
                                                         <TableCell className="text-sm max-w-[200px] truncate" title={v.location}>
                                                             {v.location || "-"}
                                                         </TableCell>
@@ -640,6 +775,131 @@ export default function FmsFatigueMonitoringDashboard() {
                                                             }>
                                                                 {v.validationStatus}
                                                             </Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Popover>
+                                                                <PopoverTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-500 hover:text-blue-600">
+                                                                        <Edit2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-96" side="left" onOpenAutoFocus={(e) => { e.preventDefault(); setEmployeeResults([]); setOverrideName(""); setOverrideNik(""); setEvidenceFile(null); setEvidencePreview(null); }}>
+                                                                    <div className="space-y-3">
+                                                                        <div>
+                                                                            <h4 className="font-medium leading-none">Ubah Driver</h4>
+                                                                            <p className="text-xs text-muted-foreground mt-1">Ketik nama untuk mencari karyawan.</p>
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <Label htmlFor={`name-${v.id}`} className="text-xs">Nama Karyawan</Label>
+                                                                            <div className="relative">
+                                                                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+                                                                                <Input
+                                                                                    id={`name-${v.id}`}
+                                                                                    placeholder="Ketik minimal 2 huruf..."
+                                                                                    defaultValue={v.manualDriverName || ''}
+                                                                                    className="pl-9 h-9"
+                                                                                    onChange={(e) => {
+                                                                                        setOverrideName(e.target.value);
+                                                                                        searchEmployees(e.target.value);
+                                                                                    }}
+                                                                                    autoComplete="off"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                        {/* Autocomplete Results - Inline */}
+                                                                        {isSearching && (
+                                                                            <div className="text-center text-xs text-gray-400 py-2">Mencari...</div>
+                                                                        )}
+                                                                        {employeeResults.length > 0 && (
+                                                                            <div className="border border-gray-200 rounded-lg max-h-40 overflow-y-auto bg-white">
+                                                                                {employeeResults.map((emp) => (
+                                                                                    <button
+                                                                                        key={emp.id}
+                                                                                        type="button"
+                                                                                        className="w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b last:border-b-0 flex justify-between items-center"
+                                                                                        onClick={() => {
+                                                                                            setOverrideName(emp.name);
+                                                                                            setOverrideNik(emp.id);
+                                                                                            setEmployeeResults([]);
+                                                                                            const nameInput = document.getElementById(`name-${v.id}`) as HTMLInputElement;
+                                                                                            const nikInput = document.getElementById(`nik-${v.id}`) as HTMLInputElement;
+                                                                                            if (nameInput) nameInput.value = emp.name;
+                                                                                            if (nikInput) nikInput.value = emp.id;
+                                                                                        }}
+                                                                                    >
+                                                                                        <div>
+                                                                                            <div className="font-medium text-sm text-gray-800">{emp.name}</div>
+                                                                                            <div className="text-xs text-gray-500">NIK: {emp.id}</div>
+                                                                                        </div>
+                                                                                        {emp.nomorLambung && (
+                                                                                            <Badge variant="outline" className="text-xs bg-gray-50 shrink-0">{emp.nomorLambung}</Badge>
+                                                                                        )}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="space-y-1">
+                                                                            <Label htmlFor={`nik-${v.id}`} className="text-xs">NIK Karyawan</Label>
+                                                                            <Input
+                                                                                id={`nik-${v.id}`}
+                                                                                placeholder="Otomatis terisi"
+                                                                                defaultValue={v.manualDriverNik || ''}
+                                                                                onChange={(e) => setOverrideNik(e.target.value)}
+                                                                                className="bg-gray-50 h-9"
+                                                                            />
+                                                                        </div>
+                                                                        {/* Evidence Upload */}
+                                                                        <div className="space-y-1">
+                                                                            <Label className="text-xs">📷 Evidence / Bukti Foto</Label>
+                                                                            {v.evidenceUrl && !evidencePreview && (
+                                                                                <div className="mb-2">
+                                                                                    <img src={v.evidenceUrl} alt="Evidence" className="w-full h-24 object-cover rounded-lg border border-gray-200" />
+                                                                                    <p className="text-xs text-green-600 mt-1">✓ Evidence sudah ada</p>
+                                                                                </div>
+                                                                            )}
+                                                                            {evidencePreview && (
+                                                                                <div className="mb-2 relative">
+                                                                                    <img src={evidencePreview} alt="Preview" className="w-full h-24 object-cover rounded-lg border-2 border-blue-300" />
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs"
+                                                                                        onClick={() => { setEvidenceFile(null); setEvidencePreview(null); }}
+                                                                                    >×</button>
+                                                                                    <p className="text-xs text-blue-600 mt-1">File baru dipilih</p>
+                                                                                </div>
+                                                                            )}
+                                                                            <Input
+                                                                                type="file"
+                                                                                accept="image/*"
+                                                                                className="h-9 text-xs file:mr-2 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                                                                onChange={(e) => {
+                                                                                    const file = e.target.files?.[0];
+                                                                                    if (file) {
+                                                                                        setEvidenceFile(file);
+                                                                                        const reader = new FileReader();
+                                                                                        reader.onload = (ev) => setEvidencePreview(ev.target?.result as string);
+                                                                                        reader.readAsDataURL(file);
+                                                                                    }
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                        <Button
+                                                                            className="w-full bg-blue-600 hover:bg-blue-700"
+                                                                            onClick={() => {
+                                                                                updateDriverMutation.mutate({
+                                                                                    id: v.id,
+                                                                                    manualDriverName: overrideName || v.manualDriverName || "",
+                                                                                    manualDriverNik: overrideNik || v.manualDriverNik || "",
+                                                                                    evidence: evidenceFile
+                                                                                });
+                                                                            }}
+                                                                            disabled={updateDriverMutation.isPending}
+                                                                        >
+                                                                            {updateDriverMutation.isPending ? "Menyimpan..." : "Simpan Perubahan"}
+                                                                        </Button>
+                                                                    </div>
+                                                                </PopoverContent>
+                                                            </Popover>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}

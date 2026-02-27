@@ -592,6 +592,8 @@ export interface IStorage {
   }>;
   getFmsViolations(options?: {
     vehicleNo?: string;
+    driverNik?: string;
+    driverName?: string;
     violationType?: string;
     month?: string;
     week?: string;
@@ -599,6 +601,7 @@ export interface IStorage {
     startDate?: string;
     endDate?: string;
   }): Promise<FmsViolation[]>;
+  updateFmsViolationDriver(id: string, overrides: { manualDriverName?: string | null, manualDriverNik?: string | null, evidenceUrl?: string | null }): Promise<FmsViolation>;
 
   // Induction Public
   createPublicInductionAttendance(attendance: InsertPublicInductionAttendance): Promise<PublicInductionAttendance>;
@@ -8096,47 +8099,58 @@ export class DrizzleStorage implements IStorage {
     }
 
 
-    // 8. Top 10 Drivers with Most VALID Violations - NEW
-    // 8. Top 10 Drivers with Most VALID Violations - NEW
-    let topDriversRaw: any[] = [];
+    // 8. Vehicle-Centric Aggregation (Per Nomor Lambung)
+    let allDrivers: any[] = [];
+    let topDrivers: any[] = [];
+
     try {
-      topDriversRaw = await db
+      const allViolationsData = await db
         .select({
           vehicleNo: fmsViolations.vehicleNo,
-          validCount: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
-          totalCount: sql<number>`count(*)::integer`,
-          mataTertutupCount: sql<number>`count(*) filter (where ${fmsViolations.violationType} = 'Mata Tertutup')::integer`,
-          mengantukCount: sql<number>`count(*) filter (where ${fmsViolations.violationType} = 'Mengantuk')::integer`,
-          kelelahanCount: sql<number>`count(*) filter (where ${fmsViolations.violationType} = 'Kelelahan')::integer`,
+          validationStatus: fmsViolations.validationStatus,
+          violationType: fmsViolations.violationType,
         })
         .from(fmsViolations)
-        .where(dateFilter)
-        .groupBy(fmsViolations.vehicleNo)
-        .orderBy(desc(sql`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')`));
+        .where(dateFilter);
+
+      // Aggregate per vehicleNo only
+      const vehicleStats = new Map<string, any>();
+
+      for (const v of allViolationsData) {
+        const vNo = v.vehicleNo;
+        if (!vehicleStats.has(vNo)) {
+          vehicleStats.set(vNo, {
+            vehicleNo: vNo,
+            totalCount: 0,
+            validCount: 0,
+            mataTertutupCount: 0,
+            mengantukCount: 0,
+            kelelahanCount: 0
+          });
+        }
+
+        const stat = vehicleStats.get(vNo);
+        stat.totalCount += 1;
+
+        const validStatus = v.validationStatus?.toLowerCase();
+        if (validStatus === 'valid' || validStatus === 'true') {
+          stat.validCount += 1;
+        }
+
+        if (v.violationType === 'Mata Tertutup') stat.mataTertutupCount += 1;
+        else if (v.violationType === 'Mengantuk') stat.mengantukCount += 1;
+        else if (v.violationType === 'Kelelahan') stat.kelelahanCount += 1;
+      }
+
+      allDrivers = Array.from(vehicleStats.values())
+        .sort((a, b) => b.totalCount - a.totalCount)
+        .map((d, index) => ({ ...d, rank: index + 1 }));
+
+      topDrivers = allDrivers.slice(0, 10);
+
     } catch (e) {
-      console.error("[getFmsAnalytics] topDriversRaw query failed:", e);
+      console.error("[getFmsAnalytics] Error computing vehicle stats:", e);
     }
-
-    // Get all employee data in memory to match with vehicleNo
-    const allEmps = await db.select({ name: employees.name, id: employees.id, lambung: employees.nomorLambung }).from(employees);
-    const empMap = new Map(allEmps.filter(e => e.lambung).map(e => [e.lambung, e]));
-
-    const allDrivers = topDriversRaw.map((d, idx) => {
-      const emp = empMap.get(d.vehicleNo);
-      return {
-        rank: idx + 1,
-        vehicleNo: d.vehicleNo,
-        driverName: emp?.name || "Tidak Diketahui",
-        driverNik: emp?.id?.toString() || "-",
-        validCount: Number(d.validCount || 0),
-        totalCount: Number(d.totalCount || 0),
-        mataTertutupCount: Number(d.mataTertutupCount || 0),
-        mengantukCount: Number(d.mengantukCount || 0),
-        kelelahanCount: Number(d.kelelahanCount || 0),
-      };
-    });
-
-    const topDrivers = allDrivers.slice(0, 10);
 
 
     // 9. Available Violation Types (Independent of violationType filter) - NEW
@@ -8198,6 +8212,8 @@ export class DrizzleStorage implements IStorage {
 
   async getFmsViolations(options?: {
     vehicleNo?: string;
+    driverNik?: string;
+    driverName?: string;
     violationType?: string;
     month?: string;
     week?: string;
@@ -8209,7 +8225,7 @@ export class DrizzleStorage implements IStorage {
 
     if (options?.vehicleNo) {
       const vNo = options.vehicleNo.trim();
-      console.log(`[DEBUG getFmsViolations] Adding vehicleNo filter: "${vNo}" (using ilike)`);
+      console.log(`[DEBUG getFmsViolations] Adding vehicleNo filter: "${vNo}"`);
       conditions.push(ilike(fmsViolations.vehicleNo, vNo));
     }
 
@@ -8273,6 +8289,26 @@ export class DrizzleStorage implements IStorage {
 
     console.log(`[DEBUG getFmsViolations] DB returned ${results.length} rows`);
     return results;
+  }
+
+  async updateFmsViolationDriver(id: string, overrides: { manualDriverName?: string | null, manualDriverNik?: string | null, evidenceUrl?: string | null }): Promise<FmsViolation> {
+    const setData: any = {
+      manualDriverName: overrides.manualDriverName ?? null,
+      manualDriverNik: overrides.manualDriverNik ?? null
+    };
+    if (overrides.evidenceUrl) {
+      setData.evidenceUrl = overrides.evidenceUrl;
+    }
+    const [updated] = await db
+      .update(fmsViolations)
+      .set(setData)
+      .where(eq(fmsViolations.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error(`Failed to update violation ${id}`);
+    }
+    return updated;
   }
 
   // Induction Methods Implementation

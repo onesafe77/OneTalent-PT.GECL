@@ -292,7 +292,16 @@ export default function SidakSeatbeltForm() {
         }
     });
 
-    const handleFinish = () => {
+    const handleFinish = async () => {
+        // Auto-save any observer currently being typed if it's considered valid
+        if (currentObserver.nama && currentObserver.signatureDataUrl) {
+            try {
+                await handleAddObserver.mutateAsync(currentObserver);
+            } catch (e) {
+                console.error("Auto-save observer error", e);
+            }
+        }
+
         navigate("/workspace/sidak/seatbelt/history");
         toast({
             title: "Sidak Selesai",
@@ -358,7 +367,7 @@ export default function SidakSeatbeltForm() {
                 <Button
                     className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
                     onClick={handleFinish}
-                    disabled={draft.observers.length === 0}
+                    disabled={draft.observers.length === 0 && (!currentObserver.nama || !currentObserver.signatureDataUrl)}
                 >
                     <Save className="w-5 h-5 mr-3" /> SELESAI & SIMPAN
                 </Button>

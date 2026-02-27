@@ -63,6 +63,7 @@ import EvaluasiPvt from "@/pages/evaluasi-pvt";
 
 import FmsFatigueValidationDashboard from "@/pages/hse/fatigue/dashboard-validation";
 import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashboard";
+import EvaluasiDriverFatigue from "@/pages/hse/fatigue/evaluasi-driver-fatigue";
 import HrInductionAttendance from "@/pages/hr-induction-attendance";
 
 import SafetyPatrol from "@/pages/safety-patrol";
@@ -143,6 +144,7 @@ const workspaceRoutes = [
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
+  { path: "/workspace/hse/evaluasi-driver-fatigue", component: EvaluasiDriverFatigue, title: "Evaluasi Driver Fatigue" },
   { path: "/workspace/hse/evaluasi-pvt", component: EvaluasiPvt, title: "Evaluasi Data PVT (Reaction Time)" },
   { path: "/workspace/announcements", component: Announcements, title: "Kelola Pengumuman" },
   { path: "/workspace/news", component: News, title: "Kelola Berita" },
@@ -335,6 +337,7 @@ export function Workspace() {
               <Route path="/workspace/hse/jarak" component={DashboardJarak} />
               <Route path="/workspace/hse/fatigue-validation" component={FmsFatigueValidationDashboard} />
               <Route path="/workspace/hse/fatigue-monitoring" component={FmsFatigueMonitoringDashboard} />
+              <Route path="/workspace/hse/evaluasi-driver-fatigue" component={EvaluasiDriverFatigue} />
               <Route path="/workspace/hse/statistics" component={DashboardStatistics} />
               <Route path="/workspace/settings/google-sheets" component={GoogleSheetsConfig} />
 
