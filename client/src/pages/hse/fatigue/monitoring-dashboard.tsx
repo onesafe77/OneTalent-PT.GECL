@@ -4,7 +4,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
     LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, LabelList, ComposedChart, ReferenceLine
 } from "recharts";
-import { Download, Search, AlertTriangle, Monitor, TrendingUp, ChevronDown, Edit2, Check, X } from "lucide-react";
+import { Download, Search, AlertTriangle, Monitor, TrendingUp, ChevronDown, Edit2, Check, X, Upload, Loader2, FileSpreadsheet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -19,12 +19,14 @@ import {
     DialogDescription,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import * as XLSX from 'xlsx';
 
 // FMS Analytics Type matching what the backend returns
 type FmsAnalyticsData = {
@@ -144,6 +146,7 @@ export default function FmsFatigueMonitoringDashboard() {
             toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
+
 
     console.log("[DEBUG Dashboard] month:", monthFilter, "week:", weekFilter, "status:", validationFilter);
 
@@ -308,6 +311,7 @@ export default function FmsFatigueMonitoringDashboard() {
                             <SelectItem value="Kelelahan">Kelelahan</SelectItem>
                         </SelectContent>
                     </Select>
+
                 </div>
             </div>
 

@@ -306,6 +306,7 @@ export interface IStorage {
   getRosterByEmployee(employeeId: string): Promise<RosterSchedule[]>;
   getRosterByEmployeeAndDate(employeeId: string, date: string): Promise<RosterSchedule | undefined>;
   createRosterSchedule(schedule: InsertRosterSchedule): Promise<RosterSchedule>;
+  bulkCreateRosterSchedules(schedules: InsertRosterSchedule[]): Promise<RosterSchedule[]>;
   updateRosterSchedule(id: string, schedule: Partial<InsertRosterSchedule>): Promise<RosterSchedule | undefined>;
   deleteRosterSchedule(id: string): Promise<boolean>;
   deleteAllRosterSchedules(): Promise<void>;
@@ -424,6 +425,7 @@ export interface IStorage {
   updateSidakRosterSession(id: string, updates: Partial<InsertSidakRosterSession>): Promise<SidakRosterSession | undefined>;
   deleteSidakRosterSession(id: string): Promise<boolean>;
   getSidakRosterRecords(sessionId: string): Promise<SidakRosterRecord[]>;
+  getSidakRosterRecordsBySessionIds(sessionIds: string[]): Promise<SidakRosterRecord[]>;
   createSidakRosterRecord(record: InsertSidakRosterRecord): Promise<SidakRosterRecord>;
   getSidakRosterObservers(sessionId: string): Promise<SidakRosterObserver[]>;
   createSidakRosterObserver(observer: InsertSidakRosterObserver): Promise<SidakRosterObserver>;
@@ -1046,6 +1048,14 @@ export class MemStorage implements IStorage {
     return schedule;
   }
 
+  async bulkCreateRosterSchedules(schedules: InsertRosterSchedule[]): Promise<RosterSchedule[]> {
+    const results: RosterSchedule[] = [];
+    for (const s of schedules) {
+      results.push(await this.createRosterSchedule(s));
+    }
+    return results;
+  }
+
   async updateRosterSchedule(id: string, updateData: Partial<InsertRosterSchedule>): Promise<RosterSchedule | undefined> {
     const existing = this.rosterSchedules.get(id);
     if (!existing) return undefined;
@@ -1502,6 +1512,9 @@ export class MemStorage implements IStorage {
     throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
   }
   async getSidakRosterRecords(sessionId: string): Promise<SidakRosterRecord[]> {
+    throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSidakRosterRecordsBySessionIds(sessionIds: string[]): Promise<SidakRosterRecord[]> {
     throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
   }
   async createSidakRosterRecord(record: InsertSidakRosterRecord): Promise<SidakRosterRecord> {
@@ -2081,6 +2094,49 @@ export class DrizzleStorage implements IStorage {
 
     const result = await this.db.insert(rosterSchedules).values(scheduleToInsert).returning();
     return result[0];
+  }
+
+  async bulkCreateRosterSchedules(insertSchedules: InsertRosterSchedule[]): Promise<RosterSchedule[]> {
+    if (insertSchedules.length === 0) return [];
+
+    // Pre-fetch all relevant employees to avoid N+1 queries for plannedNomorLambung
+    const employeeIds = [...new Set(insertSchedules.map(s => s.employeeId))];
+    const employeesData = await this.db.select().from(employees).where(sql`${employees.id} IN ${employeeIds}`);
+    const employeeMap = new Map(employeesData.map(emp => [emp.id, emp]));
+
+    const schedulesToInsert = insertSchedules.map(insertSchedule => {
+      const employee = employeeMap.get(insertSchedule.employeeId);
+      const plannedNomorLambung = insertSchedule.plannedNomorLambung ?? employee?.nomorLambung ?? null;
+      const actualNomorLambung = insertSchedule.actualNomorLambung ?? plannedNomorLambung;
+
+      return {
+        ...insertSchedule,
+        plannedNomorLambung,
+        actualNomorLambung,
+      };
+    });
+
+    // PostgreSQL has a bind parameter limit of ~65535.
+    // Each row has ~10 columns, so batch at 100 rows (~1000 params) to stay within limits.
+    const BATCH_SIZE = 100;
+    const allResults: RosterSchedule[] = [];
+
+    for (let i = 0; i < schedulesToInsert.length; i += BATCH_SIZE) {
+      const batch = schedulesToInsert.slice(i, i + BATCH_SIZE);
+      try {
+        const batchResults = await this.db.insert(rosterSchedules).values(batch).onConflictDoNothing().returning();
+        allResults.push(...batchResults);
+      } catch (err) {
+        console.error(`Bulk insert batch ${i}-${i + batch.length} failed:`, err);
+        // Continue with next batch even if one fails
+      }
+
+      if ((i + BATCH_SIZE) % 1000 === 0 || i + BATCH_SIZE >= schedulesToInsert.length) {
+        console.log(`Bulk insert progress: ${Math.min(i + BATCH_SIZE, schedulesToInsert.length)}/${schedulesToInsert.length}`);
+      }
+    }
+
+    return allResults;
   }
 
   async updateRosterSchedule(id: string, updateData: Partial<InsertRosterSchedule>): Promise<RosterSchedule | undefined> {
@@ -2894,6 +2950,15 @@ export class DrizzleStorage implements IStorage {
       .select()
       .from(sidakRosterRecords)
       .where(eq(sidakRosterRecords.sessionId, sessionId))
+      .orderBy(sql`created_at ASC`);
+  }
+
+  async getSidakRosterRecordsBySessionIds(sessionIds: string[]): Promise<SidakRosterRecord[]> {
+    if (sessionIds.length === 0) return [];
+    return await this.db
+      .select()
+      .from(sidakRosterRecords)
+      .where(inArray(sidakRosterRecords.sessionId, sessionIds))
       .orderBy(sql`created_at ASC`);
   }
 
@@ -8293,13 +8358,11 @@ export class DrizzleStorage implements IStorage {
   }
 
   async updateFmsViolationDriver(id: string, overrides: { manualDriverName?: string | null, manualDriverNik?: string | null, evidenceUrl?: string | null }): Promise<FmsViolation> {
-    const setData: any = {
-      manualDriverName: overrides.manualDriverName ?? null,
-      manualDriverNik: overrides.manualDriverNik ?? null
-    };
-    if (overrides.evidenceUrl) {
-      setData.evidenceUrl = overrides.evidenceUrl;
-    }
+    const setData: any = {};
+    if (overrides.manualDriverName !== undefined) setData.manualDriverName = overrides.manualDriverName;
+    if (overrides.manualDriverNik !== undefined) setData.manualDriverNik = overrides.manualDriverNik;
+    if (overrides.evidenceUrl) setData.evidenceUrl = overrides.evidenceUrl;
+
     const [updated] = await db
       .update(fmsViolations)
       .set(setData)

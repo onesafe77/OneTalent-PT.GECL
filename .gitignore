@@ -35,3 +35,17 @@ test-storage-logic.ts
 # Misc
 dummy.jpg
 sidak/*.pdf
+
+# Test & Temporary Files
+cv/
+dummy.txt
+generate_test.js
+generate_test_9135.js
+server/test3.ts
+server/test_db.ts
+server/test_db2.ts
+server/test_raw.ts
+test2.xlsx
+test_9135.xlsx
+test_upload.js
+test_upload2.js

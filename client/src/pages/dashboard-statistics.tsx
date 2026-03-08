@@ -198,16 +198,16 @@ export default function DashboardStatistics() {
         plugins: {
             legend: {
                 position: 'top',
-                align: 'end',
+                align: 'center',
                 labels: {
                     usePointStyle: true,
-                    boxWidth: 8,
+                    boxWidth: 10,
                     useBorderRadius: true,
-                    borderRadius: 4,
-                    padding: 20,
+                    borderRadius: 5,
+                    padding: 25,
                     font: {
                         family: "'Inter', sans-serif",
-                        size: 11,
+                        size: 16,
                         weight: 600
                     },
                     color: '#64748b'
@@ -223,12 +223,15 @@ export default function DashboardStatistics() {
                 cornerRadius: 12,
                 displayColors: true,
                 boxPadding: 4,
-                titleFont: { weight: 'bold' }
+                titleFont: { weight: 'bold', size: 14 },
+                bodyFont: { size: 14 }
             },
             datalabels: {
-                anchor: 'end', align: 'end', offset: -4,
+                anchor: (ctx: any) => ctx.dataset.type === 'line' ? 'end' : 'center',
+                align: (ctx: any) => ctx.dataset.type === 'line' ? 'end' : 'center',
+                offset: (ctx: any) => ctx.dataset.type === 'line' ? 8 : 0,
                 color: (ctx: any) => ctx.dataset.type === 'line' ? '#1e293b' : '#ffffff',
-                font: { weight: 'bold', size: 10 },
+                font: { weight: 'bold', size: 16 },
                 formatter: (value: number, ctx: any) => {
                     if (ctx.dataset.type === 'line') return value.toFixed(2).replace('.', ',');
                     return value > 0 ? value : '';
@@ -238,18 +241,20 @@ export default function DashboardStatistics() {
         scales: {
             y: {
                 beginAtZero: true,
+                grace: '30%',
                 grid: { display: true, color: '#f1f5f9', drawBorder: false },
-                ticks: { font: { size: 10 }, color: '#94a3b8', padding: 10 }
+                ticks: { font: { size: 14 }, color: '#94a3b8', padding: 10 }
             },
             x: {
                 grid: { display: false },
-                ticks: { font: { size: 10 }, color: '#64748b' }
+                ticks: { font: { size: 14 }, color: '#64748b' }
             },
             y1: {
                 beginAtZero: true,
+                grace: '30%',
                 position: 'right',
                 grid: { display: false },
-                ticks: { font: { size: 10 }, color: '#94a3b8' }
+                ticks: { font: { size: 14 }, color: '#94a3b8' }
             }
         }
     };
@@ -288,10 +293,10 @@ export default function DashboardStatistics() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-start">
+            <div className="flex flex-col gap-8 items-start">
 
                 {/* Main Content (Charts) */}
-                <div className="xl:col-span-3 space-y-8">
+                <div className="w-full space-y-8">
 
                     {/* MH Input Section (Collapsible) */}
                     <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-3xl overflow-hidden group">
@@ -536,46 +541,6 @@ export default function DashboardStatistics() {
                         }}>Reset All Data</Button>
                     </div>
 
-                </div>
-
-                {/* Sidebar: AI Analysis */}
-                <div className="xl:col-span-1 space-y-6">
-                    <Card className="border-none shadow-2xl bg-gradient-to-b from-emerald-900 to-slate-900 text-white rounded-3xl overflow-hidden sticky top-32">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <Sparkles className="w-40 h-40 text-white" />
-                        </div>
-                        <CardHeader className="relative z-10">
-                            <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                                <h3 className="font-bold text-lg bg-gradient-to-r from-white to-emerald-200 bg-clip-text text-transparent">Mystic AI Insights</h3>
-                                <Button
-                                    size="sm"
-                                    className="bg-white/10 hover:bg-white/20 text-white text-xs border border-white/20 rounded-full"
-                                    onClick={analyzeWithAI}
-                                    disabled={isAnalyzing}
-                                >
-                                    {isAnalyzing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
-                                    {isAnalyzing ? "Analyzing..." : "Generate Insights"}
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4 relative z-10 min-h-[300px]">
-                            {data.aiInsights && data.aiInsights.length > 0 ? (
-                                <ul className="space-y-4 text-sm text-emerald-50 leading-relaxed font-medium">
-                                    {data.aiInsights.map((insight, idx) => (
-                                        <li key={idx} className="flex gap-3 bg-white/5 p-3 rounded-xl border border-white/5 backdrop-blur-sm">
-                                            <span className="text-emerald-400 text-lg mt-0.5">•</span>
-                                            <span>{insight}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <div className="text-center py-12 text-emerald-200/40 text-xs italic flex flex-col items-center">
-                                    <Sparkles className="w-8 h-8 mb-2 opacity-50" />
-                                    No AI insights generated yet. <br />Click the button to analyze safety trends.
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
                 </div>
 
             </div>

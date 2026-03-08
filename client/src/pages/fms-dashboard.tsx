@@ -56,6 +56,7 @@ export default function FmsDashboard() {
         validationStatuses: [] as string[], // Multi-select
         weeks: [] as number[]             // Multi-select for weeks (1-5)
     });
+    // Filters & Uploader states
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -121,6 +122,7 @@ export default function FmsDashboard() {
             uploadMutation.mutate(e.target.files[0]);
         }
     };
+
 
     // derived data for charts
     const chartOptions = {
@@ -215,6 +217,7 @@ export default function FmsDashboard() {
                                     )}
                                 </DialogContent>
                             </Dialog>
+
                         </div>
                     </div>
                 </div>

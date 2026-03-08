@@ -12,8 +12,21 @@ import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMont
 import { exec } from "child_process";
 import Papa from "papaparse";
 
-// Configure Multer
-const upload = multer({ dest: 'uploads/' });
+// Configure Multer with disk storage to preserve file extensions
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads', { recursive: true });
+}
+const mainStorageConfig = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/')
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+const upload = multer({ storage: mainStorageConfig });
 
 import { storage } from "./storage";
 import { sendWhatsAppMessage, formatSimperEvNotification, formatSimperPerpanjanganNotification } from "./services/whatsapp-service";
@@ -88,8 +101,11 @@ import {
   insertProjectSchema,
   insertProjectFileSchema,
   fmsViolations,
+  sidakFatigueObservers,
+  sidakRosterObservers,
+  employees,
 } from "@shared/schema";
-import { eq, ilike, and, desc, sql, asc } from "drizzle-orm";
+import { eq, ilike, and, desc, sql, asc, inArray } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
 import * as whatsappService from "./services/whatsapp-service";
 import { buildRAGPrompt, searchSimilarChunks, generateEmbedding } from "./services/rag-service";
@@ -1765,30 +1781,12 @@ Format sebagai bullet points singkat per insight.`;
         });
       }
 
-      console.log(`Creating ${validatedRosters.length} schedules...`);
+      console.log(`Creating ${validatedRosters.length} schedules using optimized bulk insert...`);
 
-      // Create schedules in larger batches without individual logging
-      const createdSchedules = [];
-      for (let i = 0; i < validatedRosters.length; i += batchSize) {
-        const batch = validatedRosters.slice(i, i + batchSize);
+      // Use the new optimized bulk insert method
+      const createdSchedules = await storage.bulkCreateRosterSchedules(validatedRosters);
 
-        // Process batch without individual logging
-        const batchPromises = batch.map(async (rosterData) => {
-          try {
-            return await storage.createRosterSchedule(rosterData);
-          } catch (error) {
-            return null; // Skip duplicates
-          }
-        });
-
-        const batchResults = await Promise.all(batchPromises);
-        createdSchedules.push(...batchResults.filter(result => result !== null));
-
-        // Minimal progress logging
-        if ((i + batchSize) % 2000 === 0 || i + batchSize >= validatedRosters.length) {
-          console.log(`Created ${createdSchedules.length} schedules so far`);
-        }
-      }
+      console.log(`Created ${createdSchedules.length} schedules successfully`);
 
       // Trigger cache invalidation
       await triggerReportUpdate();
@@ -2792,6 +2790,81 @@ Format sebagai bullet points singkat per insight.`;
 
 
 
+
+  // ============================================
+  // EVALUASI SIDAK ROSTER
+  // ============================================
+  app.get("/api/evaluasi-roster", async (req, res) => {
+    try {
+      const month = req.query.month as string; // Format: YYYY-MM
+      const status = req.query.status as string; // "semua" | "sudah" | "belum"
+
+      if (!month) {
+        return res.status(400).json({ message: "Month parameter is required (format: YYYY-MM)" });
+      }
+
+      // Get all employees and SIDAK Roster sessions
+      const [allEmployees, allSessions] = await Promise.all([
+        storage.getAllEmployees(),
+        storage.getAllSidakRosterSessions()
+      ]);
+
+      // Filter to get DRIVERS ONLY
+      const driversOnly = allEmployees.filter(emp =>
+        emp.position?.toLowerCase() === "driver"
+      );
+
+      // Filter sessions by month
+      const monthSessions = allSessions.filter(session => session.tanggal.startsWith(month));
+
+      // Get all records for filtered sessions
+      const sessionIds = monthSessions.map(s => s.id);
+      const allRecords = await storage.getSidakRosterRecordsBySessionIds(sessionIds);
+
+      // Count SIDAK per employee (by NIK)
+      const sidakCountByNik = allRecords.reduce((acc, record) => {
+        acc[record.nik] = (acc[record.nik] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Build evaluation data for DRIVERS ONLY
+      const allEvaluationData = driversOnly.map(employee => ({
+        id: employee.id,
+        nama: employee.name,
+        nik: employee.id,
+        totalSidak: sidakCountByNik[employee.id] || 0,
+        status: (sidakCountByNik[employee.id] || 0) > 0 ? "Sudah SIDAK" : "Belum SIDAK"
+      }));
+
+      // Calculate summary stats
+      const totalDrivers = driversOnly.length;
+      const sudahSidak = allEvaluationData.filter(emp => emp.totalSidak > 0).length;
+      const belumSidak = totalDrivers - sudahSidak;
+      const totalSidakKeseluruhan = allRecords.length;
+
+      // Apply status filter
+      let filteredEvaluationData = allEvaluationData;
+      if (status === "sudah") {
+        filteredEvaluationData = allEvaluationData.filter(emp => emp.totalSidak > 0);
+      } else if (status === "belum") {
+        filteredEvaluationData = allEvaluationData.filter(emp => emp.totalSidak === 0);
+      }
+
+      res.json({
+        summary: {
+          totalDrivers,
+          sudahSidak,
+          belumSidak,
+          totalSidakKeseluruhan
+        },
+        drivers: filteredEvaluationData,
+        month
+      });
+    } catch (error) {
+      console.error("Error fetching evaluasi roster:", error);
+      res.status(500).json({ message: "Failed to fetch roster evaluation" });
+    }
+  });
 
 
 
@@ -6947,35 +7020,100 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
   app.get("/api/sidak-recap", async (req, res) => {
     try {
-      const fetch = (name: string, p: Promise<any>) => p.catch(e => {
-        console.error(`FAILED: ${name}`, e);
-        // Return empty array to avoid crashing the whole page if one fails
-        return [];
-      });
+      const fetchSession = async (name: string, p: Promise<any>) => {
+        const tableStart = Date.now();
+        try {
+          const res = await p;
+          console.log(`[SIDAK-RECAP] Fetch ${name} success: ${res.length} rows in ${Date.now() - tableStart}ms`);
+          return res;
+        } catch (e: any) {
+          console.error(`[SIDAK-RECAP ERROR] ${name} failed after ${Date.now() - tableStart}ms:`, e.message);
+          return [];
+        }
+      };
+
+      console.log("[SIDAK-RECAP] Starting data fetch...");
+      const start = Date.now();
+
+      // Optimization: Get counts for all tables in a single query for stats
+      // Optimization: Fetch all session data in parallel batches
+      // Fetch session data in parallel batches of 4 to maximize speed while respecting pool limits
+      const fetchAllInBatches = async () => {
+        const batch1 = Promise.all([
+          fetchSession('Fatigue', storage.getAllSidakFatigueSessions()),
+          fetchSession('Roster', storage.getAllSidakRosterSessions()),
+          fetchSession('Seatbelt', storage.getAllSidakSeatbeltSessions()),
+          fetchSession('Rambu', storage.getAllSidakRambuSessions()),
+        ]);
+        const batch2 = Promise.all([
+          fetchSession('Antrian', storage.getAllSidakAntrianSessions()),
+          fetchSession('Jarak', storage.getAllSidakJarakSessions()),
+          fetchSession('Kecepatan', storage.getAllSidakKecepatanSessions()),
+          fetchSession('Pencahayaan', storage.getAllSidakPencahayaanSessions()),
+        ]);
+        const batch3 = Promise.all([
+          fetchSession('LOTO', storage.getAllSidakLotoSessions()),
+          fetchSession('Digital', storage.getAllSidakDigitalSessions()),
+          fetchSession('Workshop', storage.getAllSidakWorkshopSessions()),
+          fetchSession('Behavior', storage.getAllSidakBehaviorSessions()),
+        ]);
+
+        const [results1, results2, results3] = await Promise.all([batch1, batch2, batch3]);
+        return [...results1, ...results2, ...results3];
+      };
 
       const [
-        fatigue, roster, seatbelt, rambu,
-        antrian, jarak, kecepatan,
-        pencahayaan, loto, digital, workshop, behavior
-      ] = await Promise.all([
-        fetch('Fatigue', storage.getAllSidakFatigueSessions()),
-        fetch('Roster', storage.getAllSidakRosterSessions()),
-        fetch('Seatbelt', storage.getAllSidakSeatbeltSessions()),
-        fetch('Rambu', storage.getAllSidakRambuSessions()),
-        fetch('Antrian', storage.getAllSidakAntrianSessions()),
-        fetch('Jarak', storage.getAllSidakJarakSessions()),
-        fetch('Kecepatan', storage.getAllSidakKecepatanSessions()),
-        fetch('Pencahayaan', storage.getAllSidakPencahayaanSessions()),
-        fetch('LOTO', storage.getAllSidakLotoSessions()),
-        fetch('Digital', storage.getAllSidakDigitalSessions()),
-        fetch('Workshop', storage.getAllSidakWorkshopSessions()),
-        fetch('Behavior', storage.getAllSidakBehaviorSessions())
-      ]);
+        fatigueFull, rosterFull, seatbeltFull, rambuFull,
+        antrianFull, jarakFull, kecepatanFull,
+        pencahayaanFull, lotoFull, digitalFull, workshopFull, behaviorFull
+      ] = await fetchAllInBatches();
+
+      // Omit large fields like activityPhotos for the recap list to save bandwidth and speed up JSON serialization
+      const omitLargeFields = (sessions: any[]) => sessions.map(s => {
+        const { activityPhotos, ...rest } = s;
+        return rest;
+      });
+
+      const fatigue = omitLargeFields(fatigueFull);
+      const roster = omitLargeFields(rosterFull);
+      const seatbelt = omitLargeFields(seatbeltFull);
+      const rambu = omitLargeFields(rambuFull);
+      const antrian = omitLargeFields(antrianFull);
+      const jarak = omitLargeFields(jarakFull);
+      const kecepatan = omitLargeFields(kecepatanFull);
+      const pencahayaan = omitLargeFields(pencahayaanFull);
+      const loto = omitLargeFields(lotoFull);
+      const digital = omitLargeFields(digitalFull);
+      const workshop = omitLargeFields(workshopFull);
+      const behavior = omitLargeFields(behaviorFull);
+
+      const allSessionsCount = fatigue.length + roster.length + seatbelt.length + rambu.length +
+        antrian.length + jarak.length + kecepatan.length + pencahayaan.length +
+        loto.length + digital.length + workshop.length + behavior.length;
+
+      // Extract all session IDs for targeted observer fetch
+      const fatigueIds = fatigue.map(s => s.id).filter(id => !!id);
+      const rosterIds = roster.map(s => s.id).filter(id => !!id);
+
+      // Simplest and most robust: Fetch all observers. These tables are currently small enough (<1k rows).
+      const fatigueObs = await fetchSession('FatigueObs', storage.db.select().from(sidakFatigueObservers));
+      const rosterObs = await fetchSession('RosterObs', storage.db.select().from(sidakRosterObservers));
+
+      const totalFetchTime = Date.now() - start;
+      console.log(`[SIDAK-RECAP] Total data fetch completed in ${totalFetchTime}ms`);
+
+      const getObserverNames = (sessionId: string, type: string) => {
+        if (type === 'Fatigue') return fatigueObs.filter((o: any) => o.sessionId === sessionId).map((o: any) => o.nama).join(', ');
+        if (type === 'Roster') return rosterObs.filter((o: any) => o.sessionId === sessionId).map((o: any) => o.nama).join(', ');
+        return "";
+      };
 
       const mapSession = (s: any, type: string) => {
         const tanggal = s.tanggal || s.date || s.tanggalPelaksanaan || "";
         const waktu = s.waktu || s.jam || s.jamPelaksanaan || "";
         const waktuStr = (s.waktuMulai && s.waktuSelesai) ? `${s.waktuMulai} - ${s.waktuSelesai}` : waktu;
+
+        const obsNames = getObserverNames(s.id, type);
 
         return {
           id: s.id,
@@ -6988,8 +7126,8 @@ Format sebagai bullet points singkat per insight.`;
           area: s.area || null,
           perusahaan: s.perusahaan || null,
           totalSampel: s.totalSampel || 0,
-          observerCount: 0,
-          observers: "",
+          observerCount: obsNames ? obsNames.split(',').length : 0,
+          observers: obsNames,
           createdBy: s.createdBy || null,
           supervisorName: s.createdBy || s.namaSupervisor || s.supervisorName || s.picName || s.nama || "-",
           createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString()
@@ -7011,21 +7149,17 @@ Format sebagai bullet points singkat per insight.`;
         ...behavior.map((s: any) => mapSession(s, 'Behavior'))
       ];
 
-      // Resolve supervisor NIKs to names
-      const nikCache = new Map<string, string>();
+      // Fetch all employees in bulk to avoid dynamic SQL issues with large NIK sets
+      const allEmployeesList = await fetchSession('Employees', storage.db.select().from(employees));
+      const nikToNameMap = new Map(allEmployeesList.map((e: any) => [e.id, e.name]));
+
       for (const session of allSessions) {
         let nik = session.createdBy;
-        // If supervisorName looks like an NIK, try to resolve it too
         if (session.supervisorName && (session.supervisorName.startsWith('C-') || session.supervisorName.startsWith('P-'))) {
           nik = session.supervisorName;
         }
-
         if (nik && (nik.startsWith('C-') || nik.startsWith('P-'))) {
-          if (!nikCache.has(nik)) {
-            const employee = await storage.getEmployee(nik);
-            nikCache.set(nik, employee?.name || nik);
-          }
-          session.supervisorName = nikCache.get(nik) || nik;
+          session.supervisorName = nikToNameMap.get(nik) || nik;
         }
       }
 
@@ -9792,8 +9926,8 @@ Format sebagai bullet points singkat per insight.`;
           // Aggregate photos from messages sent within ±10 seconds of this message's WhatsApp timestamp
           // Uses WhatsApp timestamp (not database timestamp) to properly match photos sent together
           const msgTimestamp = rawMessage.messageTimestamp || rawMessage.createdAt;
-          console.log("🔍 Looking for additional photos from same sender (±10s of WhatsApp timestamp)...");
-          const recentMediaMessages = await storage.getRecentUnprocessedMediaBySender(senderPhone, msgTimestamp, 10);
+          console.log("🔍 Looking for additional photos from same sender (±120s of WhatsApp timestamp)...");
+          const recentMediaMessages = await storage.getRecentUnprocessedMediaBySender(senderPhone, msgTimestamp, 120);
           const additionalPhotos: string[] = [];
 
           for (const msg of recentMediaMessages) {
@@ -12352,7 +12486,13 @@ Format sebagai bullet points singkat per insight.`;
       const results = await db
         .select()
         .from(fmsViolations)
-        .where(ilike(fmsViolations.manualDriverName, String(driverName).trim()))
+        .where(
+          and(
+            ilike(fmsViolations.manualDriverName, String(driverName).trim()),
+            eq(fmsViolations.validationStatus, 'Valid'),
+            sql`${fmsViolations.violationType} IN ('Mata Tertutup', 'Mengantuk', 'Kelelahan')`
+          )
+        )
         .orderBy(sql`${fmsViolations.violationDate} DESC, ${fmsViolations.violationTime} DESC`);
 
       console.log(`[driver-violations] Found ${results.length} violations for "${driverName}"`);
@@ -12373,8 +12513,12 @@ Format sebagai bullet points singkat per insight.`;
         week: typeof week === 'string' ? week : undefined,
       });
 
-      // Filter only records with manual driver name
-      const driverViolations = violations.filter(v => v.manualDriverName);
+      // Filter only records with manual driver name and Valid status
+      const driverViolations = violations.filter(v =>
+        v.manualDriverName &&
+        v.manualDriverName.trim() !== '' &&
+        v.validationStatus === 'Valid'
+      );
 
       // Aggregate per driver
       const driverStats = new Map<string, any>();
@@ -12567,6 +12711,116 @@ Format sebagai bullet points singkat per insight.`;
         fs.appendFileSync('server_error.log', `[${new Date().toISOString()}] FMS Upload Error: ${error.message}\nStack: ${error.stack}\n\n`);
       } catch (e) { console.error("Log error", e); }
       res.status(500).json({ error: "Failed to process Excel file: " + error.message });
+    }
+  });
+
+  // 3. Upload Excel Data Evaluasi Driver Name
+  app.post("/api/fms/upload-driver-excel", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const xlsxModule = await import('xlsx');
+      const XLSX = xlsxModule.default || xlsxModule;
+      const workbook = XLSX.readFile(req.file.path);
+      let processedCount = 0;
+      let updateCount = 0;
+
+      const { db } = await import('./db');
+      const { fmsViolations } = await import('@shared/schema');
+      const { and, ilike, gte, lte } = await import('drizzle-orm');
+
+      // Process all sheets
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const rawData = XLSX.utils.sheet_to_json(sheet);
+
+        if (rawData.length === 0) continue;
+
+        // Log headers for debugging
+        const sampleRow = rawData[0] as object;
+        const headers = Object.keys(sampleRow);
+        console.log(`[FMS Driver Upload] Sheet: ${sheetName}, Headers:`, headers);
+
+        for (const row of rawData as any[]) {
+          let truck = "";
+          let driverName = "";
+          let rawDate: any = null;
+
+          // Flexible header matching
+          for (const key of Object.keys(row)) {
+            const k = key.toLowerCase();
+            if (k.includes('truck') || k.includes('lambung') || k.includes('unit')) {
+              truck = String(row[key] || "").trim();
+            } else if (k.includes('driver') || k.includes('karyawan') || k.includes('nama')) {
+              driverName = String(row[key] || "").trim();
+            } else if (k.includes('netto') || k.includes('waktu') || k.includes('datetime') || k.includes('date time')) {
+              rawDate = row[key];
+            }
+          }
+
+          if (!truck || !driverName || !rawDate) continue;
+          processedCount++;
+
+          let dateObj: Date;
+          if (typeof rawDate === 'number') {
+            // Excel serial date (e.g. 46083.5 -> 2026-03-01 12:00)
+            dateObj = new Date(Math.round((rawDate - 25569) * 86400 * 1000));
+          } else {
+            const dateTimeStr = String(rawDate).trim();
+            if (!dateTimeStr) continue;
+            // Clean common delimeters "06.03" -> "06:03"
+            const cleanDateTimeStr = dateTimeStr.replace(/(\d{2})\.(\d{2})$/, "$1:$2").replace(/\s+/g, ' ');
+            dateObj = new Date(cleanDateTimeStr);
+          }
+
+          if (isNaN(dateObj.getTime())) {
+            console.log(`[FMS Driver Upload] Invalid date in sheet ${sheetName}: ${JSON.stringify(rawDate)}`);
+            continue;
+          }
+
+          // Shift window: -14 hours to +14 hours
+          const shiftStart = new Date(dateObj.getTime() - 14 * 60 * 60 * 1000);
+          const shiftEnd = new Date(dateObj.getTime() + 14 * 60 * 60 * 1000);
+
+          try {
+            const result = await db.update(fmsViolations)
+              .set({
+                manualDriverName: driverName,
+                uploadedAt: new Date()
+              })
+              .where(
+                and(
+                  ilike(fmsViolations.vehicleNo, `%${truck}%`),
+                  gte(fmsViolations.violationTimestamp, shiftStart),
+                  lte(fmsViolations.violationTimestamp, shiftEnd)
+                )
+              )
+              .returning({ id: fmsViolations.id });
+
+            if (result.length > 0) {
+              console.log(`[FMS Driver Upload] Match: ${truck} -> ${driverName} (${result.length} recs, date: ${dateObj.toISOString()})`);
+            }
+            updateCount += result.length;
+          } catch (updateErr) {
+            console.error(`[FMS Driver Upload] Error updating ${truck} on ${sheetName}:`, updateErr);
+          }
+        }
+      }
+
+      // Cleanup
+      const fs = await import('fs');
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (e) { }
+
+      res.json({
+        message: "Upload driver excel successful",
+        processedRows: processedCount,
+        updatedRecords: updateCount
+      });
+    } catch (error: any) {
+      console.error("Error processing driver FMS upload:", error);
+      res.status(500).json({ error: "Failed to process Driver Excel file: " + error.message });
     }
   });
 

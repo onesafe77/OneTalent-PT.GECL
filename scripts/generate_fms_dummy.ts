@@ -9,7 +9,7 @@ const OUTPUT_FILE = 'fms_dummy_data.xlsx';
 const VIOLATION_TYPES = [
     'Overspeed', 'Fatigue (Microsleep)', 'Distraction (Smoking)', 'Distraction (Phone)', 'Seatbelt', 'Camera Tampering'
 ];
-const COMPANIES = ['GECL', 'BUMA', 'SIS', 'PAMA', 'UT'];
+const COMPANIES = ['PT GECL'];
 const LOCATIONS = ['Hauling KM 10', 'Loading Point A', 'Dumping Point', 'Pit B', 'Rest Area', 'Simpang 4'];
 const VEHICLE_PREFIXES = ['DT', 'HD', 'LV', 'GD'];
 
