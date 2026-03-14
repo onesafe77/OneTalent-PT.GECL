@@ -34,12 +34,16 @@ import {
   Bell,
   Car,
   BookOpen,
-  Zap
+  Zap,
+  PenTool,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import oneTalentLogo from "@assets/onetalent-logo.png";
 import { useAuth } from "@/lib/auth-context";
 import { Permission } from "@shared/rbac";
+import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
 export interface NavItem {
   name: string;
@@ -48,6 +52,7 @@ export interface NavItem {
   requiredPermissions?: Permission[];
   requireAll?: boolean;
   children?: NavItem[];
+  badgeCount?: number;
 }
 
 export interface NavGroup {
@@ -73,6 +78,14 @@ export const navigationGroups: NavGroup[] = [
           { name: "Projects", href: "/workspace/si-asef/projects", icon: FolderOpen },
           { name: "Artifacts", href: "/workspace/si-asef/artifacts", icon: FileText },
           { name: "Knowledge Base", href: "/workspace/si-asef/admin", icon: Database, requiredPermissions: [Permission.MANAGE_EMPLOYEES] }
+        ]
+      },
+      {
+        name: "USign",
+        icon: PenTool,
+        children: [
+          { name: "Dashboard", href: "/workspace/usign", icon: BarChart3 },
+          { name: "Buat Permintaan", href: "/workspace/usign/request", icon: Plus },
         ]
       },
     ]
@@ -115,9 +128,10 @@ export const navigationGroups: NavGroup[] = [
                   { name: "Statistik Keselamatan", href: "/workspace/hse/statistics", icon: BarChart3, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                   { name: "Dashboard Overspeed", href: "/workspace/hse/overspeed", icon: AlertTriangle, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Dashboard Jarak Aman", href: "/workspace/hse/jarak", icon: TrendingUp, requiredPermissions: [Permission.VIEW_SIDAK] },
-                  { name: "Monitoring Validasi Fatigue", href: "/workspace/hse/fatigue-validation", icon: Monitor, requiredPermissions: [Permission.VIEW_SIDAK] },
+
                   { name: "Monitoring Fatigue", href: "/workspace/hse/fatigue-monitoring", icon: Activity, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "FMS Violation", href: "/workspace/hse/fms-dashboard", icon: Car, requiredPermissions: [Permission.VIEW_SIDAK] },
+                  { name: "KPI Validasi FMS", href: "/workspace/hse/fms-violation-validation", icon: TrendingUp, requiredPermissions: [Permission.VIEW_SIDAK] },
                   { name: "Evaluasi Driver Fatigue", href: "/workspace/hse/evaluasi-driver-fatigue", icon: UserCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                 ]
               },
@@ -218,6 +232,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { hasAnyPermission, user } = useAuth();
   const [expandedMenus, setExpandedMenus] = useState<string[]>([]);
 
+  // Fetch USign stats for badges
+  const { data: usignStats } = useQuery<{ pendingCount: number }>({
+    queryKey: [`/api/usign/stats?userId=${user?.nik}`],
+    enabled: !!user?.nik,
+    refetchInterval: 30000, // Refresh every 30s
+  });
+
   // Sync search state on navigation
   useEffect(() => {
     const handlePopState = () => setSearch(window.location.search);
@@ -293,6 +314,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedMenus.includes(item.name);
 
+    // Support for dynamic badges
+    let badgeValue = item.badgeCount;
+    if (item.name === "USign" && usignStats?.pendingCount) {
+      badgeValue = usignStats.pendingCount;
+    }
+    if (item.name === "Dashboard" && item.href?.includes("/workspace/usign") && usignStats?.pendingCount) {
+      badgeValue = usignStats.pendingCount;
+    }
+
     // Active check logic
     const currentFullHref = location + search;
     const isActiveLink = item.href && (() => {
@@ -339,6 +369,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             )}>
               {item.name}
             </span>
+            {badgeValue && badgeValue > 0 && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-gray-950 animate-pulse mr-2">
+                {badgeValue}
+              </span>
+            )}
             <ChevronDown className={cn(
               "flex-shrink-0 transition-transform duration-300 ml-2",
               depth === 0 ? "w-4 h-4" : "w-3 h-3",
@@ -388,11 +423,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             )} />
           )}
           <span className={cn(
-            "ml-3 tracking-wide whitespace-normal leading-tight",
+            "ml-3 tracking-wide whitespace-normal leading-tight flex-1",
             depth === 0 ? "text-[15px] font-medium" : "text-[13px]"
           )}>
             {item.name}
           </span>
+          {badgeValue && badgeValue > 0 && (
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-1 ring-white dark:ring-gray-900 mr-1">
+              {badgeValue}
+            </span>
+          )}
         </div>
       </Link>
     );

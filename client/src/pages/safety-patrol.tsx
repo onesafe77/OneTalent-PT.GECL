@@ -97,6 +97,7 @@ export default function SafetyPatrol() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [activityFilter, setActivityFilter] = useState<string>("all");
   const [selectedReport, setSelectedReport] = useState<SafetyPatrolReport | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { toast } = useToast();
@@ -144,10 +145,14 @@ export default function SafetyPatrol() {
 
   const filteredReports = reports?.filter(report => {
     if (typeFilter !== "all" && report.jenisLaporan !== typeFilter) return false;
+    if (activityFilter !== "all" && report.kegiatan !== activityFilter) return false;
     if (dateFrom && report.tanggal < dateFrom) return false;
     if (dateTo && report.tanggal > dateTo) return false;
     return true;
   }) || [];
+
+  // Mendapatkan daftar kegiatan unik untuk filter
+  const uniqueActivities = Array.from(new Set(reports?.map(r => r.kegiatan).filter(Boolean))) as string[];
 
   const formatDate = (dateStr: string) => {
     try {
@@ -332,7 +337,21 @@ export default function SafetyPatrol() {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setTypeFilter("all"); }}>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Kegiatan</label>
+              <Select value={activityFilter} onValueChange={setActivityFilter}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Semua Kegiatan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua Kegiatan</SelectItem>
+                  {uniqueActivities.sort().map(activity => (
+                    <SelectItem key={activity} value={activity}>{activity}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setTypeFilter("all"); setActivityFilter("all"); }}>
               Reset Filter
             </Button>
           </div>
@@ -673,6 +692,6 @@ export default function SafetyPatrol() {
           <SafetyPatrolTemplates />
         </TabsContent>
       </Tabs>
-    </div>
+    </div >
   );
 }

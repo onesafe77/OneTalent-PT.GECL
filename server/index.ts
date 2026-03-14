@@ -30,7 +30,21 @@ app.post("/api/hse/tna/delete-entry", async (req, res) => {
   }
 });
 
+// TEMPORARY MIGRATION ROUTE - FIX MISSING EMPLOYEE COLUMNS
+app.get("/api/admin/run-migration-fix-0314", async (req, res) => {
+  try {
+    console.log("🚀 MIGRATION ROUTE HIT");
+    await storage.runMigration();
+    res.send("<h1>✅ Migration completed successfully</h1><p>The missing columns have been added to the employees table.</p>");
+  } catch (e: any) {
+    console.error("MIGRATION ROUTE ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
+  }
+});
+
 console.log(`SERVER RESTARTING... UPDATED ROUTES LOADING... [${new Date().toISOString()}]`);
+
+// Startup debug disabled
 
 
 // Enable compression for better performance
@@ -622,61 +636,7 @@ app.post("/api/whatsapp/send-reminder", async (req, res) => {
   }
 });
 
-// GET /api/employees with pagination
-app.get("/api/employees", async (req, res) => {
-  try {
-    const page = parseInt(req.query.page as string) || 1;
-    const perPage = parseInt(req.query.per_page as string) || 20;
-    const search = req.query.search as string || "";
-
-    console.log(`[DEBUG] GET /api/employees page=${page} perPage=${perPage} search="${search}"`);
-    const result = await storage.getEmployeesPaginated(page, perPage, search);
-    console.log(`[DEBUG] Result: ${result.data.length} items, total=${result.total}`);
-
-    res.json({
-      data: result.data,
-      total: result.total,
-      totalPages: result.totalPages,
-      page,
-      perPage
-    });
-  } catch (error) {
-    console.error("Error fetching employees:", error);
-    res.status(500).json({ error: String(error) });
-  }
-});
-
-// GET /api/employees/:id
-app.get("/api/employees/:id", async (req, res) => {
-  try {
-    const employee = await storage.getEmployee(req.params.id);
-    if (!employee) return res.status(404).json({ error: "Employee not found" });
-    res.json(employee);
-  } catch (error) {
-    console.error("Error fetching employee:", error);
-    res.status(500).json({ error: String(error) });
-  }
-});
-
-// PUT /api/employees/:id with resign validation
-app.put("/api/employees/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    // Validation: if resign, tanggal_resign required
-    if (updateData.statusKaryawan === "Resign" && !updateData.tanggalResign) {
-      return res.status(400).json({ error: "Tanggal resign wajib diisi jika status Resign" });
-    }
-
-    const updated = await storage.updateEmployee(id, updateData);
-    if (!updated) return res.status(404).json({ error: "Employee not found" });
-    res.json(updated);
-  } catch (error) {
-    console.error("Error updating employee:", error);
-    res.status(500).json({ error: String(error) });
-  }
-});
+// Routes removed - handled by server/routes.ts
 
 
 (async () => {
@@ -726,7 +686,7 @@ app.put("/api/employees/:id", async (req, res) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   console.log('DEBUG: process.env.PORT is:', process.env.PORT);
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const port = parseInt(process.env.PORT || '5001', 10);
   server.listen({
     port,
     host: "0.0.0.0",

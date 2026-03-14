@@ -2483,6 +2483,11 @@ export const fmsViolations = pgTable("fms_violations", {
 
   validationStatus: varchar("validation_status", { length: 50 }).default('Tidak Valid'), // 'Valid', 'Tidak Valid'
 
+  // Validation Tracking (for KPI Pengawas)
+  validatedBy: varchar("validated_by", { length: 150 }), // Supervisor who validated
+  validatedAt: timestamp("validated_at"), // When validation happened
+  slaSeconds: integer("sla_seconds"), // Seconds between violation and validation
+
   // Manual overrides for driver identification
   manualDriverName: varchar("manual_driver_name", { length: 150 }),
   manualDriverNik: varchar("manual_driver_nik", { length: 50 }),
@@ -3171,3 +3176,86 @@ export type SidakBehaviorRecord = typeof sidakBehaviorRecords.$inferSelect;
 export type InsertSidakBehaviorRecord = z.infer<typeof insertSidakBehaviorRecordSchema>;
 export type SidakBehaviorObserver = typeof sidakBehaviorObservers.$inferSelect;
 export type InsertSidakBehaviorObserver = z.infer<typeof insertSidakBehaviorObserverSchema>;
+
+// ============================================
+// USIGN DIGITAL SIGNATURE SYSTEM
+// ============================================
+
+export const usignDocumentStatuses = ["pending", "in_progress", "completed", "rejected", "void"] as const;
+export type UsignDocumentStatus = typeof usignDocumentStatuses[number];
+
+export const usignActionTypes = ["signature", "initial", "stamp"] as const;
+export type UsignActionType = typeof usignActionTypes[number];
+
+export const usignStepStatuses = ["pending", "current", "completed", "rejected"] as const;
+export type UsignStepStatus = typeof usignStepStatuses[number];
+
+export const usignDocuments = pgTable("usign_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  subject: text("subject"),
+  fileUrl: text("file_url").notNull(),
+  ownerId: varchar("owner_id").notNull().references(() => employees.id),
+  status: text("status").notNull().default("pending"),
+  ccEmails: text("cc_emails").array(), // List of NIKs or emails to cc
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_usign_doc_owner").on(table.ownerId),
+  index("IDX_usign_doc_status").on(table.status),
+]);
+
+export const usignApprovalSteps = pgTable("usign_approval_steps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => usignDocuments.id, { onDelete: "cascade" }),
+  approverId: varchar("approver_id").notNull().references(() => employees.id),
+  stepOrder: integer("step_order").notNull(),
+  actionType: text("action_type").notNull().default("signature"), // signature, initial, stamp
+  status: text("status").notNull().default("pending"), // pending, current, completed, rejected
+
+  // Coordinate for signature placement
+  pageNumber: integer("page_number").notNull().default(1),
+  posX: real("pos_x").notNull().default(0),
+  posY: real("pos_y").notNull().default(0),
+  width: real("width").notNull().default(100),
+  height: real("height").notNull().default(50),
+
+  remarks: text("remarks"),
+  respondedAt: timestamp("responded_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_usign_step_doc").on(table.documentId),
+  index("IDX_usign_step_approver").on(table.approverId),
+]);
+
+export const usignSignatures = pgTable("usign_signatures", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stepId: varchar("step_id").notNull().references(() => usignApprovalSteps.id, { onDelete: "cascade" }),
+  signatureImageUrl: text("signature_image_url").notNull(),
+  signedAt: timestamp("signed_at").defaultNow(),
+});
+
+export const usignNotifications = pgTable("usign_notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: varchar("document_id").notNull().references(() => usignDocuments.id, { onDelete: "cascade" }),
+  recipientId: varchar("recipient_id").notNull().references(() => employees.id),
+  type: text("type").notNull(), // email, whatsapp
+  status: text("status").notNull().default("sent"),
+  sentAt: timestamp("sent_at").defaultNow(),
+});
+
+// Zod Schemas
+export const insertUsignDocumentSchema = createInsertSchema(usignDocuments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUsignApprovalStepSchema = createInsertSchema(usignApprovalSteps).omit({ id: true, createdAt: true, respondedAt: true });
+export const insertUsignSignatureSchema = createInsertSchema(usignSignatures).omit({ id: true, signedAt: true });
+export const insertUsignNotificationSchema = createInsertSchema(usignNotifications).omit({ id: true, sentAt: true });
+
+// Types
+export type UsignDocument = typeof usignDocuments.$inferSelect;
+export type InsertUsignDocument = z.infer<typeof insertUsignDocumentSchema>;
+export type UsignApprovalStep = typeof usignApprovalSteps.$inferSelect;
+export type InsertUsignApprovalStep = z.infer<typeof insertUsignApprovalStepSchema>;
+export type UsignSignature = typeof usignSignatures.$inferSelect;
+export type InsertUsignSignature = z.infer<typeof insertUsignSignatureSchema>;
+export type UsignNotification = typeof usignNotifications.$inferSelect;
+export type InsertUsignNotification = z.infer<typeof insertUsignNotificationSchema>;

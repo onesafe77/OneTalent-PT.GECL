@@ -85,12 +85,20 @@ import {
   type InsertInductionAnswer,
   type PublicInductionAttendance,
   type InsertPublicInductionAttendance,
+  type UsignDocument,
+  type InsertUsignDocument,
+  type UsignApprovalStep,
+  type InsertUsignApprovalStep,
+  type UsignSignature,
+  type InsertUsignSignature,
+  type UsignNotification,
+  type InsertUsignNotification,
   users,
   authUsers,
-  employees,
   attendanceRecords,
   rosterSchedules,
   leaveRequests,
+  employees,
   qrTokens,
   leaveReminders,
   leaveBalances,
@@ -250,7 +258,6 @@ import {
   // Project Tracker
   projects, type Project, type InsertProject,
   projectFiles, type ProjectFile, type InsertProjectFile,
-  employees,
   // Simper Perpanjangan
   simperPerpanjangan, type SimperPerpanjangan, type InsertSimperPerpanjangan,
   simperPerpanjanganHistory, type SimperPerpanjanganHistory, type InsertSimperPerpanjanganHistory,
@@ -262,6 +269,10 @@ import {
   type InsertSidakP3kItem,
   sidakP3kSessions,
   sidakP3kItems,
+  usignDocuments,
+  usignApprovalSteps,
+  usignSignatures,
+  usignNotifications,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -567,6 +578,7 @@ export interface IStorage {
   // Chat Session
   deleteChatSession(id: string): Promise<void>;
   syncLeaveMonitoringWithRoster(): Promise<void>;
+  runMigration(): Promise<void>;
 
   // FMS Violations Methods
   batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number }>;
@@ -705,7 +717,21 @@ export interface IStorage {
   updateSimperPerpanjangan(id: string, data: Partial<InsertSimperPerpanjangan>): Promise<SimperPerpanjangan | undefined>;
   deleteSimperPerpanjangan(id: string): Promise<boolean>;
   getSimperPerpanjanganHistory(simperPerpanjanganId: string): Promise<SimperPerpanjanganHistory[]>;
-  createSimperPerpanjanganHistory(data: InsertSimperPerpanjanganHistory): Promise<SimperPerpanjanganHistory>;
+  createUsignHistory(data: InsertSimperPerpanjanganHistory): Promise<SimperPerpanjanganHistory>;
+
+  // USign methods
+  createUsignDocument(data: InsertUsignDocument): Promise<UsignDocument>;
+  getUsignDocument(id: string): Promise<UsignDocument | undefined>;
+  getUsignDocumentsByOwner(ownerId: string): Promise<UsignDocument[]>;
+  getUsignApprovalsByUser(approverId: string): Promise<(UsignApprovalStep & { document: UsignDocument })[]>;
+  addUsignApprovalStep(data: InsertUsignApprovalStep): Promise<UsignApprovalStep>;
+  getUsignApprovalSteps(documentId: string): Promise<(UsignApprovalStep & { approver?: any })[]>;
+  updateUsignApprovalStepStatus(id: string, status: string, remarks?: string): Promise<UsignApprovalStep | undefined>;
+  voidUsignDocument(id: string, reason: string): Promise<UsignDocument | undefined>;
+  createUsignSignature(data: InsertUsignSignature): Promise<UsignSignature>;
+  getUsignSignatures(stepId: string): Promise<UsignSignature[]>;
+  createUsignNotification(data: InsertUsignNotification): Promise<UsignNotification>;
+  getInProgressUsignDocuments(): Promise<UsignDocument[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -894,6 +920,10 @@ export class MemStorage implements IStorage {
 
   async getAllEmployees(): Promise<Employee[]> {
     return Array.from(this.employees.values());
+  }
+
+  async runMigration(): Promise<void> {
+    // No-op for MemStorage
   }
 
   async getEmployees(): Promise<Employee[]> {
@@ -1879,6 +1909,21 @@ export class MemStorage implements IStorage {
   async updateSidakP3kSession(id: string, updates: Partial<InsertSidakP3kSession>): Promise<SidakP3kSession | undefined> {
     throw new Error("Sidak P3K update not implemented in MemStorage. Use DrizzleStorage.");
   }
+
+  // USign stubs
+  async createUsignDocument(data: any): Promise<any> { throw new Error("Method not implemented."); }
+  async getUsignDocument(id: string): Promise<any> { throw new Error("Method not implemented."); }
+  async getUsignDocumentsByOwner(ownerId: string): Promise<any> { throw new Error("Method not implemented."); }
+  async getUsignApprovalsByUser(approverId: string): Promise<any> { throw new Error("Method not implemented."); }
+  async addUsignApprovalStep(data: any): Promise<any> { throw new Error("Method not implemented."); }
+  async getUsignApprovalSteps(documentId: string): Promise<any> { throw new Error("Method not implemented."); }
+  async updateUsignApprovalStepStatus(id: string, status: string, remarks?: string): Promise<any> { throw new Error("Method not implemented."); }
+  async voidUsignDocument(id: string, reason: string): Promise<any> { throw new Error("Method not implemented."); }
+  async createUsignSignature(data: any): Promise<any> { throw new Error("Method not implemented."); }
+  async getUsignSignatures(stepId: string): Promise<any> { throw new Error("Method not implemented."); }
+  async createUsignNotification(data: any): Promise<any> { throw new Error("Method not implemented."); }
+  async getInProgressUsignDocuments(): Promise<any> { throw new Error("Method not implemented."); }
+  async createUsignHistory(data: any): Promise<any> { throw new Error("Method not implemented."); }
 }
 
 // DrizzleStorage implementation using PostgreSQL
@@ -1958,6 +2003,18 @@ export class DrizzleStorage implements IStorage {
     return await this.db.select().from(employees);
   }
 
+  async getEmployeesFiltered(search: string): Promise<Employee[]> {
+    const searchPattern = `%${search.trim().toLowerCase()}%`;
+    return await this.db.select().from(employees)
+      .where(or(
+        ilike(employees.id, searchPattern),
+        ilike(employees.name, searchPattern),
+        ilike(employees.department, searchPattern),
+        ilike(employees.position, searchPattern)
+      ))
+      .orderBy(asc(employees.name));
+  }
+
   async getEmployees(): Promise<Employee[]> {
     return this.getAllEmployees();
   }
@@ -1994,6 +2051,13 @@ export class DrizzleStorage implements IStorage {
   async createEmployee(insertEmployee: InsertEmployee): Promise<Employee> {
     const result = await this.db.insert(employees).values(insertEmployee).returning();
     return result[0];
+  }
+
+  async runMigration(): Promise<void> {
+    console.log("🚀 Running fix migration for employees table...");
+    await this.db.execute(sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS photo_url TEXT`);
+    await this.db.execute(sql`ALTER TABLE employees ADD COLUMN IF NOT EXISTS sertifikat_os_url TEXT`);
+    console.log("✅ Fix migration completed.");
   }
 
   async updateEmployee(id: string, updateData: Partial<InsertEmployee>): Promise<Employee | undefined> {
@@ -9509,6 +9573,159 @@ export class DrizzleStorage implements IStorage {
       .update(sidakBehaviorSessions)
       .set({ totalSampel: records.length })
       .where(eq(sidakBehaviorSessions.id, sessionId));
+  }
+
+  // ============================================
+  // USIGN DIGITAL SIGNATURE METHODS
+  // ============================================
+
+  async createUsignDocument(data: InsertUsignDocument): Promise<UsignDocument> {
+    const [result] = await this.db.insert(usignDocuments).values(data).returning();
+    return result;
+  }
+
+  async getUsignDocument(id: string): Promise<(UsignDocument & { owner?: any }) | undefined> {
+    const [result] = await this.db.select({
+      doc: usignDocuments,
+      owner: {
+        name: employees.name,
+        position: employees.position
+      }
+    })
+      .from(usignDocuments)
+      .leftJoin(employees, eq(usignDocuments.ownerId, employees.id))
+      .where(eq(usignDocuments.id, id));
+
+    return result ? { ...result.doc, owner: result.owner } : undefined;
+  }
+
+  async getUsignDocumentsByOwner(ownerId: string): Promise<UsignDocument[]> {
+    return await this.db.select().from(usignDocuments)
+      .where(eq(usignDocuments.ownerId, ownerId))
+      .orderBy(desc(usignDocuments.createdAt));
+  }
+
+  async getUsignApprovalsByUser(approverId: string): Promise<(UsignApprovalStep & { document: UsignDocument })[]> {
+    const steps = await this.db.select({
+      step: usignApprovalSteps,
+      document: usignDocuments
+    })
+      .from(usignApprovalSteps)
+      .innerJoin(usignDocuments, eq(usignApprovalSteps.documentId, usignDocuments.id))
+      .where(eq(usignApprovalSteps.approverId, approverId))
+      .orderBy(desc(usignApprovalSteps.createdAt));
+
+    return steps.map(s => ({ ...s.step, document: s.document }));
+  }
+
+  async addUsignApprovalStep(data: InsertUsignApprovalStep): Promise<UsignApprovalStep> {
+    const [result] = await this.db.insert(usignApprovalSteps).values(data).returning();
+    return result;
+  }
+
+  async getUsignApprovalSteps(documentId: string): Promise<(UsignApprovalStep & { approver: any, signature?: any })[]> {
+    const steps = await this.db.select({
+      step: usignApprovalSteps,
+      approver: {
+        id: employees.id,
+        name: employees.name,
+        position: employees.position
+      },
+      signatureUrl: usignSignatures.signatureImageUrl
+    })
+      .from(usignApprovalSteps)
+      .leftJoin(employees, eq(usignApprovalSteps.approverId, employees.id))
+      .leftJoin(usignSignatures, eq(usignApprovalSteps.id, usignSignatures.stepId))
+      .where(eq(usignApprovalSteps.documentId, documentId))
+      .orderBy(asc(usignApprovalSteps.stepOrder));
+
+    return steps.map(s => ({
+      ...s.step,
+      approver: s.approver,
+      signatureImageUrl: s.signatureUrl || undefined
+    }));
+  }
+
+  async updateUsignApprovalStepStatus(id: string, status: string, remarks?: string): Promise<UsignApprovalStep | undefined> {
+    const updateData: Record<string, any> = { status, remarks };
+    if (status === "completed" || status === "rejected") {
+      updateData.respondedAt = new Date();
+    }
+    const [result] = await this.db.update(usignApprovalSteps)
+      .set(updateData)
+      .where(eq(usignApprovalSteps.id, id))
+      .returning();
+
+    // If all steps completed, update document status
+    if (result && status === "completed") {
+      const allSteps = await this.getUsignApprovalSteps(result.documentId);
+      const currentOrderSteps = allSteps.filter(s => s.stepOrder === result.stepOrder);
+      const isCurrentOrderCompleted = currentOrderSteps.every(s => s.status === "completed");
+
+      if (isCurrentOrderCompleted) {
+        const isFinished = allSteps.every(s => s.status === "completed");
+        if (isFinished) {
+          await this.db.update(usignDocuments)
+            .set({ status: "completed", updatedAt: new Date() })
+            .where(eq(usignDocuments.id, result.documentId));
+        } else {
+          // Set ALL next steps with the next order to 'current'
+          const nextOrderSteps = allSteps.filter(s => s.stepOrder === result.stepOrder + 1);
+          if (nextOrderSteps.length > 0) {
+            await Promise.all(nextOrderSteps.map(ns =>
+              this.db.update(usignApprovalSteps)
+                .set({ status: "current" })
+                .where(eq(usignApprovalSteps.id, ns.id))
+            ));
+
+            await this.db.update(usignDocuments)
+              .set({ status: "in_progress", updatedAt: new Date() })
+              .where(eq(usignDocuments.id, result.documentId));
+          }
+        }
+      }
+    } else if (result && status === "rejected") {
+      await this.db.update(usignDocuments)
+        .set({ status: "rejected", updatedAt: new Date() })
+        .where(eq(usignDocuments.id, result.documentId));
+    }
+
+    return result;
+  }
+
+  async voidUsignDocument(id: string, reason: string): Promise<UsignDocument | undefined> {
+    const [result] = await this.db.update(usignDocuments)
+      .set({ status: "void", updatedAt: new Date() })
+      .where(eq(usignDocuments.id, id))
+      .returning();
+    return result;
+  }
+
+  async createUsignSignature(data: InsertUsignSignature): Promise<UsignSignature> {
+    const [result] = await this.db.insert(usignSignatures).values(data).returning();
+    return result;
+  }
+
+  async getUsignSignatures(stepId: string): Promise<UsignSignature[]> {
+    return await this.db.select().from(usignSignatures).where(eq(usignSignatures.stepId, stepId));
+  }
+
+  async createUsignNotification(data: InsertUsignNotification): Promise<UsignNotification> {
+    const [result] = await this.db.insert(usignNotifications).values(data).returning();
+    return result;
+  }
+
+  async getInProgressUsignDocuments(): Promise<UsignDocument[]> {
+    return await this.db.select().from(usignDocuments)
+      .where(or(
+        eq(usignDocuments.status, "in_progress"),
+        eq(usignDocuments.status, "pending")
+      ));
+  }
+
+  async createUsignHistory(data: any): Promise<any> {
+    // This is a placeholder for compatibility with the interface if needed
+    return null;
   }
 }
 

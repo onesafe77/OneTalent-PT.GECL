@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import { AuthProvider } from "@/lib/auth-context";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 
@@ -15,6 +15,7 @@ const Workspace = lazy(() => import("@/components/workspace").then(module => ({ 
 const MobileDriverView = lazy(() => import("@/pages/mobile-driver-view"));
 const DriverView = lazy(() => import("@/pages/driver-view"));
 import LoginPage from "@/pages/login";
+import { RootRedirect } from "@/components/RootRedirect";
 const ResetPasswordPage = lazy(() => import("@/pages/reset-password"));
 
 const MonitoringSimperEvPublic = lazy(() => import("@/pages/monitoring-simper-ev-public"));
@@ -30,12 +31,6 @@ function Router() {
   const [currentPath, setLocation] = useLocation();
   const urlParams = new URLSearchParams(window.location.search);
 
-  // Redirect root to login
-  if (currentPath === "/") {
-    setLocation("/login");
-    return null;
-  }
-
   // Prioritaskan workspace routes - selalu render Workspace untuk path yang dimulai dengan /workspace
   // Wrap dengan ProtectedRoute untuk authentication
   if (currentPath.startsWith('/workspace')) {
@@ -50,6 +45,11 @@ function Router() {
 
   return (
     <Switch>
+      {/* Root Route - Redirect logic based on auth */}
+      <Route path="/">
+        <RootRedirect />
+      </Route>
+
       {/* Login Route - Public */}
       <Route path="/login">
         {() => (
@@ -182,22 +182,26 @@ function Router() {
 
 
 
-      {/* Catch-all redirect untuk direct access ke workspace pages */}
+      {/* Catch-all redirect untuk path yang tidak dikenal */}
       <Route path="/:rest*">
         {(params) => {
-          const currentPath = params['rest*'] ? `/${params['rest*']}` : '/';
+          const restPath = params['rest*'] ? `/${params['rest*']}` : '/';
 
-          // Jangan redirect halaman publik (driver-view, mobile-driver)
-          if (currentPath === '/driver-view' || currentPath === '/mobile-driver') {
-            return <div>Page not found</div>;
+          // Jika sudah di dashboard/workspace atau di halaman publik, jangan redirect lagi ke /workspace
+          if (restPath.startsWith('/workspace') ||
+            restPath === '/login' ||
+            restPath === '/driver-view' ||
+            restPath === '/mobile-driver') {
+            return <div>Halaman tidak ditemukan</div>;
           }
 
-          // Redirect ke workspace dengan path yang sama
-          if (currentPath !== '/') {
-            window.location.replace(`/workspace${currentPath}${window.location.search}`);
-            return <div>Redirecting to workspace...</div>;
-          }
-          return <div>Page not found</div>;
+          // Redirect ke workspace sebagai pilihan terakhir jika path tidak dikenal
+          // Gunakan setLocation untuk soft navigation agar tidak reload seluruh aplikasi
+          useEffect(() => {
+            setLocation(`/workspace${restPath}${window.location.search}`);
+          }, [restPath]);
+
+          return <div>Mengarahkan ke workspace...</div>;
         }}
       </Route>
     </Switch>

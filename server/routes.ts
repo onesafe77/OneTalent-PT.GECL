@@ -33,6 +33,7 @@ import { sendWhatsAppMessage, formatSimperEvNotification, formatSimperPerpanjang
 import { fetchSheetData, listSpreadsheetSheets, getSpreadsheetMetadata, generateVisualizationSuggestions } from "./google-sheets-service";
 import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
 import { dbStorage } from "./services/storage-db";
+import { usignNotificationService } from "./services/usignNotificationService";
 import { setupAuth } from "./replitAuth";
 import {
   insertEmployeeSchema,
@@ -101,6 +102,7 @@ import {
   insertProjectSchema,
   insertProjectFileSchema,
   fmsViolations,
+  fmsFatigueAlerts,
   sidakFatigueObservers,
   sidakRosterObservers,
   employees,
@@ -1041,7 +1043,6 @@ Format sebagai bullet points singkat per insight.`;
   // Employee routes - OPTIMIZED WITH CACHING
   app.get("/api/employees", async (req, res) => {
     try {
-      // Handle pagination if requested
       const page = req.query.page ? parseInt(req.query.page as string) : undefined;
       const perPage = req.query.per_page ? parseInt(req.query.per_page as string) : 20;
       const search = req.query.search as string;
@@ -1053,15 +1054,25 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       // Check cache first for massive performance improvement (Full List)
-      let employees = getCachedAllEmployees();
+      // let employees = getCachedAllEmployees();
+      let employees = null; // BYPASS CACHE FOR DEBUGGING
 
       if (!employees) {
-        console.log('🔄 Fetching all employees from database...');
-        employees = await storage.getAllEmployees();
+        if (search) {
+          // Filtered fetch
+          employees = await storage.getEmployeesFiltered(search);
+        } else {
+          // Full list
+          employees = await storage.getAllEmployees();
+        }
         setCachedAllEmployees(employees);
       }
 
-      res.json(employees);
+      // Return as object for backward compatibility with some frontend parts
+      return res.json({
+        data: employees,
+        total: employees.length
+      });
     } catch (error) {
       console.error('❌ Error fetching employees:', error);
       res.status(500).json({ message: "Failed to fetch employees" });
@@ -9138,14 +9149,300 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // ============================================
+  // USIGN DIGITAL SIGNATURE ROUTES
+  // ============================================
+
+  // Upload USign Document
+  app.post("/api/usign/upload", documentUpload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "File PDF diperlukan" });
+      const { title, subject, ownerId, ccEmails } = req.body;
+
+      const doc = await storage.createUsignDocument({
+        title,
+        subject,
+        ownerId,
+        fileUrl: `/uploads/documents/${req.file.filename}`,
+        status: "pending",
+        ccEmails: ccEmails ? JSON.parse(ccEmails) : []
+      });
+
+      console.log("📄 USign Document Created:", JSON.stringify(doc));
+      res.status(201).json(doc);
+    } catch (error) {
+      console.error("USign upload error:", error);
+      res.status(500).json({ message: "Gagal upload dokumen USign" });
+    }
+  });
+
+  // Add Approval Steps
+  app.post("/api/usign/documents/:id/steps", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const steps = req.body; // Array of steps
+
+      for (const step of steps) {
+        await storage.addUsignApprovalStep({
+          documentId: id,
+          approverId: step.approverId,
+          stepOrder: step.stepOrder,
+          actionType: step.actionType, // signature, initial, stamp
+          status: "pending",
+          pageNumber: step.pageNumber || 1,
+          posX: step.posX || 0,
+          posY: step.posY || 0,
+          width: step.width || 100,
+          height: step.height || 50
+        });
+      }
+
+      res.json({ message: "Approval steps added" });
+    } catch (error) {
+      console.error("USign steps error:", error);
+      res.status(500).json({ message: "Gagal menambah tahapan persetujuan" });
+    }
+  });
+
+  // Start Approval Flow
+  app.post("/api/usign/documents/:id/start", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const steps = await storage.getUsignApprovalSteps(id);
+      if (steps.length === 0) return res.status(400).json({ message: "Belum ada approver" });
+
+      const document = await storage.getUsignDocument(id);
+      if (!document) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+
+      // Find all steps for stepOrder 1
+      const firstOrder = steps[0].stepOrder;
+      const firstSteps = steps.filter(s => s.stepOrder === firstOrder);
+
+      // Set ALL first steps to 'current'
+      await Promise.all(firstSteps.map(s =>
+        storage.updateUsignApprovalStepStatus(s.id, "current")
+      ));
+
+      // Notify first approver (only need to notify once)
+      await usignNotificationService.notifyNextApprover(document, firstSteps[0]);
+
+      res.json({ message: "Approval flow started" });
+    } catch (error) {
+      console.error("USign start error:", error);
+      res.status(500).json({ message: "Gagal memulai proses persetujuan" });
+    }
+  });
+
+  // Approve / Sign Document
+  app.post("/api/usign/steps/:id/approve", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { signatureImageUrl, remarks } = req.body;
+
+      if (signatureImageUrl) {
+        await storage.createUsignSignature({
+          stepId: id,
+          signatureImageUrl
+        });
+      }
+
+      const updatedStep = await storage.updateUsignApprovalStepStatus(id, "completed", remarks);
+
+      if (updatedStep) {
+        const document = await storage.getUsignDocument(updatedStep.documentId);
+        if (document) {
+          const allSteps = await storage.getUsignApprovalSteps(document.id);
+          const currentOrderSteps = allSteps.filter(s => s.stepOrder === updatedStep.stepOrder);
+          const isCurrentOrderCompleted = currentOrderSteps.every(s => s.status === "completed");
+
+          if (document.status === "completed" && isCurrentOrderCompleted) {
+            // Document fully approved
+            await usignNotificationService.notifyStatusUpdate(document, "approved", remarks);
+          } else if (isCurrentOrderCompleted) {
+            // Notify next approver ONLY when the entire order is finished
+            const nextStep = allSteps.find(s => s.status === "current");
+            if (nextStep) {
+              await usignNotificationService.notifyNextApprover(document, nextStep);
+            }
+          }
+        }
+      }
+
+      res.json(updatedStep);
+    } catch (error) {
+      console.error("USign approve error:", error);
+      res.status(500).json({ message: "Gagal menyetujui dokumen" });
+    }
+  });
+
+  // Reject Document
+  app.post("/api/usign/steps/:id/reject", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { remarks } = req.body;
+      const updatedStep = await storage.updateUsignApprovalStepStatus(id, "rejected", remarks);
+
+      if (updatedStep) {
+        const document = await storage.getUsignDocument(updatedStep.documentId);
+        if (document) {
+          await usignNotificationService.notifyStatusUpdate(document, "rejected", remarks);
+        }
+      }
+
+      res.json(updatedStep);
+    } catch (error) {
+      console.error("USign reject error:", error);
+      res.status(500).json({ message: "Gagal menolak dokumen" });
+    }
+  });
+
+  // Void Document (by owner)
+  app.post("/api/usign/documents/:id/void", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      const doc = await storage.voidUsignDocument(id, reason);
+
+      if (doc) {
+        await usignNotificationService.notifyStatusUpdate(doc, "void", reason);
+      }
+
+      res.json(doc);
+    } catch (error) {
+      console.error("USign void error:", error);
+      res.status(500).json({ message: "Gagal membatalkan dokumen" });
+    }
+  });
+
+  // Get My Documents (Owned)
+  app.get("/api/usign/my-requests", async (req, res) => {
+    try {
+      const { ownerId } = req.query;
+      const docs = await storage.getUsignDocumentsByOwner(ownerId as string);
+      res.json(docs);
+    } catch (error) {
+      console.error("USign my-requests error:", error);
+      res.status(500).json({ message: "Gagal mengambil dokumen saya" });
+    }
+  });
+
+  // Get My Approvals (Pending/Signed)
+  app.get("/api/usign/my-approvals", async (req, res) => {
+    try {
+      const { approverId } = req.query;
+      const approvals = await storage.getUsignApprovalsByUser(approverId as string);
+      res.json(approvals);
+    } catch (error) {
+      console.error("USign my-approvals error:", error);
+      res.status(500).json({ message: "Gagal mengambil daftar persetujuan" });
+    }
+  });
+
+  // USign Stats
+  app.get("/api/usign/stats", async (req, res) => {
+    try {
+      const { userId } = req.query;
+      const myApprovals = await storage.getUsignApprovalsByUser(userId as string);
+      const pendingCount = myApprovals.filter(a => a.status === "current").length;
+
+      const myRequests = await storage.getUsignDocumentsByOwner(userId as string);
+      const approvedCount = myRequests.filter(d => d.status === "completed").length;
+
+      // Calculate avg response time (placeholder logic)
+      const avgResponseTime = 0;
+
+      res.json({
+        pendingCount,
+        approvedCount,
+        avgResponseTime
+      });
+    } catch (error) {
+      console.error("USign stats error:", error);
+      res.status(500).json({ message: "Gagal mengambil statistik USign" });
+    }
+  });
+
   // Get active documents only
-  app.get("/api/documents/active", async (req, res) => {
+  app.get("/api/usign/documents/active", async (req, res) => {
     try {
       const docs = await storage.getActiveDocuments();
       res.json(docs);
     } catch (error) {
-      console.error("Error fetching active documents:", error);
-      res.status(500).json({ message: "Gagal mengambil data dokumen aktif" });
+      console.error("USign active docs error:", error);
+      res.status(500).json({ message: "Gagal mengambil dokumen aktif" });
+    }
+  });
+
+  // Get Document by ID
+  app.get("/api/usign/documents/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const doc = await storage.getUsignDocument(id);
+      if (!doc) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+      res.json(doc);
+    } catch (error) {
+      console.error("USign get document error:", error);
+      res.status(500).json({ message: "Gagal mengambil detail dokumen" });
+    }
+  });
+
+  // Get Approval Steps by Document ID
+  app.get("/api/usign/documents/:id/steps", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const steps = await storage.getUsignApprovalSteps(id);
+      res.json(steps);
+    } catch (error) {
+      console.error("USign get steps error:", error);
+      res.status(500).json({ message: "Gagal mengambil tahapan persetujuan" });
+    }
+  });
+
+  // Download Signed USign Document
+  app.get("/api/usign/documents/:id/download", async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log(`[USign Download] Triggered for ID: ${id}`);
+      const document = await storage.getUsignDocument(id);
+      if (!document) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+
+      const steps = await storage.getUsignApprovalSteps(id);
+      const signatureData: any[] = [];
+
+      for (const step of steps) {
+        if (step.status === "completed") {
+          const signatures = await storage.getUsignSignatures(step.id);
+          if (signatures.length > 0) {
+            signatureData.push({
+              signatureImageUrl: signatures[0].signatureImageUrl,
+              pageNumber: step.pageNumber,
+              posX: step.posX,
+              posY: step.posY,
+              width: step.width,
+              height: step.height
+            });
+          }
+        }
+      }
+
+      const { usignPdfService } = await import('./services/usign-pdf-service');
+      const originalPath = path.join(process.cwd(), document.fileUrl);
+
+      if (!fs.existsSync(originalPath)) {
+        return res.status(404).json({ message: "File asli tidak ditemukan di server" });
+      }
+
+      console.log(`[USign Download] Starting PDF merge for ${signatureData.length} signatures`);
+      const mergedPdfBytes = await usignPdfService.mergeSignaturesToPdf(originalPath, signatureData);
+      console.log(`[USign Download] Merge finished. Bytes: ${mergedPdfBytes?.length}`);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Length', mergedPdfBytes.length);
+      res.setHeader('Content-Disposition', `attachment; filename="signed_${document.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf"`);
+      res.status(200).send(Buffer.from(mergedPdfBytes));
+    } catch (error) {
+      console.error("USign download error:", error);
+      res.status(500).json({ message: "Gagal mengunduh dokumen" });
     }
   });
 
@@ -11832,6 +12129,121 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // FMS Violation Validation KPI Dashboard — Data from fms_violations
+  app.get("/api/fms/violation-validation/summary", async (req, res) => {
+    try {
+      const { week, month, shift, supervisor, validationStatus, period = 'day' } = req.query;
+
+      // Build conditions — only fatigue-type violations from fms_violations
+      const conditions: any[] = [
+        sql`${fmsViolations.violationType} IN ('Mata Tertutup', 'Mengantuk', 'Kelelahan')`
+      ];
+      if (week && week !== 'all') conditions.push(eq(fmsViolations.week, parseInt(week as string)));
+      if (month && month !== 'all') conditions.push(eq(fmsViolations.month, month as string));
+      if (shift && shift !== 'all') conditions.push(ilike(fmsViolations.shift, `%${shift as string}%`));
+      if (supervisor && supervisor !== 'all') conditions.push(ilike(fmsViolations.validatedBy, `%${supervisor as string}%`));
+      if (validationStatus && validationStatus !== 'all') conditions.push(eq(fmsViolations.validationStatus, validationStatus as string));
+
+      const violations = await db.select().from(fmsViolations)
+        .where(and(...conditions));
+
+      // Aggregations
+      const total = violations.length;
+      let fast = 0, slow = 0;
+      const hourlyCounts = Array(24).fill(0);
+
+      // Supervisor cards
+      const supervisorCards: Record<string, { fast: number, slow5: number, slow10: number, slow15: number }> = {};
+
+      // Breakdown charts by period
+      const breakdownMap: Record<string, { label: string, fast: number, slow5: number, slow10: number, slow15: number }> = {};
+
+      violations.forEach(a => {
+        const sla = a.slaSeconds || 0;
+
+        // Global KPI
+        if (sla > 0) {
+          if (sla <= 300) fast++;
+          else slow++;
+        }
+
+        // Hourly Trend (use violationTime)
+        if (a.violationTime) {
+          const hour = parseInt(String(a.violationTime).split(':')[0]);
+          if (!isNaN(hour) && hour >= 0 && hour < 24) hourlyCounts[hour]++;
+        }
+
+        // Supervisor Cards
+        const supName = a.validatedBy || "Unknown";
+        if (!supervisorCards[supName]) supervisorCards[supName] = { fast: 0, slow5: 0, slow10: 0, slow15: 0 };
+        if (sla > 0) {
+          if (sla <= 300) supervisorCards[supName].fast++;
+          else if (sla <= 600) supervisorCards[supName].slow5++;
+          else if (sla <= 900) supervisorCards[supName].slow10++;
+          else supervisorCards[supName].slow15++;
+        }
+
+        // Breakdown by period
+        let periodKey = '';
+        let periodLabel = '';
+        if (period === 'week') {
+          periodKey = `W${a.week || 0}`;
+          periodLabel = `Week ${a.week || 0}`;
+        } else if (period === 'month') {
+          periodKey = a.month || 'Unknown';
+          periodLabel = a.month || 'Unknown';
+        } else {
+          // day — use violationDate
+          const dateStr = a.violationDate ? String(a.violationDate) : '';
+          periodKey = dateStr;
+          periodLabel = dateStr;
+        }
+
+        if (periodKey) {
+          if (!breakdownMap[periodKey]) breakdownMap[periodKey] = { label: periodLabel, fast: 0, slow5: 0, slow10: 0, slow15: 0 };
+          if (sla > 0) {
+            if (sla <= 300) breakdownMap[periodKey].fast++;
+            else if (sla <= 600) breakdownMap[periodKey].slow5++;
+            else if (sla <= 900) breakdownMap[periodKey].slow10++;
+            else breakdownMap[periodKey].slow15++;
+          }
+        }
+      });
+
+      // Sort breakdown by key
+      const breakdownArray = Object.entries(breakdownMap)
+        .sort(([a], [b]) => {
+          if ((period as string) === 'week') {
+            return parseInt(a.replace('W', '')) - parseInt(b.replace('W', ''));
+          }
+          return a.localeCompare(b);
+        })
+        .map(([_, val]) => val);
+
+      // Extract unique supervisors for filter dropdown
+      const allSupervisors = Object.keys(supervisorCards).filter(s => s !== 'Unknown').sort();
+
+      res.json({
+        kpi: {
+          total,
+          fast,
+          slow,
+          pctSlow: total > 0 ? ((slow / total) * 100).toFixed(1) : 0
+        },
+        hourlyTrend: hourlyCounts,
+        supervisorCards,
+        breakdownCharts: breakdownArray,
+        availableSupervisors: allSupervisors,
+        availableWeeks: [...new Set(violations.map(a => a.week).filter(Boolean))].sort((a, b) => (a || 0) - (b || 0)),
+        availableMonths: [...new Set(violations.map(a => a.month).filter(Boolean))].sort()
+      });
+
+    } catch (error) {
+      console.error("Error fetching FMS violation validation summary:", error);
+      res.status(500).json({ error: "Internal server error", details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   // FMS Fatigue Ingest Route
   app.post("/api/fms/fatigue/ingest", upload.single('file'), async (req, res) => {
     try {
@@ -12665,11 +13077,26 @@ Format sebagai bullet points singkat per insight.`;
           vTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
-        const vStatusRaw = String(getValue(['validation_status', 'validate', 'validation_validated', 'Validation', 'Status Validasi', 'Status']) || "Tidak Valid").trim();
+        const vStatusRaw = String(getValue(['validation_status', 'validate', 'validation_validated', 'Validation', 'Status Validasi', 'Status', 'is_valid', 'validated', 'v', 'validasi']) || "Tidak Valid").trim();
         // Normalize to 'Valid' or 'Tidak Valid'
-        const vStatus = (vStatusRaw.toLowerCase() === 'valid' || vStatusRaw.toLowerCase() === 'true') ? 'Valid' : 'Tidak Valid';
+        const isTrue = (val: string) => {
+          const v = val.toLowerCase().trim();
+          // Specific business rules for AEBS/FMS
+          if (v.includes('not emergency')) return false;
+          if (v.includes('emergency')) return true;
 
-        if (index === 0) console.log(`[FMS Upload] Row 0 Mapping: Date=${vDate}, Time=${vTime}, Status=${vStatus}`);
+          // Negative indicators (Indonesian & English)
+          if (v.includes('tidak') || v.includes('bukan') || v.includes('invalid') || v.includes('false') || v === '0' || v === 'n' || v === 'no') return false;
+          // Positive indicators
+          if (v.includes('valid') || v === 'true' || v === '1' || v === 'y' || v === 'yes' || v === 'ok' || v === 'v') return true;
+          return false;
+        };
+        const vStatus = isTrue(vStatusRaw) ? 'Valid' : 'Tidak Valid';
+
+        if (index === 0) {
+          console.log(`[FMS Upload] Row 0 Raw Data Keys: ${Object.keys(row).join(', ')}`);
+          console.log(`[FMS Upload] Row 0 Mapping: Date=${vDate}, Time=${vTime}, RawStatus="${vStatusRaw}", NormalizedStatus=${vStatus}`);
+        }
 
         return {
           violationDate: String(vDate || new Date().toISOString().split('T')[0]),
@@ -12689,6 +13116,31 @@ Format sebagai bullet points singkat per insight.`;
           level: getValue(['Level', 'level']) ? Number(getValue(['Level', 'level'])) : null,
 
           validationStatus: vStatus,
+
+          // Validation tracking
+          validatedBy: getValue(['Validated By', 'validated_by', 'Pengawas', 'Supervisor', 'Validator']) ? String(getValue(['Validated By', 'validated_by', 'Pengawas', 'Supervisor', 'Validator'])) : null,
+          validatedAt: (() => {
+            const rawVal = getValue(['Validated At', 'validated_at', 'Waktu Validasi', 'Validation Time']);
+            if (!rawVal) return null;
+            if (rawVal instanceof Date) return rawVal;
+            if (typeof rawVal === 'number') {
+              // Excel date serial number
+              return new Date((rawVal - (25567 + 2)) * 86400 * 1000);
+            }
+            const parsed = new Date(rawVal);
+            return isNaN(parsed.getTime()) ? null : parsed;
+          })(),
+          slaSeconds: (() => {
+            const rawVal = getValue(['Validated At', 'validated_at', 'Waktu Validasi', 'Validation Time']);
+            if (!rawVal || !vDate || !vTime) return null;
+            let validatedDate: Date;
+            if (rawVal instanceof Date) validatedDate = rawVal;
+            else if (typeof rawVal === 'number') validatedDate = new Date((rawVal - (25567 + 2)) * 86400 * 1000);
+            else validatedDate = new Date(rawVal);
+            if (isNaN(validatedDate.getTime())) return null;
+            const violationDate = new Date(`${String(vDate).split('T')[0]}T${String(vTime)}`);
+            return Math.round((validatedDate.getTime() - violationDate.getTime()) / 1000);
+          })(),
         };
       });
 

@@ -61,8 +61,9 @@ import DashboardStatistics from "@/pages/dashboard-statistics";
 import GoogleSheetsConfig from "@/pages/google-sheets-config";
 import EvaluasiPvt from "@/pages/evaluasi-pvt";
 
-import FmsFatigueValidationDashboard from "@/pages/hse/fatigue/dashboard-validation";
+
 import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashboard";
+import ViolationValidationDashboard from "@/pages/hse/fatigue/dashboard-violation-validation";
 import EvaluasiDriverFatigue from "@/pages/hse/fatigue/evaluasi-driver-fatigue";
 import EvaluasiRoster from "@/pages/hse/evaluasi-roster";
 import HrInductionAttendance from "@/pages/hr-induction-attendance";
@@ -85,6 +86,9 @@ import Announcements from "@/pages/announcements";
 import News from "@/pages/news";
 import NewsFeed from "@/pages/news-feed";
 import Documents from "@/pages/documents";
+import UsignDashboardPage from "@/pages/usign/DashboardPage";
+import UsignRequestPage from "@/pages/usign/RequestPage";
+import UsignDetailPage from "@/pages/usign/DetailPage";
 import NotFound from "@/pages/not-found";
 import { NotificationPrompt } from "@/components/NotificationPrompt";
 import { WorkspaceHome } from "@/components/WorkspaceHome";
@@ -166,6 +170,8 @@ const workspaceRoutes = [
   { path: "/workspace/push-notification/simper", component: PushNotificationSimper, title: "Push Notifikasi SIMPER" },
   { path: "/workspace/push-notification-induction", component: PushNotificationInduction, title: "Push Notifikasi Induksi" },
   { path: "/workspace/activity-calendar", component: ActivityCalendar, title: "Activity Calendar (Mystic AI)" },
+  { path: "/workspace/usign", component: UsignDashboardPage, title: "USign Dashboard" },
+  { path: "/workspace/usign/request", component: UsignRequestPage, title: "Buat Permintaan USign" },
 
   // Mystic Routes
   { path: "/workspace/si-asef", component: SiAsefChatPage, title: "Mystic Chat" },
@@ -201,6 +207,7 @@ export function Workspace() {
 
     // Dynamic matching for detail pages
     if (currentPath.includes('/hse/k3/document/')) return "Detail Dokumen";
+    if (currentPath.includes('/workspace/usign/document/')) return "Detail USign";
     if (currentPath.includes('/employees/')) return "Detail Karyawan";
 
     return "AttendanceQR Workspace";
@@ -337,8 +344,9 @@ export function Workspace() {
               <Route path="/workspace/employee-personal" component={EmployeePersonalData} />
               <Route path="/workspace/hse/overspeed" component={DashboardOverspeed} />
               <Route path="/workspace/hse/jarak" component={DashboardJarak} />
-              <Route path="/workspace/hse/fatigue-validation" component={FmsFatigueValidationDashboard} />
+
               <Route path="/workspace/hse/fatigue-monitoring" component={FmsFatigueMonitoringDashboard} />
+              <Route path="/workspace/hse/fms-violation-validation" component={ViolationValidationDashboard} />
               <Route path="/workspace/hse/evaluasi-driver-fatigue" component={EvaluasiDriverFatigue} />
               <Route path="/workspace/hse/evaluasi-roster" component={EvaluasiRoster} />
               <Route path="/workspace/hse/statistics" component={DashboardStatistics} />
@@ -370,6 +378,11 @@ export function Workspace() {
               <Route path="/workspace/blast-whatsapp" component={BlastWhatsApp} />
 
               <Route path="/workspace/activity-calendar" component={ActivityCalendar} />
+
+              {/* USign Routes */}
+              <Route path="/workspace/usign" component={UsignDashboardPage} />
+              <Route path="/workspace/usign/request" component={UsignRequestPage} />
+              <Route path="/workspace/usign/document/:id" component={UsignDetailPage} />
 
               <Route path="/workspace/hse/fms-dashboard" component={FmsDashboard} />
               <Route path="/workspace/hse/induction-admin" component={InductionAdmin} />

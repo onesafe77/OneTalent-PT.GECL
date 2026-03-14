@@ -31,13 +31,46 @@ export async function apiRequest(
   method: string = "GET",
   data?: unknown | undefined,
 ): Promise<any> {
-  console.log(`[apiRequest] ${method} ${url}`, data);
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+  // Defensive check for swapped arguments
+  let actualUrl = url;
+  let actualMethod = method;
+  let actualData = data;
+
+  if (url && typeof url === 'string' && !url.startsWith('/') && method && typeof method === 'string' && method.startsWith('/')) {
+    console.warn(`[apiRequest] Swapped: url="${url}", method="${method}"`);
+    actualUrl = method;
+    actualMethod = url;
+  }
+
+  if (typeof actualMethod === 'string') {
+    actualMethod = actualMethod.trim().toUpperCase();
+  }
+
+  // Final check for method being a URL
+  if (typeof actualMethod === 'string' && actualMethod.includes('/')) {
+    actualMethod = actualData ? "POST" : "GET";
+  }
+
+  const isFormData = actualData instanceof FormData;
+
+  const options: RequestInit = {
+    method: actualMethod,
     credentials: "include",
-  });
+  };
+
+  if (actualData) {
+    if (isFormData) {
+      // For FormData, we let fetch set the Content-Type header with the boundary
+      options.body = actualData as FormData;
+    } else {
+      options.headers = { "Content-Type": "application/json" };
+      options.body = JSON.stringify(actualData);
+    }
+  }
+
+  console.log(`[apiRequest] Fetching: ${actualMethod} ${actualUrl}`);
+
+  const res = await fetch(actualUrl, options);
 
   await throwIfResNotOk(res);
   if (res.status === 204) {

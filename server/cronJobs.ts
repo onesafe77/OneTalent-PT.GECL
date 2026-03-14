@@ -188,4 +188,21 @@ export function initializeCronJobs() {
   } else {
     console.log('⚠️ SIMPER notification email service: INACTIVE (credentials not configured)');
   }
+
+  // ============================================
+  // USIGN CRON JOBS
+  // ============================================
+
+  // Run every 3 hours to check for pending USign approvals
+  cron.schedule('0 */3 * * *', async () => {
+    console.log('[USign] Running periodic reminder check...');
+    try {
+      const { usignNotificationService } = await import('./services/usignNotificationService');
+      await usignNotificationService.checkAndNotifyUsignPending();
+    } catch (error) {
+      console.error('❌ Error in USign reminder job:', error);
+    }
+  }, {
+    timezone: "Asia/Jakarta"
+  });
 }
