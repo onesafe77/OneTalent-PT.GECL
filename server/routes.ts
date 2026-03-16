@@ -3836,34 +3836,8 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // Upload photos for meeting (max 4)
-  const meetingPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'meetings');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'meeting-' + uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
-    fileFilter: function (req, file, cb) {
-      const allowedTypes = /jpeg|jpg|png/;
-      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-      const mimetype = allowedTypes.test(file.mimetype);
-      if (mimetype && extname) {
-        return cb(null, true);
-      }
-      cb(new Error('Only .png, .jpg and .jpeg format allowed!'));
-    }
-  });
-
-  app.post("/api/meetings/:id/upload-photos", meetingPhotoUpload.array('photos', 4), async (req, res) => {
+  // 1.8. Upload photos for meeting (max 4) using database storage
+  app.post("/api/meetings/:id/upload-photos", uploadMemory.array('photos', 4), async (req, res) => {
     try {
       const { id } = req.params;
       const files = req.files as Express.Multer.File[];
@@ -3874,17 +3848,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const meeting = await storage.getMeeting(id);
       if (!meeting) {
-        // Clean up uploaded files
-        files.forEach(file => fs.unlinkSync(file.path));
         return res.status(404).json({ error: "Meeting not found" });
       }
 
-      // Get relative paths for storage
-      const photoPaths = files.map(file => `/uploads/meetings/${path.basename(file.path)}`);
+      // Upload files to database and get URLs
+      const uploadPromises = files.map(file => dbStorage.uploadFile(file));
+      const uploadResults = await Promise.all(uploadPromises);
+      const newPhotoUrls = uploadResults.map(res => res.url);
 
       // Merge with existing photos (max 4 total)
       const existingPhotos = meeting.meetingPhotos || [];
-      const allPhotos = [...existingPhotos, ...photoPaths].slice(0, 4);
+      const allPhotos = [...existingPhotos, ...newPhotoUrls].slice(0, 4);
 
       // Update meeting with photos
       const updatedMeeting = await storage.updateMeeting(id, {
@@ -3899,13 +3873,7 @@ Format sebagai bullet points singkat per insight.`;
       });
     } catch (error) {
       console.error("Error uploading meeting photos:", error);
-      // Clean up files on error
-      if (req.files) {
-        (req.files as Express.Multer.File[]).forEach(file => {
-          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-        });
-      }
-      res.status(500).json({ error: "Failed to upload photos" });
+      res.status(500).json({ error: "Failed to upload meeting photos" });
     }
   });
 
@@ -3925,12 +3893,16 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ error: "Invalid photo index" });
       }
 
-      // Delete physical file
+      // Handle physical file deletion (legacy)
       const photoPath = photos[index];
-      const fullPath = path.join(process.cwd(), photoPath);
-      if (fs.existsSync(fullPath)) {
-        fs.unlinkSync(fullPath);
+      if (photoPath.startsWith('/uploads/')) {
+        const fullPath = path.join(process.cwd(), photoPath);
+        if (fs.existsSync(fullPath)) {
+          fs.unlinkSync(fullPath);
+        }
       }
+      // For database storage (/api/uploads/id), we currently just remove the reference from the meeting record.
+      // Deleting orphaned records in the uploadedFiles table can be implemented later as a cleanup task.
 
       // Remove from array
       const updatedPhotos = photos.filter((_, i) => i !== index);
@@ -12863,14 +12835,15 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   // 1.6. Update Driver Override (with optional evidence upload)
-  app.patch("/api/fms/violations/:id/driver", upload.single('evidence'), async (req, res) => {
+  app.patch("/api/fms/violations/:id/driver", uploadMemory.single('evidence'), async (req, res) => {
     try {
       const { id } = req.params;
       const { manualDriverName, manualDriverNik } = req.body;
 
       let evidenceUrl: string | null = null;
       if (req.file) {
-        evidenceUrl = `/uploads/${req.file.filename}`;
+        const uploadResult = await dbStorage.uploadFile(req.file);
+        evidenceUrl = uploadResult.url;
       }
 
       const updated = await storage.updateFmsViolationDriver(id, {

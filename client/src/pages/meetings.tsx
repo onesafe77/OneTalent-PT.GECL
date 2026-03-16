@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Download, FileText, Camera, X, Upload, Pencil } from "lucide-react";
+import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Download, FileText, Camera, X, Upload, Pencil, ZoomIn } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Meeting, InsertMeeting, MeetingAttendance } from "@shared/schema";
 import QRCode from "qrcode";
@@ -176,6 +177,8 @@ export default function Meetings() {
   });
   const [uploadedPhotos, setUploadedPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -278,6 +281,29 @@ export default function Meetings() {
       toast({
         title: "Error",
         description: error.message || "Gagal upload foto",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deletePhotoMutation = useMutation({
+    mutationFn: async ({ meetingId, photoIndex }: { meetingId: string; photoIndex: number }) => {
+      return await apiRequest(`/api/meetings/${meetingId}/photos/${photoIndex}`, "DELETE");
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      if (selectedMeeting && selectedMeeting.id === data.meeting.id) {
+        setSelectedMeeting(data.meeting);
+      }
+      toast({
+        title: "Foto Dihapus",
+        description: "Foto dokumentasi berhasil dihapus",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Gagal menghapus foto",
         variant: "destructive",
       });
     },
@@ -863,93 +889,97 @@ export default function Meetings() {
 
       {/* Attendance Dialog */}
       <Dialog open={isAttendanceOpen} onOpenChange={setIsAttendanceOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Daftar Kehadiran Meeting</span>
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-6 overflow-hidden">
+          <DialogHeader className="pb-4 border-b shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-xl">Daftar Kehadiran Meeting</DialogTitle>
+                <DialogDescription className="mt-1">
+                  Meeting: {selectedMeeting?.title} - {attendanceData?.totalAttendees || 0} peserta hadir
+                </DialogDescription>
+              </div>
               {attendanceData && attendanceData.attendance.length > 0 && (
                 <Button
                   onClick={downloadAttendanceReport}
                   size="sm"
-                  className="bg-red-600 hover:bg-red-700"
+                  className="bg-red-600 hover:bg-red-700 shadow-sm"
                   data-testid="button-download-attendance-report"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Download PDF
                 </Button>
               )}
-            </DialogTitle>
-            <DialogDescription>
-              Meeting: {selectedMeeting?.title} - {attendanceData?.totalAttendees || 0} peserta hadir
-            </DialogDescription>
+            </div>
           </DialogHeader>
 
-          {attendanceData?.attendance?.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                Belum ada peserta yang hadir
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400">
-                Peserta dapat scan QR code untuk melakukan absensi
-              </p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama Karyawan</TableHead>
-                  <TableHead>NIK</TableHead>
-                  <TableHead>Department</TableHead>
-                  <TableHead>Meeting</TableHead>
-                  <TableHead>Tanggal Scan</TableHead>
-                  <TableHead>Waktu Scan</TableHead>
-                  <TableHead>Device</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attendanceData?.attendance?.map((att: any) => (
-                  <TableRow key={att.id}>
-                    <TableCell className="font-medium">
-                      {att.attendanceType === 'manual_entry' ? att.manualName : (att.employee?.name || 'Unknown')}
-                    </TableCell>
-                    <TableCell>{att.attendanceType === 'manual_entry' ? '-' : (att.employee?.id || '-')}</TableCell>
-                    <TableCell>{att.attendanceType === 'manual_entry' ? att.manualDepartment : (att.employee?.department || '-')}</TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <div className="text-sm font-medium truncate">
-                        {selectedMeeting?.title || '-'}
-                      </div>
-                      <div className="text-xs text-gray-600 dark:text-gray-400">
-                        {selectedMeeting?.location || '-'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        {new Date(att.scanDate).toLocaleDateString('id-ID')}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        {att.scanTime} WITA
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600 dark:text-gray-400 max-w-[150px]">
-                      <div className="truncate" title={att.deviceInfo}>
-                        {att.deviceInfo}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <div className="flex-1 min-h-0 mt-4 overflow-y-auto pr-2">
+            {attendanceData?.attendance?.length === 0 ? (
+              <div className="text-center py-20">
+                <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Belum ada peserta yang hadir
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400">
+                  Peserta dapat scan QR code untuk melakukan absensi pada meeting ini.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-md border border-gray-100 dark:border-gray-800">
+                <Table>
+                  <TableHeader className="bg-gray-50/50 dark:bg-gray-800/50 sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead className="font-semibold whitespace-nowrap">Nama Karyawan</TableHead>
+                      <TableHead className="font-semibold">NIK</TableHead>
+                      <TableHead className="font-semibold">Department</TableHead>
+                      <TableHead className="font-semibold">Meeting</TableHead>
+                      <TableHead className="font-semibold">Tanggal</TableHead>
+                      <TableHead className="font-semibold">Waktu</TableHead>
+                      <TableHead className="font-semibold">Device</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attendanceData?.attendance?.map((att: any) => (
+                      <TableRow key={att.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                        <TableCell className="font-medium whitespace-nowrap">
+                          {att.attendanceType === 'manual_entry' ? att.manualName : (att.employee?.name || 'Unknown')}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{att.attendanceType === 'manual_entry' ? '-' : (att.employee?.id || '-')}</TableCell>
+                        <TableCell className="whitespace-nowrap">{att.attendanceType === 'manual_entry' ? att.manualDepartment : (att.employee?.department || '-')}</TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <div className="text-sm font-medium truncate">
+                            {selectedMeeting?.title || '-'}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {selectedMeeting?.location || '-'}
+                          </div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(att.scanDate).toLocaleDateString('id-ID')}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="flex items-center gap-1.5 text-sm">
+                            <Clock className="w-3.5 h-3.5 text-gray-400" />
+                            {att.scanTime} WITA
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-gray-500 max-w-[120px]">
+                          <div className="truncate" title={att.deviceInfo}>
+                            {att.deviceInfo}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
       {/* Photo Upload Dialog */}
       <Dialog open={isPhotoDialogOpen} onOpenChange={setIsPhotoDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Camera className="w-5 h-5" />
@@ -960,143 +990,171 @@ export default function Meetings() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Existing Photos */}
-            {selectedMeeting?.meetingPhotos && selectedMeeting.meetingPhotos.length > 0 && (
-              <div>
-                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                  Foto yang Sudah Diupload ({selectedMeeting.meetingPhotos.length}/4)
-                </Label>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {selectedMeeting.meetingPhotos.map((photoPath, index) => (
-                    <div
-                      key={index}
-                      className="relative group"
-                      data-testid={`existing-photo-${index}`}
-                    >
-                      <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-                        <img
-                          src={photoPath}
-                          alt={`Foto meeting ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          data-testid={`img-existing-photo-${index}`}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Upload New Photos */}
-            <div>
-              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Foto Baru ({(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length}/4)
-              </Label>
-
-              <div className="space-y-3">
-                {/* File Input */}
+          <ScrollArea className="flex-1 pr-4">
+            <div className="space-y-6 py-4">
+              {/* Existing Photos */}
+              {selectedMeeting?.meetingPhotos && selectedMeeting.meetingPhotos.length > 0 && (
                 <div>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => handlePhotoSelect(e.target.files)}
-                    className="hidden"
-                    id="meeting-photos-input"
-                    data-testid="input-meeting-photos"
-                    disabled={(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4}
-                  />
-                  <label
-                    htmlFor="meeting-photos-input"
-                    className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4
-                      ? 'border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 dark:bg-gray-800 dark:border-gray-600'
-                      : 'border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400'
-                      }`}
-                    data-testid="label-upload-photos"
-                  >
-                    <Upload className="w-5 h-5 mr-2" />
-                    {(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4
-                      ? 'Maksimal 4 foto tercapai'
-                      : `Pilih foto (${(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length}/4)`
-                    }
-                  </label>
-                </div>
-
-                {/* New Photos Preview Grid */}
-                {uploadedPhotos.length > 0 && (
+                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    Foto yang Sudah Diupload ({selectedMeeting.meetingPhotos.length}/4)
+                  </Label>
                   <div className="grid grid-cols-2 gap-3">
-                    {photoPreviewUrls.map((previewUrl, index) => (
+                    {selectedMeeting.meetingPhotos.map((photoPath, index) => (
                       <div
                         key={index}
-                        className="relative group"
-                        data-testid={`new-photo-preview-${index}`}
+                        className="relative group cursor-pointer"
+                        data-testid={`existing-photo-${index}`}
+                        onClick={() => {
+                          setPreviewPhotoUrl(photoPath);
+                          setIsPreviewOpen(true);
+                        }}
                       >
                         <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                           <img
-                            src={previewUrl}
-                            alt={`Preview foto ${index + 1}`}
-                            className="w-full h-full object-cover"
-                            data-testid={`img-new-photo-preview-${index}`}
+                            src={photoPath}
+                            alt={`Foto meeting ${index + 1}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                            data-testid={`img-existing-photo-${index}`}
                           />
                         </div>
 
-                        {/* Delete button */}
-                        <button
-                          onClick={() => removePhoto(index)}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                          data-testid={`button-remove-new-photo-${index}`}
-                          title="Hapus foto"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
+                        {/* Hover actions */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-lg">
+                          <ZoomIn className="w-8 h-8 text-white" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm("Hapus foto ini?")) {
+                                deletePhotoMutation.mutate({ meetingId: selectedMeeting.id, photoIndex: index });
+                              }
+                            }}
+                            className="p-2 bg-red-600 rounded-full text-white hover:bg-red-700 transition-colors"
+                            data-testid={`button-delete-existing-photo-${index}`}
+                            title="Hapus foto"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
+              )}
 
-                {uploadedPhotos.length > 0 && (
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    {uploadedPhotos.length} foto siap diupload
-                  </p>
-                )}
+              {/* Upload New Photos */}
+              <div>
+                <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Foto Baru ({(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length}/4)
+                </Label>
+
+                <div className="space-y-3">
+                  {/* File Input */}
+                  <div>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => handlePhotoSelect(e.target.files)}
+                      className="hidden"
+                      id="meeting-photos-input"
+                      data-testid="input-meeting-photos"
+                      disabled={(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4}
+                    />
+                    <label
+                      htmlFor="meeting-photos-input"
+                      className={`flex items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4
+                        ? 'border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500 dark:bg-gray-800 dark:border-gray-600'
+                        : 'border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                        }`}
+                      data-testid="label-upload-photos"
+                    >
+                      <div className="text-center">
+                        <Upload className="w-6 h-6 mx-auto mb-2" />
+                        <span className="text-sm font-medium">
+                          {(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length >= 4
+                            ? 'Maksimal 4 foto tercapai'
+                            : `Pilih foto (${(selectedMeeting?.meetingPhotos?.length || 0) + uploadedPhotos.length}/4)`
+                          }
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* New Photos Preview Grid */}
+                  {uploadedPhotos.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3">
+                      {photoPreviewUrls.map((previewUrl, index) => (
+                        <div
+                          key={index}
+                          className="relative group"
+                          data-testid={`new-photo-preview-${index}`}
+                        >
+                          <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                            <img
+                              src={previewUrl}
+                              alt={`Preview foto ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              data-testid={`img-new-photo-preview-${index}`}
+                            />
+                          </div>
+
+                          {/* Delete button */}
+                          <button
+                            onClick={() => removePhoto(index)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-100 transition-opacity hover:bg-red-600"
+                            data-testid={`button-remove-new-photo-${index}`}
+                            title="Hapus foto"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {uploadedPhotos.length > 0 && (
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      {uploadedPhotos.length} foto siap diupload
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
+          </ScrollArea>
 
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-4">
-              <Button
-                onClick={handlePhotoUpload}
-                disabled={uploadedPhotos.length === 0 || uploadPhotosMutation.isPending}
-                className="bg-red-600 hover:bg-red-700 flex-1"
-                data-testid="button-upload-photos"
-              >
-                {uploadPhotosMutation.isPending ? (
-                  <>
-                    <Upload className="w-4 h-4 mr-2 animate-spin" />
-                    Mengupload...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload {uploadedPhotos.length} Foto
-                  </>
-                )}
-              </Button>
+          {/* Action Buttons */}
+          <div className="flex gap-2 pt-4 border-t mt-4">
+            <Button
+              onClick={handlePhotoUpload}
+              disabled={uploadedPhotos.length === 0 || uploadPhotosMutation.isPending}
+              className="bg-red-600 hover:bg-red-700 flex-1"
+              data-testid="button-upload-photos"
+            >
+              {uploadPhotosMutation.isPending ? (
+                <>
+                  <Upload className="w-4 h-4 mr-2 animate-spin" />
+                  Mengupload...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload {uploadedPhotos.length} Foto
+                </>
+              )}
+            </Button>
 
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsPhotoDialogOpen(false);
-                  setUploadedPhotos([]);
-                  setPhotoPreviewUrls([]);
-                }}
-                data-testid="button-cancel-photo-upload"
-              >
-                Batal
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPhotoDialogOpen(false);
+                setUploadedPhotos([]);
+                setPhotoPreviewUrls([]);
+              }}
+              data-testid="button-cancel-photo-upload"
+            >
+              Batal
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1217,6 +1275,25 @@ export default function Meetings() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Preview Dialog */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black/90 border-none">
+          <div className="relative w-full h-[80vh] flex items-center justify-center">
+            <img
+              src={previewPhotoUrl}
+              alt="Preview foto meeting"
+              className="max-w-full max-h-full object-contain"
+            />
+            <button
+              onClick={() => setIsPreviewOpen(false)}
+              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -45,13 +45,31 @@ import {
     Sparkles,
     Link2,
     Settings,
-    Loader2
+    Loader2,
+    Search // Add Search icon
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input"; // Add Input component
 
 // --- Configuration ---
 const CSV_URL =
@@ -105,6 +123,8 @@ interface OverspeedData {
     Jabatan?: string; // New field from CSV
     Speed?: number; // New field
     SpeedLimit?: number; // New field
+    "Masa Berlaku Sanksi"?: string; // New field
+    Level?: number; // New field
     // Helper fields for easier filtering
     _dateObj?: Date;
     _year?: number;
@@ -174,6 +194,11 @@ export default function DashboardOverspeed() {
     const [filterUnit, setFilterUnit] = useState<string>("All");
     const [filterViolation, setFilterViolation] = useState<string>("All");
 
+    // Search and Detail Modal State
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
+
     // Unique options for filters
     const [availableYears, setAvailableYears] = useState<number[]>([]);
     const [availableUnits, setAvailableUnits] = useState<string[]>([]);
@@ -211,7 +236,8 @@ export default function DashboardOverspeed() {
                 TicketStatus: ticketStatus,
                 ValidationStatus: validationStatus,
                 StatusClosedNC: statusClosedNC,
-                "Durasi Close": durasiClose
+                "Durasi Close": durasiClose,
+                "Masa Berlaku Sanksi": r["Masa Berlaku Sanksi"] || r["Masa Berlaku Sanksi "] || "-"
             };
         }).filter(r => {
             const company = (r.Company || "").toString().trim().toUpperCase();
@@ -982,13 +1008,20 @@ export default function DashboardOverspeed() {
                         </CardHeader>
                         <CardContent className="pt-4 space-y-4">
                             {stats?.topEmployees.map((emp, i) => (
-                                <div key={i} className="flex items-center justify-between p-3 rounded-xl hover:bg-red-50 transition-colors group cursor-default">
+                                <div
+                                    key={i}
+                                    className="flex items-center justify-between p-3 rounded-xl hover:bg-red-50 transition-colors group cursor-pointer"
+                                    onClick={() => {
+                                        setSelectedEmployee(emp.name);
+                                        setIsDetailOpen(true);
+                                    }}
+                                >
                                     <div className="flex items-center gap-3">
                                         <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${i === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
                                             {i + 1}
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-gray-800 group-hover:text-red-700 transition-colors">{emp.name}</p>
+                                            <p className="text-sm font-bold text-gray-800 group-hover:text-red-700 transition-colors uppercase">{emp.name}</p>
                                             <p className="text-xs text-gray-400">{emp.unit} • {emp.role}</p>
                                         </div>
                                     </div>
@@ -999,6 +1032,85 @@ export default function DashboardOverspeed() {
                             ))}
                         </CardContent>
                     </Card>
+
+                    {/* Employee Detail Dialog */}
+                    <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+                        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+                            <DialogHeader className="p-6 bg-gradient-to-r from-red-600 to-orange-600 text-white">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
+                                        <User className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-2xl font-black uppercase tracking-tight">
+                                            {selectedEmployee}
+                                        </DialogTitle>
+                                        <DialogDescription className="text-red-50 font-medium">
+                                            Detail Pelanggaran Karyawan
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                            </DialogHeader>
+
+                            <div className="flex-1 overflow-hidden">
+                                <ScrollArea className="h-full">
+                                    <div className="p-6">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow className="bg-gray-50/50 hover:bg-gray-50/50 border-gray-100">
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Tanggal</TableHead>
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Jam</TableHead>
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Unit</TableHead>
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Pelanggaran</TableHead>
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Lokasi</TableHead>
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Masa Berlaku Sanksi</TableHead>
+                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider text-right">Status</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {filteredData
+                                                    .filter(row => {
+                                                        const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
+                                                        return name === selectedEmployee;
+                                                    })
+                                                    .sort((a, b) => (b._dateObj?.getTime() || 0) - (a._dateObj?.getTime() || 0))
+                                                    .map((row, idx) => (
+                                                        <TableRow key={idx} className="hover:bg-gray-50/50 border-gray-50 transition-colors">
+                                                            <TableCell className="font-medium text-gray-700">{row.Date || row["Date Opr"]}</TableCell>
+                                                            <TableCell className="text-gray-500">{row.Time}</TableCell>
+                                                            <TableCell className="font-bold text-gray-900">{row["Vehicle No"]}</TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`font-bold transition-all ${row.Violation?.toLowerCase().includes("overspeed")
+                                                                        ? "bg-red-50 text-red-600 border-red-100"
+                                                                        : "bg-orange-50 text-orange-600 border-orange-100"
+                                                                        }`}
+                                                                >
+                                                                    {row.Violation}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-gray-500">{row["Location (KM)"]}</TableCell>
+                                                            <TableCell className="text-gray-500 italic font-medium">{row["Masa Berlaku Sanksi"]}</TableCell>
+                                                            <TableCell className="text-right">
+                                                                <Badge
+                                                                    className={`font-black uppercase tracking-tighter text-[10px] ${row.TicketStatus?.toLowerCase() === "closed"
+                                                                        ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 shadow-none border-none"
+                                                                        : "bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 shadow-none border-none"
+                                                                        }`}
+                                                                >
+                                                                    {row.TicketStatus}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 gap-4">
@@ -1013,6 +1125,127 @@ export default function DashboardOverspeed() {
                     </div>
                 </div>
             </div>
+
+            {/* Main Searchable Table Section */}
+            <Card className="border-none shadow-xl bg-white/90 backdrop-blur-md rounded-3xl overflow-hidden mt-6">
+                <CardHeader className="p-8 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <CardTitle className="text-2xl font-black text-gray-900">Detailed Violation Records</CardTitle>
+                            <CardDescription className="text-gray-500 mt-1">Daftar lengkap pelanggaran berdasarkan filter dan pencarian</CardDescription>
+                        </div>
+                        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                            {/* Global Search Moved Here */}
+                            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-gray-200 shadow-sm w-full md:w-[300px] focus-within:ring-2 focus-within:ring-red-500/20 transition-all">
+                                <Search className="w-5 h-5 text-gray-400" />
+                                <Input
+                                    placeholder="Cari Nama / NIK Karyawan..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="border-none bg-transparent h-8 text-sm font-bold focus-visible:ring-0 placeholder:text-gray-400 p-0"
+                                />
+                            </div>
+                            <Badge variant="outline" className="px-5 py-2 bg-red-50 text-red-700 border-red-100 font-black rounded-2xl whitespace-nowrap">
+                                {filteredData.filter(r => {
+                                    if (!searchQuery) return true;
+                                    const q = searchQuery.toLowerCase();
+                                    const name = (r["Nama Karyawan"] || r["Nama Eksekutor"] || "").toLowerCase();
+                                    const nik = (r["Vehicle No"] || "").toLowerCase();
+                                    return name.includes(q) || nik.includes(q);
+                                }).length} Results
+                            </Badge>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-gray-50/80 hover:bg-gray-50/80 border-b border-gray-100">
+                                    <TableHead className="w-[200px] py-5 px-8 font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Karyawan</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">NIK / Unit</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Waktu</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Pelanggaran</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Lokasi</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Masa Berlaku Sanksi</TableHead>
+                                    <TableHead className="text-right py-5 px-8 font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredData
+                                    .filter(row => {
+                                        if (!searchQuery) return true;
+                                        const q = searchQuery.toLowerCase();
+                                        const name = (row["Nama Karyawan"] || row["Nama Eksekutor"] || "").toLowerCase();
+                                        const nik = (row["Vehicle No"] || "").toLowerCase();
+                                        return name.includes(q) || nik.includes(q);
+                                    })
+                                    .slice(0, 100) // Limit to 100 for performance
+                                    .map((row, idx) => (
+                                        <TableRow
+                                            key={idx}
+                                            className="hover:bg-gray-50/50 border-gray-50 cursor-pointer transition-all duration-200 group"
+                                            onClick={() => {
+                                                setSelectedEmployee((row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase());
+                                                setIsDetailOpen(true);
+                                            }}
+                                        >
+                                            <TableCell className="py-5 px-8">
+                                                <p className="font-bold text-gray-900 group-hover:text-red-600 transition-colors uppercase">{row["Nama Karyawan"] || row["Nama Eksekutor"]}</p>
+                                                <p className="text-[10px] text-gray-400 font-medium tracking-tight">Level {row.Level || "-"}</p>
+                                            </TableCell>
+                                            <TableCell>
+                                                <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-600 border border-gray-200">{row["Vehicle No"]}</code>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-gray-700">{row.Date || row["Date Opr"]}</span>
+                                                    <span className="text-[10px] text-gray-400 font-medium">{row.Time}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge
+                                                    className={`font-black tracking-tighter text-[10px] rounded-full px-3 py-1 border-none shadow-sm ${row.Violation?.toLowerCase().includes("overspeed")
+                                                        ? "bg-red-500 text-white shadow-red-500/20"
+                                                        : "bg-orange-500 text-white shadow-orange-500/20"
+                                                        }`}
+                                                >
+                                                    {row.Violation}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                                    <span className="text-sm font-medium text-gray-600">{row["Location (KM)"]}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-xs font-bold text-gray-500 italic bg-gray-50 border border-gray-100 px-2 py-1 rounded-md">
+                                                    {row["Masa Berlaku Sanksi"]}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right py-5 px-8">
+                                                <Badge
+                                                    className={`font-black uppercase tracking-tighter text-[10px] rounded-md px-2.5 py-1 ${row.TicketStatus?.toLowerCase() === "closed"
+                                                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-none"
+                                                        : "bg-orange-50 text-orange-600 border border-orange-100 shadow-none"
+                                                        }`}
+                                                >
+                                                    {row.TicketStatus}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    {filteredData.length > 100 && (
+                        <div className="p-4 text-center border-t border-gray-100 bg-gray-50/50">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Showing top 100 results • Use filters to refine</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     );
 }

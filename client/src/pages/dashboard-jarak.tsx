@@ -42,10 +42,32 @@ import {
     Sparkles,
     Link2,
     Settings,
+    Search,
+    UserCircle,
+    MapPin,
+    AlertTriangle
 } from "lucide-react";
 import html2canvas from "html2canvas";
 import { saveAs } from "file-saver";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 
 // --- Configuration ---
@@ -96,6 +118,8 @@ interface OverspeedData {
     "Durasi Close"?: string;
     "Tanggal Pemenuhan": string;
     StatusClosedNC?: string;
+    "Masa Berlaku Sanksi"?: string; // New field
+    Level?: number; // New field
     // Helper fields for easier filtering
     _dateObj?: Date;
     _year?: number;
@@ -139,6 +163,11 @@ export default function DashboardJarak() {
     const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
     const [filterMonth, setFilterMonth] = useState<string>("All");
     const [filterUnit, setFilterUnit] = useState<string>("All");
+
+    // Search and Detail Modal State
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
 
     // Unique options for filters
     const [availableYears, setAvailableYears] = useState<number[]>([]);
@@ -207,6 +236,7 @@ export default function DashboardJarak() {
                     "Durasi Close": r[iDurasi],
                     "Tanggal Pemenuhan": r[iPemenuhan],
                     StatusClosedNC: r[iStatusClosedNC],
+                    "Masa Berlaku Sanksi": r.find && typeof r.find === 'function' ? (headersTrimmed.indexOf("Masa Berlaku Sanksi") > -1 ? r[headersTrimmed.indexOf("Masa Berlaku Sanksi")] : "-") : "-", // Flexible indexing for API
                     _dateObj: d,
                     _year: d.getFullYear(),
                     _monthIndex: d.getMonth(),
@@ -325,6 +355,7 @@ export default function DashboardJarak() {
                                 "Durasi Close": r[iDurasi],
                                 "Tanggal Pemenuhan": r[iPemenuhan],
                                 StatusClosedNC: r[iStatusClosedNC],
+                                "Masa Berlaku Sanksi": headersTrimmed.indexOf("Masa Berlaku Sanksi") > -1 ? r[headersTrimmed.indexOf("Masa Berlaku Sanksi")] : "-",
                                 // Helpers
                                 _dateObj: d,
                                 _year: d.getFullYear(),
@@ -450,7 +481,7 @@ export default function DashboardJarak() {
         const topEmployees = Object.keys(empCounts)
             .map(name => ({ name, count: empCounts[name], unit: filteredData.find(r => (r["Nama Karyawan"] || r["Nama Eksekutor"])?.toUpperCase() === name)?.["Vehicle No"] || "-" }))
             .sort((a, b) => b.count - a.count)
-            .slice(0, 5);
+            .slice(0, 10);
 
         // 6. Top Units
         const unitCounts: Record<string, number> = {};
@@ -838,13 +869,20 @@ export default function DashboardJarak() {
                         <CardContent>
                             <div className="space-y-3">
                                 {stats?.topEmployees.length ? stats.topEmployees.map((emp, i) => (
-                                    <div key={i} className="flex items-center justify-between p-3 border border-gray-100 hover:bg-red-50/50 rounded-xl transition-colors group">
+                                    <div
+                                        key={i}
+                                        className="flex items-center justify-between p-3 border border-gray-100 hover:bg-red-50/50 rounded-xl transition-colors group cursor-pointer"
+                                        onClick={() => {
+                                            setSelectedEmployee(emp.name);
+                                            setIsDetailOpen(true);
+                                        }}
+                                    >
                                         <div className="flex items-center gap-3 overflow-hidden">
                                             <div className={`w-8 h-8 flex-shrink-0 rounded-full flex items-center justify-center font-bold text-xs ${i === 0 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
                                                 {i + 1}
                                             </div>
                                             <div className="truncate">
-                                                <p className="text-sm font-bold text-gray-800 truncate" title={emp.name}>{emp.name}</p>
+                                                <p className="text-sm font-bold text-gray-800 truncate group-hover:text-red-700 transition-colors" title={emp.name}>{emp.name}</p>
                                                 <p className="text-xs text-gray-400">{emp.unit}</p>
                                             </div>
                                         </div>
@@ -858,11 +896,224 @@ export default function DashboardJarak() {
                     </Card >
 
                 </div >
-            </div >
+            </div>
 
-            <div className="text-center text-xs text-gray-300 pb-8">
+            {/* Detailed Searchable Table Section */}
+            <Card className="border-none shadow-xl bg-white/90 backdrop-blur-md rounded-3xl overflow-hidden mt-6">
+                <CardHeader className="p-8 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                            <CardTitle className="text-2xl font-black text-gray-900">Detailed Violation Records</CardTitle>
+                            <CardDescription className="text-gray-500 mt-1">Daftar lengkap pelanggaran berdasarkan filter dan pencarian</CardDescription>
+                        </div>
+                        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                            {/* Global Search */}
+                            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-gray-200 shadow-sm w-full md:w-[300px] focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                                <Search className="w-5 h-5 text-gray-400" />
+                                <Input
+                                    placeholder="Cari Nama / NIK Karyawan..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="border-none bg-transparent h-8 text-sm font-bold focus-visible:ring-0 placeholder:text-gray-400 p-0"
+                                />
+                            </div>
+                            <Badge variant="outline" className="px-5 py-2 bg-blue-50 text-blue-700 border-blue-100 font-black rounded-2xl whitespace-nowrap">
+                                {filteredData.filter(r => {
+                                    if (!searchQuery) return true;
+                                    const q = searchQuery.toLowerCase();
+                                    const name = (r["Nama Karyawan"] || r["Nama Eksekutor"] || "").toLowerCase();
+                                    const nik = (r["Vehicle No"] || "").toLowerCase();
+                                    return name.includes(q) || nik.includes(q);
+                                }).length} Results
+                            </Badge>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-gray-50/80 hover:bg-gray-50/80 border-b border-gray-100">
+                                    <TableHead className="w-[200px] py-5 px-8 font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Karyawan</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">NIK / Unit</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Waktu</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Pelanggaran</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Lokasi</TableHead>
+                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Masa Berlaku Sanksi</TableHead>
+                                    <TableHead className="text-right py-5 px-8 font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredData
+                                    .filter(row => {
+                                        if (!searchQuery) return true;
+                                        const q = searchQuery.toLowerCase();
+                                        const name = (row["Nama Karyawan"] || row["Nama Eksekutor"] || "").toLowerCase();
+                                        const nik = (row["Vehicle No"] || "").toLowerCase();
+                                        return name.includes(q) || nik.includes(q);
+                                    })
+                                    .slice(0, 100)
+                                    .map((row, idx) => (
+                                        <TableRow
+                                            key={idx}
+                                            className="hover:bg-gray-50/50 border-gray-50 cursor-pointer transition-all duration-200 group"
+                                            onClick={() => {
+                                                setSelectedEmployee((row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase());
+                                                setIsDetailOpen(true);
+                                            }}
+                                        >
+                                            <TableCell className="py-5 px-8">
+                                                <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors uppercase">{row["Nama Karyawan"] || row["Nama Eksekutor"]}</p>
+                                                <p className="text-[10px] text-gray-400 font-medium tracking-tight">Level {row.Level || "-"}</p>
+                                            </TableCell>
+                                            <TableCell>
+                                                <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-600 border border-gray-200">{row["Vehicle No"]}</code>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-gray-700">{row.Date || row["Date Opr"]}</span>
+                                                    <span className="text-[10px] text-gray-400 font-medium">{row.Time}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge className="font-black tracking-tighter text-[10px] rounded-full px-3 py-1 border-none shadow-sm bg-blue-500 text-white shadow-blue-500/20">
+                                                    {row.Violation || "Safe Distance"}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5">
+                                                    <MapPin className="w-3 h-3 text-gray-400" />
+                                                    <span className="text-sm font-medium text-gray-600">{row["Location (KM)"]}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-xs font-bold text-gray-500 italic bg-gray-50 border border-gray-100 px-2 py-1 rounded-md">
+                                                    {row["Masa Berlaku Sanksi"]}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-right py-5 px-8">
+                                                <Badge
+                                                    className={`font-black uppercase tracking-tighter text-[10px] rounded-md px-2.5 py-1 ${row.TicketStatus?.toLowerCase() === "closed"
+                                                            ? "bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-none"
+                                                            : "bg-orange-50 text-orange-600 border border-orange-100 shadow-none"
+                                                        }`}
+                                                >
+                                                    {row.TicketStatus}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    {filteredData.length > 100 && (
+                        <div className="p-4 text-center border-t border-gray-100 bg-gray-50/50">
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Showing top 100 results • Use filters to refine</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Employee Detail Dialog */}
+            <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden border-none shadow-2xl rounded-3xl">
+                    <DialogHeader className="p-8 bg-gradient-to-r from-gray-900 to-gray-800 text-white">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-red-500 rounded-2xl shadow-lg shadow-red-500/20">
+                                <AlertTriangle className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-2xl font-black uppercase tracking-tight">
+                                    {selectedEmployee}
+                                </DialogTitle>
+                                <DialogDescription className="text-gray-400 font-medium">
+                                    Historical Violation Data & Sanction Records
+                                </DialogDescription>
+                            </div>
+                        </div>
+                    </DialogHeader>
+
+                    <ScrollArea className="h-full max-h-[60vh] p-8">
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card className="p-4 bg-gray-50/50 border-gray-100">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Violations</p>
+                                    <p className="text-3xl font-black text-gray-900 mt-1">
+                                        {filteredData.filter(row => (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase() === selectedEmployee).length}
+                                    </p>
+                                </Card>
+                                <Card className="p-4 bg-gray-50/50 border-gray-100">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Latest Unit</p>
+                                    <p className="text-xl font-bold text-gray-900 mt-2 font-mono">
+                                        {filteredData.find(row => (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase() === selectedEmployee)?.["Vehicle No"] || "-"}
+                                    </p>
+                                </Card>
+                            </div>
+
+                            <div className="rounded-2xl border border-gray-100 overflow-hidden">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-gray-50/50">
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Tanggal</TableHead>
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Jam</TableHead>
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Unit</TableHead>
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Pelanggaran</TableHead>
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Lokasi</TableHead>
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Masa Berlaku Sanksi</TableHead>
+                                            <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider text-right">Status</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredData
+                                            .filter(row => {
+                                                const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
+                                                return name === selectedEmployee;
+                                            })
+                                            .sort((a, b) => (b._dateObj?.getTime() || 0) - (a._dateObj?.getTime() || 0))
+                                            .map((row, idx) => (
+                                                <TableRow key={idx} className="hover:bg-gray-50/50 border-gray-50 transition-colors">
+                                                    <TableCell className="font-medium text-gray-700">{row.Date || row["Date Opr"]}</TableCell>
+                                                    <TableCell className="text-gray-500">{row.Time}</TableCell>
+                                                    <TableCell className="font-bold text-gray-900">{row["Vehicle No"]}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className="font-bold bg-blue-50 text-blue-600 border-blue-100">
+                                                            {row.Violation || "Safe Distance"}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-gray-500">{row["Location (KM)"]}</TableCell>
+                                                    <TableCell className="text-gray-500 italic font-medium">{row["Masa Berlaku Sanksi"]}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Badge
+                                                            className={`font-black uppercase tracking-tighter text-[10px] ${row.TicketStatus?.toLowerCase() === "closed"
+                                                                    ? "bg-emerald-50 text-emerald-600"
+                                                                    : "bg-orange-50 text-orange-600"
+                                                                }`}
+                                                        >
+                                                            {row.TicketStatus}
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </ScrollArea>
+                    <div className="p-6 bg-gray-50 flex justify-end">
+                        <Button
+                            variant="default"
+                            onClick={() => setIsDetailOpen(false)}
+                            className="bg-gray-900 text-white px-8 rounded-xl font-bold"
+                        >
+                            Close Record
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <div className="text-center text-xs text-gray-300 pb-8 mt-12">
                 Dashboard Version 2.1 • Data updated at {lastUpdated ? lastUpdated.toLocaleTimeString() : "-"}
             </div>
-        </div >
+        </div>
     );
 }
