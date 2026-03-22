@@ -457,12 +457,6 @@ export async function generateSidakWorkshopPDF(data: WorkshopPDFData): Promise<j
         },
         margin: { left: margin, right: margin, bottom: 15 },
         showHead: 'everyPage',
-        didDrawPage: (hookData) => {
-            // Draw header on new pages
-            if (hookData.pageNumber > 1) {
-                drawHeader(margin);
-            }
-        },
         willDrawCell: (hookData) => {
             // Check if this is a header row (equipment header)
             const rowData = hookData.row.raw;
@@ -485,8 +479,7 @@ export async function generateSidakWorkshopPDF(data: WorkshopPDFData): Promise<j
     const remainingSpace = pageHeight - finalTableY - 15;
     if (remainingSpace < 30) {
         pdf.addPage();
-        const newYStart = drawHeader(margin) + 5;
-        drawInspectorSignatures(newYStart);
+        drawInspectorSignatures(margin + 5);
     } else {
         drawInspectorSignatures(finalTableY + 5);
     }

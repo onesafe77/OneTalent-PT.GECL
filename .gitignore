@@ -31,10 +31,20 @@ status-check.ts
 test-db-queries-month.ts
 debug_fms_data*.ts
 test-storage-logic.ts
+check_*.ts
+find_ading_*.ts
+run-sql*.js
+run-sql.cjs
+test_*.ts
+scripts/debug_*.ts
+employees_list.json
+create-spip-table.ts
 
 # Misc
 dummy.jpg
 sidak/*.pdf
+*.pdf
+.vscode/
 
 # Test & Temporary Files
 cv/

@@ -73,11 +73,14 @@ export default function EvaluasiDriver() {
   }>({
     queryKey: [`/api/evaluasi-driver/${selectedDriverId}/details?month=${selectedMonth}`],
     enabled: !!selectedDriverId && showDetailDialog,
+    staleTime: 60_000,
   });
 
-  // Fetch evaluation data
+  // Fetch evaluation data (cached for 1 minute, shows previous data while refetching)
   const { data, isLoading } = useQuery<EvaluationData>({
     queryKey: [`/api/evaluasi-driver?month=${selectedMonth}&status=${statusFilter}`],
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
   });
 
   // Filter drivers by search query

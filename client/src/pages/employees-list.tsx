@@ -299,8 +299,8 @@ export default function EmployeesList() {
                                         <SelectContent>
                                             <SelectItem value="all">Semua Status</SelectItem>
                                             <SelectItem value="expired">🔴 EXPIRED</SelectItem>
-                                            <SelectItem value="kritis">🟠 KRITIS (≤30 hari)</SelectItem>
-                                            <SelectItem value="warning">🟡 WARNING (≤60 hari)</SelectItem>
+                                            <SelectItem value="near_expired">🟡 NEAR EXPIRED (≤60 hari)</SelectItem>
+                                            <SelectItem value="aktif">🟢 AKTIF (&#62;60 hari)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

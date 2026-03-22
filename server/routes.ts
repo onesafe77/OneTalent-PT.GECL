@@ -106,8 +106,10 @@ import {
   sidakFatigueObservers,
   sidakRosterObservers,
   employees,
+  spipPeralatan,
+  insertSpipPeralatanSchema,
 } from "@shared/schema";
-import { eq, ilike, and, desc, sql, asc, inArray } from "drizzle-orm";
+import { eq, ilike, and, or, not, lt, lte, gt, gte, isNull, isNotNull, desc, sql, asc, inArray } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
 import * as whatsappService from "./services/whatsapp-service";
 import { buildRAGPrompt, searchSimilarChunks, generateEmbedding } from "./services/rag-service";
@@ -7083,12 +7085,25 @@ Format sebagai bullet points singkat per insight.`;
       const rosterObs = await fetchSession('RosterObs', storage.db.select().from(sidakRosterObservers));
 
       const totalFetchTime = Date.now() - start;
-      console.log(`[SIDAK-RECAP] Total data fetch completed in ${totalFetchTime}ms`);
+      console.log(`[SIDAK-RECAP] Total data fetch completed in ${totalFetchTime}ms. Processing ${allSessionsCount} sessions.`);
+
+      // Pre-index observers into a Map for O(1) lookup
+      const fatigueObsMap = new Map<string, string[]>();
+      fatigueObs.forEach((o: any) => {
+        if (!fatigueObsMap.has(o.sessionId)) fatigueObsMap.set(o.sessionId, []);
+        fatigueObsMap.get(o.sessionId)!.push(o.nama);
+      });
+      const rosterObsMap = new Map<string, string[]>();
+      rosterObs.forEach((o: any) => {
+        if (!rosterObsMap.has(o.sessionId)) rosterObsMap.set(o.sessionId, []);
+        rosterObsMap.get(o.sessionId)!.push(o.nama);
+      });
 
       const getObserverNames = (sessionId: string, type: string) => {
-        if (type === 'Fatigue') return fatigueObs.filter((o: any) => o.sessionId === sessionId).map((o: any) => o.nama).join(', ');
-        if (type === 'Roster') return rosterObs.filter((o: any) => o.sessionId === sessionId).map((o: any) => o.nama).join(', ');
-        return "";
+        let names: string[] = [];
+        if (type === 'Fatigue') names = fatigueObsMap.get(sessionId) || [];
+        else if (type === 'Roster') names = rosterObsMap.get(sessionId) || [];
+        return names.join(', ');
       };
 
       const mapSession = (s: any, type: string) => {
@@ -7132,15 +7147,30 @@ Format sebagai bullet points singkat per insight.`;
         ...behavior.map((s: any) => mapSession(s, 'Behavior'))
       ];
 
-      // Fetch all employees in bulk to avoid dynamic SQL issues with large NIK sets
-      const allEmployeesList = await fetchSession('Employees', storage.db.select().from(employees));
-      const nikToNameMap = new Map(allEmployeesList.map((e: any) => [e.id, e.name]));
+      // Optimization: Fetch only used employee names to avoid fetching thousands of unrelated records
+      const usedNiks = Array.from(new Set(
+        allSessions.map(s => s.createdBy).filter(nik => nik && (nik.startsWith('C-') || nik.startsWith('P-')))
+      ));
+
+      console.log(`[SIDAK-RECAP] Unique NIKs to resolve: ${usedNiks.length}`);
+      let nikToNameMap = new Map<string, string>();
+
+      if (usedNiks.length > 0) {
+        // Use chunks for inArray if usedNiks is very large (Postgres limit is 65535, but smaller is safer)
+        const chunkSize = 500;
+        for (let i = 0; i < usedNiks.length; i += chunkSize) {
+          const chunk = usedNiks.slice(i, i + chunkSize);
+          const relevantEmployees = await storage.db.select({ id: employees.id, name: employees.name })
+            .from(employees)
+            .where(inArray(employees.id, chunk));
+
+          relevantEmployees.forEach((e: any) => nikToNameMap.set(e.id, e.name));
+        }
+        console.log(`[SIDAK-RECAP] Resolved ${nikToNameMap.size} supervisor names`);
+      }
 
       for (const session of allSessions) {
         let nik = session.createdBy;
-        if (session.supervisorName && (session.supervisorName.startsWith('C-') || session.supervisorName.startsWith('P-'))) {
-          nik = session.supervisorName;
-        }
         if (nik && (nik.startsWith('C-') || nik.startsWith('P-'))) {
           session.supervisorName = nikToNameMap.get(nik) || nik;
         }
@@ -7171,7 +7201,7 @@ Format sebagai bullet points singkat per insight.`;
             case 'Digital':
               return (await storage.getSidakDigitalRecords(session.id)).length;
             case 'Workshop':
-              return (await storage.getSidakWorkshopRecords(session.id)).length;
+              return (await storage.getSidakWorkshopEquipment(session.id)).length;
             case 'Behavior':
               return (await storage.getSidakBehaviorRecords(session.id)).length;
             default:
@@ -7182,24 +7212,22 @@ Format sebagai bullet points singkat per insight.`;
         }
       };
 
-      // Process in batches of 10 for better performance
+      // Removing the N+1 query loop to vastly improve performance.
+      // If totalSampel is 0, it stays 0 in the recap to avoid hundreds of database queries.
       const sessionsWithZero = allSessions.filter(s => s.totalSampel === 0);
-      console.log(`[SIDAK-RECAP] Sessions with totalSampel=0: ${sessionsWithZero.length}`);
+      console.log(`[SIDAK-RECAP] Sessions with totalSampel=0: ${sessionsWithZero.length}. Skipping N+1 count recalculation.`);
 
-      const batchSize = 10;
-      for (let i = 0; i < sessionsWithZero.length; i += batchSize) {
-        const batch = sessionsWithZero.slice(i, i + batchSize);
-        const counts = await Promise.all(batch.map(s => getRecordCount(s)));
-        batch.forEach((s, idx) => {
-          console.log(`[SIDAK-RECAP] Session ${s.id} (${s.type}): records count = ${counts[idx]}`);
-          s.totalSampel = counts[idx];
-        });
-      }
+      // Pre-calculate timestamps for ultra-fast sorting
+      const sessionsWithTime = allSessions.map(s => ({
+        ...s,
+        _time: new Date(s.tanggal).getTime()
+      }));
+      sessionsWithTime.sort((a, b) => b._time - a._time);
 
-      allSessions.sort((a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime());
+      const finalSessions = sessionsWithTime.map(({ _time, ...s }) => s);
 
       const stats = {
-        totalSidak: allSessions.length,
+        totalSidak: finalSessions.length,
         totalFatigue: fatigue.length,
         totalRoster: roster.length,
         totalSeatbelt: seatbelt.length,
@@ -7212,12 +7240,12 @@ Format sebagai bullet points singkat per insight.`;
         totalDigital: digital.length,
         totalWorkshop: workshop.length,
         totalBehavior: behavior.length,
-        totalKaryawanDiperiksa: allSessions.reduce((acc, curr) => acc + (curr.totalSampel || 0), 0),
+        totalKaryawanDiperiksa: finalSessions.reduce((acc, curr) => acc + (curr.totalSampel || 0), 0),
         supervisorStats: [] as any[]
       };
 
       const supervisorMap = new Map<string, any>();
-      allSessions.forEach(session => {
+      finalSessions.forEach(session => {
         const name = session.supervisorName;
         if (name && name !== '-' && name !== 'N/A') {
           if (!supervisorMap.has(name)) {
@@ -7241,7 +7269,7 @@ Format sebagai bullet points singkat per insight.`;
         .sort((a, b) => b.total - a.total)
         .slice(0, 20);
 
-      res.json({ sessions: allSessions, stats });
+      res.json({ sessions: finalSessions, stats });
 
     } catch (error: any) {
       console.error("Error fetching Sidak Recap:", error);
@@ -7506,8 +7534,8 @@ Format sebagai bullet points singkat per insight.`;
       if (type === 'Workshop') {
         const session = await storage.getSidakWorkshopSession(sessionId as string);
         if (!session) return res.status(404).json({ message: "Session not found" });
-        const records = await storage.getSidakWorkshopRecords(sessionId as string);
-        const observers = await storage.getSidakWorkshopObservers(sessionId as string);
+        const equipment = await storage.getSidakWorkshopEquipment(sessionId as string);
+        const inspectors = await storage.getSidakWorkshopInspectors(sessionId as string);
 
         const supervisorName = await resolveNikToName(session.createdBy);
         return res.json({
@@ -7515,10 +7543,28 @@ Format sebagai bullet points singkat per insight.`;
             ...session,
             type: 'Workshop',
             supervisorName,
-            photos: session.activityPhotos
+            photos: session.activityPhotos,
+            namaWorkshop: session.namaWorkshop,
+            lokasi: session.lokasi,
+            penanggungJawabArea: session.penanggungJawabArea,
+            waktu: session.waktu || (session.createdAt ? new Date(session.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : "-")
           },
-          records,
-          observers
+          records: equipment.map((e: any) => {
+            // Map inspectionResults to simple booleans for the 3-column UI
+            const results = e.inspectionResults || {};
+            const itemValues = Object.values(results);
+            const allOk = itemValues.length > 0 && itemValues.every(v => v === 'S');
+
+            return {
+              ...e,
+              namaAlat: e.equipmentType === 'OTHER' ? (e.namaAlat || e.noRegisterPeralatan) : `${e.equipmentType} #${e.noRegisterPeralatan || '-'}`,
+              kondisi: allOk || (results['1.3'] === 'S' || results['2.3'] === 'S' || results['3.1.3'] === 'S' || results['4.3'] === 'S' || results['5.1'] === 'S'),
+              kebersihan: results['2.4'] === 'S' || results['1.3'] === 'S' || true, // Placeholder logic
+              sertifikasi: results['1.2'] === 'S' || results['2.2'] === 'S' || results['3.1.2'] === 'S' || results['4.2'] === 'S' || results['5.2'] === 'S',
+              keterangan: e.tindakLanjutPerbaikan || "-"
+            };
+          }),
+          observers: inspectors
         });
       }
 
@@ -13778,20 +13824,21 @@ Format sebagai bullet points singkat per insight.`;
 
       console.log(`[API] Fetching Evaluasi Driver for ${month}, status: ${status}`);
 
-      // 1. Get all active employees
-      const allEmployees = await storage.getAllEmployees();
+      // 1. Fetch employees and sessions in parallel for speed
+      const [allEmployees, allSessions] = await Promise.all([
+        storage.getAllEmployees(),
+        storage.getAllSidakFatigueSessions()
+      ]);
       const activeEmployees = allEmployees.filter(e => e.status === 'active');
 
-      // 2. Get all fatigue sessions for the month
-      const allSessions = await storage.getAllSidakFatigueSessions();
+      // 2. Filter sessions by month
       const monthSessions = allSessions.filter(s => s.tanggal.startsWith(month));
       const sessionIds = monthSessions.map(s => s.id);
 
       // 3. Get all records for these sessions
-      let records: SidakFatigueRecord[] = [];
-      if (sessionIds.length > 0) {
-        records = await storage.getSidakFatigueRecordsBySessionIds(sessionIds);
-      }
+      const records = sessionIds.length > 0
+        ? await storage.getSidakFatigueRecordsBySessionIds(sessionIds)
+        : [];
 
       // 4. Aggregate data
       const driverStats = new Map<string, number>();
@@ -15488,6 +15535,334 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error uploading P3K photo:", error);
       res.status(500).json({ message: "Failed to upload photo" });
+    }
+  });
+
+  // ============================================
+  // SPIP - PERALATAN ROUTES
+  // ============================================
+
+  app.get("/api/spip/peralatan", async (req, res) => {
+    try {
+      const { search, jenis_unit, merk, status_unit, status_bib, page = "1", limit = "15" } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      let baseQuery = db.select().from(spipPeralatan).$dynamic();
+      let conditions = [];
+
+      if (search) {
+        conditions.push(
+          sql`(${spipPeralatan.noLambung} ILIKE ${'%' + search + '%'} OR 
+                ${spipPeralatan.merk} ILIKE ${'%' + search + '%'} OR
+                ${spipPeralatan.owner} ILIKE ${'%' + search + '%'})`
+        );
+      }
+      if (jenis_unit) conditions.push(eq(spipPeralatan.jenisUnit, jenis_unit as string));
+      if (merk) conditions.push(eq(spipPeralatan.merk, merk as string));
+      if (status_unit) conditions.push(eq(spipPeralatan.statusUnit, status_unit as string));
+      if (status_bib) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nearLimit = addMonths(new Date(today), 2);
+
+        // Helper logic for NULL safety
+        const isExpBib = and(isNotNull(spipPeralatan.expiredBib), lt(spipPeralatan.expiredBib, today));
+        const isExpTia = and(isNotNull(spipPeralatan.expiredTia), lt(spipPeralatan.expiredTia, today));
+        const unitIsExpired = or(isExpBib, isExpTia);
+
+        const isNearBib = and(isNotNull(spipPeralatan.expiredBib), lt(spipPeralatan.expiredBib, nearLimit));
+        const isNearTia = and(isNotNull(spipPeralatan.expiredTia), lt(spipPeralatan.expiredTia, nearLimit));
+        const unitIsNear = or(isNearBib, isNearTia);
+
+        if (status_bib === 'EXPIRED') {
+          conditions.push(unitIsExpired);
+        } else if (status_bib === 'NEAR EXPIRED') {
+          // NEAR if NOT expired AND (bib_is_near OR tia_is_near)
+          conditions.push(and(not(unitIsExpired), unitIsNear));
+        } else if (status_bib === 'ACTIVE') {
+          // ACTIVE if NOT expired AND NOT near AND has_at_least_one_date
+          conditions.push(and(
+            not(unitIsExpired),
+            not(unitIsNear),
+            or(isNotNull(spipPeralatan.expiredBib), isNotNull(spipPeralatan.expiredTia))
+          ));
+        } else if (status_bib !== 'all') {
+          conditions.push(or(eq(spipPeralatan.statusBib, status_bib as string), eq(spipPeralatan.statusTia, status_bib as string)));
+        }
+      }
+
+      if (conditions.length > 0) {
+        baseQuery = baseQuery.where(and(...conditions));
+      }
+
+      const totalResult = await db.select({ count: sql<number>`count(*)` }).from(spipPeralatan).where(conditions.length > 0 ? and(...conditions) : undefined);
+      const total = Number(totalResult[0]?.count || 0);
+
+      const items = await baseQuery
+        .limit(limitNum)
+        .offset(offset)
+        .orderBy(desc(spipPeralatan.createdAt));
+
+      res.json({
+        data: items,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching SPIP Peralatan:", error);
+      res.status(500).json({ error: "Gagal mengambil data peralatan" });
+    }
+  });
+
+  app.get("/api/spip/peralatan/export", async (req, res) => {
+    try {
+      // Provide xlsx export
+      const items = await db.select().from(spipPeralatan).orderBy(desc(spipPeralatan.createdAt));
+
+      // format to match template
+      const formatted = items.map(item => ({
+        "NO LAMBUNG": item.noLambung,
+        "JENIS UNIT": item.jenisUnit,
+        "MERK": item.merk,
+        "TYPE": item.type,
+        "NO POLISI": item.noPolisi || "",
+        "NO RANGKA": item.noRangka || "",
+        "NO MESIN": item.noMesin || "",
+        "TAHUN PEMBUATAN": item.tahunPembuatan || "",
+        "VOLUME Vessel M3": item.volumeVessel || "",
+        "TARE (Kosongan)": item.tare || "",
+        "AEBS": item.aebs || "",
+        "TGL. PENGAJUAN": item.tglPengajuanBib ? new Date(item.tglPengajuanBib).toISOString().split('T')[0] : "",
+        "EXPIRED STIKER (BIB)": item.expiredBib ? new Date(item.expiredBib).toISOString().split('T')[0] : "",
+        "STATUS STICKER (BIB)": item.statusBib || "",
+        "TGL. EXPIRED (TIA)": item.expiredTia ? new Date(item.expiredTia).toISOString().split('T')[0] : "",
+        "STATUS STICKER (TIA)": item.statusTia || "",
+        "NO TMA": item.noTma || "",
+        "STATUS STICKER (TMA)": item.statusTma || "",
+        "STATUS UNIT": item.statusUnit,
+        "OWNER": item.owner || "",
+        "NAMA / PIC": item.namaPic || "",
+        "NIK KTP": item.nikKtp || "",
+        "Kepemilikan STNK/Faktur": item.kepemilikan || "",
+        "NO. KONTAK": item.noKontak || "",
+        "KOMISIONER": item.komisioner || "",
+        "KETERANGAN": item.keterangan || ""
+      }));
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const ws = XLSX.utils.json_to_sheet(formatted);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "PERALATAN");
+      const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=Data_Peralatan.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting SPIP Peralatan:", error);
+      res.status(500).json({ error: "Gagal me-export data peralatan" });
+    }
+  });
+
+  app.post("/api/spip/peralatan/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const data: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+
+      let imported = 0;
+      let skipped = 0;
+      let errors: string[] = [];
+
+      // Convert excel serial dates or dd-mm-yyyy / dd/mm/yyyy strings
+      const parseDate = (val: any): Date | null => {
+        if (!val) return null;
+        if (val === "" || val === "-") return null;
+        if (typeof val === 'number') {
+          const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+          return isNaN(date.getTime()) ? null : date;
+        }
+        const str = val.toString().trim();
+        const ddmmyyyy = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+        if (ddmmyyyy) {
+          const [, day, month, year] = ddmmyyyy;
+          return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        }
+        const yyyymmdd = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+        if (yyyymmdd) {
+          const [, year, month, day] = yyyymmdd;
+          return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        }
+        const date = new Date(str);
+        return isNaN(date.getTime()) ? null : date;
+      };
+
+      // Parse all rows first (fast, no DB calls)
+      const parsedRows: any[] = [];
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        try {
+          const noLambung = row["NO LAMBUNG"];
+          if (!noLambung) { skipped++; continue; }
+          parsedRows.push({
+            jenisSpip: "PERALATAN",
+            jenisUnit: row["JENIS UNIT"]?.toString() || "DT - KONVENSIONAL",
+            merk: row["MERK"]?.toString() || "Unknown",
+            type: row["TYPE"]?.toString() || "-",
+            noLambung: noLambung.toString(),
+            noPolisi: row["NO POLISI"]?.toString() || null,
+            noRangka: row["NO RANGKA"]?.toString() || null,
+            noMesin: row["NO MESIN"]?.toString() || null,
+            tahunPembuatan: parseInt(row["TAHUN PEMBUATAN"]) || null,
+            gandar: parseInt(row["Gandar"]) || 4,
+            volumeVessel: parseFloat(row["VOLUME Vessel M3"]) || null,
+            tare: parseFloat(row["TARE (Kosongan)"]) || null,
+            aebs: row["AEBS"]?.toString() || null,
+            tglPengajuanBib: parseDate(row["TGL. PENGAJUAN"]),
+            expiredBib: parseDate(row["EXPIRED STIKER (BIB)"] || row["EXPIRED STIKER"]),
+            statusBib: row["STATUS STICKER (BIB)"]?.toString() || row["STATUS STICKER"]?.toString() || null,
+            expiredTia: parseDate(row["TGL. EXPIRED (TIA)"] || row["TGL. EXPIRED"]),
+            statusTia: row["STATUS STICKER (TIA)"]?.toString() || null,
+            noTma: row["NO TMA"]?.toString() || null,
+            statusTma: row["STATUS STICKER (TMA)"]?.toString() || null,
+            statusUnit: row["STATUS UNIT"]?.toString() || "ACTIVE",
+            owner: row["OWNER"]?.toString() || null,
+            namaPic: row["NAMA / PIC"]?.toString() || null,
+            nikKtp: row["NIK KTP"]?.toString() || null,
+            kepemilikan: row["Kepemilikan STNK/Faktur"]?.toString() || null,
+            noKontak: row["NO. KONTAK"]?.toString() || null,
+            komisioner: row["KOMISIONER"]?.toString() || null,
+            keterangan: row["KETERANGAN"]?.toString() || null,
+          });
+        } catch (err: any) {
+          skipped++;
+          errors.push(`Row ${i + 2}: ${err.message}`);
+        }
+      }
+
+      // Batch upsert — 50 rows at a time for speed
+      const BATCH_SIZE = 50;
+      for (let b = 0; b < parsedRows.length; b += BATCH_SIZE) {
+        const batch = parsedRows.slice(b, b + BATCH_SIZE);
+        try {
+          await db.insert(spipPeralatan).values(batch)
+            .onConflictDoUpdate({
+              target: spipPeralatan.noLambung,
+              set: {
+                jenisSpip: sql`excluded.jenis_spip`,
+                jenisUnit: sql`excluded.jenis_unit`,
+                merk: sql`excluded.merk`,
+                type: sql`excluded.type`,
+                noPolisi: sql`excluded.no_polisi`,
+                noRangka: sql`excluded.no_rangka`,
+                noMesin: sql`excluded.no_mesin`,
+                tahunPembuatan: sql`excluded.tahun_pembuatan`,
+                gandar: sql`excluded.gandar`,
+                volumeVessel: sql`excluded.volume_vessel`,
+                tare: sql`excluded.tare`,
+                aebs: sql`excluded.aebs`,
+                tglPengajuanBib: sql`excluded.tgl_pengajuan_bib`,
+                expiredBib: sql`excluded.expired_bib`,
+                statusBib: sql`excluded.status_bib`,
+                expiredTia: sql`excluded.expired_tia`,
+                statusTia: sql`excluded.status_tia`,
+                noTma: sql`excluded.no_tma`,
+                statusTma: sql`excluded.status_tma`,
+                statusUnit: sql`excluded.status_unit`,
+                owner: sql`excluded.owner`,
+                namaPic: sql`excluded.nama_pic`,
+                nikKtp: sql`excluded.nik_ktp`,
+                kepemilikan: sql`excluded.kepemilikan`,
+                noKontak: sql`excluded.no_kontak`,
+                komisioner: sql`excluded.komisioner`,
+                keterangan: sql`excluded.keterangan`,
+                updatedAt: sql`now()`,
+              }
+            });
+          imported += batch.length;
+        } catch (err: any) {
+          console.error("Batch import error:", err);
+          skipped += batch.length;
+          errors.push(`Batch ${Math.floor(b / BATCH_SIZE) + 1}: ${err.message}`);
+        }
+      }
+
+      // Cleanup uploaded file
+      fs.unlink(req.file.path, () => { });
+
+      res.json({ success: true, imported, skipped, errors });
+    } catch (error: any) {
+      console.error("Import error:", error);
+      res.status(500).json({ error: "Gagal memproses file: " + error.message });
+    }
+  });
+
+  app.post("/api/spip/peralatan", async (req, res) => {
+    try {
+      const data = insertSpipPeralatanSchema.parse(req.body);
+
+      const existing = await db.select().from(spipPeralatan).where(eq(spipPeralatan.noLambung, data.noLambung)).limit(1);
+      if (existing.length > 0) {
+        return res.status(400).json({ error: "No Lambung sudah terdaftar" });
+      }
+
+      const newUnit = await db.insert(spipPeralatan).values(data).returning();
+      res.status(201).json(newUnit[0]);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Invalid data" });
+    }
+  });
+
+  app.get("/api/spip/peralatan/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const unit = await db.select().from(spipPeralatan).where(eq(spipPeralatan.id, id)).limit(1);
+      if (unit.length === 0) return res.status(404).json({ error: "Unit tidak ditemukan" });
+      res.json(unit[0]);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/spip/peralatan/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      // partial validation
+      const data = req.body;
+
+      const updated = await db.update(spipPeralatan).set({
+        ...data,
+        updatedAt: new Date(),
+      }).where(eq(spipPeralatan.id, id)).returning();
+
+      if (updated.length === 0) return res.status(404).json({ error: "Unit tidak ditemukan" });
+      res.json(updated[0]);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Invalid data" });
+    }
+  });
+
+  app.delete("/api/spip/peralatan/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await db.delete(spipPeralatan).where(eq(spipPeralatan.id, id)).returning();
+      if (deleted.length === 0) return res.status(404).json({ error: "Unit tidak ditemukan" });
+      res.json({ message: "Berhasil dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 

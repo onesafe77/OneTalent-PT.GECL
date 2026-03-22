@@ -189,7 +189,7 @@ export default function EmployeesDashboard() {
         ];
 
         const calculateSimperStats = (field: keyof Employee) => {
-            const counts = { expired: 0, kritis: 0, warning: 0, aktif: 0, nodata: 0 };
+            const counts = { expired: 0, near_expired: 0, aktif: 0, nodata: 0 };
             filteredEmployees.forEach(emp => {
                 const status = getExpiryStatus(emp[field] as string | null);
                 counts[status.level]++;
@@ -207,18 +207,18 @@ export default function EmployeesDashboard() {
             const bib = getExpiryStatus(emp.expiredSimperBib);
             const tia = getExpiryStatus(emp.expiredSimperTia);
 
-            if (['expired', 'kritis', 'warning'].includes(simpol.level)) {
+            if (['expired', 'near_expired'].includes(simpol.level)) {
                 expiringEmployees.push({ id: emp.id, name: emp.name, docType: 'SIMPOL', status: simpol.status, daysLeft: simpol.daysLeft, badgeClass: simpol.badgeClass });
             }
-            if (['expired', 'kritis', 'warning'].includes(bib.level)) {
+            if (['expired', 'near_expired'].includes(bib.level)) {
                 expiringEmployees.push({ id: emp.id, name: emp.name, docType: 'SIMPER BIB', status: bib.status, daysLeft: bib.daysLeft, badgeClass: bib.badgeClass });
             }
-            if (['expired', 'kritis', 'warning'].includes(tia.level)) {
+            if (['expired', 'near_expired'].includes(tia.level)) {
                 expiringEmployees.push({ id: emp.id, name: emp.name, docType: 'SIMPER TIA', status: tia.status, daysLeft: tia.daysLeft, badgeClass: tia.badgeClass });
             }
         });
 
-        const priorityOrder = { 'EXPIRED': 0, 'KRITIS': 1, 'WARNING': 2 };
+        const priorityOrder = { 'EXPIRED': 0, 'NEAR EXPIRED': 1 };
         expiringEmployees.sort((a, b) => (priorityOrder[a.status as keyof typeof priorityOrder] ?? 3) - (priorityOrder[b.status as keyof typeof priorityOrder] ?? 3));
 
         return { total, active, inactive, spare, departmentData, investorData, positionData, recentEmployees, simpolStats, bibStats, tiaStats, expiringEmployees, domicileData };
@@ -562,9 +562,7 @@ export default function EmployeesDashboard() {
                                     <div className="divide-y divide-slate-50">
                                         {dashboardStats.expiringEmployees.map((item, idx) => (
                                             <div key={`${item.id}-${idx}`} className="p-4 hover:bg-red-50/30 transition-colors flex items-start gap-3 group cursor-pointer">
-                                                <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${item.status === 'EXPIRED' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' :
-                                                    item.status === 'KRITIS' ? 'bg-orange-500' : 'bg-amber-400'
-                                                    }`} />
+                                                <div className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${item.status === 'EXPIRED' ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]' : 'bg-amber-400'}`} />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-red-700 transition-colors">
                                                         {item.name}
@@ -574,9 +572,7 @@ export default function EmployeesDashboard() {
                                                             {item.docType}
                                                         </span>
                                                         <span className="text-[10px] text-slate-300">•</span>
-                                                        <span className={`text-[10px] font-medium ${item.status === 'EXPIRED' ? 'text-red-600' :
-                                                            item.status === 'KRITIS' ? 'text-orange-600' : 'text-amber-600'
-                                                            }`}>
+                                                        <span className={`text-[10px] font-medium ${item.status === 'EXPIRED' ? 'text-red-600' : 'text-amber-600'}`}>
                                                             {item.daysLeft !== null ? (item.daysLeft < 0 ? `${Math.abs(item.daysLeft)} hari lalu` : `${item.daysLeft} hari lagi`) : 'Tanggal tidak valid'}
                                                         </span>
                                                     </div>
@@ -690,9 +686,9 @@ function StatusSummaryCard({ title, icon: Icon, stats, color }: { title: string,
                         {stats.expired} Exp
                     </Badge>
                 )}
-                {stats.kritis > 0 && (
-                    <Badge variant="secondary" className="bg-orange-100 text-orange-600 hover:bg-orange-200 border-none font-bold text-[10px] h-5">
-                        {stats.kritis} Crit
+                {stats.near_expired > 0 && (
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-600 hover:bg-yellow-200 border-none font-bold text-[10px] h-5">
+                        {stats.near_expired} Near Exp
                     </Badge>
                 )}
                 <div className="pl-1 text-xs font-mono text-slate-400">

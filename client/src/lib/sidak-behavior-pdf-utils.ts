@@ -545,7 +545,8 @@ export async function downloadSidakBehaviorAsJpg(data: SidakBehaviorData, filena
     container.style.position = 'absolute';
     container.style.top = '-9999px';
     container.style.left = '-9999px';
-    container.style.width = '297mm';
+    container.style.width = '1122px';
+    container.style.minHeight = '793px';
     document.body.appendChild(container);
 
     await new Promise(resolve => setTimeout(resolve, 500));

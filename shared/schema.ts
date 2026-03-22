@@ -3259,3 +3259,56 @@ export type UsignSignature = typeof usignSignatures.$inferSelect;
 export type InsertUsignSignature = z.infer<typeof insertUsignSignatureSchema>;
 export type UsignNotification = typeof usignNotifications.$inferSelect;
 export type InsertUsignNotification = z.infer<typeof insertUsignNotificationSchema>;
+
+// ============================================
+// SPIP PERALATAN
+// ============================================
+
+export const spipPeralatan = pgTable("spip_peralatan", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  no: integer("no"),
+  jenisSpip: text("jenis_spip").notNull().default("PERALATAN"),
+  jenisUnit: text("jenis_unit").notNull(),
+  merk: text("merk").notNull(),
+  type: text("type").notNull(),
+  noLambung: text("no_lambung").notNull().unique(),
+  noPolisi: text("no_polisi"),
+  noRangka: text("no_rangka"),
+  noMesin: text("no_mesin"),
+  tahunPembuatan: integer("tahun_pembuatan"),
+  gandar: integer("gandar").default(4),
+  volumeVessel: real("volume_vessel"),
+  tare: real("tare"),
+  aebs: text("aebs"),
+
+  tglPengajuanBib: timestamp("tgl_pengajuan_bib"),
+  expiredBib: timestamp("expired_bib"),
+  statusBib: text("status_bib"),
+
+  expiredTia: timestamp("expired_tia"),
+  statusTia: text("status_tia"),
+
+  noTma: text("no_tma"),
+  statusTma: text("status_tma"),
+
+  statusUnit: text("status_unit").notNull().default("ACTIVE"),
+  owner: text("owner"),
+  namaPic: text("nama_pic"),
+  nikKtp: text("nik_ktp"),
+  kepemilikan: text("kepemilikan"),
+  noKontak: text("no_kontak"),
+  komisioner: text("komisioner"),
+  keterangan: text("keterangan"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSpipPeralatanSchema = createInsertSchema(spipPeralatan).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SpipPeralatan = typeof spipPeralatan.$inferSelect;
+export type InsertSpipPeralatan = z.infer<typeof insertSpipPeralatanSchema>;

@@ -3,7 +3,7 @@
  * Calculates status based on days until expiry
  */
 
-export type ExpiryLevel = 'aktif' | 'warning' | 'kritis' | 'expired' | 'nodata';
+export type ExpiryLevel = 'aktif' | 'near_expired' | 'expired' | 'nodata';
 
 export interface ExpiryStatus {
     status: string;
@@ -53,26 +53,14 @@ export function getExpiryStatus(expiryDate: string | null | undefined): ExpirySt
         };
     }
 
-    // Kritis (0-30 days)
-    if (daysLeft <= 30) {
-        return {
-            status: 'KRITIS',
-            daysLeft,
-            level: 'kritis',
-            badgeVariant: 'destructive',
-            badgeClass: 'bg-red-500 text-white',
-            displayText: `Sisa ${daysLeft} hari`
-        };
-    }
-
-    // Warning (31-60 days)
+    // Near Expired (0-60 days)
     if (daysLeft <= 60) {
         return {
-            status: 'WARNING',
+            status: 'NEAR EXPIRED',
             daysLeft,
-            level: 'warning',
+            level: 'near_expired',
             badgeVariant: 'secondary',
-            badgeClass: 'bg-amber-500 text-white',
+            badgeClass: 'bg-yellow-500 text-white',
             displayText: `Sisa ${daysLeft} hari`
         };
     }
@@ -94,9 +82,8 @@ export function getExpiryStatus(expiryDate: string | null | undefined): ExpirySt
  */
 export function getWorstExpiryLevel(levels: ExpiryLevel[]): ExpiryLevel {
     const priority: Record<ExpiryLevel, number> = {
-        expired: 5,
-        kritis: 4,
-        warning: 3,
+        expired: 4,
+        near_expired: 3,
         aktif: 2,
         nodata: 1
     };

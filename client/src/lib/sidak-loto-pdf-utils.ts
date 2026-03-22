@@ -24,8 +24,8 @@ export async function generateSidakLotoPdf(data: SidakLotoData): Promise<jsPDF> 
     container.style.position = 'absolute';
     container.style.top = '-9999px';
     container.style.left = '-9999px';
-    container.style.width = '297mm'; // A4 Landscape
-    // container.style.height = '210mm'; // Let height grow if needed, but min is set in CSS
+    container.style.width = '1122px'; // A4 Landscape
+    container.style.minHeight = '793px';
     container.style.zIndex = '-1000';
 
     document.body.appendChild(container);
@@ -45,32 +45,19 @@ export async function generateSidakLotoPdf(data: SidakLotoData): Promise<jsPDF> 
             windowHeight: 794  // ~210mm * 96dpi / 25.4
         });
 
-        // 5. Create PDF
+        // 5. Create PDF - A4 Landscape
         const pdf = new jsPDF('landscape', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = pdf.internal.pageSize.getHeight();
+        const pdfWidth = pdf.internal.pageSize.getWidth();   // 297mm
+        const pdfHeight = pdf.internal.pageSize.getHeight();  // 210mm
 
-        // Calculate aspect ratio to fit page
-        const imgProps = pdf.getImageProperties(canvas.toDataURL('image/jpeg', 0.95));
-        const ratio = imgProps.width / imgProps.height;
-        const pageRatio = pdfWidth / pdfHeight;
-
-        let renderWidth = pdfWidth;
-        let renderHeight = pdfWidth / ratio;
-
-        if (renderHeight > pdfHeight) {
-            renderHeight = pdfHeight;
-            renderWidth = pdfHeight * ratio;
-        }
-
-        // Add image to PDF
+        // Always fill the full A4 page
         pdf.addImage(
             canvas.toDataURL('image/jpeg', 0.95),
             'JPEG',
             0,
             0,
-            renderWidth,
-            renderHeight
+            pdfWidth,
+            pdfHeight
         );
 
         return pdf;
@@ -101,7 +88,8 @@ export async function downloadSidakLotoAsJpg(data: SidakLotoData, filename: stri
     container.style.position = 'absolute';
     container.style.top = '-9999px';
     container.style.left = '-9999px';
-    container.style.width = '297mm';
+    container.style.width = '1122px';
+    container.style.minHeight = '793px';
     document.body.appendChild(container);
 
     await new Promise(resolve => setTimeout(resolve, 500));

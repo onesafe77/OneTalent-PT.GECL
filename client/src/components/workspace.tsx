@@ -60,7 +60,7 @@ import DashboardJarak from "@/pages/dashboard-jarak";
 import DashboardStatistics from "@/pages/dashboard-statistics";
 import GoogleSheetsConfig from "@/pages/google-sheets-config";
 import EvaluasiPvt from "@/pages/evaluasi-pvt";
-
+import { PeralatanFormPage, PeralatanViewPage } from "@/pages/hse/ko/spip/peralatan-detail";
 
 import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashboard";
 import ViolationValidationDashboard from "@/pages/hse/fatigue/dashboard-violation-validation";
@@ -100,6 +100,7 @@ import FmsDashboard from "@/pages/fms-dashboard";
 import McuPage from "@/pages/hse/mcu-page";
 import InductionAdmin from "@/pages/hse/induction-admin";
 import InductionQuiz from "@/pages/hse/induction-quiz";
+import SPIPPeralatan from "@/pages/hse/ko/spip/peralatan";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { MysticWidget } from "@/components/mystic/MysticWidget";
 
@@ -182,6 +183,7 @@ const workspaceRoutes = [
   { path: "/workspace/hse/induction-admin", component: InductionAdmin, title: "Admin Induksi K3" },
   { path: "/workspace/hse/induction-quiz", component: InductionQuiz, title: "Quiz Induksi K3" },
   { path: "/workspace/hr/induction-attendance", component: HrInductionAttendance, title: "Monitoring Absensi Induksi" },
+  { path: "/workspace/hse/ko/spip/peralatan", component: SPIPPeralatan, title: "SPIP - Peralatan" },
 ];
 
 export function Workspace() {
@@ -393,6 +395,11 @@ export function Workspace() {
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/hse/mcu" component={McuPage} />
+
+              <Route path="/workspace/hse/ko/spip/peralatan/tambah" component={PeralatanFormPage} />
+              <Route path="/workspace/hse/ko/spip/peralatan/:id/edit" component={PeralatanFormPage} />
+              <Route path="/workspace/hse/ko/spip/peralatan/:id" component={PeralatanViewPage} />
+              <Route path="/workspace/hse/ko/spip/peralatan" component={SPIPPeralatan} />
 
               <Route component={Dashboard} />
             </Switch>

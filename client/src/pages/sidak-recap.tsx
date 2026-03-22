@@ -1191,8 +1191,10 @@ function WorkshopFormPreview({ session, records, observers }: {
       <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded-xl bg-orange-50/30">
         <div className="flex flex-col"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Tanggal</span> <span className="font-medium text-gray-900">{session.tanggal}</span></div>
         <div className="flex flex-col"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Jam</span> <span className="font-medium text-gray-900">{session.waktu}</span></div>
+        <div className="flex flex-col"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Nama Workshop</span> <span className="font-medium text-gray-900">{session.namaWorkshop || "-"}</span></div>
         <div className="flex flex-col"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Shift</span> <span className="font-medium text-gray-900">{session.shift}</span></div>
         <div className="flex flex-col"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Lokasi</span> <span className="font-medium text-gray-900">{session.lokasi}</span></div>
+        <div className="flex flex-col"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">PJ Area</span> <span className="font-medium text-gray-900">{session.penanggungJawabArea || "-"}</span></div>
         <div className="col-span-2 flex flex-col pt-2 border-t border-orange-100"><span className="text-xs font-bold text-orange-600 uppercase tracking-wider">Supervisor</span> <span className="font-bold text-gray-900">{session.supervisorName}</span></div>
       </div>
 
@@ -1433,6 +1435,8 @@ export default function SidakRecap() {
 
   const { data, isLoading, error } = useQuery<RecapData>({
     queryKey: ['/api/sidak-recap'],
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
   });
 
   const detailUrl = selectedSession
@@ -1442,6 +1446,7 @@ export default function SidakRecap() {
   const { data: detailData, isLoading: detailLoading } = useQuery<SessionDetail>({
     queryKey: [detailUrl],
     enabled: !!selectedSession && detailOpen,
+    staleTime: 60_000,
   });
 
   const handleRowClick = (session: SidakSession) => {

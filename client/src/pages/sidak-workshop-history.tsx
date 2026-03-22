@@ -143,9 +143,9 @@ export default function SidakWorkshopHistory() {
             setDownloadingId(sessionId);
             const response = await fetch(`/api/sidak-workshop/${sessionId}`);
             if (!response.ok) throw new Error('Gagal mengambil data session');
-            const { session, records, observers } = await response.json();
+            const { session, equipment, inspectors } = await response.json();
             const { generateSidakWorkshopPdf } = await import('@/lib/sidak-workshop-pdf-utils');
-            const doc = await generateSidakWorkshopPdf({ session, records: records || [], observers: observers || [] });
+            const doc = await generateSidakWorkshopPdf({ session, equipment: equipment || [], inspectors: inspectors || [] });
             const fileName = `Sidak_Workshop_${session.tanggal}_${session.shift?.replace(' ', '_') || 'shift'}.pdf`;
             doc.save(fileName);
             toast({ title: "PDF berhasil diunduh", description: `File ${fileName} telah tersimpan` });
@@ -161,10 +161,10 @@ export default function SidakWorkshopHistory() {
             setDownloadingJpgId(sessionId);
             const response = await fetch(`/api/sidak-workshop/${sessionId}`);
             if (!response.ok) throw new Error('Gagal mengambil data session');
-            const { session, records, observers } = await response.json();
+            const { session, equipment, inspectors } = await response.json();
             const { downloadSidakWorkshopAsJpg } = await import('@/lib/sidak-workshop-pdf-utils');
             const fileName = `Sidak_Workshop_${session.tanggal}_${Date.now()}.jpg`;
-            await downloadSidakWorkshopAsJpg({ session, records: records || [], observers: observers || [] }, fileName);
+            await downloadSidakWorkshopAsJpg({ session, equipment: equipment || [], inspectors: inspectors || [] }, fileName);
             toast({ title: "JPG berhasil diunduh", description: `File ${fileName} telah tersimpan` });
         } catch (error: any) {
             toast({ title: "Gagal mengunduh JPG", description: error.message, variant: "destructive" });

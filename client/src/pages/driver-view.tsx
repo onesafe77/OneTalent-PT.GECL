@@ -1,4 +1,4 @@
-  import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -136,10 +136,9 @@ export default function DriverView() {
         const diffTime = expired.getTime() - today.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays < 0) return { days: diffDays, status: 'Segera Perpanjang' };
-        if (diffDays < 7) return { days: diffDays, status: 'Mendekati Perpanjangan' };
-        if (diffDays < 30) return { days: diffDays, status: 'Menuju Perpanjangan' };
-        return { days: diffDays, status: 'Aktif' };
+        if (diffDays < 0) return { days: diffDays, status: 'EXPIRED' };
+        if (diffDays <= 60) return { days: diffDays, status: 'NEAR EXPIRED' };
+        return { days: diffDays, status: 'ACTIVE' };
       };
 
       const bibStatus = processSIMPER(data.simperBibExpiredDate);
@@ -293,13 +292,11 @@ export default function DriverView() {
 
   const getSimperStatusColor = (status: string) => {
     switch (status) {
-      case 'Segera Perpanjang':
+      case 'EXPIRED':
         return 'bg-red-100 text-red-800';
-      case 'Mendekati Perpanjangan':
+      case 'NEAR EXPIRED':
         return 'bg-yellow-100 text-yellow-800';
-      case 'Menuju Perpanjangan':
-        return 'bg-orange-100 text-orange-800';
-      case 'Aktif':
+      case 'ACTIVE':
         return 'bg-green-100 text-green-800';
       default:
         return 'bg-gray-100 text-gray-800';
@@ -441,8 +438,8 @@ export default function DriverView() {
                 variant={activeTab === 'roster' ? "default" : "outline"}
                 onClick={() => setActiveTab('roster')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 ${activeTab === 'roster'
-                    ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-roster"
               >
@@ -453,8 +450,8 @@ export default function DriverView() {
                 variant={activeTab === 'leave' ? "default" : "outline"}
                 onClick={() => setActiveTab('leave')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 ${activeTab === 'leave'
-                    ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-leave"
               >
@@ -465,8 +462,8 @@ export default function DriverView() {
                 variant={activeTab === 'pemberitahuan' ? "default" : "outline"}
                 onClick={() => setActiveTab('pemberitahuan')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 relative ${activeTab === 'pemberitahuan'
-                    ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white border-purple-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-pemberitahuan"
               >
@@ -482,8 +479,8 @@ export default function DriverView() {
                 variant={activeTab === 'simper' ? "default" : "outline"}
                 onClick={() => setActiveTab('simper')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 ${activeTab === 'simper'
-                    ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-simper"
               >
@@ -562,8 +559,8 @@ export default function DriverView() {
                               variant={selectedShift === 'all' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('all')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'all'
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
                               Semua Shift
@@ -572,8 +569,8 @@ export default function DriverView() {
                               variant={selectedShift === 'Shift 1' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Shift 1')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Shift 1'
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
                               Shift 1
@@ -582,8 +579,8 @@ export default function DriverView() {
                               variant={selectedShift === 'Shift 2' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Shift 2')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Shift 2'
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
                               Shift 2
@@ -592,8 +589,8 @@ export default function DriverView() {
                               variant={selectedShift === 'Overshift' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Overshift')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Overshift'
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
                               Overshift
@@ -602,8 +599,8 @@ export default function DriverView() {
                               variant={selectedShift === 'Cuti' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Cuti')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Cuti'
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
                               Cuti
@@ -671,8 +668,8 @@ export default function DriverView() {
                                 <Card
                                   key={roster.id}
                                   className={`${isToday
-                                      ? 'bg-green-50 dark:bg-green-900/20 border-green-500 border-2'
-                                      : 'bg-white dark:bg-gray-800'
+                                    ? 'bg-green-50 dark:bg-green-900/20 border-green-500 border-2'
+                                    : 'bg-white dark:bg-gray-800'
                                     } shadow-md`}
                                   data-testid={`roster-card-${roster.id}`}
                                 >
@@ -690,12 +687,12 @@ export default function DriverView() {
                                         <div className="flex gap-2 flex-wrap">
                                           <Badge
                                             className={`${roster.shift.toUpperCase().includes('SHIFT 2')
-                                                ? 'bg-orange-500'
-                                                : roster.shift.toUpperCase().includes('OVER')
-                                                  ? 'bg-purple-500'
-                                                  : roster.shift.toUpperCase().includes('CUTI')
-                                                    ? 'bg-yellow-500'
-                                                    : 'bg-blue-500'
+                                              ? 'bg-orange-500'
+                                              : roster.shift.toUpperCase().includes('OVER')
+                                                ? 'bg-purple-500'
+                                                : roster.shift.toUpperCase().includes('CUTI')
+                                                  ? 'bg-yellow-500'
+                                                  : 'bg-blue-500'
                                               } text-white px-2 py-1 text-xs font-bold uppercase rounded-full`}
                                           >
                                             {roster.shift}
@@ -832,8 +829,8 @@ export default function DriverView() {
                         <div
                           key={announcement.id}
                           className={`flex items-center gap-4 p-4 rounded-xl cursor-pointer transition-all duration-200 border-2 ${!announcement.isRead
-                              ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 shadow-md hover:shadow-lg'
-                              : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                            ? 'bg-purple-50 dark:bg-purple-900/30 border-purple-200 dark:border-purple-700 shadow-md hover:shadow-lg'
+                            : 'bg-white dark:bg-gray-800 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                             }`}
                           onClick={() => {
                             setSelectedAnnouncement(announcement);
@@ -846,8 +843,8 @@ export default function DriverView() {
                         >
                           <div className="flex-shrink-0 relative">
                             <div className={`w-14 h-14 rounded-full flex items-center justify-center ${!announcement.isRead
-                                ? 'bg-purple-500 shadow-lg'
-                                : 'bg-gray-200 dark:bg-gray-700'
+                              ? 'bg-purple-500 shadow-lg'
+                              : 'bg-gray-200 dark:bg-gray-700'
                               }`}>
                               <Megaphone className={`h-7 w-7 ${!announcement.isRead ? 'text-white' : 'text-gray-500 dark:text-gray-400'}`} />
                             </div>
@@ -1039,8 +1036,8 @@ export default function DriverView() {
                       </div>
 
                       {/* Alert untuk status kritis */}
-                      {(simperData.bibStatus === 'Segera Perpanjang' || simperData.tiaStatus === 'Segera Perpanjang' ||
-                        simperData.bibStatus === 'Mendekati Perpanjangan' || simperData.tiaStatus === 'Mendekati Perpanjangan') && (
+                      {(simperData.bibStatus === 'EXPIRED' || simperData.tiaStatus === 'EXPIRED' ||
+                        simperData.bibStatus === 'NEAR EXPIRED' || simperData.tiaStatus === 'NEAR EXPIRED') && (
                           <div className="bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-2 border-red-200 dark:border-red-700 rounded-xl p-6">
                             <div className="flex items-center mb-3">
                               <AlertTriangle className="w-7 h-7 text-red-600 mr-3" />

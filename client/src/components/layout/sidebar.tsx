@@ -198,7 +198,13 @@ export const navigationGroups: NavGroup[] = [
             name: "KO",
             icon: Settings,
             children: [
-              { name: "Coming Soon", href: "#", icon: AlertTriangle },
+              {
+                name: "SPIP",
+                icon: FolderOpen,
+                children: [
+                  { name: "Peralatan", href: "/workspace/hse/ko/spip/peralatan", icon: Car }
+                ]
+              }
             ]
           }
         ]
