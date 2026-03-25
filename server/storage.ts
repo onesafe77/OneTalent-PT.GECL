@@ -203,6 +203,15 @@ import {
   sidakWorkshopSessions,
   sidakWorkshopEquipment,
   sidakWorkshopInspectors,
+  type SidakIntercomSession,
+  type InsertSidakIntercomSession,
+  type SidakIntercomRecord,
+  type InsertSidakIntercomRecord,
+  type SidakIntercomObserver,
+  type InsertSidakIntercomObserver,
+  sidakIntercomSessions,
+  sidakIntercomRecords,
+  sidakIntercomObservers,
   // TNA Types
   type Training, type InsertTraining,
   type TnaSummary, type InsertTnaSummary,
@@ -1704,6 +1713,17 @@ export class MemStorage implements IStorage {
   async updateSidakWorkshopSessionEquipmentCount(sessionId: string): Promise<void> {
     throw new Error("Sidak Workshop not implemented in MemStorage. Use DrizzleStorage.");
   }
+
+  // Sidak Intercom FMS
+  async getSidakIntercomSession(id: string): Promise<SidakIntercomSession | undefined> { throw new Error("Not implemented in MemStorage."); }
+  async getAllSidakIntercomSessions(): Promise<SidakIntercomSession[]> { throw new Error("Not implemented in MemStorage."); }
+  async createSidakIntercomSession(session: InsertSidakIntercomSession): Promise<SidakIntercomSession> { throw new Error("Not implemented in MemStorage."); }
+  async updateSidakIntercomSession(id: string, updates: Partial<InsertSidakIntercomSession>): Promise<SidakIntercomSession | undefined> { throw new Error("Not implemented in MemStorage."); }
+  async getSidakIntercomRecords(sessionId: string): Promise<SidakIntercomRecord[]> { throw new Error("Not implemented in MemStorage."); }
+  async createSidakIntercomRecord(record: InsertSidakIntercomRecord): Promise<SidakIntercomRecord> { throw new Error("Not implemented in MemStorage."); }
+  async getSidakIntercomObservers(sessionId: string): Promise<SidakIntercomObserver[]> { throw new Error("Not implemented in MemStorage."); }
+  async createSidakIntercomObserver(observer: Omit<InsertSidakIntercomObserver, 'ordinal'>): Promise<SidakIntercomObserver> { throw new Error("Not implemented in MemStorage."); }
+  async updateSidakIntercomSessionStats(sessionId: string): Promise<void> { throw new Error("Not implemented in MemStorage."); }
   async generateSidakWorkshopPDF(data: { session: SidakWorkshopSession; equipment: SidakWorkshopEquipment[]; inspectors: SidakWorkshopInspector[] }): Promise<Buffer> {
     throw new Error("Sidak Workshop not implemented in MemStorage. Use DrizzleStorage.");
   }
@@ -2066,8 +2086,48 @@ export class DrizzleStorage implements IStorage {
   }
 
   async deleteEmployee(id: string): Promise<boolean> {
-    const result = await this.db.delete(employees).where(eq(employees.id, id));
-    return true;
+    try {
+      // Delete all related records first to avoid foreign key constraint violations
+      // Many tables reference employees.id without onDelete: cascade
+      await this.db.transaction(async (tx) => {
+        // Auth & identity
+        await tx.delete(authUsers).where(eq(authUsers.nik, id));
+        await tx.delete(qrTokens).where(eq(qrTokens.employeeId, id));
+
+        // Attendance & roster
+        await tx.delete(attendanceRecords).where(eq(attendanceRecords.employeeId, id));
+        await tx.delete(rosterSchedules).where(eq(rosterSchedules.employeeId, id));
+
+        // Leave-related
+        // First delete leave reminders (references both leaveRequests and employees)
+        await tx.delete(leaveReminders).where(eq(leaveReminders.employeeId, id));
+        // Delete leave history (references leaveRequests and employees)
+        await tx.delete(leaveHistory).where(eq(leaveHistory.employeeId, id));
+        // Delete leave balances
+        await tx.delete(leaveBalances).where(eq(leaveBalances.employeeId, id));
+        // Delete leave requests
+        await tx.delete(leaveRequests).where(eq(leaveRequests.employeeId, id));
+
+        // Announcements
+        await tx.delete(announcementReads).where(eq(announcementReads.employeeId, id));
+
+        // MCU & Sick leaves
+        await tx.delete(mcuRecords).where(eq(mcuRecords.employeeId, id));
+        await tx.delete(sickLeaves).where(eq(sickLeaves.employeeId, id));
+
+        // Meeting attendance
+        await tx.delete(meetingAttendance).where(eq(meetingAttendance.employeeId, id));
+
+        // Finally delete the employee
+        await tx.delete(employees).where(eq(employees.id, id));
+      });
+
+      console.log(`✅ Successfully deleted employee ${id} and all related records`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error deleting employee ${id}:`, error);
+      throw error;
+    }
   }
 
   async deleteAllEmployees(): Promise<boolean> {
@@ -5526,6 +5586,111 @@ export class DrizzleStorage implements IStorage {
       .update(sidakWorkshopSessions)
       .set({ totalEquipment: equipment.length })
       .where(eq(sidakWorkshopSessions.id, sessionId));
+  }
+
+  // ============================================================================
+  // SIDAK INTERCOM PENGAWAS FMS METHODS
+  // ============================================================================
+
+  async getSidakIntercomSession(id: string): Promise<SidakIntercomSession | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(sidakIntercomSessions)
+      .where(eq(sidakIntercomSessions.id, id));
+    return result;
+  }
+
+  async getAllSidakIntercomSessions(): Promise<SidakIntercomSession[]> {
+    return await this.db
+      .select()
+      .from(sidakIntercomSessions)
+      .orderBy(desc(sidakIntercomSessions.createdAt));
+  }
+
+  async createSidakIntercomSession(session: InsertSidakIntercomSession): Promise<SidakIntercomSession> {
+    const [result] = await this.db
+      .insert(sidakIntercomSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakIntercomSession(id: string, updates: Partial<InsertSidakIntercomSession>): Promise<SidakIntercomSession | undefined> {
+    const [result] = await this.db
+      .update(sidakIntercomSessions)
+      .set(updates)
+      .where(eq(sidakIntercomSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSidakIntercomRecords(sessionId: string): Promise<SidakIntercomRecord[]> {
+    return await this.db
+      .select()
+      .from(sidakIntercomRecords)
+      .where(eq(sidakIntercomRecords.sessionId, sessionId))
+      .orderBy(asc(sidakIntercomRecords.ordinal));
+  }
+
+  async createSidakIntercomRecord(record: InsertSidakIntercomRecord): Promise<SidakIntercomRecord> {
+    const [result] = await this.db
+      .insert(sidakIntercomRecords)
+      .values(record)
+      .returning();
+
+    // Update session totals
+    await this.updateSidakIntercomSessionStats(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakIntercomObservers(sessionId: string): Promise<SidakIntercomObserver[]> {
+    return await this.db
+      .select()
+      .from(sidakIntercomObservers)
+      .where(eq(sidakIntercomObservers.sessionId, sessionId))
+      .orderBy(asc(sidakIntercomObservers.ordinal));
+  }
+
+  async createSidakIntercomObserver(observer: Omit<InsertSidakIntercomObserver, 'ordinal'>): Promise<SidakIntercomObserver> {
+    const existingObservers = await this.getSidakIntercomObservers(observer.sessionId);
+    const nextOrdinal = existingObservers.length + 1;
+
+    const [result] = await this.db
+      .insert(sidakIntercomObservers)
+      .values({ ...observer, ordinal: nextOrdinal } as InsertSidakIntercomObserver)
+      .returning();
+    return result;
+  }
+
+  async updateSidakIntercomSessionStats(sessionId: string): Promise<void> {
+    const records = await this.getSidakIntercomRecords(sessionId);
+
+    // Calculate compliance stats
+    let totalSesuai = 0;
+    let totalPoin = 0;
+    for (const rec of records) {
+      const questions = [
+        rec.q1_frekuensiFms, rec.q2_nadaSuara, rec.q3_konfirmasiLokasi,
+        rec.q4_responCepat, rec.q5_penangananEscalation, rec.q6_pencatatanKejadian,
+        rec.q7_komunikasiEfektif
+      ];
+      for (const q of questions) {
+        totalPoin++;
+        if (q) totalSesuai++;
+      }
+    }
+
+    const persenKepatuhan = totalPoin > 0 ? Math.round((totalSesuai / totalPoin) * 100) : 0;
+
+    await this.db
+      .update(sidakIntercomSessions)
+      .set({
+        totalSampel: records.length,
+        totalSesuai: totalSesuai,
+        persenKepatuhan: persenKepatuhan
+      })
+      .where(eq(sidakIntercomSessions.id, sessionId));
   }
 
   async generateSidakPencahayaanPDF(data: {

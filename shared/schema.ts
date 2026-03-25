@@ -1804,6 +1804,76 @@ export type InsertSidakWorkshopEquipment = z.infer<typeof insertSidakWorkshopEqu
 export type SidakWorkshopInspector = typeof sidakWorkshopInspectors.$inferSelect;
 export type InsertSidakWorkshopInspector = z.infer<typeof insertSidakWorkshopInspectorSchema>;
 
+// ============================================================================
+// SIDAK INTERCOM PENGAWAS FMS
+// PT.GECL – HSE – F – SIDAK – 01
+// ============================================================================
+
+export const sidakIntercomSessions = pgTable("sidak_intercom_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: varchar("tanggal").notNull(),
+  shift: varchar("shift").notNull(),
+  waktu: varchar("waktu").notNull(),
+  lokasi: text("lokasi").notNull(),
+  personilHse: text("personil_hse"), // Personil HSE yang melakukan sidak
+  pengawasFms: text("pengawas_fms"), // Pengawas FMS yang dievaluasi
+  pemantau: text("pemantau"), // Observer / Pemantau
+  totalSampel: integer("total_sampel").notNull().default(0),
+  totalSesuai: integer("total_sesuai").default(0), // Total poin sesuai (rekap)
+  persenKepatuhan: integer("persen_kepatuhan").default(0), // % kepatuhan
+  catatanTemuan: text("catatan_temuan"), // Catatan Temuan (footer)
+  tindakanKorektif: text("tindakan_korektif"), // Tindakan Korektif (footer)
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_intercom_sessions_created_by").on(table.createdBy)]);
+
+export const sidakIntercomRecords = pgTable("sidak_intercom_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakIntercomSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+
+  // Identifikasi pengawas
+  nama: text("nama").notNull(),
+  nik: text("nik"),
+  perusahaan: text("perusahaan"),
+
+  // 7 pertanyaan kesesuaian (Sesuai = true, Tidak = false)
+  q1_frekuensiFms: boolean("q1_frekuensi_fms").default(false), // Apakah Pengawas menjawab Frekuensi FMS Monitor/Intercom dengan benar?
+  q2_nadaSuara: boolean("q2_nada_suara").default(false), // Apakah nada suara tegas, tidak berteriak & menyebutkan kondisi operator?
+  q3_konfirmasiLokasi: boolean("q3_konfirmasi_lokasi").default(false), // Apakah Pengawas mengonfirmasikan dengan data lokasi operator?
+  q4_responCepat: boolean("q4_respon_cepat").default(false), // Apakah respon cepat & efektif terhadap peringatan operator?
+  q5_penangananEscalation: boolean("q5_penanganan_escalation").default(false), // Apakah Pengawas mengambil tindakan/escalation yang sesuai?
+  q6_pencatatanKejadian: boolean("q6_pencatatan_kejadian").default(false), // Apakah hasp (multilock/headset) digunakan dengan benar?
+  q7_komunikasiEfektif: boolean("q7_komunikasi_efektif").default(false), // Apakah komunikasi efektif dengan operator?
+
+  waktuResponsMenit: numeric("waktu_respons_menit"), // Waktu respons dalam menit (e.g., 1.0, 1.5, 2.0)
+  keterangan: text("keterangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_intercom_records_session").on(table.sessionId)]);
+
+export const sidakIntercomObservers = pgTable("sidak_intercom_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakIntercomSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  nik: varchar("nik"),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_intercom_observers_session").on(table.sessionId)]);
+
+export const insertSidakIntercomSessionSchema = createInsertSchema(sidakIntercomSessions).omit({ id: true, createdAt: true, totalSampel: true, totalSesuai: true, persenKepatuhan: true });
+export const insertSidakIntercomRecordSchema = createInsertSchema(sidakIntercomRecords).omit({ id: true, createdAt: true });
+export const insertSidakIntercomObserverSchema = createInsertSchema(sidakIntercomObservers).omit({ id: true, createdAt: true });
+
+export type SidakIntercomSession = typeof sidakIntercomSessions.$inferSelect;
+export type InsertSidakIntercomSession = z.infer<typeof insertSidakIntercomSessionSchema>;
+export type SidakIntercomRecord = typeof sidakIntercomRecords.$inferSelect;
+export type InsertSidakIntercomRecord = z.infer<typeof insertSidakIntercomRecordSchema>;
+export type SidakIntercomObserver = typeof sidakIntercomObservers.$inferSelect;
+export type InsertSidakIntercomObserver = z.infer<typeof insertSidakIntercomObserverSchema>;
+
 // ============================================
 // MONITORING KOMPETENSI & SERTIFIKASI
 // ============================================

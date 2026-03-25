@@ -1,13 +1,6 @@
-import OpenAI from 'openai';
 import { SiAsefChunk } from '@shared/schema';
+import { openRouterClient, AI_MODELS } from '../ai-config';
 
-if (!process.env.OPENAI_API_KEY) {
-    console.warn("OPENAI_API_KEY is not set. RAG features will not work.");
-}
-
-// const openai = new OpenAI({
-//     apiKey: process.env.OPENAI_API_KEY,
-// });
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
@@ -61,49 +54,36 @@ export function chunkText(text: string, pageNumber: number = 1): ChunkResult[] {
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey || apiKey.trim() === '') {
-        console.warn("⚠️ OPENAI_API_KEY missing. Using random vector.");
-        return Array.from({ length: 1536 }, () => Math.random());
-    }
-
     try {
-        const openai = new OpenAI({ apiKey: apiKey });
-        const response = await openai.embeddings.create({
-            model: 'text-embedding-3-small',
+        const response = await openRouterClient.embeddings.create({
+            model: AI_MODELS.EMBEDDING,
             input: text,
             encoding_format: 'float',
         });
         return response.data[0].embedding;
     } catch (error) {
-        console.error('❌ Embedding error:', error);
+        console.error('❌ Embedding error (OpenRouter):', error);
         // Return random vector as fallback to prevent crash, but warn
         return Array.from({ length: 1536 }, () => Math.random());
     }
 }
 
 export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey || apiKey.trim() === '') {
-        console.warn("⚠️ OPENAI_API_KEY missing or empty. Using random vectors for embedding.");
-        return texts.map(() => Array.from({ length: 1536 }, () => Math.random()));
-    }
-
     try {
-        const openai = new OpenAI({ apiKey: apiKey });
-        const response = await openai.embeddings.create({
-            model: 'text-embedding-3-small',
+        const response = await openRouterClient.embeddings.create({
+            model: AI_MODELS.EMBEDDING,
             input: texts,
             encoding_format: 'float',
         });
-        // Ensure order is preserved (OpenAI guarantees it)
+        // Ensure order is preserved 
         return response.data.map(item => item.embedding);
     } catch (error) {
-        console.error('❌ Batch embedding error:', error);
+        console.error('❌ Batch embedding error (OpenRouter):', error);
         // Fallback to random vectors so upload doesn't fail entire process
         return texts.map(() => Array.from({ length: 1536 }, () => Math.random()));
     }
 }
+
 
 export function cosineSimilarity(a: number[], b: number[]): number {
     if (!a || !b || a.length !== b.length) return 0;

@@ -66,7 +66,7 @@ import { toast } from "@/hooks/use-toast";
 
 interface SidakSession {
   id: string;
-  type: 'Fatigue' | 'Roster' | 'Seatbelt' | 'Rambu' | 'Antrian' | 'APD' | 'Jarak' | 'Kecepatan' | 'Pencahayaan' | 'LOTO' | 'Digital' | 'Workshop' | 'Behavior';
+  type: 'Fatigue' | 'Roster' | 'Seatbelt' | 'Rambu' | 'Antrian' | 'APD' | 'Jarak' | 'Kecepatan' | 'Pencahayaan' | 'LOTO' | 'Digital' | 'Workshop' | 'Behavior' | 'Intercom';
   tanggal: string;
   waktu: string;
   shift: string;
@@ -97,6 +97,7 @@ interface SupervisorStats {
   digital: number;
   workshop: number;
   behavior: number;
+  intercom: number;
   total: number;
 }
 
@@ -117,6 +118,7 @@ interface RecapData {
     totalDigital: number;
     totalWorkshop: number;
     totalBehavior: number;
+    totalIntercom: number;
     totalKaryawanDiperiksa: number;
     supervisorStats: SupervisorStats[];
   };
@@ -143,6 +145,7 @@ interface FatigueRecord {
   employeeSignature: string | null;
   catatanIntervensi?: string | null;
   buktiIntervensi?: string | null;
+  pvtMeanRT?: number | null;
 }
 
 interface RosterRecord {
@@ -289,6 +292,22 @@ interface Observer {
   jabatan: string | null;
   tandaTangan: string | null;
 }
+interface IntercomRecord {
+  id: string;
+  ordinal: number;
+  nama: string;
+  nik: string | null;
+  perusahaan: string | null;
+  q1: boolean;
+  q2: boolean;
+  q3: boolean;
+  q4: boolean;
+  q5: boolean;
+  q6: boolean;
+  q7: boolean;
+  waktuRespons: number;
+  keterangan: string | null;
+}
 
 interface SessionDetail {
   session: SidakSession & {
@@ -299,7 +318,7 @@ interface SessionDetail {
     totalSampel?: number;
     photos?: string[];
   };
-  records: FatigueRecord[] | RosterRecord[] | SeatbeltRecord[] | RambuRecord[] | AntrianRecord[] | JarakRecord[] | KecepatanRecord[] | PencahayaanRecord[] | LotoRecord[] | DigitalRecord[] | WorkshopRecord[] | BehaviorRecord[];
+  records: FatigueRecord[] | RosterRecord[] | SeatbeltRecord[] | RambuRecord[] | AntrianRecord[] | JarakRecord[] | KecepatanRecord[] | PencahayaanRecord[] | LotoRecord[] | DigitalRecord[] | WorkshopRecord[] | BehaviorRecord[] | IntercomRecord[];
   observers: Observer[];
 }
 
@@ -346,7 +365,7 @@ function FatigueFormPreview({ session, records, observers }: {
               <th className="border p-1 w-12">Jam Tidur</th>
               <th className="border p-1 w-10">Obat</th>
               <th className="border p-1 w-10">Masalah</th>
-              <th className="border p-1 w-10">Respon</th>
+              <th className="border p-1 w-16">PVT (ms)</th>
               <th className="border p-1 w-10">Fokus</th>
               <th className="border p-1 w-10">Sehat</th>
               <th className="border p-1 w-10">Siap</th>
@@ -366,7 +385,15 @@ function FatigueFormPreview({ session, records, observers }: {
                 <td className="border p-1 text-center">{record.jamTidur}h</td>
                 <td className="border p-1 text-center"><CheckIcon checked={record.konsumiObat} /></td>
                 <td className="border p-1 text-center"><CheckIcon checked={record.masalahPribadi} /></td>
-                <td className="border p-1 text-center"><CheckIcon checked={record.pemeriksaanRespon} /></td>
+                <td className="border p-1 text-center">
+                  {record.pvtMeanRT != null ? (
+                    <span className={`font-bold text-xs ${record.pvtMeanRT <= 500 ? 'text-green-600' : record.pvtMeanRT <= 700 ? 'text-yellow-600' : 'text-red-600'}`}>
+                      {record.pvtMeanRT} ms
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 text-xs">-</span>
+                  )}
+                </td>
                 <td className="border p-1 text-center"><CheckIcon checked={record.pemeriksaanKonsentrasi} /></td>
                 <td className="border p-1 text-center"><CheckIcon checked={record.pemeriksaanKesehatan} /></td>
                 <td className="border p-1 text-center"><CheckIcon checked={record.karyawanSiapBekerja} /></td>
@@ -431,7 +458,7 @@ function FatigueFormPreview({ session, records, observers }: {
       <div className="text-xs text-gray-600 grid grid-cols-2 gap-2 border p-2 rounded bg-gray-50">
         <div><span className="font-semibold">Obat:</span> Konsumsi Obat</div>
         <div><span className="font-semibold">Masalah:</span> Masalah Pribadi</div>
-        <div><span className="font-semibold">Respon:</span> Respon Baik</div>
+        <div><span className="font-semibold">PVT (ms):</span> Waktu Reaksi PVT (≤500ms Baik, ≤700ms Sedang, &gt;700ms Lambat)</div>
         <div><span className="font-semibold">Fokus:</span> Konsentrasi Baik</div>
         <div><span className="font-semibold">Sehat:</span> Kesehatan Baik</div>
         <div><span className="font-semibold">Siap:</span> Siap Bekerja</div>
@@ -1396,6 +1423,96 @@ function BehaviorFormPreview({ session, records, observers }: {
     </div>
   );
 }
+function IntercomFormPreview({ session, records, observers }: {
+  session: SessionDetail['session'];
+  records: IntercomRecord[];
+  observers: Observer[]
+}) {
+  return (
+    <div className="space-y-4 p-4 bg-white text-black text-sm">
+      <div className="text-center border-b pb-3">
+        <h2 className="text-lg font-bold">FORM SIDAK INTERCOM PENGAWAS FMS</h2>
+        <p className="text-gray-600">PT. Goden Energi Cemerlang Lesrari</p>
+      </div>
+      <div className="grid grid-cols-2 gap-4 text-sm border p-3 rounded">
+        <div><span className="font-semibold">Tanggal:</span> {session.tanggal}</div>
+        <div><span className="font-semibold">Waktu:</span> {session.waktu}</div>
+        <div><span className="font-semibold">Shift:</span> {session.shift}</div>
+        <div><span className="font-semibold">Lokasi:</span> {session.lokasi}</div>
+        <div><span className="font-semibold">Pengawas FMS:</span> {session.supervisorName}</div>
+        <div><span className="font-semibold">Total Sampel:</span> {session.totalSampel}</div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border text-xs">
+          <thead>
+            <tr className="bg-gray-200">
+              <th className="border p-2 w-10">No</th>
+              <th className="border p-2">Nama Pengawas</th>
+              <th className="border p-2">NIK</th>
+              <th className="border p-2">Prshn</th>
+              <th className="border p-2 w-8 text-center">Q1</th>
+              <th className="border p-2 w-8 text-center">Q2</th>
+              <th className="border p-2 w-8 text-center">Q3</th>
+              <th className="border p-2 w-8 text-center">Q4</th>
+              <th className="border p-2 w-8 text-center">Q5</th>
+              <th className="border p-2 w-8 text-center">Q6</th>
+              <th className="border p-2 w-8 text-center">Q7</th>
+              <th className="border p-2 w-12 text-center">Resp(m)</th>
+              <th className="border p-2">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((record, idx) => (
+              <tr key={record.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                <td className="border p-2 text-center">{record.ordinal}</td>
+                <td className="border p-2 font-medium">{record.nama}</td>
+                <td className="border p-2">{record.nik || '-'}</td>
+                <td className="border p-2">{record.perusahaan || '-'}</td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q1 ? 'text-green-600' : 'text-red-600'}`}>{record.q1 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q2 ? 'text-green-600' : 'text-red-600'}`}>{record.q2 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q3 ? 'text-green-600' : 'text-red-600'}`}>{record.q3 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q4 ? 'text-green-600' : 'text-red-600'}`}>{record.q4 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q5 ? 'text-green-600' : 'text-red-600'}`}>{record.q5 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q6 ? 'text-green-600' : 'text-red-600'}`}>{record.q6 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center">
+                  <span className={`font-bold text-lg ${record.q7 ? 'text-green-600' : 'text-red-600'}`}>{record.q7 ? '✓' : '✗'}</span>
+                </td>
+                <td className="border p-2 text-center font-bold">{record.waktuRespons}</td>
+                <td className="border p-2 text-gray-600">{record.keterangan || '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="border rounded p-3">
+        <h3 className="font-semibold mb-2">Observer / Pemantau:</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {observers.map((obs) => (
+            <div key={obs.id} className="flex items-start gap-3 border p-2 rounded">
+              <div className="flex-1">
+                <p className="font-medium">{obs.nama}</p>
+                <p className="text-xs text-gray-500">{obs.nik} - {obs.jabatan}</p>
+                <p className="text-xs text-gray-500">{obs.perusahaan}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SidakRecap() {
   const [editingFatigueRecord, setEditingFatigueRecord] = useState<FatigueRecord | null>(null);
@@ -1766,6 +1883,20 @@ export default function SidakRecap() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <ClipboardCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalIntercom || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Intercom</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Supervisor Stats */}
@@ -1904,6 +2035,7 @@ export default function SidakRecap() {
                   <SelectItem value="Digital">Digital</SelectItem>
                   <SelectItem value="Workshop">Workshop</SelectItem>
                   <SelectItem value="Behavior">Driver Behavior</SelectItem>
+                  <SelectItem value="Intercom">Intercom FMS</SelectItem>
 
                 </SelectContent>
               </Select>
@@ -2115,7 +2247,8 @@ export default function SidakRecap() {
                                         selectedSession?.type === 'Digital' ? 'bg-blue-50 text-blue-700' :
                                           selectedSession?.type === 'Workshop' ? 'bg-orange-50 text-orange-700' :
                                             selectedSession?.type === 'Behavior' ? 'bg-indigo-50 text-indigo-700' :
-                                              'bg-gray-50 text-gray-700'
+                                              selectedSession?.type === 'Intercom' ? 'bg-blue-50 text-blue-700' :
+                                                'bg-gray-50 text-gray-700'
                   }>
                     {selectedSession?.type}
                   </Badge>
@@ -2197,6 +2330,12 @@ export default function SidakRecap() {
                       <BehaviorFormPreview
                         session={detailData.session}
                         records={detailData.records as BehaviorRecord[]}
+                        observers={detailData.observers}
+                      />
+                    ) : selectedSession?.type === 'Intercom' ? (
+                      <IntercomFormPreview
+                        session={detailData.session}
+                        records={detailData.records as IntercomRecord[]}
                         observers={detailData.observers}
                       />
                     ) : (
@@ -2595,6 +2734,37 @@ export default function SidakRecap() {
                                   </a>
                                 ) : '-'}
                               </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : selectedSession?.type === 'Intercom' ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>No</TableHead>
+                            <TableHead>Nama Pengawas</TableHead>
+                            <TableHead>NIK</TableHead>
+                            <TableHead>Perusahaan</TableHead>
+                            <TableHead className="text-center">Respons (m)</TableHead>
+                            <TableHead className="text-center">Q1-Q7</TableHead>
+                            <TableHead>Keterangan</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(detailData.records as IntercomRecord[])?.map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell>{record.ordinal}</TableCell>
+                              <TableCell className="font-medium">{record.nama}</TableCell>
+                              <TableCell>{record.nik || '-'}</TableCell>
+                              <TableCell>{record.perusahaan || '-'}</TableCell>
+                              <TableCell className="text-center font-bold">{record.waktuRespons}</TableCell>
+                              <TableCell className="text-center">
+                                <Badge variant={record.q1 && record.q2 && record.q3 && record.q4 && record.q5 && record.q6 && record.q7 ? 'default' : 'destructive'}>
+                                  {record.q1 && record.q2 && record.q3 && record.q4 && record.q5 && record.q6 && record.q7 ? 'Sesuai' : 'Tidak Sesuai'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-500">{record.keterangan || '-'}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

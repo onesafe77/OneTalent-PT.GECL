@@ -120,7 +120,7 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
     const tableHeaders = [
       ['No', 'Nama / NIK', 'Jabatan', 'No.\nLambung',
         'Jam tidur\nkaryawan\nsebelum\nbekerja\n(jam)', 'Jam\nMonitoring',
-        'Ada\nkonsumsi\nobat', 'Ada\nmasalah\npribadi', 'Pemeriksaan\nrespon\nkaryawan',
+        'Ada\nkonsumsi\nobat', 'Ada\nmasalah\npribadi', 'PVT\n(ms)',
         'Pemeriksaan\nkonsentrasi\nkaryawan', 'Pemeriksaan\nkesehatan\nkaryawan',
         'Karyawan\nsiap untuk\nbekerja', 'Fit Untuk\nBekerja',
         'Tanda\nTangan\nPekerja',
@@ -138,7 +138,7 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
       '-',
       record.konsumiObat ? '\u2713' : 'X',
       record.masalahPribadi ? '\u2713' : 'X',
-      record.pemeriksaanRespon ? '\u2713' : 'X',
+      record.pvtMeanRT != null ? `${record.pvtMeanRT}` : '-',
       record.pemeriksaanKonsentrasi ? '\u2713' : 'X',
       record.pemeriksaanKesehatan ? '\u2713' : 'X',
       record.karyawanSiapBekerja ? '\u2713' : 'X',
@@ -212,7 +212,7 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
           }
         }
 
-        const booleanColumns = [6, 7, 8, 9, 10, 11, 12, 14, 15, 16];
+        const booleanColumns = [6, 7, 9, 10, 11, 12, 14, 15, 16];
         if (booleanColumns.includes(cellData.column.index) && cellData.section === 'body') {
           const cellText = cellData.cell.text[0];
           if (cellText === '\u2713' || cellText === '✓') {

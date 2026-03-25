@@ -44,6 +44,75 @@ app.get("/api/admin/run-migration-fix-0314", async (req, res) => {
 
 console.log(`SERVER RESTARTING... UPDATED ROUTES LOADING... [${new Date().toISOString()}]`);
 
+// TEMPORARY MIGRATION ROUTE - CREATE SIDAK INTERCOM TABLES
+app.get("/api/admin/migrate-sidak-intercom", async (req, res) => {
+  try {
+    console.log("🚀 SIDAK INTERCOM MIGRATION HIT");
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_intercom_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tanggal VARCHAR NOT NULL,
+        shift VARCHAR NOT NULL,
+        waktu VARCHAR NOT NULL,
+        lokasi TEXT NOT NULL,
+        personil_hse TEXT,
+        pengawas_fms TEXT,
+        pemantau TEXT,
+        total_sampel INTEGER NOT NULL DEFAULT 0,
+        total_sesuai INTEGER DEFAULT 0,
+        persen_kepatuhan INTEGER DEFAULT 0,
+        catatan_temuan TEXT,
+        tindakan_korektif TEXT,
+        activity_photos TEXT[],
+        created_by VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_intercom_sessions_created_by ON sidak_intercom_sessions(created_by);`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_intercom_records (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_intercom_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        nama TEXT NOT NULL,
+        nik TEXT,
+        perusahaan TEXT,
+        q1_frekuensi_fms BOOLEAN DEFAULT FALSE,
+        q2_nada_suara BOOLEAN DEFAULT FALSE,
+        q3_konfirmasi_lokasi BOOLEAN DEFAULT FALSE,
+        q4_respon_cepat BOOLEAN DEFAULT FALSE,
+        q5_penanganan_escalation BOOLEAN DEFAULT FALSE,
+        q6_pencatatan_kejadian BOOLEAN DEFAULT FALSE,
+        q7_komunikasi_efektif BOOLEAN DEFAULT FALSE,
+        waktu_respons_menit NUMERIC,
+        keterangan TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_intercom_records_session ON sidak_intercom_records(session_id);`);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_intercom_observers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_intercom_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        nama TEXT NOT NULL,
+        nik VARCHAR,
+        perusahaan TEXT,
+        tanda_tangan TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_intercom_observers_session ON sidak_intercom_observers(session_id);`);
+    console.log("✅ SIDAK INTERCOM TABLES CREATED");
+    res.send("<h1>✅ Sidak Intercom tables created successfully</h1>");
+  } catch (e: any) {
+    console.error("SIDAK INTERCOM MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
+  }
+});
+
 // Startup debug disabled
 
 

@@ -1,15 +1,10 @@
-
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
 import { createRequire } from "module";
+import { openRouterClient, AI_MODELS } from "../ai-config";
 
 const require = createRequire(import.meta.url);
 const pdf = require("pdf-parse");
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 export interface GeneratedQuestion {
     questionText: string;
@@ -20,10 +15,6 @@ export interface GeneratedQuestion {
 export const inductionAiService = {
     async generateQuestionsFromMaterial(filePath: string, fileType: string): Promise<GeneratedQuestion[]> {
         try {
-            if (!process.env.GEMINI_API_KEY) {
-                throw new Error("GEMINI_API_KEY is not set");
-            }
-
             let textContent = "";
 
             if (fileType === "pdf" || filePath.endsWith(".pdf")) {
@@ -62,9 +53,12 @@ export const inductionAiService = {
         ${textContent.substring(0, 100000)}
       `;
 
-            const result = await model.generateContent(prompt);
-            const response = await result.response;
-            let text = response.text();
+            const response = await openRouterClient.chat.completions.create({
+                model: AI_MODELS.SMART_EXTRACTION,
+                messages: [{ role: "user", content: prompt }],
+                temperature: 0.2,
+            });
+            let text = response.choices[0]?.message?.content || "";
 
             // Clean up markdown code blocks if present
             text = text.replace(/```json/g, "").replace(/```/g, "").trim();

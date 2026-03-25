@@ -54,6 +54,8 @@ import SidakP3kForm from "@/pages/sidak-p3k-form";
 import SidakP3kHistory from "@/pages/sidak-p3k-history";
 import SidakBehaviorForm from "@/pages/sidak-behavior-form";
 import SidakBehaviorHistory from "@/pages/sidak-behavior-history";
+import SidakIntercomForm from "@/pages/sidak-intercom-form";
+import SidakIntercomHistory from "@/pages/sidak-intercom-history";
 import EvaluasiDriver from "@/pages/evaluasi-driver";
 import DashboardOverspeed from "@/pages/dashboard-overspeed";
 import DashboardJarak from "@/pages/dashboard-jarak";
@@ -146,6 +148,8 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/workshop/history", component: SidakWorkshopHistory, title: "Riwayat Sidak Workshop" },
   { path: "/workspace/sidak/p3k/new", component: SidakP3kForm, title: "Form Inspeksi Kotak P3K" },
   { path: "/workspace/sidak/p3k/history", component: SidakP3kHistory, title: "Riwayat Inspeksi Kotak P3K" },
+  { path: "/workspace/sidak/intercom/new", component: SidakIntercomForm, title: "Form Sidak Intercom FMS" },
+  { path: "/workspace/sidak/intercom/history", component: SidakIntercomHistory, title: "Riwayat Sidak Intercom FMS" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
@@ -306,6 +310,8 @@ export function Workspace() {
               <Route path="/workspace/sidak/p3k/history" component={SidakP3kHistory} />
               <Route path="/workspace/sidak/behavior/new" component={SidakBehaviorForm} />
               <Route path="/workspace/sidak/behavior/history" component={SidakBehaviorHistory} />
+              <Route path="/workspace/sidak/intercom/new" component={SidakIntercomForm} />
+              <Route path="/workspace/sidak/intercom/history" component={SidakIntercomHistory} />
               <Route path="/workspace/sidak/riwayat">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_SIDAK]}>
                   <SidakHistoryMenu />

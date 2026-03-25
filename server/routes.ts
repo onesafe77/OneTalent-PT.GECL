@@ -8,6 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcrypt';
 import OpenAI from "openai";
+import { openRouterClient, AI_MODELS } from "./ai-config";
 import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths } from "date-fns";
 import { exec } from "child_process";
 import Papa from "papaparse";
@@ -608,19 +609,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/analyze-overspeed", async (req, res) => {
     try {
       const { stats } = req.body;
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ message: "OpenAI API Key not configured" });
-      }
-
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
       const prompt = `Analisa data pelanggaran overspeed ini dan berikan 3-4 insight penting dalam Bahasa Indonesia yang singkat, padat, dan actionable untuk manajemen.
       Data: ${JSON.stringify(stats)}
       
       Format output: JSON array of strings. Contoh: ["Insight 1...", "Insight 2..."]`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+      const response = await openRouterClient.chat.completions.create({
+        model: AI_MODELS.SMART_EXTRACTION,
         messages: [{ role: "system", content: "You are an expert Safety Analyst." }, { role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
@@ -642,19 +637,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/analyze-jarak", async (req, res) => {
     try {
       const { stats } = req.body;
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ message: "OpenAI API Key not configured" });
-      }
-
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
       const prompt = `Analisa data pelanggaran Safe Distance (Jarak Aman) ini dan berikan 3-4 insight penting dalam Bahasa Indonesia yang singkat, padat, dan actionable untuk manajemen.
       Data: ${JSON.stringify(stats)}
       
       Format output: JSON array of strings. Contoh: ["Insight 1...", "Insight 2..."]`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+      const response = await openRouterClient.chat.completions.create({
+        model: AI_MODELS.SMART_EXTRACTION,
         messages: [{ role: "system", content: "You are an expert Safety Analyst." }, { role: "user", content: prompt }],
         response_format: { type: "json_object" },
       });
@@ -741,9 +730,8 @@ Berikan komentar tentang:
 Format sebagai bullet points singkat per insight.`;
 
       // Use internal Si Asef logic (simplified version without session management)
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      if (!process.env.OPENAI_API_KEY) {
+      if (!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)) {
         // Fallback response if no API key
         return res.json({
           insights: [
@@ -755,8 +743,8 @@ Format sebagai bullet points singkat per insight.`;
         });
       }
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const response = await openRouterClient.chat.completions.create({
+        model: AI_MODELS.SMART_EXTRACTION,
         messages: [
           { role: "system", content: "Anda adalah analis keselamatan pertambangan berpengalaman dari OneTalent GECL. Berikan analisis singkat dan actionable dalam Bahasa Indonesia." },
           { role: "user", content: analysisPrompt }
@@ -1219,6 +1207,7 @@ Format sebagai bullet points singkat per insight.`;
 
       res.status(204).send();
     } catch (error) {
+      console.error(`❌ Error deleting employee ${req.params.id}:`, error);
       res.status(500).json({ message: "Failed to delete employee" });
     }
   });
@@ -13679,6 +13668,89 @@ Format sebagai bullet points singkat per insight.`;
       res.status(500).json({ error: e.message });
     }
   });
+
+  // ============================================
+  // SIDAK INTERCOM PENGAWAS FMS ENDPOINTS
+  // ============================================
+
+  // Get all intercom sessions
+  app.get("/api/sidak-intercom/sessions", async (req, res) => {
+    try {
+      const sessions = await storage.getAllSidakIntercomSessions();
+      res.json(sessions);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Get single session with records and observers
+  app.get("/api/sidak-intercom/sessions/:id", async (req, res) => {
+    try {
+      const session = await storage.getSidakIntercomSession(req.params.id);
+      if (!session) return res.status(404).json({ error: "Intercom session not found" });
+
+      const [records, observers] = await Promise.all([
+        storage.getSidakIntercomRecords(session.id),
+        storage.getSidakIntercomObservers(session.id)
+      ]);
+
+      res.json({ ...session, records, observers });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Create new session
+  app.post("/api/sidak-intercom/sessions", async (req, res) => {
+    try {
+      const session = await storage.createSidakIntercomSession(req.body);
+      res.status(201).json(session);
+    } catch (e: any) {
+      console.error("Create SIDAK Intercom Session Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Update session
+  app.put("/api/sidak-intercom/sessions/:id", async (req, res) => {
+    try {
+      const session = await storage.updateSidakIntercomSession(req.params.id, req.body);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+      res.json(session);
+    } catch (e: any) {
+      console.error("Update SIDAK Intercom Session Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Add record to session
+  app.post("/api/sidak-intercom/sessions/:sessionId/records", async (req, res) => {
+    try {
+      const record = await storage.createSidakIntercomRecord({
+        ...req.body,
+        sessionId: req.params.sessionId
+      });
+      res.status(201).json(record);
+    } catch (e: any) {
+      console.error("Create SIDAK Intercom Record Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Add observer to session
+  app.post("/api/sidak-intercom/sessions/:sessionId/observers", async (req, res) => {
+    try {
+      const observer = await storage.createSidakIntercomObserver({
+        ...req.body,
+        sessionId: req.params.sessionId
+      });
+      res.status(201).json(observer);
+    } catch (e: any) {
+      console.error("Create SIDAK Intercom Observer Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
 
   // ============================================
   // MCU ENDPOINTS
