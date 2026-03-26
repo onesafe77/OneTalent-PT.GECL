@@ -1,31 +1,34 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ClipboardCheck, Check, ArrowRight, Save, Plus, Lock } from "lucide-react";
+import { ClipboardCheck, Check, ArrowRight, Save, Plus, Lock, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { DraftRecoveryDialog } from "@/components/sidak/draft-recovery-dialog";
 import { useSidakDraft } from "@/hooks/use-sidak-draft";
 import { MobileSidakLayout } from "@/components/sidak/mobile-sidak-layout";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import type { Employee } from "@shared/schema";
 
 interface IntercomRecord {
     ordinal?: number;
     nama: string;
     nik: string;
-    perusahaan: string;
-    q1_frekuensiFms: boolean;
-    q2_nadaSuara: boolean;
-    q3_konfirmasiLokasi: boolean;
-    q4_responCepat: boolean;
-    q5_penangananEscalation: boolean;
-    q6_pencatatanKejadian: boolean;
-    q7_komunikasiEfektif: boolean;
+    nomorLambung: string;
+    waktuTemuan: string;
+    waktuIntervensi: string;
+    q1_slaRespons: boolean;
+    q2_identifikasi: boolean;
+    q3_kualitasKomunikasi: boolean;
+    q4_instruksiK3: boolean;
+    q5_verifikasiTindakan: boolean;
     waktuResponsMenit: string;
     keterangan: string;
 }
@@ -91,14 +94,14 @@ export default function SidakIntercomForm() {
     const [currentRecord, setCurrentRecord] = useState<IntercomRecord>({
         nama: "",
         nik: "",
-        perusahaan: "",
-        q1_frekuensiFms: false,
-        q2_nadaSuara: false,
-        q3_konfirmasiLokasi: false,
-        q4_responCepat: false,
-        q5_penangananEscalation: false,
-        q6_pencatatanKejadian: false,
-        q7_komunikasiEfektif: false,
+        nomorLambung: "",
+        waktuTemuan: "",
+        waktuIntervensi: "",
+        q1_slaRespons: false,
+        q2_identifikasi: false,
+        q3_kualitasKomunikasi: false,
+        q4_instruksiK3: false,
+        q5_verifikasiTindakan: false,
         waktuResponsMenit: "",
         keterangan: ""
     });
@@ -110,10 +113,79 @@ export default function SidakIntercomForm() {
         tandaTangan: ""
     });
 
+    // Autocomplete state
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [nameSearch, setNameSearch] = useState("");
+    const [debouncedNameSearch, setDebouncedNameSearch] = useState("");
+
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedNameSearch(nameSearch);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [nameSearch]);
+
+    // Fetch employees with server-side search
+    const { data: employeesResponse } = useQuery<any>({
+        queryKey: ["/api/employees", debouncedNameSearch],
+        queryFn: async () => {
+            const params = new URLSearchParams({
+                page: '1',
+                per_page: '20',
+                ...(debouncedNameSearch && { search: debouncedNameSearch })
+            });
+            const res = await apiRequest(`/api/employees?${params}`);
+            return res;
+        },
+        staleTime: 5000
+    });
+
+    const employees = Array.isArray(employeesResponse?.data) ? employeesResponse.data : [];
+
+    const handleEmployeeSelect = (employee: Employee) => {
+        setCurrentRecord(prev => ({
+            ...prev,
+            nama: employee.name,
+            nik: employee.id, // ID acts as NIK
+        }));
+        setNameSearch(employee.name);
+        setSearchOpen(false);
+    };
+
     // Auto-save
     useEffect(() => {
         saveDraft(draft);
     }, [draft, saveDraft]);
+
+    // Auto-calculate Response Time
+    useEffect(() => {
+        if (currentRecord.waktuTemuan && currentRecord.waktuIntervensi) {
+            const [tH, tM] = currentRecord.waktuTemuan.split(':').map(Number);
+            const [iH, iM] = currentRecord.waktuIntervensi.split(':').map(Number);
+
+            if (!isNaN(tH) && !isNaN(tM) && !isNaN(iH) && !isNaN(iM)) {
+                let temuanDt = new Date();
+                temuanDt.setHours(tH, tM, 0, 0);
+
+                let intervensiDt = new Date();
+                intervensiDt.setHours(iH, iM, 0, 0);
+
+                // Handle cross-midnight
+                if (intervensiDt < temuanDt) {
+                    intervensiDt.setDate(intervensiDt.getDate() + 1);
+                }
+
+                const diffMs = intervensiDt.getTime() - temuanDt.getTime();
+                const diffMins = Math.max(0, diffMs / (1000 * 60));
+
+                setCurrentRecord(prev => ({
+                    ...prev,
+                    waktuResponsMenit: diffMins.toString()
+                }));
+            }
+        }
+    }, [currentRecord.waktuTemuan, currentRecord.waktuIntervensi]);
 
     // Initial time set
     useEffect(() => {
@@ -180,11 +252,12 @@ export default function SidakIntercomForm() {
     const handleAddRecord = useMutation({
         mutationFn: async (record: IntercomRecord) => {
             if (!draft.sessionId) throw new Error("No active session");
-            const res = await apiRequest(`/api/sidak-intercom/sessions/${draft.sessionId}/records`, "POST", {
-                ...record,
-                sessionId: draft.sessionId,
-                ordinal: draft.records.length + 1
-            });
+            const payload = { ...record, sessionId: draft.sessionId, ordinal: draft.records.length + 1 };
+            // Ensure waktuResponsMenit is null if empty string so postgres numeric column won't crash
+            if (payload.waktuResponsMenit === "") {
+                (payload as any).waktuResponsMenit = null;
+            }
+            const res = await apiRequest(`/api/sidak-intercom/sessions/${draft.sessionId}/records`, "POST", payload);
             return res;
         },
         onSuccess: (data) => {
@@ -192,14 +265,14 @@ export default function SidakIntercomForm() {
             setCurrentRecord({
                 nama: "",
                 nik: "",
-                perusahaan: "",
-                q1_frekuensiFms: false,
-                q2_nadaSuara: false,
-                q3_konfirmasiLokasi: false,
-                q4_responCepat: false,
-                q5_penangananEscalation: false,
-                q6_pencatatanKejadian: false,
-                q7_komunikasiEfektif: false,
+                nomorLambung: "",
+                waktuTemuan: "",
+                waktuIntervensi: "",
+                q1_slaRespons: false,
+                q2_identifikasi: false,
+                q3_kualitasKomunikasi: false,
+                q4_instruksiK3: false,
+                q5_verifikasiTindakan: false,
                 waktuResponsMenit: "",
                 keterangan: ""
             });
@@ -253,7 +326,7 @@ export default function SidakIntercomForm() {
         toast({ title: "Selesai", description: "Laporan SIDAK Intercom telah disimpan." });
     };
 
-    const maxRecords = 20; // Allow more max records
+    const maxRecords = 5; // Updated to 5 per user request
     const canAddMore = draft.records.length < maxRecords;
 
 
@@ -451,12 +524,44 @@ export default function SidakIntercomForm() {
                                 {/* Worker Information */}
                                 <div className="space-y-2">
                                     <Label className="text-xs font-semibold uppercase text-gray-500">Nama Pengawas <span className="text-red-500">*</span></Label>
-                                    <Input
-                                        className="h-12 bg-gray-50 border-gray-200"
-                                        value={currentRecord.nama}
-                                        onChange={(e) => setCurrentRecord(prev => ({ ...prev, nama: e.target.value }))}
-                                        placeholder="Nama Lengkap Pekerja"
-                                    />
+                                    <Popover open={searchOpen} onOpenChange={setSearchOpen}>
+                                        <PopoverTrigger asChild>
+                                            <div className="relative">
+                                                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                                                <Input
+                                                    value={nameSearch || currentRecord.nama}
+                                                    onChange={(e) => {
+                                                        setNameSearch(e.target.value);
+                                                        setCurrentRecord(prev => ({ ...prev, nama: e.target.value }));
+                                                        setSearchOpen(true);
+                                                    }}
+                                                    placeholder="Cari Nama Pengawas..."
+                                                    className="h-12 pl-9 bg-gray-50 border-gray-200"
+                                                />
+                                            </div>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[300px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                                            <Command shouldFilter={false}>
+                                                <CommandList>
+                                                    <CommandEmpty>Tidak ditemukan.</CommandEmpty>
+                                                    <CommandGroup heading="Hasil Pencarian">
+                                                        {employees.map((emp: Employee) => (
+                                                            <CommandItem
+                                                                key={emp.id}
+                                                                value={emp.name}
+                                                                onSelect={() => handleEmployeeSelect(emp)}
+                                                            >
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-medium">{emp.name}</span>
+                                                                    <span className="text-xs text-gray-500">NIK: {emp.id}</span>
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
@@ -470,12 +575,30 @@ export default function SidakIntercomForm() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-xs font-semibold uppercase text-gray-500">Perusahaan</Label>
+                                        <Label className="text-xs font-semibold uppercase text-gray-500">Nomor Lambung</Label>
                                         <Input
                                             className="h-12 bg-gray-50 border-gray-200"
-                                            value={currentRecord.perusahaan}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, perusahaan: e.target.value }))}
-                                            placeholder="PT..."
+                                            value={currentRecord.nomorLambung}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, nomorLambung: e.target.value }))}
+                                            placeholder="Contoh: DT 123"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-semibold uppercase text-gray-500">Waktu Temuan</Label>
+                                        <Input
+                                            type="time"
+                                            className="h-12 bg-gray-50 border-gray-200"
+                                            value={currentRecord.waktuTemuan}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, waktuTemuan: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-semibold uppercase text-gray-500">Waktu Intervensi</Label>
+                                        <Input
+                                            type="time"
+                                            className="h-12 bg-gray-50 border-gray-200"
+                                            value={currentRecord.waktuIntervensi}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, waktuIntervensi: e.target.value }))}
                                         />
                                     </div>
                                 </div>
@@ -487,13 +610,13 @@ export default function SidakIntercomForm() {
                                     <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
                                         <div className="flex-1">
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                1. Apakah Pengawas menjawab Frekuensi FMS Monitor/Intercom dengan benar?
+                                                1. SLA Respons: Pengawas merespons alarm valid fatigue maks. 1-2 menit setelah notifikasi muncul?
                                             </span>
                                         </div>
                                         <input
                                             type="checkbox"
-                                            checked={currentRecord.q1_frekuensiFms}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q1_frekuensiFms: e.target.checked }))}
+                                            checked={currentRecord.q1_slaRespons}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q1_slaRespons: e.target.checked }))}
                                             className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
                                         />
                                     </div>
@@ -501,13 +624,13 @@ export default function SidakIntercomForm() {
                                     <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
                                         <div className="flex-1">
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                2. Apakah nada suara tegas, tidak berteriak & menyebutkan kondisi operator?
+                                                2. Identifikasi: Pengawas menyebutkan 'FMS Monitor' dan nomor lambung unit dengan benar saat intercom terhubung?
                                             </span>
                                         </div>
                                         <input
                                             type="checkbox"
-                                            checked={currentRecord.q2_nadaSuara}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q2_nadaSuara: e.target.checked }))}
+                                            checked={currentRecord.q2_identifikasi}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q2_identifikasi: e.target.checked }))}
                                             className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
                                         />
                                     </div>
@@ -515,13 +638,13 @@ export default function SidakIntercomForm() {
                                     <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
                                         <div className="flex-1">
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                3. Apakah Pengawas mengonfirmasikan dengan data lokasi operator?
+                                                3. Kualitas Komunikasi: Nada suara tegas namun tidak panik, menanyakan kondisi aktual operator dengan jelas?
                                             </span>
                                         </div>
                                         <input
                                             type="checkbox"
-                                            checked={currentRecord.q3_konfirmasiLokasi}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q3_konfirmasiLokasi: e.target.checked }))}
+                                            checked={currentRecord.q3_kualitasKomunikasi}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q3_kualitasKomunikasi: e.target.checked }))}
                                             className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
                                         />
                                     </div>
@@ -529,13 +652,13 @@ export default function SidakIntercomForm() {
                                     <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
                                         <div className="flex-1">
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                4. Apakah respon cepat & efektif terhadap peringatan operator?
+                                                4. Instruksi K3: Pengawas menginstruksikan operator beristirahat di tempat aman (Rest Area / Workshop terdekat)?
                                             </span>
                                         </div>
                                         <input
                                             type="checkbox"
-                                            checked={currentRecord.q4_responCepat}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q4_responCepat: e.target.checked }))}
+                                            checked={currentRecord.q4_instruksiK3}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q4_instruksiK3: e.target.checked }))}
                                             className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
                                         />
                                     </div>
@@ -543,41 +666,13 @@ export default function SidakIntercomForm() {
                                     <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
                                         <div className="flex-1">
                                             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                5. Apakah Pengawas mengambil tindakan/escalation yang sesuai?
+                                                5. Verifikasi Tindakan: Pengawas memastikan operator mematuhi instruksi (berhenti, cuci muka, stretching, atau ganti operator)?
                                             </span>
                                         </div>
                                         <input
                                             type="checkbox"
-                                            checked={currentRecord.q5_penangananEscalation}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q5_penangananEscalation: e.target.checked }))}
-                                            className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
-                                        />
-                                    </div>
-
-                                    <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
-                                        <div className="flex-1">
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                6. Apakah pencatatan kejadian di FMS tertib dan rapi?
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            checked={currentRecord.q6_pencatatanKejadian}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q6_pencatatanKejadian: e.target.checked }))}
-                                            className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
-                                        />
-                                    </div>
-
-                                    <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200">
-                                        <div className="flex-1">
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                                7. Apakah komunikasi efektif dengan operator?
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="checkbox"
-                                            checked={currentRecord.q7_komunikasiEfektif}
-                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q7_komunikasiEfektif: e.target.checked }))}
+                                            checked={currentRecord.q5_verifikasiTindakan}
+                                            onChange={(e) => setCurrentRecord(prev => ({ ...prev, q5_verifikasiTindakan: e.target.checked }))}
                                             className="h-5 w-5 rounded border-gray-300 mt-1 ml-3"
                                         />
                                     </div>
@@ -616,12 +711,14 @@ export default function SidakIntercomForm() {
                                         <div key={idx} className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
                                             <div>
                                                 <p className="font-medium text-sm">{rec.nama}</p>
-                                                <p className="text-xs text-gray-500">{rec.nik} • {rec.perusahaan}</p>
-                                                <div className="mt-2 text-xs flex gap-2">
+                                                <p className="text-xs text-gray-500">{rec.nik} • {rec.nomorLambung}</p>
+                                                <div className="mt-2 text-xs flex gap-2 flex-wrap">
+                                                    <span className="bg-indigo-50 text-indigo-700 px-2 rounded">Temuan: {rec.waktuTemuan || '-'}</span>
+                                                    <span className="bg-purple-50 text-purple-700 px-2 rounded">Intervensi: {rec.waktuIntervensi || '-'}</span>
                                                     <span className="bg-blue-50 text-blue-700 px-2 rounded">Resp: {rec.waktuResponsMenit}m</span>
                                                 </div>
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    {[1, 2, 3, 4, 5, 6, 7].map(num => {
+                                                    {[1, 2, 3, 4, 5].map(num => {
                                                         const key = `q${num}` as any;
                                                         const isChecked = Object.entries(rec).find(([k]) => k.startsWith(key))?.[1];
                                                         return (

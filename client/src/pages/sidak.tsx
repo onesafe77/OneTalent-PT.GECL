@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, User, ChevronRight, BriefcaseMedical, Users } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, User, ChevronRight, BriefcaseMedical, Users, Radio } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,7 @@ export default function SidakDashboard() {
       <div className="container max-w-7xl mx-auto px-4 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {(searchQuery === "" || "sidak fatigue kelelahan karyawan".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/fatigue/new" data-testid="link-sidak-fatigue">
+            <Link href="/workspace/sidak/fatigue/new" data-testid="link-sidak-fatigue">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0">
                   <Activity className="h-8 w-8" />
@@ -71,7 +71,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak roster kesesuaian roster".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/roster/new" data-testid="link-sidak-roster">
+            <Link href="/workspace/sidak/roster/new" data-testid="link-sidak-roster">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center text-purple-600 dark:text-purple-400 mr-4 flex-shrink-0">
                   <ClipboardList className="h-8 w-8" />
@@ -91,7 +91,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak seatbelt kepatuhan seatbelt".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/seatbelt/new" data-testid="link-sidak-seatbelt">
+            <Link href="/workspace/sidak/seatbelt/new" data-testid="link-sidak-seatbelt">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400 mr-4 flex-shrink-0">
                   <ClipboardCheck className="h-8 w-8" />
@@ -111,7 +111,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak rambu kepatuhan rambu".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/rambu/new" data-testid="link-sidak-rambu">
+            <Link href="/workspace/sidak/rambu/new" data-testid="link-sidak-rambu">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 mr-4 flex-shrink-0">
                   <TrafficCone className="h-8 w-8" />
@@ -131,7 +131,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak antrian observasi antrian".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/antrian/new" data-testid="link-sidak-antrian">
+            <Link href="/workspace/sidak/antrian/new" data-testid="link-sidak-antrian">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400 mr-4 flex-shrink-0">
                   <Truck className="h-8 w-8" />
@@ -151,7 +151,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak jarak jarak aman unit".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/jarak/new" data-testid="link-sidak-jarak">
+            <Link href="/workspace/sidak/jarak/new" data-testid="link-sidak-jarak">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0">
                   <Maximize2 className="h-8 w-8" />
@@ -171,7 +171,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak apd kelengkapan apd".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/apd/new" data-testid="link-sidak-apd">
+            <Link href="/workspace/sidak/apd/new" data-testid="link-sidak-apd">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 mr-4 flex-shrink-0">
                   <Shield className="h-8 w-8" />
@@ -191,7 +191,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak kecepatan speed gun check".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/kecepatan/new" data-testid="link-sidak-kecepatan">
+            <Link href="/workspace/sidak/kecepatan/new" data-testid="link-sidak-kecepatan">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-4 flex-shrink-0">
                   <Gauge className="h-8 w-8" />
@@ -211,7 +211,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak loto lock out tag out".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/loto/new" data-testid="link-sidak-loto">
+            <Link href="/workspace/sidak/loto/new" data-testid="link-sidak-loto">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 mr-4 flex-shrink-0">
                   <Lock className="h-8 w-8" />
@@ -231,7 +231,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak digital digital check".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/digital/new" data-testid="link-sidak-digital">
+            <Link href="/workspace/sidak/digital/new" data-testid="link-sidak-digital">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-cyan-50 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 dark:text-cyan-400 mr-4 flex-shrink-0">
                   <Tablet className="h-8 w-8" />
@@ -251,7 +251,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak workshop workshop check".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/workshop/new" data-testid="link-sidak-workshop">
+            <Link href="/workspace/sidak/workshop/new" data-testid="link-sidak-workshop">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-slate-50 dark:bg-slate-900/30 flex items-center justify-center text-slate-600 dark:text-slate-400 mr-4 flex-shrink-0">
                   <PenTool className="h-8 w-8" />
@@ -271,7 +271,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak pencahayaan cek penerangan".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/pencahayaan/new" data-testid="link-sidak-pencahayaan">
+            <Link href="/workspace/sidak/pencahayaan/new" data-testid="link-sidak-pencahayaan">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-yellow-50 dark:bg-yellow-900/30 flex items-center justify-center text-yellow-600 dark:text-yellow-400 mr-4 flex-shrink-0">
                   <Sun className="h-8 w-8" />
@@ -291,7 +291,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak tingkah laku driver behavior check".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/behavior/new" data-testid="link-sidak-behavior">
+            <Link href="/workspace/sidak/behavior/new" data-testid="link-sidak-behavior">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-4 flex-shrink-0">
                   <Users className="h-8 w-8" />
@@ -311,7 +311,7 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "inspeksi p3k cek kelengkapan p3k".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/p3k/new" data-testid="link-sidak-p3k">
+            <Link href="/workspace/sidak/p3k/new" data-testid="link-sidak-p3k">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
                 <div className="h-16 w-16 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 mr-4 flex-shrink-0">
                   <BriefcaseMedical className="h-8 w-8" />
@@ -331,19 +331,19 @@ export default function SidakDashboard() {
           )}
 
           {(searchQuery === "" || "sidak intercom evaluasi pengawas fms".includes(searchQuery.toLowerCase())) && (
-          <Link href="/workspace/sidak/intercom/new" data-testid="link-sidak-intercom">
+            <Link href="/workspace/sidak/intercom/new" data-testid="link-sidak-intercom">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
-                <div className="h-16 w-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0">
-                  <Shield className="h-8 w-8" />
+                <div className="h-16 w-16 rounded-xl bg-sky-50 dark:bg-sky-900/30 flex items-center justify-center text-sky-600 dark:text-sky-400 mr-4 flex-shrink-0">
+                  <Radio className="h-8 w-8" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">Sidak Intercom</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-sky-600 transition-colors">Sidak Intercom</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Evaluasi Pengawas FMS</p>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300">
                     Max 20 Orang
                   </span>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-sky-100 group-hover:text-sky-600 transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </div>
               </div>

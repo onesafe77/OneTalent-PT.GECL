@@ -1833,21 +1833,22 @@ export const sidakIntercomRecords = pgTable("sidak_intercom_records", {
   sessionId: varchar("session_id").notNull().references(() => sidakIntercomSessions.id, { onDelete: "cascade" }),
   ordinal: integer("ordinal").notNull(),
 
-  // Identifikasi pengawas
-  nama: text("nama").notNull(),
+  // Identifikasi record (Operator & Unit)
+  nama: text("nama").notNull(), // will be Operator Name
   nik: text("nik"),
-  perusahaan: text("perusahaan"),
+  nomorLambung: text("nomor_lambung"), // changed from perusahaan
 
-  // 7 pertanyaan kesesuaian (Sesuai = true, Tidak = false)
-  q1_frekuensiFms: boolean("q1_frekuensi_fms").default(false), // Apakah Pengawas menjawab Frekuensi FMS Monitor/Intercom dengan benar?
-  q2_nadaSuara: boolean("q2_nada_suara").default(false), // Apakah nada suara tegas, tidak berteriak & menyebutkan kondisi operator?
-  q3_konfirmasiLokasi: boolean("q3_konfirmasi_lokasi").default(false), // Apakah Pengawas mengonfirmasikan dengan data lokasi operator?
-  q4_responCepat: boolean("q4_respon_cepat").default(false), // Apakah respon cepat & efektif terhadap peringatan operator?
-  q5_penangananEscalation: boolean("q5_penanganan_escalation").default(false), // Apakah Pengawas mengambil tindakan/escalation yang sesuai?
-  q6_pencatatanKejadian: boolean("q6_pencatatan_kejadian").default(false), // Apakah hasp (multilock/headset) digunakan dengan benar?
-  q7_komunikasiEfektif: boolean("q7_komunikasi_efektif").default(false), // Apakah komunikasi efektif dengan operator?
+  waktuTemuan: varchar("waktu_temuan"), // Format "HH:mm"
+  waktuIntervensi: varchar("waktu_intervensi"), // Format "HH:mm"
 
-  waktuResponsMenit: numeric("waktu_respons_menit"), // Waktu respons dalam menit (e.g., 1.0, 1.5, 2.0)
+  // 5 pertanyaan kesesuaian berdasarkan spesifikasi baru
+  q1_slaRespons: boolean("q1_sla_respons").default(false),
+  q2_identifikasi: boolean("q2_identifikasi").default(false),
+  q3_kualitasKomunikasi: boolean("q3_kualitas_komunikasi").default(false),
+  q4_instruksiK3: boolean("q4_instruksi_k3").default(false),
+  q5_verifikasiTindakan: boolean("q5_verifikasi_tindakan").default(false),
+
+  waktuResponsMenit: numeric("waktu_respons_menit"), // Waktu respons dalam menit (opsional/tetap dipertahankan)
   keterangan: text("keterangan"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [index("IDX_intercom_records_session").on(table.sessionId)]);

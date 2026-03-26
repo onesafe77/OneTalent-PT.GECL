@@ -5671,9 +5671,8 @@ export class DrizzleStorage implements IStorage {
     let totalPoin = 0;
     for (const rec of records) {
       const questions = [
-        rec.q1_frekuensiFms, rec.q2_nadaSuara, rec.q3_konfirmasiLokasi,
-        rec.q4_responCepat, rec.q5_penangananEscalation, rec.q6_pencatatanKejadian,
-        rec.q7_komunikasiEfektif
+        rec.q1_slaRespons, rec.q2_identifikasi, rec.q3_kualitasKomunikasi,
+        rec.q4_instruksiK3, rec.q5_verifikasiTindakan
       ];
       for (const q of questions) {
         totalPoin++;
@@ -8403,6 +8402,7 @@ export class DrizzleStorage implements IStorage {
           vehicleNo: fmsViolations.vehicleNo,
           validationStatus: fmsViolations.validationStatus,
           violationType: fmsViolations.violationType,
+          manualDriverName: fmsViolations.manualDriverName,
         })
         .from(fmsViolations)
         .where(dateFilter);
@@ -8419,12 +8419,17 @@ export class DrizzleStorage implements IStorage {
             validCount: 0,
             mataTertutupCount: 0,
             mengantukCount: 0,
-            kelelahanCount: 0
+            kelelahanCount: 0,
+            unassignedCount: 0
           });
         }
 
         const stat = vehicleStats.get(vNo);
         stat.totalCount += 1;
+
+        if (!v.manualDriverName || v.manualDriverName.trim() === '') {
+          stat.unassignedCount += 1;
+        }
 
         const validStatus = v.validationStatus?.toLowerCase();
         if (validStatus === 'valid' || validStatus === 'true') {

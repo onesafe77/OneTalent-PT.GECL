@@ -71,21 +71,22 @@ app.get("/api/admin/migrate-sidak-intercom", async (req, res) => {
       );
     `);
     await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_intercom_sessions_created_by ON sidak_intercom_sessions(created_by);`);
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_intercom_records CASCADE;`);
     await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS sidak_intercom_records (
+      CREATE TABLE sidak_intercom_records (
         id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
         session_id VARCHAR NOT NULL REFERENCES sidak_intercom_sessions(id) ON DELETE CASCADE,
         ordinal INTEGER NOT NULL,
         nama TEXT NOT NULL,
         nik TEXT,
-        perusahaan TEXT,
-        q1_frekuensi_fms BOOLEAN DEFAULT FALSE,
-        q2_nada_suara BOOLEAN DEFAULT FALSE,
-        q3_konfirmasi_lokasi BOOLEAN DEFAULT FALSE,
-        q4_respon_cepat BOOLEAN DEFAULT FALSE,
-        q5_penanganan_escalation BOOLEAN DEFAULT FALSE,
-        q6_pencatatan_kejadian BOOLEAN DEFAULT FALSE,
-        q7_komunikasi_efektif BOOLEAN DEFAULT FALSE,
+        nomor_lambung TEXT,
+        waktu_temuan VARCHAR,
+        waktu_intervensi VARCHAR,
+        q1_sla_respons BOOLEAN DEFAULT FALSE,
+        q2_identifikasi BOOLEAN DEFAULT FALSE,
+        q3_kualitas_komunikasi BOOLEAN DEFAULT FALSE,
+        q4_instruksi_k3 BOOLEAN DEFAULT FALSE,
+        q5_verifikasi_tindakan BOOLEAN DEFAULT FALSE,
         waktu_respons_menit NUMERIC,
         keterangan TEXT,
         created_at TIMESTAMP DEFAULT NOW()

@@ -48,6 +48,7 @@ type FmsAnalyticsData = {
         mataTertutupCount: number;
         mengantukCount: number;
         kelelahanCount: number;
+        unassignedCount: number;
     }[];
     validationStats: any[];
     availableWeeks: number[];
@@ -683,15 +684,30 @@ export default function FmsFatigueMonitoringDashboard() {
                                                 <TableRow key={driver.vehicleNo}>
                                                     <TableCell className="font-medium text-center">{driver.rank}</TableCell>
                                                     <TableCell className="font-medium">
-                                                        <button
-                                                            className="text-blue-600 hover:text-blue-800 hover:underline transition-colors font-bold text-left"
-                                                            onClick={() => {
-                                                                setSelectedDriver({ vehicleNo: driver.vehicleNo });
-                                                                setIsModalOpen(true);
-                                                            }}
-                                                        >
-                                                            {driver.vehicleNo}
-                                                        </button>
+                                                        <div className="flex flex-col items-start gap-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <button
+                                                                    className="text-blue-600 hover:text-blue-800 hover:underline transition-colors font-bold text-left"
+                                                                    onClick={() => {
+                                                                        setSelectedDriver({ vehicleNo: driver.vehicleNo });
+                                                                        setIsModalOpen(true);
+                                                                    }}
+                                                                >
+                                                                    {driver.vehicleNo}
+                                                                </button>
+                                                                {driver.unassignedCount > 0 && (
+                                                                    <span className="flex h-2.5 w-2.5 relative">
+                                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {driver.unassignedCount > 0 && (
+                                                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 min-h-4 h-4 bg-red-100 text-red-700 hover:bg-red-200 border-none rounded">
+                                                                    {driver.unassignedCount} Belum Diinput
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-center font-bold text-red-600 bg-red-50/50">
                                                         {driver.totalCount}

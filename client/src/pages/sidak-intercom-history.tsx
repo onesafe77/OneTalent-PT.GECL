@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ClipboardCheck, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Camera, Upload, Trash2, Shield, User } from "lucide-react";
+import { ClipboardCheck, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Camera, Upload, Trash2, Shield, User, FileText, Image } from "lucide-react";
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import type { SidakIntercomSession, SidakIntercomRecord, SidakIntercomObserver }
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { useState, useRef } from "react";
+import { generateSidakIntercomPdf, downloadSidakIntercomAsJpg } from "@/lib/sidak-intercom-pdf-utils";
+
 
 interface SessionWithDetails extends SidakIntercomSession {
     records?: SidakIntercomRecord[];
@@ -127,6 +129,47 @@ export default function SidakIntercomHistory() {
     const handleDeletePhoto = (photoIndex: number) => {
         if (selectedSession) {
             deletePhotoMutation.mutate({ sessionId: selectedSession.id, photoIndex });
+        }
+    };
+
+    const handleDownloadPdf = async (session: SessionWithDetails) => {
+        try {
+            // Fetch full details (records & observers) before generating PDF
+            const response = await fetch(`/api/sidak-intercom/sessions/${session.id}`);
+            if (!response.ok) throw new Error('Failed to fetch full session details');
+            const fullSession = await response.json();
+
+            const data = {
+                session: fullSession,
+                records: fullSession.records || [],
+                observers: fullSession.observers || []
+            };
+            const pdf = await generateSidakIntercomPdf(data);
+            pdf.save(`Sidak_Intercom_${fullSession.lokasi}_${fullSession.tanggal}.pdf`);
+            toast({ title: "PDF Berhasil Diunduh" });
+        } catch (error: any) {
+            console.error("PDF download failed:", error);
+            toast({ title: "Gagal mengunduh PDF", description: error.message, variant: "destructive" });
+        }
+    };
+
+    const handleDownloadJpg = async (session: SessionWithDetails) => {
+        try {
+            // Fetch full details (records & observers) before generating JPG
+            const response = await fetch(`/api/sidak-intercom/sessions/${session.id}`);
+            if (!response.ok) throw new Error('Failed to fetch full session details');
+            const fullSession = await response.json();
+
+            const data = {
+                session: fullSession,
+                records: fullSession.records || [],
+                observers: fullSession.observers || []
+            };
+            await downloadSidakIntercomAsJpg(data, `Sidak_Intercom_${fullSession.lokasi}_${fullSession.tanggal}.jpg`);
+            toast({ title: "JPG Berhasil Diunduh" });
+        } catch (error: any) {
+            console.error("JPG download failed:", error);
+            toast({ title: "Gagal mengunduh JPG", description: error.message, variant: "destructive" });
         }
     };
 
@@ -245,13 +288,61 @@ export default function SidakIntercomHistory() {
                                         </div>
                                     )}
 
-                                    <Button
-                                        onClick={() => handleOpenPhotoDialog(session)}
-                                        className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 shadow-none rounded-lg h-10 font-medium transition-all"
-                                    >
-                                        <Camera className="h-4 w-4 mr-2" />
-                                        Kelola Foto Kegiatan
-                                    </Button>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 rounded-lg h-10 font-medium transition-all active:scale-[0.98]"
+                                            >
+                                                Pilihan Aksi
+                                                <ChevronDown className="h-4 w-4 ml-auto opacity-70" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-xl p-1 shadow-xl border-gray-200 dark:border-gray-700">
+                                            {(!session.activityPhotos || session.activityPhotos.length === 0) && (
+                                                <div className="px-2 py-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 border-b mb-1 rounded-t-lg">
+                                                    <Camera className="h-3 w-3 inline mr-1" />
+                                                    Upload foto dulu untuk download
+                                                </div>
+                                            )}
+                                            <DropdownMenuItem
+                                                onClick={() => handleDownloadPdf(session)}
+                                                disabled={!session.activityPhotos || session.activityPhotos.length === 0}
+                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                                            >
+                                                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                                                    <FileText className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">Download PDF</span>
+                                                    <span className="text-xs text-muted-foreground">Laporan lengkap</span>
+                                                </div>
+                                            </DropdownMenuItem>
+
+                                            <DropdownMenuItem
+                                                onClick={() => handleDownloadJpg(session)}
+                                                disabled={!session.activityPhotos || session.activityPhotos.length === 0}
+                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                                            >
+                                                <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
+                                                    <Image className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">Download JPG</span>
+                                                    <span className="text-xs text-muted-foreground">Format gambar</span>
+                                                </div>
+                                            </DropdownMenuItem>
+                                            <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
+                                            <DropdownMenuItem onClick={() => handleOpenPhotoDialog(session)} className="rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer">
+                                                <div className="h-8 w-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center mr-3">
+                                                    <Camera className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">Kelola Foto</span>
+                                                    <span className="text-xs text-muted-foreground">Upload/Hapus</span>
+                                                </div>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </CardContent>
                             </Card>
                         ))}

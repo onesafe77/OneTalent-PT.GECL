@@ -12967,18 +12967,18 @@ Format sebagai bullet points singkat per insight.`;
       const sidakCounts = new Map<string, number>();
       try {
         const sidakSessions = await db.select({
-          employeeName: sql<string>`UPPER(TRIM(sfr.driver_name))`,
+          employeeName: sql<string>`UPPER(TRIM(sfr.nama))`,
           count: sql<number>`COUNT(DISTINCT sfs.id)`,
         })
           .from(sql`sidak_fatigue_sessions sfs`)
           .leftJoin(sql`sidak_fatigue_records sfr`, sql`sfr.session_id = sfs.id`)
-          .groupBy(sql`UPPER(TRIM(sfr.driver_name))`);
+          .groupBy(sql`UPPER(TRIM(sfr.nama))`);
 
         for (const s of sidakSessions) {
           if (s.employeeName) sidakCounts.set(s.employeeName, Number(s.count));
         }
       } catch (e) {
-        console.log("[driver-evaluations] Sidak fatigue lookup skipped:", (e as Error).message);
+        console.error("[driver-evaluations] Sidak fatigue lookup skipped error:", e);
       }
 
       // Get PVT data per employee
@@ -13677,7 +13677,22 @@ Format sebagai bullet points singkat per insight.`;
   app.get("/api/sidak-intercom/sessions", async (req, res) => {
     try {
       const sessions = await storage.getAllSidakIntercomSessions();
-      res.json(sessions);
+
+      const sessionsWithDetails = await Promise.all(
+        sessions.map(async (session) => {
+          const [records, observers] = await Promise.all([
+            storage.getSidakIntercomRecords(session.id),
+            storage.getSidakIntercomObservers(session.id)
+          ]);
+          return {
+            ...session,
+            records,
+            observers
+          };
+        })
+      );
+
+      res.json(sessionsWithDetails);
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -13747,6 +13762,52 @@ Format sebagai bullet points singkat per insight.`;
       res.status(201).json(observer);
     } catch (e: any) {
       console.error("Create SIDAK Intercom Observer Error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Add photos to session
+  app.post("/api/sidak-intercom/sessions/:sessionId/photos", async (req, res) => {
+    try {
+      const sessionId = req.params.sessionId;
+      const { photos } = req.body;
+      if (!Array.isArray(photos)) {
+        return res.status(400).json({ error: "photos must be an array" });
+      }
+
+      const session = await storage.getSidakIntercomSession(sessionId);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const currentPhotos = session.activityPhotos || [];
+      const updatedPhotos = [...currentPhotos, ...photos].slice(0, 6); // Max 6
+
+      await storage.updateSidakIntercomSession(sessionId, { activityPhotos: updatedPhotos });
+      res.json({ photos: updatedPhotos });
+    } catch (e: any) {
+      console.error("Upload SIDAK Intercom photos error:", e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Delete photo from session
+  app.delete("/api/sidak-intercom/sessions/:sessionId/photos/:photoIndex", async (req, res) => {
+    try {
+      const sessionId = req.params.sessionId;
+      const photoIndex = parseInt(req.params.photoIndex);
+
+      const session = await storage.getSidakIntercomSession(sessionId);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const currentPhotos = session.activityPhotos || [];
+      if (photoIndex < 0 || photoIndex >= currentPhotos.length) {
+        return res.status(400).json({ error: "Invalid photo index" });
+      }
+
+      currentPhotos.splice(photoIndex, 1);
+      await storage.updateSidakIntercomSession(sessionId, { activityPhotos: currentPhotos });
+      res.json({ photos: currentPhotos });
+    } catch (e: any) {
+      console.error("Delete SIDAK Intercom photo error:", e);
       res.status(500).json({ error: e.message });
     }
   });
