@@ -5691,7 +5691,7 @@ Format sebagai bullet points singkat per insight.`;
       if (error.message?.includes('Maksimal 15 karyawan')) {
         return res.status(422).json({ message: error.message });
       }
-      res.status(500).json({ message: "Gagal menambahkan data karyawan" });
+      res.status(500).json({ message: "Gagal menambahkan data karyawan. Detail: " + (error?.message || String(error)) });
     }
   });
 
@@ -8638,7 +8638,7 @@ Format sebagai bullet points singkat per insight.`;
       if (error.message?.includes('Maksimal 15 karyawan')) {
         return res.status(422).json({ message: error.message });
       }
-      res.status(500).json({ message: "Gagal menambahkan data karyawan" });
+      res.status(500).json({ message: "Gagal menambahkan data karyawan. Details: " + (error?.message || String(error)) });
     }
   });
 
