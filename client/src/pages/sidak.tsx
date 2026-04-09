@@ -350,6 +350,185 @@ export default function SidakDashboard() {
             </Link>
           )}
 
+          {(searchQuery === "" || "sidak stand jack inspeksi peralatan".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/stand-jack/new" data-testid="link-sidak-stand-jack">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors">Sidak Stand Jack</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Stand Jack</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                    Max 20 Unit
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak hydraulic jack inspeksi peralatan".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/hydraulic-jack/new" data-testid="link-sidak-hydraulic-jack">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-teal-50 dark:bg-teal-900/30 flex items-center justify-center text-teal-600 dark:text-teal-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-teal-600 transition-colors">Sidak Hydraulic Jack</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Hydraulic Jack</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                    Max 20 Unit
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-teal-100 group-hover:text-teal-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+          {(searchQuery === "" || "sidak bottle jack inspeksi peralatan".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/bottle-jack/new" data-testid="link-sidak-bottle-jack">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors">Sidak Bottle Jack</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Bottle Jack</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                    Max 20 Unit
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak apar inspeksi pemadam api".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/apar/new" data-testid="link-sidak-apar">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-red-600 transition-colors">Inspeksi APAR</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Alat Pemadam Api Ringan</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300">
+                    Max 20 Unit
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak impact sistem alur 3 step".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/impact/new" data-testid="link-sidak-impact">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">Sidak Impact</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Impact System</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    Max 20 Unit
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak mesin las inspeksi mesin las".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/mesin-las/new" data-testid="link-sidak-mesin-las">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors">Sidak Mesin Las</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Mesin Las</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-50 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                    17 Item Checklist
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak mesin kompresor inspeksi unit".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/mesin-kompresor/new" data-testid="link-sidak-mesin-kompresor">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">Sidak Mesin Kompresor</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Fasilitas Mesin</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    15 Item Checklist
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak gerinda duduk inspeksi unit".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/gerinda-duduk/new" data-testid="link-sidak-gerinda-duduk">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">Sidak Gerinda Duduk</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Fasilitas Gerinda</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                    17 Item Checklist
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak fuel storage inspeksi tangki".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/fuel-storage/new" data-testid="link-sidak-fuel-storage">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-indigo-600 transition-colors">Sidak Fuel Storage</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Inspeksi Fasilitas Fuel</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                    43 Item Checklist
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
           {/* Info Card - Simplified */}
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-2xl p-5 shadow-sm">
             <div className="flex gap-4">
@@ -366,6 +545,6 @@ export default function SidakDashboard() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

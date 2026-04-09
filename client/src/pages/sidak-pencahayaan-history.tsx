@@ -158,7 +158,8 @@ export default function SidakPencahayaanHistory() {
                 observers: observers || []
             });
 
-            const fileName = `Sidak_Pencahayaan_${session.tanggal}_${session.shift.replace(' ', '_')}.pdf`;
+            const deptText = session.departemen ? session.departemen.replace(/ /g, '_') : 'Dept_Lainnya';
+            const fileName = `Sidak_Pencahayaan_${session.tanggalPemeriksaan}_${deptText}.pdf`;
             doc.save(fileName);
 
             toast({
@@ -191,7 +192,8 @@ export default function SidakPencahayaanHistory() {
 
             const { downloadSidakPencahayaanAsJpg } = await import('@/lib/sidak-pencahayaan-pdf-utils');
 
-            const fileName = `Sidak_Pencahayaan_${session.tanggal}_${session.shift.replace(' ', '_')}_${Date.now()}.jpg`;
+            const deptText = session.departemen ? session.departemen.replace(/ /g, '_') : 'Dept_Lainnya';
+            const fileName = `Sidak_Pencahayaan_${session.tanggalPemeriksaan}_${deptText}_${Date.now()}.jpg`;
             await downloadSidakPencahayaanAsJpg({
                 session,
                 records: records || [],
@@ -266,14 +268,14 @@ export default function SidakPencahayaanHistory() {
                                     <div className="flex items-center justify-between gap-2 mb-4">
                                         <div>
                                             <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                {session.departemen} - {session.shift}
+                                                {session.departemen || 'Departemen Tidak Diketahui'}
                                             </h3>
                                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                 <Calendar className="h-3.5 w-3.5" />
-                                                <span>{session.tanggal ? format(new Date(session.tanggal), 'dd MMM yyyy', { locale: id }) : '-'}</span>
+                                                <span>{session.tanggalPemeriksaan ? format(new Date(session.tanggalPemeriksaan), 'dd MMM yyyy', { locale: id }) : '-'}</span>
                                                 <span className="text-gray-300">•</span>
                                                 <Clock className="h-3.5 w-3.5" />
-                                                <span>{session.waktu || '-'}</span>
+                                                <span>{session.waktuPemeriksaan || '-'}</span>
                                             </div>
                                         </div>
                                         <Badge variant="secondary" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 rounded-full px-3 py-0.5 text-xs font-semibold whitespace-nowrap border-0">
@@ -287,14 +289,14 @@ export default function SidakPencahayaanHistory() {
                                                 <MapPin className="h-3.5 w-3.5" />
                                                 <span className="text-[10px] uppercase font-bold tracking-wider">Lokasi</span>
                                             </div>
-                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{session.lokasi}</p>
+                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{session.lokasiPengukuran || '-'}</p>
                                         </div>
                                         <div className="space-y-1">
                                             <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
                                                 <Lightbulb className="h-3.5 w-3.5" />
                                                 <span className="text-[10px] uppercase font-bold tracking-wider">PJ Area</span>
                                             </div>
-                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{session.penanggungJawab}</p>
+                                            <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{session.penanggungjawabArea || '-'}</p>
                                         </div>
                                     </div>
 
@@ -397,8 +399,8 @@ export default function SidakPencahayaanHistory() {
                     {selectedSession && (
                         <div className="space-y-4">
                             <div className="text-sm text-gray-600">
-                                <p><strong>Tanggal:</strong> {selectedSession.tanggal ? format(new Date(selectedSession.tanggal), 'dd MMMM yyyy', { locale: id }) : '-'}</p>
-                                <p><strong>Lokasi:</strong> {selectedSession.lokasi}</p>
+                                <p><strong>Tanggal:</strong> {selectedSession.tanggalPemeriksaan ? format(new Date(selectedSession.tanggalPemeriksaan), 'dd MMMM yyyy', { locale: id }) : '-'}</p>
+                                <p><strong>Lokasi:</strong> {selectedSession.lokasiPengukuran}</p>
                             </div>
 
                             <div>

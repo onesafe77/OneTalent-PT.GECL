@@ -114,6 +114,408 @@ app.get("/api/admin/migrate-sidak-intercom", async (req, res) => {
   }
 });
 
+// TEMPORARY MIGRATION ROUTE - CREATE SIDAK BOTTLE JACK TABLES
+app.get("/api/admin/migrate-sidak-bottle-jack", async (req, res) => {
+  try {
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+
+    // DROP EXISTING TABLES to fix schema mismatch
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_bottle_jack_observers CASCADE;`);
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_bottle_jack_records CASCADE;`);
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_bottle_jack_sessions CASCADE;`);
+
+    // Create Sessions Table
+    await db.execute(sql`
+      CREATE TABLE sidak_bottle_jack_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tanggal TEXT NOT NULL,
+        nama_workshop TEXT NOT NULL,
+        lokasi TEXT NOT NULL,
+        shift VARCHAR(50),
+        waktu VARCHAR(20),
+        penanggung_jawab_area TEXT,
+        total_bottle_jack INTEGER DEFAULT 0,
+        activity_photos TEXT[],
+        created_by VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Create Records Table
+    await db.execute(sql`
+      CREATE TABLE sidak_bottle_jack_records (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_bottle_jack_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        no_register_peralatan VARCHAR,
+        inspection_results JSONB NOT NULL DEFAULT '{}',
+        tindak_lanjut_perbaikan JSONB NOT NULL DEFAULT '{}',
+        due_date DATE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    // Create Observers Table
+    await db.execute(sql`
+      CREATE TABLE sidak_bottle_jack_observers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_bottle_jack_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        nama TEXT NOT NULL,
+        perusahaan TEXT,
+        tanda_tangan TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    res.send("<h1>✅ Sidak Bottle Jack migration completed successfully</h1>");
+  } catch (e: any) {
+    console.error("MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
+  }
+});
+
+// TEMPORARY MIGRATION ROUTE - CREATE SIDAK FUEL STORAGE TABLES
+app.get("/api/admin/migrate-sidak-fuel-storage", async (req, res) => {
+  try {
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_fuel_storage_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tanggal TEXT NOT NULL,
+        nama_workshop TEXT NOT NULL,
+        lokasi TEXT NOT NULL,
+        sub_lokasi TEXT,
+        shift VARCHAR(50),
+        waktu VARCHAR(20),
+        penanggung_jawab_area TEXT,
+        total_items INTEGER DEFAULT 0,
+        activity_photos TEXT[],
+        created_by VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sidak_fuel_storage_records (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_fuel_storage_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        storage_name TEXT,
+        inspection_results JSONB NOT NULL DEFAULT '{}',
+        tindak_lanjut_perbaikan JSONB NOT NULL DEFAULT '{}',
+        due_date DATE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS sidak_fuel_storage_observers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_fuel_storage_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        nama TEXT NOT NULL,
+        jabatan TEXT,
+        departemen TEXT,
+        perusahaan TEXT,
+        tanda_tangan TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    res.send("<h1>✅ Sidak Fuel Storage migration completed successfully</h1>");
+  } catch (e: any) {
+    console.error("MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
+  }
+});
+
+// NUCLEAR RESET MIGRATION ROUTE - CREATE SIDAK MESIN LAS TABLES
+app.get("/api/admin/migrate-sidak-mesin-las", async (req, res) => {
+  try {
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+
+    console.log("🚀 Starting Aggressive Sidak Mesin Las Migration (DROP & RECREATE)...");
+
+    // DROP EXISTING TABLES
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_mesin_las_observers CASCADE;`);
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_mesin_las_records CASCADE;`);
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_mesin_las_sessions CASCADE;`);
+
+    // 1. Sessions Table
+    await db.execute(sql`
+      CREATE TABLE sidak_mesin_las_sessions (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tanggal TEXT NOT NULL,
+        nama_objek_inspeksi TEXT NOT NULL,
+        lokasi TEXT NOT NULL,
+        shift VARCHAR(50),
+        waktu VARCHAR(20),
+        penanggung_jawab TEXT,
+        total_mesin_las INTEGER DEFAULT 0,
+        activity_photos TEXT[],
+        created_by VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX idx_mesin_las_sessions_created_by ON sidak_mesin_las_sessions(created_by);`);
+
+    // 2. Records Table
+    await db.execute(sql`
+      CREATE TABLE sidak_mesin_las_records (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_mesin_las_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        no_register_mesin_las VARCHAR,
+        inspection_results JSONB NOT NULL DEFAULT '{}',
+        tindak_lanjut_perbaikan JSONB NOT NULL DEFAULT '{}',
+        due_date DATE,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX idx_mesin_las_records_session ON sidak_mesin_las_records(session_id);`);
+
+    // 3. Observers Table
+    await db.execute(sql`
+      CREATE TABLE sidak_mesin_las_observers (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_mesin_las_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        nama TEXT NOT NULL,
+        perusahaan TEXT,
+        tanda_tangan TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX idx_mesin_las_observers_session ON sidak_mesin_las_observers(session_id);`);
+
+    // Verification
+    const cols = await db.execute(sql`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'sidak_mesin_las_sessions'
+    `);
+
+    console.log("✅ NUCLEAR RESET COMPLETED. Columns:", cols.rows.map(r => r.column_name));
+
+    res.send(`
+      <h1>✅ NUCLEAR RESET: Sidak Mesin Las migration completed</h1>
+      <p>Tabel lama dihapus dan dibuat ulang dengan skema baru.</p>
+      <h3>Kolom saat ini:</h3>
+      <pre>${JSON.stringify(cols.rows.map(r => r.column_name), null, 2)}</pre>
+      <p>Silakan refresh halaman form (F5) dan coba kembali.</p>
+    `);
+  } catch (e: any) {
+    console.error("MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
+  }
+});
+
+// TEMPORARY MIGRATION ROUTE - CREATE SIDAK GERINDA DUDUK TABLES (FIXED)
+app.get("/api/admin/migrate-sidak-gerinda-duduk", async (req, res) => {
+  try {
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const force = req.query.force === "true";
+
+    console.log(`🚀 Starting Sidak Gerinda Duduk Migration (FIXED). Force: ${force}`);
+
+    // 1. Ensure pgcrypto extension exists
+    await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
+
+    if (force) {
+      console.log("⚠️ FORCE RESET: Dropping existing tables...");
+      await db.execute(sql`DROP TABLE IF EXISTS sidak_gerinda_duduk_observers CASCADE;`);
+      await db.execute(sql`DROP TABLE IF EXISTS sidak_gerinda_duduk_records CASCADE;`);
+      await db.execute(sql`DROP TABLE IF EXISTS sidak_gerinda_duduk_sessions CASCADE;`);
+    }
+
+    // 1. Sessions Table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_gerinda_duduk_sessions(
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        tanggal TEXT NOT NULL,
+        nama_objek_inspeksi TEXT NOT NULL,
+        lokasi TEXT NOT NULL,
+        shift VARCHAR(50),
+        waktu VARCHAR(20),
+        penanggung_jawab TEXT,
+        total_items INTEGER DEFAULT 0,
+        activity_photos TEXT[],
+        status VARCHAR(20) DEFAULT 'open',
+        created_by VARCHAR,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_gerinda_duduk_sessions_created_by ON sidak_gerinda_duduk_sessions(created_by);`);
+
+    // 2. Records Table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_gerinda_duduk_records(
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_gerinda_duduk_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        question TEXT NOT NULL,
+        status VARCHAR(20) NOT NULL,
+        photo_url TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_gerinda_duduk_records_session ON sidak_gerinda_duduk_records(session_id);`);
+
+    // 3. Observers Table
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_gerinda_duduk_observers(
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id VARCHAR NOT NULL REFERENCES sidak_gerinda_duduk_sessions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        signature_url TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_gerinda_duduk_observers_session ON sidak_gerinda_duduk_observers(session_id);`);
+
+    console.log("✅ SIDAK GERINDA DUDUK TABLES CREATED (FIXED)");
+    res.send(`
+      <h1>✅ Sidak Gerinda Duduk migration (FIXED) completed successfully</h1>
+      <p>Status: ${force ? "Nuclear Reset (Tables Dropped & Recreated)" : "Safety Mode (Tables created IF NOT EXISTS)"}</p>
+      <p>Silakan coba kembali form inspeksi.</p>
+    `);
+  } catch (e: any) {
+    console.error("MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
+  }
+});
+
+
+// TEMPORARY MIGRATION ROUTE - CREATE SIDAK STAND JACK TABLES
+app.get("/api/admin/migrate-sidak-stand-jack", async (req, res) => {
+  try {
+    console.log("🚀 SIDAK STAND JACK MIGRATION HIT");
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_stand_jack_sessions(
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      tanggal VARCHAR NOT NULL,
+      shift VARCHAR NOT NULL,
+      waktu VARCHAR,
+      lokasi TEXT NOT NULL,
+      nama_workshop TEXT NOT NULL,
+      penanggung_jawab_area TEXT,
+      total_stand_jack INTEGER NOT NULL DEFAULT 0,
+      activity_photos TEXT[],
+      created_by VARCHAR,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    `);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stand_jack_sessions_created_by ON sidak_stand_jack_sessions(created_by); `);
+
+    await db.execute(sql`DROP TABLE IF EXISTS sidak_stand_jack_records CASCADE; `);
+    await db.execute(sql`
+      CREATE TABLE sidak_stand_jack_records(
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      session_id VARCHAR NOT NULL REFERENCES sidak_stand_jack_sessions(id) ON DELETE CASCADE,
+      ordinal INTEGER NOT NULL,
+      no_register_peralatan VARCHAR,
+      inspection_results JSONB NOT NULL DEFAULT '{}',
+      tindak_lanjut_perbaikan JSONB NOT NULL DEFAULT '{}',
+      due_date DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    `);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stand_jack_records_session ON sidak_stand_jack_records(session_id); `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_stand_jack_observers(
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      session_id VARCHAR NOT NULL REFERENCES sidak_stand_jack_sessions(id) ON DELETE CASCADE,
+      ordinal INTEGER NOT NULL,
+      nama TEXT NOT NULL,
+      nik VARCHAR,
+      perusahaan TEXT,
+      tanda_tangan TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    `);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_stand_jack_observers_session ON sidak_stand_jack_observers(session_id); `);
+
+    console.log("✅ SIDAK STAND JACK TABLES CREATED");
+    res.send("<h1>✅ Sidak Stand Jack tables created successfully</h1>");
+  } catch (e: any) {
+    console.error("SIDAK STAND JACK MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed < /h1><p>${e.message}</p > `);
+  }
+});
+
+// TEMPORARY MIGRATION ROUTE - CREATE SIDAK HYDRAULIC JACK TABLES
+app.get("/api/admin/migrate-sidak-hydraulic-jack", async (req, res) => {
+  try {
+    console.log("🚀 SIDAK HYDRAULIC JACK MIGRATION HIT");
+    const { db } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_hydraulic_jack_sessions(
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      tanggal VARCHAR NOT NULL,
+      shift VARCHAR NOT NULL,
+      waktu VARCHAR,
+      lokasi TEXT NOT NULL,
+      nama_workshop TEXT NOT NULL,
+      penanggung_jawab_area TEXT,
+      total_hydraulic_jack INTEGER NOT NULL DEFAULT 0,
+      activity_photos TEXT[],
+      created_by VARCHAR,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    `);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_hydraulic_jack_sessions_created_by ON sidak_hydraulic_jack_sessions(created_by); `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_hydraulic_jack_records(
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      session_id VARCHAR NOT NULL REFERENCES sidak_hydraulic_jack_sessions(id) ON DELETE CASCADE,
+      ordinal INTEGER NOT NULL,
+      no_register_peralatan VARCHAR,
+      inspection_results JSONB NOT NULL DEFAULT '{}',
+      tindak_lanjut_perbaikan JSONB NOT NULL DEFAULT '{}',
+      due_date DATE,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    `);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_hydraulic_jack_records_session ON sidak_hydraulic_jack_records(session_id); `);
+
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sidak_hydraulic_jack_observers(
+      id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+      session_id VARCHAR NOT NULL REFERENCES sidak_hydraulic_jack_sessions(id) ON DELETE CASCADE,
+      ordinal INTEGER NOT NULL,
+      nama TEXT NOT NULL,
+      nik VARCHAR,
+      perusahaan TEXT,
+      tanda_tangan TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    `);
+
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS idx_hydraulic_jack_observers_session ON sidak_hydraulic_jack_observers(session_id); `);
+
+    console.log("✅ SIDAK HYDRAULIC JACK TABLES CREATED");
+    res.send("<h1>✅ Sidak Hydraulic Jack tables created successfully</h1>");
+  } catch (e: any) {
+    console.error("SIDAK HYDRAULIC JACK MIGRATION ERROR:", e);
+    res.status(500).send(`<h1>❌ Migration failed < /h1><p>${e.message}</p > `);
+  }
+});
+
 // Startup debug disabled
 
 
@@ -134,9 +536,9 @@ app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 app.use((req, res, next) => {
   if (req.originalUrl.startsWith("/api")) {
-    console.log(`[API REQUEST] ${req.method} ${req.originalUrl}`);
+    console.log(`[API REQUEST] ${req.method} ${req.originalUrl} `);
   }
-  console.log(`[INCOMING REQUEST] ${req.method} ${req.originalUrl}`);
+  console.log(`[INCOMING REQUEST] ${req.method} ${req.originalUrl} `);
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
@@ -150,13 +552,13 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration} ms`;
       if (capturedJsonResponse) {
         let bodyString = JSON.stringify(capturedJsonResponse);
         if (bodyString.length > 500) {
           bodyString = bodyString.substring(0, 500) + "... [truncated]";
         }
-        logLine += ` :: ${bodyString}`;
+        logLine += ` :: ${bodyString} `;
       }
 
       log(logLine);
@@ -170,7 +572,7 @@ app.use((req, res, next) => {
 app.get("/api/public/simper-perpanjangan/all", async (req, res) => {
   try {
     const search = req.query.search as string;
-    console.log(`[PublicMonitoring-HOTFIX] GET all perpanjangan, search: "${search || ''}"`);
+    console.log(`[PublicMonitoring - HOTFIX] GET all perpanjangan, search: "${search || ''}"`);
 
     const records = await storage.getAllSimperPerpanjangan(search);
 
@@ -178,7 +580,7 @@ app.get("/api/public/simper-perpanjangan/all", async (req, res) => {
       id: record.id,
       nama: record.nama,
       nik: record.nik.length > 6
-        ? `${record.nik.substring(0, 4)}***${record.nik.substring(record.nik.length - 2)}`
+        ? `${record.nik.substring(0, 4)}*** ${record.nik.substring(record.nik.length - 2)} `
         : record.nik,
       jabatan: record.jabatan,
       departemen: record.departemen,
@@ -202,7 +604,7 @@ app.get("/api/public/simper-perpanjangan/all", async (req, res) => {
 app.get("/api/public/simper-perpanjangan/:token", async (req, res) => {
   try {
     const { token } = req.params;
-    console.log(`[PublicTracking-HOTFIX] GET by token: ${token}`);
+    console.log(`[PublicTracking - HOTFIX] GET by token: ${token} `);
 
     const record = await storage.getSimperPerpanjanganByToken(token);
     if (!record) {
@@ -210,7 +612,7 @@ app.get("/api/public/simper-perpanjangan/:token", async (req, res) => {
     }
 
     const maskedNik = record.nik.length > 6
-      ? `${record.nik.substring(0, 4)}***${record.nik.substring(record.nik.length - 2)}`
+      ? `${record.nik.substring(0, 4)}*** ${record.nik.substring(record.nik.length - 2)} `
       : record.nik;
 
     res.json({
@@ -235,7 +637,7 @@ app.get("/api/public/simper-perpanjangan/:token", async (req, res) => {
 app.put("/api/simper-perpanjangan/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    console.log(`[SimperPerpanjangan] Updating record ${id}:`, req.body);
+    console.log(`[SimperPerpanjangan] Updating record ${id}: `, req.body);
 
     const oldRecord = await storage.getSimperPerpanjanganById(id);
     if (!oldRecord) {
@@ -256,7 +658,7 @@ app.put("/api/simper-perpanjangan/:id", async (req, res) => {
         tahapan: req.body.tahapanWorkflow || oldRecord.tahapanWorkflow,
         approver: (req as any).user?.nama || "Admin (Hotfix)",
         approverNik: (req as any).user?.nik || "SYSTEM",
-        catatan: req.body.catatan || `Status updated (Hotfix)`
+        catatan: req.body.catatan || `Status updated(Hotfix)`
       });
     }
 
@@ -291,7 +693,7 @@ app.put("/api/simper-perpanjangan/:id", async (req, res) => {
             messageType: "STATUS_UPDATE"
           }
         });
-        console.log(`[SimperPerpanjangan] Notification sent for ${id}:`, sendResult);
+        console.log(`[SimperPerpanjangan] Notification sent for ${id}: `, sendResult);
       }
     } catch (waError) {
       console.error("[SimperPerpanjangan-HOTFIX] Notification error:", waError);
@@ -353,9 +755,9 @@ app.post("/api/simper-ev/sync", async (req, res) => {
 
     if (!url) return res.status(400).json({ error: "URL CSV tidak ditemukan." });
 
-    console.log(`[SimperEV-Hotfix] Syncing from URL: ${url}`);
+    console.log(`[SimperEV - Hotfix] Syncing from URL: ${url} `);
     const response = await fetch(url);
-    if (!response.ok) throw new Error(`Gagal mengunduh CSV: ${response.status}`);
+    if (!response.ok) throw new Error(`Gagal mengunduh CSV: ${response.status} `);
     const csvText = await response.text();
 
     const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true, transformHeader: (h) => h.trim() });
@@ -442,7 +844,7 @@ app.post("/api/employees/:id/os-certificate", uploadDirect.single('certificate')
     const file = req.file;
     if (!file) return res.status(400).json({ message: "No file uploaded" });
 
-    const sertifikatOsUrl = `/uploads/${file.filename}`;
+    const sertifikatOsUrl = `/ uploads / ${file.filename}`;
     await storage.updateEmployee(id, { sertifikatOsUrl } as any);
     console.log("OS Certificate updated:", sertifikatOsUrl);
     res.json({ sertifikatOsUrl });
@@ -475,7 +877,7 @@ app.post("/api/whatsapp/blast/cancel/:jobId", (req, res) => {
 
 // Blast WhatsApp - Text Only
 app.post("/api/whatsapp/blast/text", async (req, res) => {
-  console.log(`[WhatsApp Blast] POST /api/whatsapp/blast/text`);
+  console.log(`[WhatsApp Blast]POST / api / whatsapp / blast / text`);
   try {
     const { subject, message } = req.body;
 
@@ -522,7 +924,7 @@ app.post("/api/whatsapp/blast/text", async (req, res) => {
 
 // Blast WhatsApp - With Images (multiple)
 app.post("/api/whatsapp/blast/image", async (req, res) => {
-  console.log(`[WhatsApp Blast] POST /api/whatsapp/blast/image`);
+  console.log(`[WhatsApp Blast]POST / api / whatsapp / blast / image`);
   try {
     const { subject, message, imageUrls } = req.body;
 
@@ -573,7 +975,7 @@ app.post("/api/whatsapp/blast/image", async (req, res) => {
 
 // Blast WhatsApp - With Video
 app.post("/api/whatsapp/blast/video", async (req, res) => {
-  console.log(`[WhatsApp Blast] POST /api/whatsapp/blast/video`);
+  console.log(`[WhatsApp Blast]POST / api / whatsapp / blast / video`);
   try {
     const { subject, message, videoUrl } = req.body;
 
@@ -624,7 +1026,7 @@ app.post("/api/whatsapp/blast/video", async (req, res) => {
 
 // Test Send - Single number for testing before blast
 app.post("/api/whatsapp/test-send", async (req, res) => {
-  console.log(`[WhatsApp Test] POST /api/whatsapp/test-send`);
+  console.log(`[WhatsApp Test]POST / api / whatsapp / test - send`);
   try {
     const { phone, message, type, imageUrl, videoUrl } = req.body;
 
@@ -647,10 +1049,10 @@ app.post("/api/whatsapp/test-send", async (req, res) => {
     }
 
     if (result.success) {
-      console.log(`[WhatsApp Test] Successfully sent to ${phone}`);
+      console.log(`[WhatsApp Test] Successfully sent to ${phone} `);
       res.json({ success: true, message: "Test message sent successfully", response: result.response });
     } else {
-      console.error(`[WhatsApp Test] Failed: ${result.error}`);
+      console.error(`[WhatsApp Test]Failed: ${result.error} `);
       res.status(500).json({ success: false, message: result.error || "Send failed" });
     }
   } catch (error) {
@@ -660,7 +1062,7 @@ app.post("/api/whatsapp/test-send", async (req, res) => {
 });
 
 app.post("/api/whatsapp/send-reminder", async (req, res) => {
-  console.log(`[WhatsApp API] POST /api/whatsapp/send-reminder`);
+  console.log(`[WhatsApp API]POST / api / whatsapp / send - reminder`);
   try {
     const { phone, name, docType, daysLeft, expiredDate, customMessage } = req.body;
 
@@ -694,10 +1096,10 @@ app.post("/api/whatsapp/send-reminder", async (req, res) => {
     const result = await sendWhatsAppMessage({ phone, message });
 
     if (result.success) {
-      console.log(`[WhatsApp API] Successfully sent to ${phone}`);
+      console.log(`[WhatsApp API] Successfully sent to ${phone} `);
       res.json({ success: true, message: "WhatsApp sent successfully" });
     } else {
-      console.error(`[WhatsApp API] Failed: ${result.error}`);
+      console.error(`[WhatsApp API]Failed: ${result.error} `);
       res.status(500).json({ success: false, message: result.error });
     }
   } catch (error) {
@@ -761,6 +1163,6 @@ app.post("/api/whatsapp/send-reminder", async (req, res) => {
     port,
     host: "0.0.0.0",
   }, () => {
-    log(`serving on port ${port}`);
+    log(`serving on port ${port} `);
   });
 })();

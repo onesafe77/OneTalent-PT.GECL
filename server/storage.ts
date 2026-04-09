@@ -212,6 +212,51 @@ import {
   sidakIntercomSessions,
   sidakIntercomRecords,
   sidakIntercomObservers,
+  type SidakStandJackSession,
+  type InsertSidakStandJackSession,
+  type SidakStandJackRecord,
+  type InsertSidakStandJackRecord,
+  type SidakStandJackObserver,
+  type InsertSidakStandJackObserver,
+  sidakStandJackSessions,
+  sidakStandJackRecords,
+  sidakStandJackObservers,
+  type SidakHydraulicJackSession,
+  type InsertSidakHydraulicJackSession,
+  type SidakHydraulicJackRecord,
+  type InsertSidakHydraulicJackRecord,
+  type SidakHydraulicJackObserver,
+  type InsertSidakHydraulicJackObserver,
+  sidakHydraulicJackSessions,
+  sidakHydraulicJackRecords,
+  sidakHydraulicJackObservers,
+  type SidakBottleJackSession,
+  type InsertSidakBottleJackSession,
+  type SidakBottleJackRecord,
+  type InsertSidakBottleJackRecord,
+  type SidakBottleJackObserver,
+  type InsertSidakBottleJackObserver,
+  sidakBottleJackSessions,
+  sidakBottleJackRecords,
+  sidakBottleJackObservers,
+  type SidakFuelStorageSession,
+  type InsertSidakFuelStorageSession,
+  type SidakFuelStorageRecord,
+  type InsertSidakFuelStorageRecord,
+  type SidakFuelStorageObserver,
+  type InsertSidakFuelStorageObserver,
+  sidakFuelStorageSessions,
+  sidakFuelStorageRecords,
+  sidakFuelStorageObservers,
+  sidakMesinLasSessions,
+  sidakMesinLasRecords,
+  sidakMesinLasObservers,
+  type SidakMesinLasSession,
+  type InsertSidakMesinLasSession,
+  type SidakMesinLasRecord,
+  type InsertSidakMesinLasRecord,
+  type SidakMesinLasObserver,
+  type InsertSidakMesinLasObserver,
   // TNA Types
   type Training, type InsertTraining,
   type TnaSummary, type InsertTnaSummary,
@@ -282,6 +327,42 @@ import {
   usignApprovalSteps,
   usignSignatures,
   usignNotifications,
+  type SidakMesinKompresorSession,
+  type InsertSidakMesinKompresorSession,
+  type SidakMesinKompresorRecord,
+  type InsertSidakMesinKompresorRecord,
+  type SidakMesinKompresorObserver,
+  type InsertSidakMesinKompresorObserver,
+  sidakMesinKompresorSessions,
+  sidakMesinKompresorRecords,
+  sidakMesinKompresorObservers,
+  type SidakImpactSession,
+  type InsertSidakImpactSession,
+  type SidakImpactRecord,
+  type InsertSidakImpactRecord,
+  type SidakImpactObserver,
+  type InsertSidakImpactObserver,
+  type SidakAparSession,
+  type InsertSidakAparSession,
+  type SidakAparRecord,
+  type InsertSidakAparRecord,
+  type SidakAparObserver,
+  type InsertSidakAparObserver,
+  sidakImpactSessions,
+  sidakImpactRecords,
+  sidakImpactObservers,
+  sidakAparSessions,
+  sidakAparRecords,
+  sidakAparObservers,
+  sidakGerindaDudukSessions,
+  sidakGerindaDudukRecords,
+  sidakGerindaDudukObservers,
+  type SidakGerindaDudukSession,
+  type InsertSidakGerindaDudukSession,
+  type SidakGerindaDudukRecord,
+  type InsertSidakGerindaDudukRecord,
+  type SidakGerindaDudukObserver,
+  type InsertSidakGerindaDudukObserver,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -449,6 +530,7 @@ export interface IStorage {
   createSidakRosterRecord(record: InsertSidakRosterRecord): Promise<SidakRosterRecord>;
   getSidakRosterObservers(sessionId: string): Promise<SidakRosterObserver[]>;
   createSidakRosterObserver(observer: InsertSidakRosterObserver): Promise<SidakRosterObserver>;
+  updateSidakRosterSessionSampleCount(sessionId: string): Promise<void>;
 
   // Sidak Seatbelt methods
   getSidakSeatbeltSession(id: string): Promise<SidakSeatbeltSession | undefined>;
@@ -460,6 +542,7 @@ export interface IStorage {
   createSidakSeatbeltRecord(record: InsertSidakSeatbeltRecord): Promise<SidakSeatbeltRecord>;
   getSidakSeatbeltObservers(sessionId: string): Promise<SidakSeatbeltObserver[]>;
   createSidakSeatbeltObserver(observer: InsertSidakSeatbeltObserver): Promise<SidakSeatbeltObserver>;
+  updateSidakSeatbeltSessionSampleCount(sessionId: string): Promise<void>;
 
   // Sidak Rambu methods
   getSidakRambuSession(id: string): Promise<SidakRambuSession | undefined>;
@@ -741,6 +824,99 @@ export interface IStorage {
   getUsignSignatures(stepId: string): Promise<UsignSignature[]>;
   createUsignNotification(data: InsertUsignNotification): Promise<UsignNotification>;
   getInProgressUsignDocuments(): Promise<UsignDocument[]>;
+
+  // Sidak Stand Jack Methods
+  getSidakStandJackSession(id: string): Promise<SidakStandJackSession | undefined>;
+  getAllSidakStandJackSessions(): Promise<SidakStandJackSession[]>;
+  createSidakStandJackSession(session: InsertSidakStandJackSession & { createdBy?: string | null }): Promise<SidakStandJackSession>;
+  updateSidakStandJackSession(id: string, updates: Partial<InsertSidakStandJackSession>): Promise<SidakStandJackSession | undefined>;
+  getSidakStandJackRecords(sessionId: string): Promise<SidakStandJackRecord[]>;
+  createSidakStandJackRecord(record: InsertSidakStandJackRecord): Promise<SidakStandJackRecord>;
+  getSidakStandJackObservers(sessionId: string): Promise<SidakStandJackObserver[]>;
+  createSidakStandJackObserver(observer: InsertSidakStandJackObserver): Promise<SidakStandJackObserver>;
+
+  // Sidak Bottle Jack Methods
+  getSidakBottleJackSession(id: string): Promise<SidakBottleJackSession | undefined>;
+  getAllSidakBottleJackSessions(): Promise<SidakBottleJackSession[]>;
+  createSidakBottleJackSession(session: InsertSidakBottleJackSession & { createdBy?: string | null }): Promise<SidakBottleJackSession>;
+  updateSidakBottleJackSession(id: string, updates: Partial<InsertSidakBottleJackSession>): Promise<SidakBottleJackSession | undefined>;
+  getSidakBottleJackRecords(sessionId: string): Promise<SidakBottleJackRecord[]>;
+  createSidakBottleJackRecord(record: InsertSidakBottleJackRecord): Promise<SidakBottleJackRecord>;
+  getSidakBottleJackObservers(sessionId: string): Promise<SidakBottleJackObserver[]>;
+  createSidakBottleJackObserver(observer: InsertSidakBottleJackObserver): Promise<SidakBottleJackObserver>;
+  updateSidakBottleJackSessionEquipmentCount(sessionId: string): Promise<void>;
+
+  // Sidak Impact Methods
+  getSidakImpactSession(id: string): Promise<SidakImpactSession | undefined>;
+  getSidakImpactSessions(): Promise<SidakImpactSession[]>;
+  createSidakImpactSession(session: InsertSidakImpactSession & { createdBy?: string | null }): Promise<SidakImpactSession>;
+  updateSidakImpactSession(id: string, updates: Partial<InsertSidakImpactSession>): Promise<SidakImpactSession | undefined>;
+  getSidakImpactRecords(sessionId: string): Promise<SidakImpactRecord[]>;
+  createSidakImpactRecord(record: InsertSidakImpactRecord): Promise<SidakImpactRecord>;
+  getSidakImpactObservers(sessionId: string): Promise<SidakImpactObserver[]>;
+  createSidakImpactObserver(observer: InsertSidakImpactObserver): Promise<SidakImpactObserver>;
+  updateSidakImpactSessionEquipmentCount(sessionId: string): Promise<void>;
+
+  // Sidak Apar Methods
+  getSidakAparSession(id: string): Promise<SidakAparSession | undefined>;
+  getSidakAparSessions(): Promise<SidakAparSession[]>;
+  createSidakAparSession(session: InsertSidakAparSession & { createdBy?: string | null }): Promise<SidakAparSession>;
+  updateSidakAparSession(id: string, updates: Partial<InsertSidakAparSession>): Promise<SidakAparSession | undefined>;
+  getSidakAparRecords(sessionId: string): Promise<SidakAparRecord[]>;
+  createSidakAparRecord(record: InsertSidakAparRecord): Promise<SidakAparRecord>;
+  getSidakAparObservers(sessionId: string): Promise<SidakAparObserver[]>;
+  createSidakAparObserver(observer: InsertSidakAparObserver): Promise<SidakAparObserver>;
+  updateSidakAparSessionEquipmentCount(sessionId: string): Promise<void>;
+
+  // Sidak Fuel Storage Methods
+  getSidakFuelStorageSession(id: string): Promise<SidakFuelStorageSession | undefined>;
+  getSidakFuelStorageSessions(): Promise<SidakFuelStorageSession[]>;
+  createSidakFuelStorageSession(session: InsertSidakFuelStorageSession & { createdBy?: string | null }): Promise<SidakFuelStorageSession>;
+  updateSidakFuelStorageSession(id: string, updates: Partial<InsertSidakFuelStorageSession>): Promise<SidakFuelStorageSession | undefined>;
+  getSidakFuelStorageRecords(sessionId: string): Promise<SidakFuelStorageRecord[]>;
+  createSidakFuelStorageRecord(record: InsertSidakFuelStorageRecord): Promise<SidakFuelStorageRecord>;
+  getSidakFuelStorageObservers(sessionId: string): Promise<SidakFuelStorageObserver[]>;
+  createSidakFuelStorageObserver(observer: InsertSidakFuelStorageObserver): Promise<SidakFuelStorageObserver>;
+  updateSidakFuelStorageSessionEquipmentCount(sessionId: string): Promise<void>;
+  deleteSidakFuelStorageSession(id: string): Promise<boolean>;
+
+  // Sidak Mesin Las Methods
+  getSidakMesinLasSession(id: string): Promise<SidakMesinLasSession | undefined>;
+  getSidakMesinLasSessions(): Promise<SidakMesinLasSession[]>;
+  createSidakMesinLasSession(session: InsertSidakMesinLasSession & { createdBy?: string | null }): Promise<SidakMesinLasSession>;
+  updateSidakMesinLasSession(id: string, updates: Partial<InsertSidakMesinLasSession>): Promise<SidakMesinLasSession | undefined>;
+  getSidakMesinLasRecords(sessionId: string): Promise<SidakMesinLasRecord[]>;
+  createSidakMesinLasRecord(record: InsertSidakMesinLasRecord): Promise<SidakMesinLasRecord>;
+  getSidakMesinLasObservers(sessionId: string): Promise<SidakMesinLasObserver[]>;
+  createSidakMesinLasObserver(observer: InsertSidakMesinLasObserver): Promise<SidakMesinLasObserver>;
+  updateSidakMesinLasSessionEquipmentCount(sessionId: string): Promise<void>;
+  deleteSidakMesinLasSession(id: string): Promise<boolean>;
+
+  // Sidak Mesin Kompresor Methods
+  getSidakMesinKompresorSession(id: string): Promise<SidakMesinKompresorSession | undefined>;
+  getSidakMesinKompresorSessions(): Promise<SidakMesinKompresorSession[]>;
+  createSidakMesinKompresorSession(session: InsertSidakMesinKompresorSession & { createdBy?: string | null }): Promise<SidakMesinKompresorSession>;
+  updateSidakMesinKompresorSession(id: string, updates: Partial<InsertSidakMesinKompresorSession>): Promise<SidakMesinKompresorSession | undefined>;
+  getSidakMesinKompresorRecords(sessionId: string): Promise<SidakMesinKompresorRecord[]>;
+  createSidakMesinKompresorRecord(record: InsertSidakMesinKompresorRecord): Promise<SidakMesinKompresorRecord>;
+  getSidakMesinKompresorObservers(sessionId: string): Promise<SidakMesinKompresorObserver[]>;
+  createSidakMesinKompresorObserver(observer: InsertSidakMesinKompresorObserver): Promise<SidakMesinKompresorObserver>;
+  updateSidakMesinKompresorSessionEquipmentCount(sessionId: string): Promise<void>;
+  updateSidakMesinKompresorSessionPhotos(id: string, photos: string[]): Promise<void>;
+  deleteSidakMesinKompresorSession(id: string): Promise<boolean>;
+
+  // Sidak Gerinda Duduk Methods
+  getSidakGerindaDudukSession(id: string): Promise<SidakGerindaDudukSession | undefined>;
+  getSidakGerindaDudukSessions(): Promise<SidakGerindaDudukSession[]>;
+  createSidakGerindaDudukSession(session: InsertSidakGerindaDudukSession & { createdBy?: string | null }): Promise<SidakGerindaDudukSession>;
+  updateSidakGerindaDudukSession(id: string, updates: Partial<InsertSidakGerindaDudukSession>): Promise<SidakGerindaDudukSession | undefined>;
+  getSidakGerindaDudukRecords(sessionId: string): Promise<SidakGerindaDudukRecord[]>;
+  createSidakGerindaDudukRecord(record: InsertSidakGerindaDudukRecord): Promise<SidakGerindaDudukRecord>;
+  getSidakGerindaDudukObservers(sessionId: string): Promise<SidakGerindaDudukObserver[]>;
+  createSidakGerindaDudukObserver(observer: InsertSidakGerindaDudukObserver): Promise<SidakGerindaDudukObserver>;
+  updateSidakGerindaDudukSessionEquipmentCount(sessionId: string): Promise<void>;
+  updateSidakGerindaDudukSessionPhotos(id: string, photos: string[]): Promise<void>;
+  deleteSidakGerindaDudukSession(id: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -831,12 +1007,50 @@ export class MemStorage implements IStorage {
   async searchSimperEvMonitoring(query: string): Promise<SimperEvMonitoring[]> {
     return [];
   }
+
+  // Sidak Gerinda Duduk Stubs
+  async getSidakGerindaDudukSession(id: string): Promise<SidakGerindaDudukSession | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getSidakGerindaDudukSessions(): Promise<SidakGerindaDudukSession[]> {
+    return [];
+  }
+  async createSidakGerindaDudukSession(session: InsertSidakGerindaDudukSession & { createdBy?: string | null }): Promise<SidakGerindaDudukSession> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateSidakGerindaDudukSession(id: string, updates: Partial<InsertSidakGerindaDudukSession>): Promise<SidakGerindaDudukSession | undefined> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getSidakGerindaDudukRecords(sessionId: string): Promise<SidakGerindaDudukRecord[]> {
+    return [];
+  }
+  async createSidakGerindaDudukRecord(record: InsertSidakGerindaDudukRecord): Promise<SidakGerindaDudukRecord> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async getSidakGerindaDudukObservers(sessionId: string): Promise<SidakGerindaDudukObserver[]> {
+    return [];
+  }
+  async createSidakGerindaDudukObserver(observer: InsertSidakGerindaDudukObserver): Promise<SidakGerindaDudukObserver> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateSidakGerindaDudukSessionEquipmentCount(sessionId: string): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async updateSidakGerindaDudukSessionPhotos(id: string, photos: string[]): Promise<void> {
+    throw new Error("Not implemented in MemStorage");
+  }
+  async deleteSidakGerindaDudukSession(id: string): Promise<boolean> {
+    throw new Error("Not implemented in MemStorage");
+  }
+
   async deleteAllSimperEvMonitoring(): Promise<void> {
     throw new Error("Method not implemented.");
   }
+
   async updateSimperEvMonitoring(id: string, data: Partial<InsertSimperEvMonitoring>): Promise<SimperEvMonitoring | undefined> {
     throw new Error("Method not implemented.");
   }
+
   async deleteSimperEvMonitoring(id: string): Promise<boolean> {
     throw new Error("Method not implemented.");
   }
@@ -848,12 +1062,15 @@ export class MemStorage implements IStorage {
   async getSimperEvHistory(nikSimper: string): Promise<SimperEvHistory[]> {
     throw new Error("Method not implemented.");
   }
+
   async createSimperEvHistory(history: InsertSimperEvHistory): Promise<SimperEvHistory> {
     throw new Error("Method not implemented.");
   }
+
   async updateSimperEvHistory(id: string, history: Partial<InsertSimperEvHistory>): Promise<SimperEvHistory | undefined> {
     throw new Error("Method not implemented.");
   }
+
   async deleteSimperEvHistory(id: string): Promise<boolean> {
     throw new Error("Method not implemented.");
   }
@@ -861,19 +1078,18 @@ export class MemStorage implements IStorage {
   async getSimperMitras(): Promise<SimperMitra[]> {
     return [];
   }
+
   async createSimperMitra(data: InsertSimperMitra): Promise<SimperMitra> {
     throw new Error("Method not implemented.");
   }
+
   async updateSimperMitra(id: string, data: Partial<InsertSimperMitra>): Promise<SimperMitra | undefined> {
     throw new Error("Method not implemented.");
   }
+
   async deleteSimperMitra(id: string): Promise<boolean> {
     throw new Error("Method not implemented.");
   }
-
-
-
-
 
   private initializeSampleData() {
     // No sample employees - user will add their own data
@@ -1400,6 +1616,46 @@ export class MemStorage implements IStorage {
     return { success, errors };
   }
 
+  // Sidak Fuel Storage Methods (Stubs)
+  async getSidakFuelStorageSession(id: string): Promise<SidakFuelStorageSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakFuelStorageSessions(): Promise<SidakFuelStorageSession[]> { throw new Error("Method not implemented."); }
+  async createSidakFuelStorageSession(session: InsertSidakFuelStorageSession): Promise<SidakFuelStorageSession> { throw new Error("Method not implemented."); }
+  async updateSidakFuelStorageSession(id: string, updates: Partial<InsertSidakFuelStorageSession>): Promise<SidakFuelStorageSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakFuelStorageRecords(sessionId: string): Promise<SidakFuelStorageRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakFuelStorageRecord(record: InsertSidakFuelStorageRecord): Promise<SidakFuelStorageRecord> { throw new Error("Method not implemented."); }
+  async getSidakFuelStorageObservers(sessionId: string): Promise<SidakFuelStorageObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakFuelStorageObserver(observer: InsertSidakFuelStorageObserver): Promise<SidakFuelStorageObserver> { throw new Error("Method not implemented."); }
+  async updateSidakFuelStorageSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
+  async deleteSidakFuelStorageSession(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+
+  // Sidak Mesin Las Methods (Stubs)
+  async getSidakMesinLasSession(id: string): Promise<SidakMesinLasSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakMesinLasSessions(): Promise<SidakMesinLasSession[]> { throw new Error("Method not implemented."); }
+  async createSidakMesinLasSession(session: InsertSidakMesinLasSession): Promise<SidakMesinLasSession> { throw new Error("Method not implemented."); }
+  async updateSidakMesinLasSession(id: string, updates: Partial<InsertSidakMesinLasSession>): Promise<SidakMesinLasSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakMesinLasRecords(sessionId: string): Promise<SidakMesinLasRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakMesinLasRecord(record: InsertSidakMesinLasRecord): Promise<SidakMesinLasRecord> { throw new Error("Method not implemented."); }
+  async getSidakMesinLasObservers(sessionId: string): Promise<SidakMesinLasObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakMesinLasObserver(observer: InsertSidakMesinLasObserver): Promise<SidakMesinLasObserver> { throw new Error("Method not implemented."); }
+  async updateSidakMesinLasSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
+  async deleteSidakMesinLasSession(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+
+  // Sidak Mesin Kompresor Methods (Stubs)
+  async deleteSidakMesinKompresorSession(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+
+  // Sidak Gerinda Duduk Methods (Stubs)
+  async getSidakGerindaDudukSession(id: string): Promise<SidakGerindaDudukSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakGerindaDudukSessions(): Promise<SidakGerindaDudukSession[]> { throw new Error("Method not implemented."); }
+  async createSidakGerindaDudukSession(session: InsertSidakGerindaDudukSession): Promise<SidakGerindaDudukSession> { throw new Error("Method not implemented."); }
+  async updateSidakGerindaDudukSession(id: string, updates: Partial<InsertSidakGerindaDudukSession>): Promise<SidakGerindaDudukSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakGerindaDudukRecords(sessionId: string): Promise<SidakGerindaDudukRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakGerindaDudukRecord(record: InsertSidakGerindaDudukRecord): Promise<SidakGerindaDudukRecord> { throw new Error("Method not implemented."); }
+  async getSidakGerindaDudukObservers(sessionId: string): Promise<SidakGerindaDudukObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakGerindaDudukObserver(observer: InsertSidakGerindaDudukObserver): Promise<SidakGerindaDudukObserver> { throw new Error("Method not implemented."); }
+  async updateSidakGerindaDudukSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
+  async updateSidakGerindaDudukSessionPhotos(id: string, photos: string[]): Promise<void> { throw new Error("Method not implemented."); }
+  async deleteSidakGerindaDudukSession(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+
   // Meeting methods implementation for MemStorage
   async getMeeting(id: string): Promise<Meeting | undefined> {
     return this.meetings.get(id);
@@ -1563,7 +1819,10 @@ export class MemStorage implements IStorage {
     throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
   }
   async createSidakRosterObserver(observer: InsertSidakRosterObserver): Promise<SidakRosterObserver> {
-    throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
+    throw new Error("Method not implemented.");
+  }
+  async updateSidakRosterSessionSampleCount(sessionId: string): Promise<void> {
+    throw new Error("Method not implemented.");
   }
 
   // Sidak Seatbelt methods - Not implemented in MemStorage
@@ -1583,7 +1842,10 @@ export class MemStorage implements IStorage {
     throw new Error("Sidak Seatbelt not implemented in MemStorage. Use DrizzleStorage.");
   }
   async createSidakSeatbeltObserver(observer: InsertSidakSeatbeltObserver): Promise<SidakSeatbeltObserver> {
-    throw new Error("Sidak Seatbelt not implemented in MemStorage. Use DrizzleStorage.");
+    throw new Error("Method not implemented.");
+  }
+  async updateSidakSeatbeltSessionSampleCount(sessionId: string): Promise<void> {
+    throw new Error("Method not implemented.");
   }
   async getSidakSeatbeltObservers(sessionId: string): Promise<SidakSeatbeltObserver[]> {
     throw new Error("Sidak Seatbelt not implemented in MemStorage. Use DrizzleStorage.");
@@ -1697,6 +1959,32 @@ export class MemStorage implements IStorage {
   }
   async updateSidakWorkshopSession(id: string, updates: Partial<InsertSidakWorkshopSession>): Promise<SidakWorkshopSession | undefined> {
     throw new Error("Sidak Workshop not implemented in MemStorage. Use DrizzleStorage.");
+  }
+
+  // Sidak Stand Jack methods - Not implemented in MemStorage
+  async getSidakStandJackSession(id: string): Promise<SidakStandJackSession | undefined> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getAllSidakStandJackSessions(): Promise<SidakStandJackSession[]> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async createSidakStandJackSession(session: InsertSidakStandJackSession): Promise<SidakStandJackSession> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async updateSidakStandJackSession(id: string, updates: Partial<InsertSidakStandJackSession>): Promise<SidakStandJackSession | undefined> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSidakStandJackRecords(sessionId: string): Promise<SidakStandJackRecord[]> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async createSidakStandJackRecord(record: InsertSidakStandJackRecord): Promise<SidakStandJackRecord> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSidakStandJackObservers(sessionId: string): Promise<SidakStandJackObserver[]> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async createSidakStandJackObserver(observer: InsertSidakStandJackObserver): Promise<SidakStandJackObserver> {
+    throw new Error("Sidak Stand Jack not implemented in MemStorage. Use DrizzleStorage.");
   }
   async getSidakWorkshopEquipment(sessionId: string): Promise<SidakWorkshopEquipment[]> {
     throw new Error("Sidak Workshop not implemented in MemStorage. Use DrizzleStorage.");
@@ -1939,11 +2227,53 @@ export class MemStorage implements IStorage {
   async getUsignApprovalSteps(documentId: string): Promise<any> { throw new Error("Method not implemented."); }
   async updateUsignApprovalStepStatus(id: string, status: string, remarks?: string): Promise<any> { throw new Error("Method not implemented."); }
   async voidUsignDocument(id: string, reason: string): Promise<any> { throw new Error("Method not implemented."); }
-  async createUsignSignature(data: any): Promise<any> { throw new Error("Method not implemented."); }
-  async getUsignSignatures(stepId: string): Promise<any> { throw new Error("Method not implemented."); }
   async createUsignNotification(data: any): Promise<any> { throw new Error("Method not implemented."); }
   async getInProgressUsignDocuments(): Promise<any> { throw new Error("Method not implemented."); }
   async createUsignHistory(data: any): Promise<any> { throw new Error("Method not implemented."); }
+
+  // Sidak Bottle Jack Methods
+  async getSidakBottleJackSession(id: string): Promise<SidakBottleJackSession | undefined> { throw new Error("Method not implemented."); }
+  async getAllSidakBottleJackSessions(): Promise<SidakBottleJackSession[]> { throw new Error("Method not implemented."); }
+  async createSidakBottleJackSession(session: InsertSidakBottleJackSession): Promise<SidakBottleJackSession> { throw new Error("Method not implemented."); }
+  async updateSidakBottleJackSession(id: string, updates: Partial<InsertSidakBottleJackSession>): Promise<SidakBottleJackSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakBottleJackRecords(sessionId: string): Promise<SidakBottleJackRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakBottleJackRecord(record: InsertSidakBottleJackRecord): Promise<SidakBottleJackRecord> { throw new Error("Method not implemented."); }
+  async getSidakBottleJackObservers(sessionId: string): Promise<SidakBottleJackObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakBottleJackObserver(observer: InsertSidakBottleJackObserver): Promise<SidakBottleJackObserver> { throw new Error("Method not implemented."); }
+  async updateSidakBottleJackSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
+
+  // Sidak Impact Methods
+  async getSidakImpactSession(id: string): Promise<SidakImpactSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakImpactSessions(): Promise<SidakImpactSession[]> { throw new Error("Method not implemented."); }
+  async createSidakImpactSession(session: InsertSidakImpactSession): Promise<SidakImpactSession> { throw new Error("Method not implemented."); }
+  async updateSidakImpactSession(id: string, updates: Partial<InsertSidakImpactSession>): Promise<SidakImpactSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakImpactRecords(sessionId: string): Promise<SidakImpactRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakImpactRecord(record: InsertSidakImpactRecord): Promise<SidakImpactRecord> { throw new Error("Method not implemented."); }
+  async getSidakImpactObservers(sessionId: string): Promise<SidakImpactObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakImpactObserver(observer: InsertSidakImpactObserver): Promise<SidakImpactObserver> { throw new Error("Method not implemented."); }
+  async updateSidakImpactSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
+
+  // Sidak Apar Methods
+  async getSidakAparSession(id: string): Promise<SidakAparSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakAparSessions(): Promise<SidakAparSession[]> { throw new Error("Method not implemented."); }
+  async createSidakAparSession(session: InsertSidakAparSession): Promise<SidakAparSession> { throw new Error("Method not implemented."); }
+  async updateSidakAparSession(id: string, updates: Partial<InsertSidakAparSession>): Promise<SidakAparSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakAparRecords(sessionId: string): Promise<SidakAparRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakAparRecord(record: InsertSidakAparRecord): Promise<SidakAparRecord> { throw new Error("Method not implemented."); }
+  async getSidakAparObservers(sessionId: string): Promise<SidakAparObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakAparObserver(observer: InsertSidakAparObserver): Promise<SidakAparObserver> { throw new Error("Method not implemented."); }
+  async updateSidakAparSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
+
+  // Sidak Fuel Storage Methods
+  async getSidakFuelStorageSession(id: string): Promise<SidakFuelStorageSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakFuelStorageSessions(): Promise<SidakFuelStorageSession[]> { throw new Error("Method not implemented."); }
+  async createSidakFuelStorageSession(session: InsertSidakFuelStorageSession): Promise<SidakFuelStorageSession> { throw new Error("Method not implemented."); }
+  async updateSidakFuelStorageSession(id: string, updates: Partial<InsertSidakFuelStorageSession>): Promise<SidakFuelStorageSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakFuelStorageRecords(sessionId: string): Promise<SidakFuelStorageRecord[]> { throw new Error("Method not implemented."); }
+  async createSidakFuelStorageRecord(record: InsertSidakFuelStorageRecord): Promise<SidakFuelStorageRecord> { throw new Error("Method not implemented."); }
+  async getSidakFuelStorageObservers(sessionId: string): Promise<SidakFuelStorageObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakFuelStorageObserver(observer: InsertSidakFuelStorageObserver): Promise<SidakFuelStorageObserver> { throw new Error("Method not implemented."); }
+  async updateSidakFuelStorageSessionEquipmentCount(sessionId: string): Promise<void> { throw new Error("Method not implemented."); }
 }
 
 // DrizzleStorage implementation using PostgreSQL
@@ -3114,6 +3444,9 @@ export class DrizzleStorage implements IStorage {
           .values({ ...recordData, ordinal: nextOrdinal })
           .returning();
 
+        // Update session total sampel
+        await this.updateSidakRosterSessionSampleCount(recordData.sessionId);
+
         return result;
       } catch (error: any) {
         lastError = error;
@@ -3143,6 +3476,11 @@ export class DrizzleStorage implements IStorage {
       .from(sidakRosterObservers)
       .where(eq(sidakRosterObservers.sessionId, sessionId))
       .orderBy(sql`created_at ASC`);
+  }
+
+  async updateSidakRosterSessionSampleCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakRosterRecords(sessionId);
+    await this.updateSidakRosterSession(sessionId, { totalSampel: records.length });
   }
 
   async createSidakRosterObserver(observerData: InsertSidakRosterObserver): Promise<SidakRosterObserver> {
@@ -3226,6 +3564,9 @@ export class DrizzleStorage implements IStorage {
           .values({ ...recordData, ordinal: nextOrdinal })
           .returning();
 
+        // Update session total sampel
+        await this.updateSidakSeatbeltSessionSampleCount(recordData.sessionId);
+
         return result;
       } catch (error: any) {
         lastError = error;
@@ -3251,6 +3592,11 @@ export class DrizzleStorage implements IStorage {
       .from(sidakSeatbeltObservers)
       .where(eq(sidakSeatbeltObservers.sessionId, sessionId))
       .orderBy(sql`created_at ASC`);
+  }
+
+  async updateSidakSeatbeltSessionSampleCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakSeatbeltRecords(sessionId);
+    await this.updateSidakSeatbeltSession(sessionId, { totalSampel: records.length });
   }
 
   async createSidakSeatbeltObserver(observerData: InsertSidakSeatbeltObserver): Promise<SidakSeatbeltObserver> {
@@ -8892,6 +9238,324 @@ export class DrizzleStorage implements IStorage {
       .where(eq(sidakWorkshopSessions.id, sessionId));
   }
 
+  // ============================================
+  // SIDAK STAND JACK METHODS
+  // ============================================
+
+  async getSidakStandJackSession(id: string): Promise<SidakStandJackSession | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(sidakStandJackSessions)
+      .where(eq(sidakStandJackSessions.id, id));
+    return result;
+  }
+
+  async getAllSidakStandJackSessions(): Promise<SidakStandJackSession[]> {
+    return await this.db
+      .select()
+      .from(sidakStandJackSessions)
+      .orderBy(desc(sidakStandJackSessions.createdAt));
+  }
+
+  async createSidakStandJackSession(session: InsertSidakStandJackSession & { createdBy?: string | null }): Promise<SidakStandJackSession> {
+    const [result] = await this.db
+      .insert(sidakStandJackSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakStandJackSession(id: string, updates: Partial<InsertSidakStandJackSession>): Promise<SidakStandJackSession | undefined> {
+    const [result] = await this.db
+      .update(sidakStandJackSessions)
+      .set(updates)
+      .where(eq(sidakStandJackSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSidakStandJackRecords(sessionId: string): Promise<SidakStandJackRecord[]> {
+    return await this.db
+      .select()
+      .from(sidakStandJackRecords)
+      .where(eq(sidakStandJackRecords.sessionId, sessionId))
+      .orderBy(asc(sidakStandJackRecords.ordinal));
+  }
+
+  async createSidakStandJackRecord(record: InsertSidakStandJackRecord): Promise<SidakStandJackRecord> {
+    const [result] = await this.db
+      .insert(sidakStandJackRecords)
+      .values(record)
+      .returning();
+
+    // Update session total stand jack count
+    await this.updateSidakStandJackSessionEquipmentCount(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakStandJackObservers(sessionId: string): Promise<SidakStandJackObserver[]> {
+    return await this.db
+      .select()
+      .from(sidakStandJackObservers)
+      .where(eq(sidakStandJackObservers.sessionId, sessionId))
+      .orderBy(asc(sidakStandJackObservers.ordinal));
+  }
+
+  async createSidakStandJackObserver(observer: InsertSidakStandJackObserver): Promise<SidakStandJackObserver> {
+    const [result] = await this.db
+      .insert(sidakStandJackObservers)
+      .values(observer)
+      .returning();
+    return result;
+  }
+
+  async updateSidakStandJackSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakStandJackRecords(sessionId);
+
+    await this.db
+      .update(sidakStandJackSessions)
+      .set({ totalStandJack: records.length })
+      .where(eq(sidakStandJackSessions.id, sessionId));
+  }
+
+  // ============================================
+  // SIDAK HYDRAULIC JACK METHODS
+  // ============================================
+
+  async getSidakHydraulicJackSession(id: string): Promise<SidakHydraulicJackSession | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(sidakHydraulicJackSessions)
+      .where(eq(sidakHydraulicJackSessions.id, id));
+    return result;
+  }
+
+  async getAllSidakHydraulicJackSessions(): Promise<SidakHydraulicJackSession[]> {
+    return await this.db
+      .select()
+      .from(sidakHydraulicJackSessions)
+      .orderBy(desc(sidakHydraulicJackSessions.createdAt));
+  }
+
+  async createSidakHydraulicJackSession(session: InsertSidakHydraulicJackSession & { createdBy?: string | null }): Promise<SidakHydraulicJackSession> {
+    const [result] = await this.db
+      .insert(sidakHydraulicJackSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakHydraulicJackSession(id: string, updates: Partial<InsertSidakHydraulicJackSession>): Promise<SidakHydraulicJackSession | undefined> {
+    const [result] = await this.db
+      .update(sidakHydraulicJackSessions)
+      .set(updates)
+      .where(eq(sidakHydraulicJackSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSidakHydraulicJackRecords(sessionId: string): Promise<SidakHydraulicJackRecord[]> {
+    return await this.db
+      .select()
+      .from(sidakHydraulicJackRecords)
+      .where(eq(sidakHydraulicJackRecords.sessionId, sessionId))
+      .orderBy(asc(sidakHydraulicJackRecords.ordinal));
+  }
+
+  async createSidakHydraulicJackRecord(record: InsertSidakHydraulicJackRecord): Promise<SidakHydraulicJackRecord> {
+    const [result] = await this.db
+      .insert(sidakHydraulicJackRecords)
+      .values(record)
+      .returning();
+
+    await this.updateSidakHydraulicJackSessionEquipmentCount(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakHydraulicJackObservers(sessionId: string): Promise<SidakHydraulicJackObserver[]> {
+    return await this.db
+      .select()
+      .from(sidakHydraulicJackObservers)
+      .where(eq(sidakHydraulicJackObservers.sessionId, sessionId))
+      .orderBy(asc(sidakHydraulicJackObservers.ordinal));
+  }
+
+  async createSidakHydraulicJackObserver(observer: InsertSidakHydraulicJackObserver): Promise<SidakHydraulicJackObserver> {
+    const [result] = await this.db
+      .insert(sidakHydraulicJackObservers)
+      .values(observer)
+      .returning();
+    return result;
+  }
+
+  async updateSidakHydraulicJackSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakHydraulicJackRecords(sessionId);
+
+    await this.db
+      .update(sidakHydraulicJackSessions)
+      .set({ totalHydraulicJack: records.length })
+      .where(eq(sidakHydraulicJackSessions.id, sessionId));
+  }
+
+  // ============================================
+  // SIDAK BOTTLE JACK METHODS
+  // ============================================
+
+  async getSidakBottleJackSession(id: string): Promise<SidakBottleJackSession | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(sidakBottleJackSessions)
+      .where(eq(sidakBottleJackSessions.id, id));
+    return result;
+  }
+
+  async getAllSidakBottleJackSessions(): Promise<SidakBottleJackSession[]> {
+    return await this.db
+      .select()
+      .from(sidakBottleJackSessions)
+      .orderBy(desc(sidakBottleJackSessions.createdAt));
+  }
+
+  async createSidakBottleJackSession(session: InsertSidakBottleJackSession & { createdBy?: string | null }): Promise<SidakBottleJackSession> {
+    const [result] = await this.db
+      .insert(sidakBottleJackSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakBottleJackSession(id: string, updates: Partial<InsertSidakBottleJackSession>): Promise<SidakBottleJackSession | undefined> {
+    const [result] = await this.db
+      .update(sidakBottleJackSessions)
+      .set(updates)
+      .where(eq(sidakBottleJackSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSidakBottleJackRecords(sessionId: string): Promise<SidakBottleJackRecord[]> {
+    return await this.db
+      .select()
+      .from(sidakBottleJackRecords)
+      .where(eq(sidakBottleJackRecords.sessionId, sessionId))
+      .orderBy(asc(sidakBottleJackRecords.ordinal));
+  }
+
+  async createSidakBottleJackRecord(record: InsertSidakBottleJackRecord): Promise<SidakBottleJackRecord> {
+    const [result] = await this.db
+      .insert(sidakBottleJackRecords)
+      .values(record)
+      .returning();
+
+    await this.updateSidakBottleJackSessionEquipmentCount(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakBottleJackObservers(sessionId: string): Promise<SidakBottleJackObserver[]> {
+    return await this.db
+      .select()
+      .from(sidakBottleJackObservers)
+      .where(eq(sidakBottleJackObservers.sessionId, sessionId))
+      .orderBy(asc(sidakBottleJackObservers.ordinal));
+  }
+
+  async createSidakBottleJackObserver(observer: InsertSidakBottleJackObserver): Promise<SidakBottleJackObserver> {
+    const [result] = await this.db
+      .insert(sidakBottleJackObservers)
+      .values(observer)
+      .returning();
+    return result;
+  }
+
+  async updateSidakBottleJackSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakBottleJackRecords(sessionId);
+
+    await this.db
+      .update(sidakBottleJackSessions)
+      .set({ totalBottleJack: records.length })
+      .where(eq(sidakBottleJackSessions.id, sessionId));
+  }
+
+  async getSidakImpactSession(id: string): Promise<SidakImpactSession | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(sidakImpactSessions)
+      .where(eq(sidakImpactSessions.id, id));
+    return result;
+  }
+
+  async getSidakImpactSessions(): Promise<SidakImpactSession[]> {
+    return await this.db
+      .select()
+      .from(sidakImpactSessions)
+      .orderBy(desc(sidakImpactSessions.createdAt));
+  }
+
+  async createSidakImpactSession(session: InsertSidakImpactSession & { createdBy?: string | null }): Promise<SidakImpactSession> {
+    const [result] = await this.db
+      .insert(sidakImpactSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakImpactSession(id: string, updates: Partial<InsertSidakImpactSession>): Promise<SidakImpactSession | undefined> {
+    const [result] = await this.db
+      .update(sidakImpactSessions)
+      .set(updates)
+      .where(eq(sidakImpactSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSidakImpactRecords(sessionId: string): Promise<SidakImpactRecord[]> {
+    return await this.db
+      .select()
+      .from(sidakImpactRecords)
+      .where(eq(sidakImpactRecords.sessionId, sessionId))
+      .orderBy(asc(sidakImpactRecords.ordinal));
+  }
+
+  async createSidakImpactRecord(record: InsertSidakImpactRecord): Promise<SidakImpactRecord> {
+    const [result] = await this.db
+      .insert(sidakImpactRecords)
+      .values(record)
+      .returning();
+
+    await this.updateSidakImpactSessionEquipmentCount(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakImpactObservers(sessionId: string): Promise<SidakImpactObserver[]> {
+    return await this.db
+      .select()
+      .from(sidakImpactObservers)
+      .where(eq(sidakImpactObservers.sessionId, sessionId))
+      .orderBy(asc(sidakImpactObservers.ordinal));
+  }
+
+  async createSidakImpactObserver(observer: InsertSidakImpactObserver): Promise<SidakImpactObserver> {
+    const [result] = await this.db
+      .insert(sidakImpactObservers)
+      .values(observer)
+      .returning();
+    return result;
+  }
+
+  async updateSidakImpactSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakImpactRecords(sessionId);
+
+    await this.db
+      .update(sidakImpactSessions)
+      .set({ totalImpact: records.length })
+      .where(eq(sidakImpactSessions.id, sessionId));
+  }
+
+
   async getDashboardStats(date?: string): Promise<{ totalEmployees: number; scheduledToday: number; presentToday: number; absentToday: number; onLeaveToday: number; pendingLeaveRequests: number }> {
     const targetDate = date || format(new Date(), 'yyyy-MM-dd');
 
@@ -9821,9 +10485,287 @@ export class DrizzleStorage implements IStorage {
     // This is a placeholder for compatibility with the interface if needed
     return null;
   }
+
+  // Sidak Apar Implementation
+  async getSidakAparSession(id: string): Promise<SidakAparSession | undefined> {
+    const [session] = await this.db.select()
+      .from(sidakAparSessions)
+      .where(eq(sidakAparSessions.id, id));
+    return session;
+  }
+
+  async getSidakAparSessions(): Promise<SidakAparSession[]> {
+    return await this.db.select()
+      .from(sidakAparSessions)
+      .orderBy(desc(sidakAparSessions.createdAt));
+  }
+
+  async createSidakAparSession(session: InsertSidakAparSession & { createdBy?: string | null }): Promise<SidakAparSession> {
+    const [result] = await this.db.insert(sidakAparSessions)
+      .values(session)
+      .returning();
+    return result;
+  }
+
+  async updateSidakAparSession(id: string, updates: Partial<InsertSidakAparSession>): Promise<SidakAparSession | undefined> {
+    const [result] = await this.db.update(sidakAparSessions)
+      .set(updates)
+      .where(eq(sidakAparSessions.id, id))
+      .returning();
+    return result;
+  }
+
+  async getSidakAparRecords(sessionId: string): Promise<SidakAparRecord[]> {
+    return await this.db.select()
+      .from(sidakAparRecords)
+      .where(eq(sidakAparRecords.sessionId, sessionId))
+      .orderBy(asc(sidakAparRecords.ordinal));
+  }
+
+  async createSidakAparRecord(record: InsertSidakAparRecord): Promise<SidakAparRecord> {
+    const [result] = await this.db.insert(sidakAparRecords)
+      .values(record)
+      .returning();
+
+    // Update total count in session
+    await this.updateSidakAparSessionEquipmentCount(record.sessionId);
+
+    return result;
+  }
+
+  async getSidakAparObservers(sessionId: string): Promise<SidakAparObserver[]> {
+    return await this.db.select()
+      .from(sidakAparObservers)
+      .where(eq(sidakAparObservers.sessionId, sessionId))
+      .orderBy(asc(sidakAparObservers.ordinal));
+  }
+
+  async createSidakAparObserver(observer: InsertSidakAparObserver): Promise<SidakAparObserver> {
+    const [result] = await this.db.insert(sidakAparObservers)
+      .values(observer)
+      .returning();
+    return result;
+  }
+
+  async updateSidakAparSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakAparRecords(sessionId);
+    await this.db.update(sidakAparSessions)
+      .set({ totalApar: records.length })
+      .where(eq(sidakAparSessions.id, sessionId));
+  }
+
+  // Sidak Fuel Storage Methods
+  async getSidakFuelStorageSession(id: string): Promise<SidakFuelStorageSession | undefined> {
+    const [result] = await this.db.select().from(sidakFuelStorageSessions).where(eq(sidakFuelStorageSessions.id, id));
+    return result;
+  }
+
+  async getSidakFuelStorageSessions(): Promise<SidakFuelStorageSession[]> {
+    return await this.db.select().from(sidakFuelStorageSessions).orderBy(desc(sidakFuelStorageSessions.createdAt));
+  }
+
+  async createSidakFuelStorageSession(session: InsertSidakFuelStorageSession): Promise<SidakFuelStorageSession> {
+    const [result] = await this.db.insert(sidakFuelStorageSessions).values(session).returning();
+    return result;
+  }
+
+  async updateSidakFuelStorageSession(id: string, updates: Partial<InsertSidakFuelStorageSession>): Promise<SidakFuelStorageSession | undefined> {
+    const [result] = await this.db.update(sidakFuelStorageSessions).set(updates).where(eq(sidakFuelStorageSessions.id, id)).returning();
+    return result;
+  }
+
+  async getSidakFuelStorageRecords(sessionId: string): Promise<SidakFuelStorageRecord[]> {
+    return await this.db.select().from(sidakFuelStorageRecords).where(eq(sidakFuelStorageRecords.sessionId, sessionId)).orderBy(asc(sidakFuelStorageRecords.ordinal));
+  }
+
+  async createSidakFuelStorageRecord(record: InsertSidakFuelStorageRecord): Promise<SidakFuelStorageRecord> {
+    const [result] = await this.db.insert(sidakFuelStorageRecords).values(record).returning();
+    await this.updateSidakFuelStorageSessionEquipmentCount(record.sessionId);
+    return result;
+  }
+
+  async getSidakFuelStorageObservers(sessionId: string): Promise<SidakFuelStorageObserver[]> {
+    return await this.db.select().from(sidakFuelStorageObservers).where(eq(sidakFuelStorageObservers.sessionId, sessionId)).orderBy(asc(sidakFuelStorageObservers.ordinal));
+  }
+
+  async createSidakFuelStorageObserver(observer: InsertSidakFuelStorageObserver): Promise<SidakFuelStorageObserver> {
+    const [result] = await this.db.insert(sidakFuelStorageObservers).values(observer).returning();
+    return result;
+  }
+
+  async updateSidakFuelStorageSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakFuelStorageRecords(sessionId);
+    await this.db.update(sidakFuelStorageSessions)
+      .set({ totalItems: records.length })
+      .where(eq(sidakFuelStorageSessions.id, sessionId));
+  }
+
+  async deleteSidakFuelStorageSession(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakFuelStorageSessions).where(eq(sidakFuelStorageSessions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Sidak Mesin Las Methods
+  async getSidakMesinLasSession(id: string): Promise<SidakMesinLasSession | undefined> {
+    const [result] = await this.db.select().from(sidakMesinLasSessions).where(eq(sidakMesinLasSessions.id, id));
+    return result;
+  }
+
+  async getSidakMesinLasSessions(): Promise<SidakMesinLasSession[]> {
+    return await this.db.select().from(sidakMesinLasSessions).orderBy(desc(sidakMesinLasSessions.createdAt));
+  }
+
+  async createSidakMesinLasSession(session: InsertSidakMesinLasSession & { createdBy?: string | null }): Promise<SidakMesinLasSession> {
+    const [result] = await this.db.insert(sidakMesinLasSessions).values(session).returning();
+    return result;
+  }
+
+  async updateSidakMesinLasSession(id: string, updates: Partial<InsertSidakMesinLasSession>): Promise<SidakMesinLasSession | undefined> {
+    const [result] = await this.db.update(sidakMesinLasSessions).set(updates).where(eq(sidakMesinLasSessions.id, id)).returning();
+    return result;
+  }
+
+  async getSidakMesinLasRecords(sessionId: string): Promise<SidakMesinLasRecord[]> {
+    return await this.db.select().from(sidakMesinLasRecords).where(eq(sidakMesinLasRecords.sessionId, sessionId)).orderBy(asc(sidakMesinLasRecords.ordinal));
+  }
+
+  async createSidakMesinLasRecord(record: InsertSidakMesinLasRecord): Promise<SidakMesinLasRecord> {
+    const [result] = await this.db.insert(sidakMesinLasRecords).values(record).returning();
+    await this.updateSidakMesinLasSessionEquipmentCount(record.sessionId);
+    return result;
+  }
+
+  async getSidakMesinLasObservers(sessionId: string): Promise<SidakMesinLasObserver[]> {
+    return await this.db.select().from(sidakMesinLasObservers).where(eq(sidakMesinLasObservers.sessionId, sessionId)).orderBy(asc(sidakMesinLasObservers.ordinal));
+  }
+
+  async createSidakMesinLasObserver(observer: InsertSidakMesinLasObserver): Promise<SidakMesinLasObserver> {
+    const [result] = await this.db.insert(sidakMesinLasObservers).values(observer).returning();
+    return result;
+  }
+
+  async updateSidakMesinLasSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakMesinLasRecords(sessionId);
+    await this.db.update(sidakMesinLasSessions)
+      .set({ totalMesinLas: records.length })
+      .where(eq(sidakMesinLasSessions.id, sessionId));
+  }
+
+  async deleteSidakMesinLasSession(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakMesinLasSessions).where(eq(sidakMesinLasSessions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Sidak Mesin Kompresor Implementation
+  async getSidakMesinKompresorSession(id: string): Promise<SidakMesinKompresorSession | undefined> {
+    const [session] = await this.db.select().from(sidakMesinKompresorSessions).where(eq(sidakMesinKompresorSessions.id, id));
+    return session;
+  }
+
+  async getSidakMesinKompresorSessions(): Promise<SidakMesinKompresorSession[]> {
+    return await this.db.select().from(sidakMesinKompresorSessions).orderBy(desc(sidakMesinKompresorSessions.createdAt));
+  }
+
+  async createSidakMesinKompresorSession(session: InsertSidakMesinKompresorSession & { createdBy?: string | null }): Promise<SidakMesinKompresorSession> {
+    const [newSession] = await this.db.insert(sidakMesinKompresorSessions).values(session).returning();
+    return newSession;
+  }
+
+  async updateSidakMesinKompresorSession(id: string, updates: Partial<InsertSidakMesinKompresorSession>): Promise<SidakMesinKompresorSession | undefined> {
+    const [updated] = await this.db.update(sidakMesinKompresorSessions).set(updates).where(eq(sidakMesinKompresorSessions.id, id)).returning();
+    return updated;
+  }
+
+  async getSidakMesinKompresorRecords(sessionId: string): Promise<SidakMesinKompresorRecord[]> {
+    return await this.db.select().from(sidakMesinKompresorRecords).where(eq(sidakMesinKompresorRecords.sessionId, sessionId)).orderBy(asc(sidakMesinKompresorRecords.ordinal));
+  }
+
+  async createSidakMesinKompresorRecord(record: InsertSidakMesinKompresorRecord): Promise<SidakMesinKompresorRecord> {
+    const [newRecord] = await this.db.insert(sidakMesinKompresorRecords).values(record).returning();
+    await this.updateSidakMesinKompresorSessionEquipmentCount(record.sessionId);
+    return newRecord;
+  }
+
+  async getSidakMesinKompresorObservers(sessionId: string): Promise<SidakMesinKompresorObserver[]> {
+    return await this.db.select().from(sidakMesinKompresorObservers).where(eq(sidakMesinKompresorObservers.sessionId, sessionId)).orderBy(asc(sidakMesinKompresorObservers.ordinal));
+  }
+
+  async createSidakMesinKompresorObserver(observer: InsertSidakMesinKompresorObserver): Promise<SidakMesinKompresorObserver> {
+    const [newObserver] = await this.db.insert(sidakMesinKompresorObservers).values(observer).returning();
+    return newObserver;
+  }
+
+  async updateSidakMesinKompresorSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakMesinKompresorRecords(sessionId);
+    await this.db.update(sidakMesinKompresorSessions).set({ totalItems: records.length }).where(eq(sidakMesinKompresorSessions.id, sessionId));
+  }
+
+  async updateSidakMesinKompresorSessionPhotos(id: string, photos: string[]): Promise<void> {
+    await this.db.update(sidakMesinKompresorSessions).set({ activityPhotos: photos }).where(eq(sidakMesinKompresorSessions.id, id));
+  }
+
+  async deleteSidakMesinKompresorSession(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakMesinKompresorSessions).where(eq(sidakMesinKompresorSessions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Sidak Gerinda Duduk Methods
+  async getSidakGerindaDudukSession(id: string): Promise<SidakGerindaDudukSession | undefined> {
+    const [session] = await this.db.select().from(sidakGerindaDudukSessions).where(eq(sidakGerindaDudukSessions.id, id));
+    return session;
+  }
+
+  async getSidakGerindaDudukSessions(): Promise<SidakGerindaDudukSession[]> {
+    return await this.db.select().from(sidakGerindaDudukSessions).orderBy(desc(sidakGerindaDudukSessions.createdAt));
+  }
+
+  async createSidakGerindaDudukSession(session: InsertSidakGerindaDudukSession & { createdBy?: string | null }): Promise<SidakGerindaDudukSession> {
+    const id = randomUUID();
+    const [newSession] = await this.db.insert(sidakGerindaDudukSessions).values({ ...session, id }).returning();
+    return newSession;
+  }
+
+  async updateSidakGerindaDudukSession(id: string, updates: Partial<InsertSidakGerindaDudukSession>): Promise<SidakGerindaDudukSession | undefined> {
+    const [updated] = await this.db.update(sidakGerindaDudukSessions).set(updates).where(eq(sidakGerindaDudukSessions.id, id)).returning();
+    return updated;
+  }
+
+  async getSidakGerindaDudukRecords(sessionId: string): Promise<SidakGerindaDudukRecord[]> {
+    return await this.db.select().from(sidakGerindaDudukRecords).where(eq(sidakGerindaDudukRecords.sessionId, sessionId)).orderBy(asc(sidakGerindaDudukRecords.ordinal));
+  }
+
+  async createSidakGerindaDudukRecord(record: InsertSidakGerindaDudukRecord): Promise<SidakGerindaDudukRecord> {
+    const id = randomUUID();
+    const [newRecord] = await this.db.insert(sidakGerindaDudukRecords).values({ ...record, id }).returning();
+    await this.updateSidakGerindaDudukSessionEquipmentCount(record.sessionId);
+    return newRecord;
+  }
+
+  async getSidakGerindaDudukObservers(sessionId: string): Promise<SidakGerindaDudukObserver[]> {
+    return await this.db.select().from(sidakGerindaDudukObservers).where(eq(sidakGerindaDudukObservers.sessionId, sessionId)).orderBy(asc(sidakGerindaDudukObservers.ordinal));
+  }
+
+  async createSidakGerindaDudukObserver(observer: InsertSidakGerindaDudukObserver): Promise<SidakGerindaDudukObserver> {
+    const id = randomUUID();
+    const [newObserver] = await this.db.insert(sidakGerindaDudukObservers).values({ ...observer, id }).returning();
+    return newObserver;
+  }
+
+  async updateSidakGerindaDudukSessionEquipmentCount(sessionId: string): Promise<void> {
+    const records = await this.getSidakGerindaDudukRecords(sessionId);
+    await this.db.update(sidakGerindaDudukSessions).set({ totalItems: records.length }).where(eq(sidakGerindaDudukSessions.id, sessionId));
+  }
+
+  async updateSidakGerindaDudukSessionPhotos(id: string, photos: string[]): Promise<void> {
+    await this.db.update(sidakGerindaDudukSessions).set({ activityPhotos: photos }).where(eq(sidakGerindaDudukSessions.id, id));
+  }
+
+  async deleteSidakGerindaDudukSession(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakGerindaDudukSessions).where(eq(sidakGerindaDudukSessions.id, id)).returning();
+    return result.length > 0;
+  }
 }
 
 export const storage = new DrizzleStorage();
-
 
 

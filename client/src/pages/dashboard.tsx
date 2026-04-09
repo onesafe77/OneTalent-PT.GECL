@@ -8,7 +8,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Link } from "wouter";
-import { navigationGroups } from "@/components/layout/sidebar";
+import { navigationGroups } from "@/lib/navigation";
 import { SafetyPatrolWidget } from "@/components/dashboard/safety-patrol-widget";
 import { InductionWidget } from "@/components/dashboard/induction-widget";
 import { FmsWidget } from "@/components/dashboard/fms-widget";

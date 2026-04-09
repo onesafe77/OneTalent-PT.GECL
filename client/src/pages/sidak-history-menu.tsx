@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, History, TrafficCone, Truck, Maximize2, Gauge, Sun, Lock, Shield, Tablet, PenTool, Radio } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, History, TrafficCone, Truck, Maximize2, Gauge, Sun, Lock, Shield, Tablet, PenTool, Radio, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function SidakHistoryMenu() {
@@ -113,6 +113,36 @@ export default function SidakHistoryMenu() {
                                         <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
                                     </div>
                                     <div className="text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/impact/history" data-testid="link-impact-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">Riwayat Impact</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/mesin-las/history" data-testid="link-mesin-las-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-orange-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-orange-700">Riwayat Mesin Las</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
                                 </div>
                             </Button>
                         </Link>
@@ -263,6 +293,126 @@ export default function SidakHistoryMenu() {
                                         <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
                                     </div>
                                     <div className="text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/stand-jack/history" data-testid="link-stand-jack-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-orange-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <ShieldCheck className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-orange-700">Riwayat Stand Jack</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/hydraulic-jack/history" data-testid="link-hydraulic-jack-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-teal-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <ShieldCheck className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-teal-700">Riwayat Hydraulic Jack</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-teal-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/bottle-jack/history" data-testid="link-bottle-jack-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-orange-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <ShieldCheck className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-orange-700">Riwayat Bottle Jack</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/mesin-kompresor/history" data-testid="link-mesin-kompresor-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">Riwayat Mesin Kompresor</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/gerinda-duduk/history" data-testid="link-gerinda-duduk-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">Riwayat Gerinda Duduk</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/fuel-storage/history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">Riwayat Fuel Storage</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/apar/history" data-testid="link-apar-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-red-50 hover:text-red-700 hover:border-red-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-red-700">Riwayat APAR</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/impact/history" data-testid="link-impact-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">Riwayat Impact</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
                                 </div>
                             </Button>
                         </Link>

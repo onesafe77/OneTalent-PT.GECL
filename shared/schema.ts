@@ -1805,6 +1805,314 @@ export type SidakWorkshopInspector = typeof sidakWorkshopInspectors.$inferSelect
 export type InsertSidakWorkshopInspector = z.infer<typeof insertSidakWorkshopInspectorSchema>;
 
 // ============================================================================
+// SIDAK STAND JACK (Checklist Inspeksi Stand Jack)
+// PT. GECL – F - HSE - 002 - R0 
+// ============================================================================
+
+export const sidakStandJackSessions = pgTable("sidak_stand_jack_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(), // Inspection date
+  namaWorkshop: text("nama_workshop").notNull(), // Workshop name
+  lokasi: text("lokasi").notNull(), // Location
+  shift: varchar("shift", { length: 50 }), // Day Shift/Night Shift
+  waktu: varchar("waktu", { length: 20 }), // Time of inspection
+  penanggungJawabArea: text("penanggung_jawab_area"), // Area supervisor
+  totalStandJack: integer("total_stand_jack").default(0), // Auto-calculated equipment count
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_stand_jack_sessions_created_by").on(table.createdBy)]);
+
+export const sidakStandJackRecords = pgTable("sidak_stand_jack_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakStandJackSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  noRegisterPeralatan: varchar("no_register_peralatan"), // Equipment registration number
+  inspectionResults: jsonb("inspection_results").notNull().default({}), // JSON object with inspection item results
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}), // Corrective action
+  dueDate: date("due_date"), // Due date for corrective action
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_stand_jack_records_session").on(table.sessionId)]);
+
+export const sidakStandJackObservers = pgTable("sidak_stand_jack_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakStandJackSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_stand_jack_observers_session").on(table.sessionId)]);
+
+export const insertSidakStandJackSessionSchema = createInsertSchema(sidakStandJackSessions).omit({ id: true, createdAt: true, totalStandJack: true });
+export const insertSidakStandJackRecordSchema = createInsertSchema(sidakStandJackRecords).omit({ id: true, createdAt: true });
+export const insertSidakStandJackObserverSchema = createInsertSchema(sidakStandJackObservers).omit({ id: true, createdAt: true });
+
+export type SidakStandJackSession = typeof sidakStandJackSessions.$inferSelect;
+export type InsertSidakStandJackSession = z.infer<typeof insertSidakStandJackSessionSchema>;
+export type SidakStandJackRecord = typeof sidakStandJackRecords.$inferSelect;
+export type InsertSidakStandJackRecord = z.infer<typeof insertSidakStandJackRecordSchema>;
+export type SidakStandJackObserver = typeof sidakStandJackObservers.$inferSelect;
+export type InsertSidakStandJackObserver = z.infer<typeof insertSidakStandJackObserverSchema>;
+
+// ============================================================================
+// SIDAK HYDRAULIC JACK (Checklist Inspeksi Hydraulic Jack)
+// BIB – HSE – ES – F – 3.02 – 87
+// ============================================================================
+
+export const sidakHydraulicJackSessions = pgTable("sidak_hydraulic_jack_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaWorkshop: text("nama_workshop").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawabArea: text("penanggung_jawab_area"),
+  totalHydraulicJack: integer("total_hydraulic_jack").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_hydraulic_jack_sessions_created_by").on(table.createdBy)]);
+
+export const sidakHydraulicJackRecords = pgTable("sidak_hydraulic_jack_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakHydraulicJackSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  noRegisterPeralatan: varchar("no_register_peralatan"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_hydraulic_jack_records_session").on(table.sessionId)]);
+
+export const sidakHydraulicJackObservers = pgTable("sidak_hydraulic_jack_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakHydraulicJackSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_hydraulic_jack_observers_session").on(table.sessionId)]);
+
+export const insertSidakHydraulicJackSessionSchema = createInsertSchema(sidakHydraulicJackSessions).omit({ id: true, createdAt: true, totalHydraulicJack: true });
+export const insertSidakHydraulicJackRecordSchema = createInsertSchema(sidakHydraulicJackRecords).omit({ id: true, createdAt: true });
+export const insertSidakHydraulicJackObserverSchema = createInsertSchema(sidakHydraulicJackObservers).omit({ id: true, createdAt: true });
+
+export type SidakHydraulicJackSession = typeof sidakHydraulicJackSessions.$inferSelect;
+export type InsertSidakHydraulicJackSession = z.infer<typeof insertSidakHydraulicJackSessionSchema>;
+export type SidakHydraulicJackRecord = typeof sidakHydraulicJackRecords.$inferSelect;
+export type InsertSidakHydraulicJackRecord = z.infer<typeof insertSidakHydraulicJackRecordSchema>;
+export type SidakHydraulicJackObserver = typeof sidakHydraulicJackObservers.$inferSelect;
+export type InsertSidakHydraulicJackObserver = z.infer<typeof insertSidakHydraulicJackObserverSchema>;
+
+// ============================================================================
+// BIB — HSE — ES — F — 3.02 — 87
+// INSPEKSI IMPACT
+// ============================================================================
+
+export const sidakImpactSessions = pgTable("sidak_impact_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaWorkshop: text("nama_workshop").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawabArea: text("penanggung_jawab_area"),
+  totalImpact: integer("total_impact").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_impact_sessions_created_by").on(table.createdBy)]);
+
+export const sidakImpactRecords = pgTable("sidak_impact_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakImpactSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  noRegisterPeralatan: varchar("no_register_peralatan"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_impact_records_session").on(table.sessionId)]);
+
+export const sidakImpactObservers = pgTable("sidak_impact_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakImpactSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_impact_observers_session").on(table.sessionId)]);
+
+export const insertSidakImpactSessionSchema = createInsertSchema(sidakImpactSessions).omit({ id: true, createdAt: true, totalImpact: true });
+export const insertSidakImpactRecordSchema = createInsertSchema(sidakImpactRecords).omit({ id: true, createdAt: true });
+export const insertSidakImpactObserverSchema = createInsertSchema(sidakImpactObservers).omit({ id: true, createdAt: true });
+
+export type SidakImpactSession = typeof sidakImpactSessions.$inferSelect;
+export type InsertSidakImpactSession = z.infer<typeof insertSidakImpactSessionSchema>;
+export type SidakImpactRecord = typeof sidakImpactRecords.$inferSelect;
+export type InsertSidakImpactRecord = z.infer<typeof insertSidakImpactRecordSchema>;
+export type SidakImpactObserver = typeof sidakImpactObservers.$inferSelect;
+export type InsertSidakImpactObserver = z.infer<typeof insertSidakImpactObserverSchema>;
+
+// ============================================================================
+// SIDAK FUEL STORAGE
+// ============================================================================
+
+export const sidakFuelStorageSessions = pgTable("sidak_fuel_storage_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaWorkshop: text("nama_workshop").notNull(),
+  lokasi: text("lokasi").notNull(),
+  subLokasi: text("sub_lokasi"),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawabArea: text("penanggung_jawab_area"),
+  totalItems: integer("total_items").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_fuel_storage_sessions_created_by").on(table.createdBy)]);
+
+export const sidakFuelStorageRecords = pgTable("sidak_fuel_storage_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakFuelStorageSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  storageName: text("storage_name"), // e.g., "Main Storage", "Secondary Storage"
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_fuel_storage_records_session").on(table.sessionId)]);
+
+export const sidakFuelStorageObservers = pgTable("sidak_fuel_storage_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakFuelStorageSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  jabatan: text("jabatan"),
+  departemen: text("departemen"),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_fuel_storage_observers_session").on(table.sessionId)]);
+
+export const insertSidakFuelStorageSessionSchema = createInsertSchema(sidakFuelStorageSessions).omit({ id: true, createdAt: true, totalItems: true });
+export const insertSidakFuelStorageRecordSchema = createInsertSchema(sidakFuelStorageRecords).omit({ id: true, createdAt: true });
+export const insertSidakFuelStorageObserverSchema = createInsertSchema(sidakFuelStorageObservers).omit({ id: true, createdAt: true });
+
+export type SidakFuelStorageSession = typeof sidakFuelStorageSessions.$inferSelect;
+export type InsertSidakFuelStorageSession = z.infer<typeof insertSidakFuelStorageSessionSchema>;
+export type SidakFuelStorageRecord = typeof sidakFuelStorageRecords.$inferSelect;
+export type InsertSidakFuelStorageRecord = z.infer<typeof insertSidakFuelStorageRecordSchema>;
+export type SidakFuelStorageObserver = typeof sidakFuelStorageObservers.$inferSelect;
+export type InsertSidakFuelStorageObserver = z.infer<typeof insertSidakFuelStorageObserverSchema>;
+
+// ============================================================================
+// BIB — HSE — ES — F — 3.02 — 88
+// BOTTLE JACK
+// ============================================================================
+
+export const sidakBottleJackSessions = pgTable("sidak_bottle_jack_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaWorkshop: text("nama_workshop").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawabArea: text("penanggung_jawab_area"),
+  totalBottleJack: integer("total_bottle_jack").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_bottle_jack_sessions_created_by").on(table.createdBy)]);
+
+export const sidakBottleJackRecords = pgTable("sidak_bottle_jack_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakBottleJackSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  noRegisterPeralatan: varchar("no_register_peralatan"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_bottle_jack_records_session").on(table.sessionId)]);
+
+export const sidakBottleJackObservers = pgTable("sidak_bottle_jack_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakBottleJackSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_bottle_jack_observers_session").on(table.sessionId)]);
+
+export const insertSidakBottleJackSessionSchema = createInsertSchema(sidakBottleJackSessions).omit({ id: true, createdAt: true, totalBottleJack: true });
+export const insertSidakBottleJackRecordSchema = createInsertSchema(sidakBottleJackRecords).omit({ id: true, createdAt: true });
+export const insertSidakBottleJackObserverSchema = createInsertSchema(sidakBottleJackObservers).omit({ id: true, createdAt: true });
+
+export type SidakBottleJackSession = typeof sidakBottleJackSessions.$inferSelect;
+export type InsertSidakBottleJackSession = z.infer<typeof insertSidakBottleJackSessionSchema>;
+export type SidakBottleJackRecord = typeof sidakBottleJackRecords.$inferSelect;
+export type InsertSidakBottleJackRecord = z.infer<typeof insertSidakBottleJackRecordSchema>;
+export type SidakBottleJackObserver = typeof sidakBottleJackObservers.$inferSelect;
+export type InsertSidakBottleJackObserver = z.infer<typeof insertSidakBottleJackObserverSchema>;
+
+// ============================================================================
+// BIB — HSE — ES — F — 3.02 — 87
+// INSPEKSI APAR
+// ============================================================================
+
+export const sidakAparSessions = pgTable("sidak_apar_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaWorkshop: text("nama_workshop").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawabArea: text("penanggung_jawab_area"),
+  totalApar: integer("total_apar").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_apar_sessions_created_by").on(table.createdBy)]);
+
+export const sidakAparRecords = pgTable("sidak_apar_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakAparSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  noRegisterPeralatan: varchar("no_register_peralatan"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_apar_records_session").on(table.sessionId)]);
+
+export const sidakAparObservers = pgTable("sidak_apar_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakAparSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_apar_observers_session").on(table.sessionId)]);
+
+export const insertSidakAparSessionSchema = createInsertSchema(sidakAparSessions).omit({ id: true, createdAt: true, totalApar: true });
+export const insertSidakAparRecordSchema = createInsertSchema(sidakAparRecords).omit({ id: true, createdAt: true });
+export const insertSidakAparObserverSchema = createInsertSchema(sidakAparObservers).omit({ id: true, createdAt: true });
+
+export type SidakAparSession = typeof sidakAparSessions.$inferSelect;
+export type InsertSidakAparSession = z.infer<typeof insertSidakAparSessionSchema>;
+export type SidakAparRecord = typeof sidakAparRecords.$inferSelect;
+export type InsertSidakAparRecord = z.infer<typeof insertSidakAparRecordSchema>;
+export type SidakAparObserver = typeof sidakAparObservers.$inferSelect;
+export type InsertSidakAparObserver = z.infer<typeof insertSidakAparObserverSchema>;
+
+// ============================================================================
 // SIDAK INTERCOM PENGAWAS FMS
 // PT.GECL – HSE – F – SIDAK – 01
 // ============================================================================
@@ -3331,6 +3639,106 @@ export type InsertUsignSignature = z.infer<typeof insertUsignSignatureSchema>;
 export type UsignNotification = typeof usignNotifications.$inferSelect;
 export type InsertUsignNotification = z.infer<typeof insertUsignNotificationSchema>;
 
+// ============================================================================
+// SIDAK MESIN LAS
+// ============================================================================
+
+export const sidakMesinLasSessions = pgTable("sidak_mesin_las_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaObjekInspeksi: text("nama_objek_inspeksi").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawab: text("penanggung_jawab"),
+  totalMesinLas: integer("total_mesin_las").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_mesin_las_sessions_created_by").on(table.createdBy)]);
+
+export const sidakMesinLasRecords = pgTable("sidak_mesin_las_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakMesinLasSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  noRegisterMesinLas: varchar("no_register_mesin_las"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_mesin_las_records_session").on(table.sessionId)]);
+
+export const sidakMesinLasObservers = pgTable("sidak_mesin_las_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakMesinLasSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_mesin_las_observers_session").on(table.sessionId)]);
+
+export const insertSidakMesinLasSessionSchema = createInsertSchema(sidakMesinLasSessions).omit({ id: true, createdAt: true, totalMesinLas: true });
+export const insertSidakMesinLasRecordSchema = createInsertSchema(sidakMesinLasRecords).omit({ id: true, createdAt: true });
+export const insertSidakMesinLasObserverSchema = createInsertSchema(sidakMesinLasObservers).omit({ id: true, createdAt: true });
+
+export type SidakMesinLasSession = typeof sidakMesinLasSessions.$inferSelect;
+export type InsertSidakMesinLasSession = z.infer<typeof insertSidakMesinLasSessionSchema>;
+export type SidakMesinLasRecord = typeof sidakMesinLasRecords.$inferSelect;
+export type InsertSidakMesinLasRecord = z.infer<typeof insertSidakMesinLasRecordSchema>;
+export type SidakMesinLasObserver = typeof sidakMesinLasObservers.$inferSelect;
+export type InsertSidakMesinLasObserver = z.infer<typeof insertSidakMesinLasObserverSchema>;
+
+// ============================================================================
+// SIDAK MESIN KOMPRESOR
+// ============================================================================
+
+export const sidakMesinKompresorSessions = pgTable("sidak_mesin_kompresor_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaObjekInspeksi: text("nama_objek_inspeksi").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawab: text("penanggung_jawab"),
+  totalItems: integer("total_items").default(0),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_mesin_kompresor_sessions_created_by").on(table.createdBy)]);
+
+export const sidakMesinKompresorRecords = pgTable("sidak_mesin_kompresor_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakMesinKompresorSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  namaObjek: text("nama_objek"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_mesin_kompresor_records_session").on(table.sessionId)]);
+
+export const sidakMesinKompresorObservers = pgTable("sidak_mesin_kompresor_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakMesinKompresorSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_mesin_kompresor_observers_session").on(table.sessionId)]);
+
+export const insertSidakMesinKompresorSessionSchema = createInsertSchema(sidakMesinKompresorSessions).omit({ id: true, createdAt: true, totalItems: true });
+export const insertSidakMesinKompresorRecordSchema = createInsertSchema(sidakMesinKompresorRecords).omit({ id: true, createdAt: true });
+export const insertSidakMesinKompresorObserverSchema = createInsertSchema(sidakMesinKompresorObservers).omit({ id: true, createdAt: true });
+
+export type SidakMesinKompresorSession = typeof sidakMesinKompresorSessions.$inferSelect;
+export type InsertSidakMesinKompresorSession = z.infer<typeof insertSidakMesinKompresorSessionSchema>;
+export type SidakMesinKompresorRecord = typeof sidakMesinKompresorRecords.$inferSelect;
+export type InsertSidakMesinKompresorRecord = z.infer<typeof insertSidakMesinKompresorRecordSchema>;
+export type SidakMesinKompresorObserver = typeof sidakMesinKompresorObservers.$inferSelect;
+export type InsertSidakMesinKompresorObserver = z.infer<typeof insertSidakMesinKompresorObserverSchema>;
+
 // ============================================
 // SPIP PERALATAN
 // ============================================
@@ -3383,3 +3791,53 @@ export const insertSpipPeralatanSchema = createInsertSchema(spipPeralatan).omit(
 
 export type SpipPeralatan = typeof spipPeralatan.$inferSelect;
 export type InsertSpipPeralatan = z.infer<typeof insertSpipPeralatanSchema>;
+// ============================================================================
+// SIDAK GERINDA DUDUK
+// ============================================================================
+
+export const sidakGerindaDudukSessions = pgTable("sidak_gerinda_duduk_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  namaObjekInspeksi: text("nama_objek_inspeksi").notNull(),
+  lokasi: text("lokasi").notNull(),
+  shift: varchar("shift", { length: 50 }),
+  waktu: varchar("waktu", { length: 20 }),
+  penanggungJawab: text("penanggung_jawab"),
+  totalItems: integer("total_items").default(0),
+  activityPhotos: text("activity_photos").array(),
+  status: text("status").notNull().default("open"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_gerinda_duduk_sessions_created_by").on(table.createdBy)]);
+
+export const sidakGerindaDudukRecords = pgTable("sidak_gerinda_duduk_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakGerindaDudukSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  namaObjek: text("nama_objek"),
+  inspectionResults: jsonb("inspection_results").notNull().default({}),
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}),
+  dueDate: date("due_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_gerinda_duduk_records_session").on(table.sessionId)]);
+
+export const sidakGerindaDudukObservers = pgTable("sidak_gerinda_duduk_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakGerindaDudukSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_gerinda_duduk_observers_session").on(table.sessionId)]);
+
+export const insertSidakGerindaDudukSessionSchema = createInsertSchema(sidakGerindaDudukSessions).omit({ id: true, createdAt: true, totalItems: true, status: true });
+export const insertSidakGerindaDudukRecordSchema = createInsertSchema(sidakGerindaDudukRecords).omit({ id: true, createdAt: true });
+export const insertSidakGerindaDudukObserverSchema = createInsertSchema(sidakGerindaDudukObservers).omit({ id: true, createdAt: true });
+
+export type SidakGerindaDudukSession = typeof sidakGerindaDudukSessions.$inferSelect;
+export type InsertSidakGerindaDudukSession = z.infer<typeof insertSidakGerindaDudukSessionSchema>;
+export type SidakGerindaDudukRecord = typeof sidakGerindaDudukRecords.$inferSelect;
+export type InsertSidakGerindaDudukRecord = z.infer<typeof insertSidakGerindaDudukRecordSchema>;
+export type SidakGerindaDudukObserver = typeof sidakGerindaDudukObservers.$inferSelect;
+export type InsertSidakGerindaDudukObserver = z.infer<typeof insertSidakGerindaDudukObserverSchema>;

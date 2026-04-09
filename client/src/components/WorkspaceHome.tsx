@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth-context";
-import { navigationGroups, NavItem } from "@/components/layout/sidebar";
+import { navigationGroups, NavItem } from "@/lib/navigation";
 import { ChevronRight, Search, Bell, User as UserIcon, CheckCircle, AlertOctagon, ArrowRight, Bot, Loader2, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

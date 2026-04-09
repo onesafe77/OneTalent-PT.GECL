@@ -13,6 +13,9 @@ export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 50, // Increase max connections
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 10000, // Increased timeout
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 export const db = drizzle(pool, { schema });

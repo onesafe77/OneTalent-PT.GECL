@@ -9,7 +9,11 @@ async function throwIfResNotOk(res: Response) {
       // Try to parse as JSON first
       const errorData = await res.json();
       const message = errorData.message || errorData.error || `HTTP ${res.status}`;
-      throw new Error(message);
+      const error = new Error(message);
+      // Attach details if present
+      (error as any).detail = errorData.detail;
+      (error as any).error = errorData.error;
+      throw error;
     } catch (jsonError) {
       // If JSON parsing fails, try getting text
       try {

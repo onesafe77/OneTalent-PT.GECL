@@ -62,6 +62,24 @@ import DashboardJarak from "@/pages/dashboard-jarak";
 import DashboardStatistics from "@/pages/dashboard-statistics";
 import GoogleSheetsConfig from "@/pages/google-sheets-config";
 import EvaluasiPvt from "@/pages/evaluasi-pvt";
+import SidakStandJackForm from "@/pages/sidak-stand-jack-form";
+import SidakStandJackHistory from "@/pages/sidak-stand-jack-history";
+import SidakHydraulicJackForm from "@/pages/sidak-hydraulic-jack-form";
+import SidakHydraulicJackHistory from "@/pages/sidak-hydraulic-jack-history";
+import SidakBottleJackForm from "@/pages/sidak-bottle-jack-form";
+import SidakBottleJackHistory from "@/pages/sidak-bottle-jack-history";
+import SidakImpactForm from "@/pages/sidak-impact-form";
+import SidakImpactHistory from "@/pages/sidak-impact-history";
+import SidakFuelStorageForm from "@/pages/sidak-fuel-storage-form";
+import SidakFuelStorageHistory from "@/pages/sidak-fuel-storage-history";
+import SidakAparForm from "@/pages/sidak-apar-form";
+import SidakAparHistory from "@/pages/sidak-apar-history";
+import SidakMesinLasForm from "@/pages/sidak-mesin-las-form";
+import SidakMesinLasHistory from "@/pages/sidak-mesin-las-history";
+import SidakMesinKompresorForm from "@/pages/sidak-mesin-kompresor-form";
+import SidakMesinKompresorHistory from "@/pages/sidak-mesin-kompresor-history";
+import SidakGerindaDudukForm from "@/pages/sidak-gerinda-duduk-form";
+import SidakGerindaDudukHistory from "@/pages/sidak-gerinda-duduk-history";
 import { PeralatanFormPage, PeralatanViewPage } from "@/pages/hse/ko/spip/peralatan-detail";
 
 import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashboard";
@@ -150,6 +168,24 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/p3k/history", component: SidakP3kHistory, title: "Riwayat Inspeksi Kotak P3K" },
   { path: "/workspace/sidak/intercom/new", component: SidakIntercomForm, title: "Form Sidak Intercom FMS" },
   { path: "/workspace/sidak/intercom/history", component: SidakIntercomHistory, title: "Riwayat Sidak Intercom FMS" },
+  { path: "/workspace/sidak/stand-jack/new", component: SidakStandJackForm, title: "Form Sidak Stand Jack" },
+  { path: "/workspace/sidak/stand-jack/history", component: SidakStandJackHistory, title: "Riwayat Sidak Stand Jack" },
+  { path: "/workspace/sidak/hydraulic-jack/new", component: SidakHydraulicJackForm, title: "Form Sidak Hydraulic Jack" },
+  { path: "/workspace/sidak/hydraulic-jack/history", component: SidakHydraulicJackHistory, title: "Riwayat Sidak Hydraulic Jack" },
+  { path: "/workspace/sidak/bottle-jack/new", component: SidakBottleJackForm, title: "Form Sidak Bottle Jack" },
+  { path: "/workspace/sidak/bottle-jack/history", component: SidakBottleJackHistory, title: "Riwayat Sidak Bottle Jack" },
+  { path: "/workspace/sidak/impact/new", component: SidakImpactForm, title: "Form Sidak Impact" },
+  { path: "/workspace/sidak/impact/history", component: SidakImpactHistory, title: "Riwayat Sidak Impact" },
+  { path: "/workspace/sidak/fuel-storage/new", component: SidakFuelStorageForm, title: "Form Sidak Fuel Storage" },
+  { path: "/workspace/sidak/fuel-storage/history", component: SidakFuelStorageHistory, title: "Riwayat Sidak Fuel Storage" },
+  { path: "/workspace/sidak/apar/new", component: SidakAparForm, title: "Form Sidak APAR" },
+  { path: "/workspace/sidak/apar/history", component: SidakAparHistory, title: "Riwayat Sidak APAR" },
+  { path: "/workspace/sidak/mesin-las/new", component: SidakMesinLasForm, title: "Form Sidak Mesin Las" },
+  { path: "/workspace/sidak/mesin-las/history", component: SidakMesinLasHistory, title: "Riwayat Sidak Mesin Las" },
+  { path: "/workspace/sidak/mesin-kompresor/new", component: SidakMesinKompresorForm, title: "Form Sidak Mesin Kompresor" },
+  { path: "/workspace/sidak/mesin-kompresor/history", component: SidakMesinKompresorHistory, title: "Riwayat Sidak Mesin Kompresor" },
+  { path: "/workspace/sidak/gerinda-duduk/new", component: SidakGerindaDudukForm, title: "Form Sidak Gerinda Duduk" },
+  { path: "/workspace/sidak/gerinda-duduk/history", component: SidakGerindaDudukHistory, title: "Riwayat Sidak Gerinda Duduk" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
@@ -312,6 +348,24 @@ export function Workspace() {
               <Route path="/workspace/sidak/behavior/history" component={SidakBehaviorHistory} />
               <Route path="/workspace/sidak/intercom/new" component={SidakIntercomForm} />
               <Route path="/workspace/sidak/intercom/history" component={SidakIntercomHistory} />
+              <Route path="/workspace/sidak/stand-jack/new" component={SidakStandJackForm} />
+              <Route path="/workspace/sidak/stand-jack/history" component={SidakStandJackHistory} />
+              <Route path="/workspace/sidak/hydraulic-jack/new" component={SidakHydraulicJackForm} />
+              <Route path="/workspace/sidak/hydraulic-jack/history" component={SidakHydraulicJackHistory} />
+              <Route path="/workspace/sidak/bottle-jack/new" component={SidakBottleJackForm} />
+              <Route path="/workspace/sidak/bottle-jack/history" component={SidakBottleJackHistory} />
+              <Route path="/workspace/sidak/impact/new" component={SidakImpactForm} />
+              <Route path="/workspace/sidak/impact/history" component={SidakImpactHistory} />
+              <Route path="/workspace/sidak/fuel-storage/new" component={SidakFuelStorageForm} />
+              <Route path="/workspace/sidak/fuel-storage/history" component={SidakFuelStorageHistory} />
+              <Route path="/workspace/sidak/apar/new" component={SidakAparForm} />
+              <Route path="/workspace/sidak/apar/history" component={SidakAparHistory} />
+              <Route path="/workspace/sidak/mesin-las/new" component={SidakMesinLasForm} />
+              <Route path="/workspace/sidak/mesin-las/history" component={SidakMesinLasHistory} />
+              <Route path="/workspace/sidak/mesin-kompresor/new" component={SidakMesinKompresorForm} />
+              <Route path="/workspace/sidak/mesin-kompresor/history" component={SidakMesinKompresorHistory} />
+              <Route path="/workspace/sidak/gerinda-duduk/new" component={SidakGerindaDudukForm} />
+              <Route path="/workspace/sidak/gerinda-duduk/history" component={SidakGerindaDudukHistory} />
               <Route path="/workspace/sidak/riwayat">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_SIDAK]}>
                   <SidakHistoryMenu />

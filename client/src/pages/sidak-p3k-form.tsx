@@ -157,10 +157,10 @@ export default function SidakP3kForm() {
     };
 
     const handleSubmit = () => {
-        if (!form.inspectorSignature || !form.areaResponsibleSignature || !form.areaResponsibleName) {
+        if (!form.inspectorSignature) {
             toast({
                 title: "Data Kurang Lengkap",
-                description: "Tanda tangan Inspektor, Nama & Tanda tangan Penanggung Jawab Area wajib diisi.",
+                description: "Tanda tangan Inspektor wajib diisi.",
                 variant: "destructive"
             });
             return;
@@ -489,30 +489,6 @@ export default function SidakP3kForm() {
                                 </CardContent>
                             </Card>
 
-                            <Card className="border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-                                <CardHeader className="bg-orange-50 dark:bg-orange-900/20 border-b border-orange-100 dark:border-orange-800 py-3">
-                                    <CardTitle className="text-sm font-medium text-orange-900 dark:text-orange-100 flex items-center justify-between">
-                                        <span>Penanggung Jawab Area</span>
-                                        {form.areaResponsibleSignature && <Check className="h-4 w-4 text-green-600" />}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-4 space-y-4">
-                                    <div className="space-y-2">
-                                        <Label className="text-xs font-semibold uppercase tracking-wider text-gray-500">Nama Penanggung Jawab</Label>
-                                        <Input
-                                            placeholder="Nama Lengkap"
-                                            className="bg-white dark:bg-gray-800"
-                                            value={form.areaResponsibleName}
-                                            onChange={e => setForm({ ...form, areaResponsibleName: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-900/50">
-                                        <SignaturePad
-                                            onSave={(data) => setForm(prev => ({ ...prev, areaResponsibleSignature: data }))}
-                                        />
-                                    </div>
-                                </CardContent>
-                            </Card>
                         </div>
                     </div>
                 )}
