@@ -61,8 +61,10 @@ function getRegister(record: any): string {
 }
 
 function getTindakLanjutForItem(record: any, itemId: string): string {
+    const result = getResult(record, itemId);
+    if (result !== 'TS') return '';
     const tl = record.tindakLanjutPerbaikan || record.tindakLanjut || {};
-    if (typeof tl === 'string') return itemId === "1.1" ? tl : '';
+    if (typeof tl === 'string') return tl;
     return tl[itemId] || '';
 }
 
@@ -172,7 +174,11 @@ export async function generateSidakAparPDF(data: AparPDFData): Promise<jsPDF> {
             INSPECTION_ITEMS.forEach((item, itemIndex) => {
                 const result = getResult(record, item.id);
                 const tindakLanjut = getTindakLanjutForItem(record, item.id);
-                const dueDate = itemIndex === 0 ? (record.dueDate || '') : '';
+                let dueDate = '';
+                if (result === 'TS' && record.dueDate) {
+                    const hasShownDueDate = INSPECTION_ITEMS.slice(0, itemIndex).some(prev => getResult(record, prev.id) === 'TS');
+                    if (!hasShownDueDate) dueDate = record.dueDate;
+                }
 
                 tableRows.push({
                     isHeader: false,

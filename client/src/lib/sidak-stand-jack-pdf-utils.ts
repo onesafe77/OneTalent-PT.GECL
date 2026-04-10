@@ -79,8 +79,13 @@ function getRegister(record: any): string {
     return record.noRegister || record.noRegisterPeralatan || '';
 }
 
-function getTindakLanjut(record: any): string {
-    return record.tindakLanjut || record.tindakLanjutPerbaikan || '';
+function getTindakLanjutForItem(record: any, itemId: string): string {
+    const result = getResult(record, itemId);
+    if (result !== 'TS') return '';
+    const tl = record.tindakLanjutPerbaikan || record.tindakLanjut || {};
+    if (typeof tl === 'string') return tl;
+    if (typeof tl === 'object') return tl[itemId] || '';
+    return '';
 }
 
 export async function generateSidakStandJackPDF(data: StandJackPDFData): Promise<jsPDF> {
@@ -197,7 +202,7 @@ export async function generateSidakStandJackPDF(data: StandJackPDFData): Promise
             });
 
             // Inspection items per category
-            let isFirstItem = true;
+            let dueDateShown = false;
             CATEGORY_ORDER.forEach((categoryName, catIndex) => {
                 const items = INSPECTION_CATEGORIES[categoryName];
 
@@ -212,9 +217,12 @@ export async function generateSidakStandJackPDF(data: StandJackPDFData): Promise
 
                 items.forEach((item) => {
                     const result = getResult(record, item.id);
-                    const tindakLanjut = isFirstItem ? getTindakLanjut(record) : '';
-                    const dueDate = isFirstItem ? (record.dueDate || '') : '';
-                    isFirstItem = false;
+                    const tindakLanjut = getTindakLanjutForItem(record, item.id);
+                    let dueDate = '';
+                    if (result === 'TS' && record.dueDate && !dueDateShown) {
+                        dueDate = record.dueDate;
+                        dueDateShown = true;
+                    }
 
                     tableRows.push({
                         isHeader: false,

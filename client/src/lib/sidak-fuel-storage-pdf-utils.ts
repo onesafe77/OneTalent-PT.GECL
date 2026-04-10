@@ -124,6 +124,8 @@ function getResult(record: any, key: string): string {
 }
 
 function getTindakLanjutForItem(record: any, itemId: string): string {
+    const result = getResult(record, itemId);
+    if (result !== 'TS') return '';
     return record.tindakLanjutPerbaikan?.[itemId] || '';
 }
 

@@ -95,6 +95,7 @@ import {
   type InsertUsignNotification,
   type PicaRecord,
   type InsertPicaRecord,
+  picaRecords,
   users,
   authUsers,
   attendanceRecords,

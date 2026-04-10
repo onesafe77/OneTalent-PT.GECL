@@ -66,8 +66,13 @@ function getRegister(record: any): string {
     return record.noRegister || record.noRegisterPeralatan || '';
 }
 
-function getTindakLanjut(record: any): string {
-    return record.tindakLanjut || record.tindakLanjutPerbaikan || '';
+function getTindakLanjutForItem(record: any, itemId: string): string {
+    const result = getResult(record, itemId);
+    if (result !== 'TS') return '';
+    const tl = record.tindakLanjutPerbaikan || record.tindakLanjut || {};
+    if (typeof tl === 'string') return tl;
+    if (typeof tl === 'object') return tl[itemId] || '';
+    return '';
 }
 
 export async function generateSidakHydraulicJackPDF(data: HydraulicJackPDFData): Promise<jsPDF> {
@@ -186,8 +191,12 @@ export async function generateSidakHydraulicJackPDF(data: HydraulicJackPDFData):
             // Flat inspection items (no categories)
             INSPECTION_ITEMS.forEach((item, itemIndex) => {
                 const result = getResult(record, item.id);
-                const tindakLanjut = itemIndex === 0 ? getTindakLanjut(record) : '';
-                const dueDate = itemIndex === 0 ? (record.dueDate || '') : '';
+                const tindakLanjut = getTindakLanjutForItem(record, item.id);
+                let dueDate = '';
+                if (result === 'TS' && record.dueDate) {
+                    const hasShownDueDate = INSPECTION_ITEMS.slice(0, itemIndex).some(prev => getResult(record, prev.id) === 'TS');
+                    if (!hasShownDueDate) dueDate = record.dueDate;
+                }
 
                 tableRows.push({
                     isHeader: false,

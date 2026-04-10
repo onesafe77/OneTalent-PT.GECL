@@ -7670,8 +7670,9 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const records = await storage.getPicaRecords();
       res.json(records);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch PICA records" });
+    } catch (error: any) {
+      console.error("❌ GET /api/pica error:", error.message, error.stack);
+      res.status(500).json({ message: "Failed to fetch PICA records", error: error.message });
     }
   });
 
