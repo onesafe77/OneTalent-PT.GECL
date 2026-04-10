@@ -119,6 +119,8 @@ import {
   employees,
   spipPeralatan,
   insertSpipPeralatanSchema,
+  spipPrasarana,
+  insertSpipPrasaranaSchema,
   insertSidakImpactSessionSchema,
   insertSidakImpactRecordSchema,
   insertSidakImpactObserverSchema,
@@ -17957,6 +17959,279 @@ Format sebagai bullet points singkat per insight.`;
       const { id } = req.params;
       const deleted = await db.delete(spipPeralatan).where(eq(spipPeralatan.id, id)).returning();
       if (deleted.length === 0) return res.status(404).json({ error: "Unit tidak ditemukan" });
+      res.json({ message: "Berhasil dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // SPIP PRASARANA
+  // ============================================
+
+  app.get("/api/spip/prasarana", async (req, res) => {
+    try {
+      const { search, area_lokasi, status_sertifikat, status_perawatan, page = "1", limit = "15" } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      let baseQuery = db.select().from(spipPrasarana).$dynamic();
+      let conditions = [];
+
+      if (search) {
+        conditions.push(
+          or(
+            ilike(spipPrasarana.noLambung, `%${search}%`),
+            ilike(spipPrasarana.jenisUnit, `%${search}%`),
+            ilike(spipPrasarana.areaLokasi, `%${search}%`)
+          )
+        );
+      }
+
+      if (area_lokasi) conditions.push(eq(spipPrasarana.areaLokasi, area_lokasi as string));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (status_sertifikat) {
+        if (status_sertifikat === 'EXPIRED') {
+          conditions.push(and(isNotNull(spipPrasarana.expSertifikat), lt(spipPrasarana.expSertifikat, today)));
+        } else if (status_sertifikat === 'AKTIF') {
+          conditions.push(and(isNotNull(spipPrasarana.expSertifikat), gte(spipPrasarana.expSertifikat, today)));
+        } else if (status_sertifikat === 'BELUM ADA') {
+          conditions.push(isNull(spipPrasarana.noSertifikat));
+        }
+      }
+
+      if (status_perawatan) {
+        if (status_perawatan === 'OVERDUE') {
+          conditions.push(or(eq(spipPrasarana.statusPerawatanS1, 'OVERDUE'), eq(spipPrasarana.statusPerawatanS2, 'OVERDUE')));
+        } else if (status_perawatan === 'PENDING') {
+          conditions.push(or(eq(spipPrasarana.statusPerawatanS1, 'PENDING'), eq(spipPrasarana.statusPerawatanS2, 'PENDING')));
+        }
+      }
+
+      if (conditions.length > 0) {
+        baseQuery = baseQuery.where(and(...conditions));
+      }
+
+      const totalResult = await db.select({ count: sql<number>`count(*)` }).from(spipPrasarana).where(conditions.length > 0 ? and(...conditions) : undefined);
+      const total = Number(totalResult[0]?.count || 0);
+
+      const items = await baseQuery
+        .limit(limitNum)
+        .offset(offset)
+        .orderBy(desc(spipPrasarana.createdAt));
+
+      res.json({
+        data: items,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching SPIP Prasarana:", error);
+      res.status(500).json({ error: "Gagal mengambil data prasarana" });
+    }
+  });
+
+  app.get("/api/spip/prasarana/export", async (req, res) => {
+    try {
+      const items = await db.select().from(spipPrasarana).orderBy(desc(spipPrasarana.createdAt));
+
+      const formatted = items.map((item, idx) => ({
+        "No": item.no || (idx + 1),
+        "Jenis Unit": item.jenisUnit,
+        "Koordinat": item.koordinat || "",
+        "Lambung": item.noLambung,
+        "Kapasitas": item.kapasitas || "",
+        "Area/Lokasi": item.areaLokasi || "",
+        "Tahun": item.tahunPembuatan || "",
+        "Komisioner": item.komisioner || "",
+        "No. Sertifikat": item.noSertifikat || "",
+        "Tanggal Sertifikat": item.tglSertifikat ? format(new Date(item.tglSertifikat), "yyyy-MM-dd") : "",
+        "EXP": item.expSertifikat ? format(new Date(item.expSertifikat), "yyyy-MM-dd") : "",
+        "Semester 1": item.jadwalPerawatanS1 ? format(new Date(item.jadwalPerawatanS1), "yyyy-MM-dd") : "",
+        "Status S1": item.statusPerawatanS1 || "",
+        "Semester 2": item.jadwalPerawatanS2 ? format(new Date(item.jadwalPerawatanS2), "yyyy-MM-dd") : "",
+        "Status S2": item.statusPerawatanS2 || "",
+        "Keterangan": item.keterangan || ""
+      }));
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const ws = XLSX.utils.json_to_sheet(formatted);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "PRASARANA");
+      const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=Data_Prasarana.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting SPIP Prasarana:", error);
+      res.status(500).json({ error: "Gagal me-export data prasarana" });
+    }
+  });
+
+  app.post("/api/spip/prasarana/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      // Data starting from Row 7 (index 6). Header is at Row 6 (index 5).
+      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+      const dataRows = rawData.slice(6); // Row 7 onwards
+      const headerRow = rawData[5]; // Row 6
+
+      const getColIndex = (name: string) => headerRow.findIndex((h: string) => h && h.trim().toUpperCase() === name.toUpperCase());
+
+      const indices = {
+        no: getColIndex("NO"),
+        jenisUnit: getColIndex("Jenis Unit"),
+        koordinat: getColIndex("Koordinat"),
+        lambung: getColIndex("LAMBUNG"),
+        kapasitas: getColIndex("KAPASITAS"),
+        areaLokasi: getColIndex("AREA/LOKASI"),
+        tahun: getColIndex("TAHUN PEMBUATAN"),
+        komisioner: getColIndex("KOMISIONER"),
+        noSertifikat: getColIndex("No. SERTIFIKAT"),
+        tglSertifikat: getColIndex("TANGGAL SERTIFIKAT"),
+        exp: getColIndex("EXP"),
+        s1: getColIndex("Semester 1"),
+        s2: getColIndex("Semester 2"),
+        keterangan: getColIndex("KETERANGAN")
+      };
+
+      const parseDate = (val: any): Date | null => {
+        if (!val || val === "" || val === "-") return null;
+        if (typeof val === 'number') {
+          return new Date(Math.round((val - 25569) * 86400 * 1000));
+        }
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const parseCoord = (coord: string) => {
+        if (!coord) return { lat: null, lng: null };
+        // Example: "3,72°S,115,64°E"
+        try {
+          const parts = coord.split(',').map(p => p.trim());
+          let lat = null, lng = null;
+
+          for (const part of parts) {
+            if (part.includes('S') || part.includes('N')) {
+              let val = parseFloat(part.replace(/[^0-9,.]/g, '').replace(',', '.'));
+              if (part.includes('S')) val = -val;
+              lat = val;
+            } else if (part.includes('E') || part.includes('W')) {
+              let val = parseFloat(part.replace(/[^0-9,.]/g, '').replace(',', '.'));
+              if (part.includes('W')) val = -val;
+              lng = val;
+            }
+          }
+          return { lat, lng };
+        } catch (e) {
+          return { lat: null, lng: null };
+        }
+      };
+
+      const parsedRows = [];
+      let skipped = 0;
+      let errors = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const noLambung = row[indices.lambung]?.toString().trim();
+        if (!noLambung) { skipped++; continue; }
+
+        const { lat, lng } = parseCoord(row[indices.koordinat]);
+
+        parsedRows.push({
+          no: parseInt(row[indices.no]) || null,
+          jenisUnit: row[indices.jenisUnit]?.toString() || "Unknown",
+          koordinat: row[indices.koordinat]?.toString() || null,
+          koordinatLat: lat,
+          koordinatLng: lng,
+          noLambung: noLambung,
+          kapasitas: row[indices.kapasitas]?.toString() || null,
+          areaLokasi: row[indices.areaLokasi]?.toString() || null,
+          tahunPembuatan: parseInt(row[indices.tahun]) || null,
+          komisioner: row[indices.komisioner]?.toString() || null,
+          noSertifikat: row[indices.noSertifikat]?.toString() || null,
+          tglSertifikat: parseDate(row[indices.tglSertifikat]),
+          expSertifikat: parseDate(row[indices.exp]),
+          jadwalPerawatanS1: parseDate(row[indices.s1]),
+          jadwalPerawatanS2: parseDate(row[indices.s2]),
+          keterangan: row[indices.keterangan]?.toString() || null,
+          jenisSpip: "PRASARANA",
+          statusUnit: "AKTIF"
+        });
+      }
+
+      for (const row of parsedRows) {
+        await db.insert(spipPrasarana).values(row).onConflictDoUpdate({
+          target: spipPrasarana.noLambung,
+          set: { ...row, updatedAt: new Date() }
+        });
+      }
+
+      fs.unlink(req.file.path, () => { });
+      res.json({ success: true, imported: parsedRows.length, skipped, errors });
+    } catch (error: any) {
+      console.error("Import error:", error);
+      res.status(500).json({ error: "Gagal memproses file: " + error.message });
+    }
+  });
+
+  app.post("/api/spip/prasarana", async (req, res) => {
+    try {
+      const data = insertSpipPrasaranaSchema.parse(req.body);
+      const existing = await db.select().from(spipPrasarana).where(eq(spipPrasarana.noLambung, data.noLambung)).limit(1);
+      if (existing.length > 0) return res.status(400).json({ error: "No Lambung sudah terdaftar" });
+      const [newEntry] = await db.insert(spipPrasarana).values(data).returning();
+      res.status(201).json(newEntry);
+    } catch (error: any) {
+      console.error("Error creating SPIP Prasarana:", error);
+      res.status(400).json({ error: error.message || "Gagal menyimpan data" });
+    }
+  });
+
+  app.get("/api/spip/prasarana/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [entry] = await db.select().from(spipPrasarana).where(eq(spipPrasarana.id, id)).limit(1);
+      if (!entry) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(entry);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/spip/prasarana/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [updated] = await db.update(spipPrasarana).set({ ...req.body, updatedAt: new Date() }).where(eq(spipPrasarana.id, id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating SPIP Prasarana:", error);
+      res.status(400).json({ error: error.message || "Gagal memperbarui data" });
+    }
+  });
+
+  app.delete("/api/spip/prasarana/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [deleted] = await db.delete(spipPrasarana).where(eq(spipPrasarana.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
       res.json({ message: "Berhasil dihapus" });
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });

@@ -33,7 +33,9 @@ import {
     PenTool,
     Plus,
     User,
-    UserCheck
+    UserCheck,
+    LayoutGrid,
+    Building2
 } from "lucide-react";
 
 export interface NavItem {
@@ -187,7 +189,8 @@ export const navigationGroups: NavGroup[] = [
                                 name: "SPIP",
                                 icon: FolderOpen,
                                 children: [
-                                    { name: "Peralatan", href: "/workspace/hse/ko/spip/peralatan", icon: Car }
+                                    { name: "Peralatan", href: "/workspace/hse/ko/spip/peralatan", icon: LayoutGrid },
+                                    { name: "Prasarana", href: "/workspace/hse/ko/spip/prasarana", icon: Building2 }
                                 ]
                             }
                         ]

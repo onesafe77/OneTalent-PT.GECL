@@ -1,5 +1,5 @@
 import { Switch, Route } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { LoadingScreen } from "@/components/ui/loading-screen";
@@ -81,6 +81,7 @@ import SidakMesinKompresorHistory from "@/pages/sidak-mesin-kompresor-history";
 import SidakGerindaDudukForm from "@/pages/sidak-gerinda-duduk-form";
 import SidakGerindaDudukHistory from "@/pages/sidak-gerinda-duduk-history";
 import { PeralatanFormPage, PeralatanViewPage } from "@/pages/hse/ko/spip/peralatan-detail";
+import { PrasaranaFormPage, PrasaranaViewPage } from "../pages/hse/ko/spip/PrasaranaDetails";
 
 import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashboard";
 import ViolationValidationDashboard from "@/pages/hse/fatigue/dashboard-violation-validation";
@@ -122,6 +123,7 @@ import McuPage from "@/pages/hse/mcu-page";
 import InductionAdmin from "@/pages/hse/induction-admin";
 import InductionQuiz from "@/pages/hse/induction-quiz";
 import SPIPPeralatan from "@/pages/hse/ko/spip/peralatan";
+import SPIPPrasarana from "../pages/hse/ko/spip/PrasaranaList";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { MysticWidget } from "@/components/mystic/MysticWidget";
 
@@ -226,6 +228,7 @@ const workspaceRoutes = [
   { path: "/workspace/hse/induction-quiz", component: InductionQuiz, title: "Quiz Induksi K3" },
   { path: "/workspace/hr/induction-attendance", component: HrInductionAttendance, title: "Monitoring Absensi Induksi" },
   { path: "/workspace/hse/ko/spip/peralatan", component: SPIPPeralatan, title: "SPIP - Peralatan" },
+  { path: "/workspace/hse/ko/spip/prasarana", component: SPIPPrasarana, title: "SPIP - Prasarana" },
 ];
 
 export function Workspace() {
@@ -463,6 +466,17 @@ export function Workspace() {
               <Route path="/workspace/hse/ko/spip/peralatan/:id/edit" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id" component={PeralatanViewPage} />
               <Route path="/workspace/hse/ko/spip/peralatan" component={SPIPPeralatan} />
+
+              <Route path="/workspace/hse/ko/spip/prasarana/tambah">
+                {(params) => <PrasaranaFormPage />}
+              </Route>
+              <Route path="/workspace/hse/ko/spip/prasarana/:id/edit">
+                {(params) => <PrasaranaFormPage id={params.id} />}
+              </Route>
+              <Route path="/workspace/hse/ko/spip/prasarana/:id">
+                {(params) => <PrasaranaViewPage id={params.id} />}
+              </Route>
+              <Route path="/workspace/hse/ko/spip/prasarana" component={SPIPPrasarana} />
 
               <Route component={Dashboard} />
             </Switch>

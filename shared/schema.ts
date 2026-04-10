@@ -3815,6 +3815,58 @@ export const insertSpipPeralatanSchema = createInsertSchema(spipPeralatan).omit(
 
 export type SpipPeralatan = typeof spipPeralatan.$inferSelect;
 export type InsertSpipPeralatan = z.infer<typeof insertSpipPeralatanSchema>;
+
+export const spipPrasarana = pgTable("spip_prasarana", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  no: integer("no"),
+  jenisSpip: text("jenis_spip").notNull().default("PRASARANA"),
+
+  // Identitas Fasilitas
+  jenisUnit: text("jenis_unit").notNull(),
+  koordinat: text("koordinat"),
+  koordinatLat: real("koordinat_lat"),
+  koordinatLng: real("koordinat_lng"),
+  merk: text("merk"),
+  type: text("type"),
+  noLambung: text("no_lambung").notNull().unique(),
+  kapasitas: text("kapasitas"),
+  areaLokasi: text("area_lokasi"),
+  tahunPembuatan: integer("tahun_pembuatan"),
+  komisioner: text("komisioner"),
+
+  // Sertifikasi & Pengujian
+  noSertifikat: text("no_sertifikat"),
+  tglSertifikat: timestamp("tgl_sertifikat"),
+  expSertifikat: timestamp("exp_sertifikat"),
+  statusSertifikat: text("status_sertifikat"),
+
+  // Jadwal Perawatan
+  jadwalPerawatanS1: timestamp("jadwal_perawatan_s1"),
+  statusPerawatanS1: text("status_perawatan_s1"),
+  jadwalPerawatanS2: timestamp("jadwal_perawatan_s2"),
+  statusPerawatanS2: text("status_perawatan_s2"),
+
+  keterangan: text("keterangan"),
+  statusUnit: text("status_unit").notNull().default("AKTIF"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSpipPrasaranaSchema = createInsertSchema(spipPrasarana, {
+  tglSertifikat: z.coerce.date().nullable().optional(),
+  expSertifikat: z.coerce.date().nullable().optional(),
+  jadwalPerawatanS1: z.coerce.date().nullable().optional(),
+  jadwalPerawatanS2: z.coerce.date().nullable().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SpipPrasarana = typeof spipPrasarana.$inferSelect;
+export type InsertSpipPrasarana = z.infer<typeof insertSpipPrasaranaSchema>;
+
 // ============================================================================
 // SIDAK GERINDA DUDUK
 // ============================================================================
