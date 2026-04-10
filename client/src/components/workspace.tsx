@@ -109,6 +109,7 @@ import Documents from "@/pages/documents";
 import UsignDashboardPage from "@/pages/usign/DashboardPage";
 import UsignRequestPage from "@/pages/usign/RequestPage";
 import UsignDetailPage from "@/pages/usign/DetailPage";
+import PicaPage from "@/pages/pica-page";
 import NotFound from "@/pages/not-found";
 import { NotificationPrompt } from "@/components/NotificationPrompt";
 import { WorkspaceHome } from "@/components/WorkspaceHome";
@@ -213,6 +214,7 @@ const workspaceRoutes = [
   { path: "/workspace/activity-calendar", component: ActivityCalendar, title: "Activity Calendar (Mystic AI)" },
   { path: "/workspace/usign", component: UsignDashboardPage, title: "USign Dashboard" },
   { path: "/workspace/usign/request", component: UsignRequestPage, title: "Buat Permintaan USign" },
+  { path: "/workspace/pica", component: PicaPage, title: "PICA Dashboard" },
 
   // Mystic Routes
   { path: "/workspace/si-asef", component: SiAsefChatPage, title: "Mystic Chat" },
@@ -445,6 +447,7 @@ export function Workspace() {
               <Route path="/workspace/usign" component={UsignDashboardPage} />
               <Route path="/workspace/usign/request" component={UsignRequestPage} />
               <Route path="/workspace/usign/document/:id" component={UsignDetailPage} />
+              <Route path="/workspace/pica" component={PicaPage} />
 
               <Route path="/workspace/hse/fms-dashboard" component={FmsDashboard} />
               <Route path="/workspace/hse/induction-admin" component={InductionAdmin} />

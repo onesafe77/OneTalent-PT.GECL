@@ -192,6 +192,12 @@ export const navigationGroups: NavGroup[] = [
                                 ]
                             }
                         ]
+                    },
+                    {
+                        name: "PICA",
+                        icon: AlertTriangle,
+                        href: "/workspace/pica",
+                        requiredPermissions: [Permission.VIEW_SIDAK]
                     }
                 ]
             }

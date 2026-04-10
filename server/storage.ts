@@ -93,6 +93,8 @@ import {
   type InsertUsignSignature,
   type UsignNotification,
   type InsertUsignNotification,
+  type PicaRecord,
+  type InsertPicaRecord,
   users,
   authUsers,
   attendanceRecords,
@@ -596,9 +598,17 @@ export interface IStorage {
   updateAnnouncement(id: string, announcement: Partial<InsertAnnouncement>): Promise<Announcement | undefined>;
   deleteAnnouncement(id: string): Promise<boolean>;
 
+  // PICA Methods
+  getPicaRecords(): Promise<PicaRecord[]>;
+  getPicaRecord(id: string): Promise<PicaRecord | undefined>;
+  createPicaRecord(record: InsertPicaRecord): Promise<PicaRecord>;
+  updatePicaRecord(id: string, record: Partial<InsertPicaRecord>): Promise<PicaRecord | undefined>;
+  deletePicaRecord(id: string): Promise<boolean>;
+
   // Announcement read tracking methods
   getAnnouncementReads(announcementId: string): Promise<AnnouncementRead[]>;
   markAnnouncementAsRead(announcementId: string, employeeId: string, employeeName: string): Promise<AnnouncementRead>;
+  getReadStatus(announcementId: string, employeeId: string): Promise<boolean>;
   getUnreadAnnouncementsCount(employeeId: string): Promise<number>;
   hasReadAnnouncement(announcementId: string, employeeId: string): Promise<boolean>;
 
@@ -934,6 +944,8 @@ export class MemStorage implements IStorage {
   private meetings: Map<string, Meeting>;
   private meetingAttendance: Map<string, MeetingAttendance>;
   private tnaSummaries: Map<string, TnaSummary>;
+  private announcementReads: Map<string, AnnouncementRead>;
+  private picaRecords: Map<string, PicaRecord>;
 
   constructor() {
     this.users = new Map();
@@ -1519,7 +1531,48 @@ export class MemStorage implements IStorage {
   }
 
   async deleteLeaveRosterMonitoring(id: string): Promise<boolean> {
-    return false;
+    return this.leaveRosterMonitoring.delete(id);
+  }
+
+  // PICA Methods implementation
+  async getPicaRecords(): Promise<PicaRecord[]> {
+    return Array.from(this.picaRecords.values()).sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+  }
+
+  async getPicaRecord(id: string): Promise<PicaRecord | undefined> {
+    return this.picaRecords.get(id);
+  }
+
+  async createPicaRecord(record: InsertPicaRecord): Promise<PicaRecord> {
+    const id = randomUUID();
+    const picaRecord: PicaRecord = {
+      ...record,
+      id,
+      correctiveAction: record.correctiveAction ?? null,
+      pic: record.pic ?? null,
+      dueDate: record.dueDate ?? null,
+      priority: record.priority ?? "MEDIUM",
+      category: record.category ?? null,
+      notes: record.notes ?? null,
+      completionDate: record.completionDate ?? null,
+      verificationEvidence: record.verificationEvidence ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.picaRecords.set(id, picaRecord);
+    return picaRecord;
+  }
+
+  async updatePicaRecord(id: string, updates: Partial<InsertPicaRecord>): Promise<PicaRecord | undefined> {
+    const existing = this.picaRecords.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...updates, updatedAt: new Date() };
+    this.picaRecords.set(id, updated);
+    return updated;
+  }
+
+  async deletePicaRecord(id: string): Promise<boolean> {
+    return this.picaRecords.delete(id);
   }
 
   async deleteAllLeaveRosterMonitoring(): Promise<void> {
@@ -10762,6 +10815,34 @@ export class DrizzleStorage implements IStorage {
 
   async deleteSidakGerindaDudukSession(id: string): Promise<boolean> {
     const result = await this.db.delete(sidakGerindaDudukSessions).where(eq(sidakGerindaDudukSessions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // PICA Methods implementation
+  async getPicaRecords(): Promise<PicaRecord[]> {
+    return await this.db.select().from(picaRecords).orderBy(desc(picaRecords.createdAt));
+  }
+
+  async getPicaRecord(id: string): Promise<PicaRecord | undefined> {
+    const [result] = await this.db.select().from(picaRecords).where(eq(picaRecords.id, id));
+    return result;
+  }
+
+  async createPicaRecord(record: InsertPicaRecord): Promise<PicaRecord> {
+    const [result] = await this.db.insert(picaRecords).values(record).returning();
+    return result;
+  }
+
+  async updatePicaRecord(id: string, updates: Partial<InsertPicaRecord>): Promise<PicaRecord | undefined> {
+    const [result] = await this.db.update(picaRecords)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(picaRecords.id, id))
+      .returning();
+    return result;
+  }
+
+  async deletePicaRecord(id: string): Promise<boolean> {
+    const result = await this.db.delete(picaRecords).where(eq(picaRecords.id, id)).returning();
     return result.length > 0;
   }
 }

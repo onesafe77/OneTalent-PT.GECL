@@ -3841,3 +3841,40 @@ export type SidakGerindaDudukRecord = typeof sidakGerindaDudukRecords.$inferSele
 export type InsertSidakGerindaDudukRecord = z.infer<typeof insertSidakGerindaDudukRecordSchema>;
 export type SidakGerindaDudukObserver = typeof sidakGerindaDudukObservers.$inferSelect;
 export type InsertSidakGerindaDudukObserver = z.infer<typeof insertSidakGerindaDudukObserverSchema>;
+
+// ============================================
+// PICA (Problem Identification & Corrective Action)
+// ============================================
+
+export const picaRecords = pgTable("pica_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  moduleSource: text("module_source").notNull(), // e.g. "SIDAK_FATIGUE", "SIDAK_ROSTER", etc.
+  referenceId: varchar("reference_id").notNull(), // Record ID from source table
+  sessionId: varchar("session_id").notNull(), // Session ID from source table
+  findingId: text("finding_id").notNull(), // Item ID from checklist (e.g. "1.1")
+  findingDescription: text("finding_description").notNull(),
+  correctiveAction: text("corrective_action"),
+  pic: text("pic"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("OPEN"), // OPEN, IN_PROGRESS, CLOSED
+  priority: text("priority").default("MEDIUM"), // LOW, MEDIUM, HIGH
+  category: text("category"), // e.g., "K3", "Environment", "Technical"
+  notes: text("notes"),
+  completionDate: date("completion_date"),
+  verificationEvidence: text("verification_evidence"), // URL to photo
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_pica_status").on(table.status),
+  index("IDX_pica_module").on(table.moduleSource),
+  index("IDX_pica_reference").on(table.referenceId),
+]);
+
+export const insertPicaRecordSchema = createInsertSchema(picaRecords).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type PicaRecord = typeof picaRecords.$inferSelect;
+export type InsertPicaRecord = z.infer<typeof insertPicaRecordSchema>;

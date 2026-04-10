@@ -1169,8 +1169,17 @@ Format sebagai bullet points singkat per insight.`;
         }
       }
 
-      res.status(400).json({ message: "Data karyawan tidak valid" });
+      if (error instanceof Error && error.name === 'ZodError') {
+        const zodError = error as any;
+        const errorMessages = zodError.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ');
+        console.error("Zod validation errors:", errorMessages);
+        return res.status(400).json({ message: `Validasi gagal. Periksa data berikut: ${errorMessages}` });
+      }
+
+      const errorMessage = error instanceof Error ? error.message : "Kesalahan tidak diketahui";
+      res.status(400).json({ message: `Data karyawan tidak valid: ${errorMessage}` });
     }
+
   });
 
   app.put("/api/employees/:id", async (req, res) => {
@@ -5174,6 +5183,16 @@ Format sebagai bullet points singkat per insight.`;
       // Update session sample count
       await storage.updateSidakFatigueSessionSampleCount(id);
 
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_FATIGUE",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record, // Pass the whole record to check boolean fields
+        catatanIntervensi: record.catatanIntervensi,
+        moduleLabel: "Sidak Fatigue"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Sidak Fatigue record:", error);
@@ -5413,6 +5432,16 @@ Format sebagai bullet points singkat per insight.`;
         ...validatedData,
         sessionId: id
       });
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_BEHAVIOR",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.checklistResults,
+        moduleLabel: "Sidak Behavior"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Sidak Behavior record:", error);
@@ -5712,6 +5741,16 @@ Format sebagai bullet points singkat per insight.`;
 
       // Update session sample count
       await storage.updateSidakRosterSessionSampleCount(id);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_ROSTER",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record,
+        tindakLanjut: record.keterangan || "",
+        moduleLabel: "Sidak Roster"
+      });
 
       res.json(record);
     } catch (error: any) {
@@ -6223,6 +6262,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const record = await storage.createSidakKecepatanRecord(validatedData);
 
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_KECEPATAN",
+        referenceId: record.id,
+        sessionId: req.params.id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Kecepatan"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding record:", error);
@@ -6381,6 +6431,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const record = await storage.createSidakPencahayaanRecord(validatedData);
 
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_PENCAHAYAAN",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Pencahayaan"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Pencahayaan record:", error);
@@ -6513,6 +6574,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const equipment = await storage.createSidakWorkshopEquipment(validatedData);
 
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_WORKSHOP",
+        referenceId: equipment.id,
+        sessionId: equipment.sessionId,
+        inspectionResults: equipment.inspectionResults,
+        tindakLanjut: equipment.tindakLanjutPerbaikan,
+        dueDate: equipment.dueDate,
+        moduleLabel: "Sidak Workshop"
+      });
+
       res.json(equipment);
     } catch (error: any) {
       console.error("Error adding Workshop equipment:", error);
@@ -6638,6 +6710,17 @@ Format sebagai bullet points singkat per insight.`;
       const validatedData = insertSidakLotoRecordSchema.parse(payload);
 
       const record = await storage.createSidakLotoRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_LOTO",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak LOTO"
+      });
 
       res.json(record);
     } catch (error: any) {
@@ -6866,6 +6949,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const record = await storage.createSidakDigitalRecord(validatedData);
 
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_DIGITAL",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Digital"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Digital record:", error);
@@ -6985,8 +7079,21 @@ Format sebagai bullet points singkat per insight.`;
 
   app.post("/api/sidak-workshop/:id/records", async (req, res) => {
     try {
-      const validatedData = insertSidakWorkshopRecordSchema.parse({ ...req.body, sessionId: req.params.id });
-      const record = await storage.createSidakWorkshopRecord(validatedData);
+      const { id } = req.params;
+      const validatedData = insertSidakWorkshopRecordSchema.parse({ ...req.body, sessionId: id });
+      const record = await storage.createSidakWorkshopEquipment(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_WORKSHOP",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Workshop"
+      });
+
       res.json(record);
     } catch (error: any) {
       if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
@@ -7134,6 +7241,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const validatedData = insertSidakStandJackRecordSchema.parse(payload);
       const record = await storage.createSidakStandJackRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_STAND_JACK",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Stand Jack"
+      });
 
       res.json(record);
     } catch (error: any) {
@@ -7324,6 +7442,18 @@ Format sebagai bullet points singkat per insight.`;
       const payload = { sessionId: id, ordinal, noRegisterPeralatan, inspectionResults, tindakLanjutPerbaikan, dueDate };
       const validatedData = insertSidakHydraulicJackRecordSchema.parse(payload);
       const record = await storage.createSidakHydraulicJackRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_HYDRAULIC_JACK",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Hydraulic Jack"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Hydraulic Jack record:", error);
@@ -7462,6 +7592,18 @@ Format sebagai bullet points singkat per insight.`;
       const payload = { sessionId: id, ordinal, noRegisterPeralatan, inspectionResults, tindakLanjutPerbaikan, dueDate };
       const validatedData = insertSidakBottleJackRecordSchema.parse(payload);
       const record = await storage.createSidakBottleJackRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_BOTTLE_JACK",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Bottle Jack"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Bottle Jack record:", error);
@@ -7517,6 +7659,37 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error: any) {
       console.error("Error deleting photo for Bottle Jack:", error);
       res.status(500).json({ error: error.message || "Gagal menghapus foto" });
+    }
+  });
+
+  // ============================================
+  // PICA ROUTES
+  // ============================================
+  app.get("/api/pica", async (req, res) => {
+    try {
+      const records = await storage.getPicaRecords();
+      res.json(records);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch PICA records" });
+    }
+  });
+
+  app.patch("/api/pica/:id", async (req, res) => {
+    try {
+      const updated = await storage.updatePicaRecord(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ message: "PICA record not found" });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update PICA record" });
+    }
+  });
+
+  app.post("/api/pica/sync", async (req, res) => {
+    try {
+      const count = await PicaService.syncAllFindings();
+      res.json({ message: "PICA synchronization completed", count });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to sync PICA findings" });
     }
   });
 
@@ -7586,6 +7759,18 @@ Format sebagai bullet points singkat per insight.`;
       const payload = { sessionId: id, ordinal, noRegisterPeralatan, inspectionResults, tindakLanjutPerbaikan, dueDate };
       const validatedData = insertSidakImpactRecordSchema.parse(payload);
       const record = await storage.createSidakImpactRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_IMPACT",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Impact"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Impact record:", error);
@@ -7699,6 +7884,18 @@ Format sebagai bullet points singkat per insight.`;
         sessionId: req.params.id
       });
       const record = await storage.createSidakAparRecord(data);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_APAR",
+        referenceId: record.id,
+        sessionId: req.params.id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak APAR"
+      });
+
       res.json(record);
     } catch (error) {
       res.status(400).json({ error: (error as Error).message });
@@ -7948,7 +8145,20 @@ Format sebagai bullet points singkat per insight.`;
           sessionId: id,
           ordinal: ordinal++
         });
-        results.push(await storage.createSidakMesinKompresorRecord(validatedData));
+        const savedRecord = await storage.createSidakMesinKompresorRecord(validatedData);
+
+        // Auto-PICA creation
+        await PicaService.checkAndCreatePica({
+          moduleSource: "SIDAK_MESIN_KOMPRESOR",
+          referenceId: savedRecord.id,
+          sessionId: id,
+          inspectionResults: savedRecord.inspectionResults,
+          tindakLanjut: savedRecord.tindakLanjutPerbaikan,
+          dueDate: savedRecord.dueDate,
+          moduleLabel: "Sidak Mesin Kompresor"
+        });
+
+        results.push(savedRecord);
       }
       res.json(results);
     } catch (error: any) {
@@ -8225,7 +8435,20 @@ Format sebagai bullet points singkat per insight.`;
           ...record,
           sessionId: req.params.id
         });
-        results.push(await storage.createSidakMesinLasRecord(parsed));
+        const savedRecord = await storage.createSidakMesinLasRecord(parsed);
+
+        // Auto-PICA creation
+        await PicaService.checkAndCreatePica({
+          moduleSource: "SIDAK_MESIN_LAS",
+          referenceId: savedRecord.id,
+          sessionId: req.params.id,
+          inspectionResults: savedRecord.inspectionResults,
+          tindakLanjut: savedRecord.tindakLanjutPerbaikan,
+          dueDate: savedRecord.dueDate,
+          moduleLabel: "Sidak Mesin Las"
+        });
+
+        results.push(savedRecord);
       }
       res.json(results);
     } catch (error: any) {
@@ -9018,6 +9241,15 @@ Format sebagai bullet points singkat per insight.`;
       // Update session sample count
       await storage.updateSidakSeatbeltSessionSampleCount(id);
 
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_SEATBELT",
+        referenceId: record.id,
+        sessionId: id,
+        inspectionResults: record,
+        moduleLabel: "Sidak Seatbelt"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("Error adding Sidak Seatbelt record:", error);
@@ -9240,6 +9472,17 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const validatedData = insertSidakAntrianRecordSchema.parse({ ...req.body, sessionId: req.params.id });
       const record = await storage.createSidakAntrianRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_ANTRIAN",
+        referenceId: record.id,
+        sessionId: req.params.id,
+        inspectionResults: record,
+        tindakLanjut: record.keterangan || "",
+        moduleLabel: "Sidak Antrian"
+      });
+
       res.status(201).json(record);
     } catch (error: any) {
       if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
@@ -9317,6 +9560,18 @@ Format sebagai bullet points singkat per insight.`;
 
       const validatedData = insertSidakJarakRecordSchema.parse({ ...req.body, sessionId, ordinal });
       const record = await storage.createSidakJarakRecord(validatedData);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_JARAK_AMAN",
+        referenceId: record.id,
+        sessionId: req.params.id,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Jarak Aman"
+      });
+
       res.status(201).json(record);
     } catch (error: any) {
       if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
@@ -10221,6 +10476,18 @@ Format sebagai bullet points singkat per insight.`;
       const validatedData = insertSidakKecepatanRecordSchema.parse(payload);
       const record = await storage.createSidakKecepatanRecord(validatedData);
       console.log(`[SidakKecepatan] Record saved:`, record);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_KECEPATAN",
+        referenceId: record.id,
+        sessionId: sessionId,
+        inspectionResults: record.inspectionResults,
+        tindakLanjut: record.tindakLanjutPerbaikan,
+        dueDate: record.dueDate,
+        moduleLabel: "Sidak Kecepatan"
+      });
+
       res.json(record);
     } catch (error: any) {
       console.error("[SidakKecepatan] Error adding record:", error);
@@ -11904,6 +12171,15 @@ Format sebagai bullet points singkat per insight.`;
 
       // Update total sampel
       await storage.updateSidakRambuSessionSampleCount(sessionId);
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_RAMBU",
+        referenceId: observation.id,
+        sessionId: sessionId,
+        inspectionResults: observation,
+        moduleLabel: "Sidak Rambu"
+      });
 
       res.status(201).json(observation);
     } catch (error: any) {
@@ -15044,6 +15320,18 @@ Format sebagai bullet points singkat per insight.`;
         ...req.body,
         sessionId: req.params.sessionId
       });
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_WORKSHOP",
+        referenceId: equipment.id,
+        sessionId: req.params.sessionId,
+        inspectionResults: equipment.inspectionResults,
+        tindakLanjut: equipment.tindakLanjutPerbaikan,
+        dueDate: equipment.dueDate,
+        moduleLabel: "Sidak Workshop"
+      });
+
       res.status(201).json(equipment);
     } catch (e: any) {
       console.error("Create SIDAK Workshop Equipment Error:", e);
@@ -15141,6 +15429,16 @@ Format sebagai bullet points singkat per insight.`;
         ...req.body,
         sessionId: req.params.sessionId
       });
+
+      // Auto-PICA creation
+      await PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_INTERCOM",
+        referenceId: record.id,
+        sessionId: req.params.sessionId,
+        inspectionResults: record.checklistResults,
+        moduleLabel: "Sidak Intercom"
+      });
+
       res.status(201).json(record);
     } catch (e: any) {
       console.error("Create SIDAK Intercom Record Error:", e);
@@ -17007,6 +17305,26 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const { session, items } = req.body;
       const result = await storage.createSidakP3k(session, items);
+
+      // Auto-PICA creation for P3K items
+      // We map the items to a format checkAndCreatePica can understand (findingId -> status)
+      const picaInspectionResults: Record<string, string> = {};
+      items.forEach((item: any) => {
+        if (item.isAvailable === false) {
+          picaInspectionResults[item.itemName] = "TS";
+        }
+      });
+
+      if (Object.keys(picaInspectionResults).length > 0) {
+        await PicaService.checkAndCreatePica({
+          moduleSource: "SIDAK_P3K",
+          referenceId: result.id,
+          sessionId: result.id,
+          inspectionResults: picaInspectionResults,
+          moduleLabel: "Sidak P3K"
+        });
+      }
+
       res.json(result);
     } catch (error: any) {
       console.error("Error creating Sidak P3K:", error);
