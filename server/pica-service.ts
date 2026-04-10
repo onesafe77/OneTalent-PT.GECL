@@ -163,10 +163,40 @@ export const PicaService = {
     }) {
         try {
             if (!data.inspectionResults) return;
-            const results = data.inspectionResults as Record<string, string>;
+            const results = data.inspectionResults as Record<string, any>;
             const notes = data.tindakLanjut || "";
 
+            // Common metadata fields to always ignore (these exist on record objects
+            // when the entire record is passed as inspectionResults)
+            const globalIgnoredFields = [
+                "id", "sessionId", "employeeId", "ordinal", "createdAt", "updatedAt",
+                "nama", "nik", "jabatan", "nomorLambung", "noLambung", "namaNik",
+                "perusahaan", "noKendaraan", "keterangan", "catatanIntervensi",
+                "buktiIntervensi", "employeeSignature", "pvtMeanRT", "jamTidur",
+                "isActive", "isCompleted", "reminderSent", "notified",
+                "activityPhotos", "signatureDataUrl", "dueDate",
+                "tindakLanjutPerbaikan", "checklistResults", "inspectionResults",
+                "equipmentType", "equipmentName", "equipmentId", "status",
+                "photoUrl", "evidenceUrl", "evidencePhotoUrl",
+            ];
+
+            // Fatigue-specific: fields where true = finding
+            const fatigueTrueFinding = [
+                "konsumiObat", "konsumsiObat", "masalahPribadi",
+                "istirahatLebihdariSatuJam", "tidakBolehBekerja"
+            ];
+            // Fatigue-specific: fields where false = finding
+            const fatigueFalseFinding = [
+                "pemeriksaanRespon", "pemeriksaanKonsentrasi", "pemeriksaanKesehatan",
+                "karyawanSiapBekerja", "fitUntukBekerja"
+            ];
+            // Fatigue-specific: fields that are NOT findings (recommendations/neutral)
+            const fatigueIgnored = ["istirahatDanMonitor"];
+
             for (const [findingId, value] of Object.entries(results)) {
+                // Skip all metadata fields
+                if (globalIgnoredFields.includes(findingId)) continue;
+
                 let isFinding = false;
                 let correctiveAction = "";
 
@@ -174,21 +204,14 @@ export const PicaService = {
                     isFinding = true;
                     correctiveAction = typeof notes === 'string' ? notes : (notes[findingId] || "");
                 } else if (typeof value === "boolean") {
-                    // For boolean modules, we need to know if false is a finding or true is a finding.
-                    // Most modules: false = finding (e.g., seatbeltCondition: false)
-                    // Fatigue special case: konsumsiObat: true = finding, but pemeriksaanRespon: false = finding.
-
                     if (data.moduleSource === "SIDAK_FATIGUE") {
-                        if (["konsumsiObat", "masalahPribadi", "istirahatLebihdariSatuJam", "tidakBolehBekerja"].includes(findingId)) {
-                            if (value === true) isFinding = true;
-                        } else if (["pemeriksaanRespon", "pemeriksaanKonsentrasi", "pemeriksaanKesehatan", "karyawanSiapBekerja", "fitUntukBekerja"].includes(findingId)) {
-                            if (value === false) isFinding = true;
-                        }
-                    } else if (value === false) {
-                        // Default for other boolean modules (Seatbelt, Rambu, Roster)
-                        // Ignore common metadata boolean fields
-                        const ignoredFields = ["isActive", "isCompleted", "reminderSent", "notified"];
-                        if (!ignoredFields.includes(findingId)) {
+                        if (fatigueIgnored.includes(findingId)) continue;
+                        if (fatigueTrueFinding.includes(findingId) && value === true) isFinding = true;
+                        if (fatigueFalseFinding.includes(findingId) && value === false) isFinding = true;
+                    } else {
+                        // For boolean modules (Seatbelt, Rambu, Roster, Antrian):
+                        // false = non-conformity (finding)
+                        if (value === false) {
                             isFinding = true;
                         }
                     }
@@ -197,6 +220,7 @@ export const PicaService = {
                         correctiveAction = typeof notes === 'string' ? notes : "";
                     }
                 }
+                // Skip numbers, objects, arrays, null, undefined — not inspection items
 
                 if (isFinding) {
                     const findingDescription = `Temuan pada ${data.moduleLabel} - ${findingId}`;
@@ -218,4 +242,5 @@ export const PicaService = {
             console.error(`Error in Auto-PICA creation for ${data.moduleSource}:`, err);
         }
     }
+
 };

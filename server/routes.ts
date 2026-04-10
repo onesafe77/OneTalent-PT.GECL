@@ -5189,8 +5189,8 @@ Format sebagai bullet points singkat per insight.`;
         moduleSource: "SIDAK_FATIGUE",
         referenceId: record.id,
         sessionId: id,
-        inspectionResults: record, // Pass the whole record to check boolean fields
-        catatanIntervensi: record.catatanIntervensi,
+        inspectionResults: record,
+        tindakLanjut: record.catatanIntervensi,
         moduleLabel: "Sidak Fatigue"
       });
 
