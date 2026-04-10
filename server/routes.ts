@@ -12,6 +12,7 @@ import { openRouterClient, AI_MODELS } from "./ai-config";
 import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths } from "date-fns";
 import { exec } from "child_process";
 import Papa from "papaparse";
+import { PicaService } from "./pica-service";
 
 // Configure Multer with disk storage to preserve file extensions
 if (!fs.existsSync('uploads')) {
@@ -5184,7 +5185,7 @@ Format sebagai bullet points singkat per insight.`;
       await storage.updateSidakFatigueSessionSampleCount(id);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_FATIGUE",
         referenceId: record.id,
         sessionId: id,
@@ -5434,7 +5435,7 @@ Format sebagai bullet points singkat per insight.`;
       });
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_BEHAVIOR",
         referenceId: record.id,
         sessionId: id,
@@ -5743,7 +5744,7 @@ Format sebagai bullet points singkat per insight.`;
       await storage.updateSidakRosterSessionSampleCount(id);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_ROSTER",
         referenceId: record.id,
         sessionId: id,
@@ -6263,7 +6264,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakKecepatanRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_KECEPATAN",
         referenceId: record.id,
         sessionId: req.params.id,
@@ -6432,7 +6433,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakPencahayaanRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_PENCAHAYAAN",
         referenceId: record.id,
         sessionId: id,
@@ -6575,7 +6576,7 @@ Format sebagai bullet points singkat per insight.`;
       const equipment = await storage.createSidakWorkshopEquipment(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_WORKSHOP",
         referenceId: equipment.id,
         sessionId: equipment.sessionId,
@@ -6712,7 +6713,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakLotoRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_LOTO",
         referenceId: record.id,
         sessionId: id,
@@ -6950,7 +6951,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakDigitalRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_DIGITAL",
         referenceId: record.id,
         sessionId: id,
@@ -7084,7 +7085,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakWorkshopEquipment(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_WORKSHOP",
         referenceId: record.id,
         sessionId: id,
@@ -7243,7 +7244,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakStandJackRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_STAND_JACK",
         referenceId: record.id,
         sessionId: id,
@@ -7444,7 +7445,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakHydraulicJackRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_HYDRAULIC_JACK",
         referenceId: record.id,
         sessionId: id,
@@ -7594,7 +7595,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakBottleJackRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_BOTTLE_JACK",
         referenceId: record.id,
         sessionId: id,
@@ -7761,7 +7762,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakImpactRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_IMPACT",
         referenceId: record.id,
         sessionId: id,
@@ -7886,7 +7887,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakAparRecord(data);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_APAR",
         referenceId: record.id,
         sessionId: req.params.id,
@@ -8148,7 +8149,7 @@ Format sebagai bullet points singkat per insight.`;
         const savedRecord = await storage.createSidakMesinKompresorRecord(validatedData);
 
         // Auto-PICA creation
-        await PicaService.checkAndCreatePica({
+        PicaService.checkAndCreatePica({
           moduleSource: "SIDAK_MESIN_KOMPRESOR",
           referenceId: savedRecord.id,
           sessionId: id,
@@ -8438,7 +8439,7 @@ Format sebagai bullet points singkat per insight.`;
         const savedRecord = await storage.createSidakMesinLasRecord(parsed);
 
         // Auto-PICA creation
-        await PicaService.checkAndCreatePica({
+        PicaService.checkAndCreatePica({
           moduleSource: "SIDAK_MESIN_LAS",
           referenceId: savedRecord.id,
           sessionId: req.params.id,
@@ -9242,7 +9243,7 @@ Format sebagai bullet points singkat per insight.`;
       await storage.updateSidakSeatbeltSessionSampleCount(id);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_SEATBELT",
         referenceId: record.id,
         sessionId: id,
@@ -9474,7 +9475,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakAntrianRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_ANTRIAN",
         referenceId: record.id,
         sessionId: req.params.id,
@@ -9562,7 +9563,7 @@ Format sebagai bullet points singkat per insight.`;
       const record = await storage.createSidakJarakRecord(validatedData);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_JARAK_AMAN",
         referenceId: record.id,
         sessionId: req.params.id,
@@ -10478,7 +10479,7 @@ Format sebagai bullet points singkat per insight.`;
       console.log(`[SidakKecepatan] Record saved:`, record);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_KECEPATAN",
         referenceId: record.id,
         sessionId: sessionId,
@@ -12173,7 +12174,7 @@ Format sebagai bullet points singkat per insight.`;
       await storage.updateSidakRambuSessionSampleCount(sessionId);
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_RAMBU",
         referenceId: observation.id,
         sessionId: sessionId,
@@ -15322,7 +15323,7 @@ Format sebagai bullet points singkat per insight.`;
       });
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_WORKSHOP",
         referenceId: equipment.id,
         sessionId: req.params.sessionId,
@@ -15431,7 +15432,7 @@ Format sebagai bullet points singkat per insight.`;
       });
 
       // Auto-PICA creation
-      await PicaService.checkAndCreatePica({
+      PicaService.checkAndCreatePica({
         moduleSource: "SIDAK_INTERCOM",
         referenceId: record.id,
         sessionId: req.params.sessionId,
@@ -17316,7 +17317,7 @@ Format sebagai bullet points singkat per insight.`;
       });
 
       if (Object.keys(picaInspectionResults).length > 0) {
-        await PicaService.checkAndCreatePica({
+        PicaService.checkAndCreatePica({
           moduleSource: "SIDAK_P3K",
           referenceId: result.id,
           sessionId: result.id,
