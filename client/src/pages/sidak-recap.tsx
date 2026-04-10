@@ -50,7 +50,8 @@ import {
   Sun,
   Lock,
   Tablet,
-  PenTool
+  PenTool,
+  Shield
 } from "lucide-react";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -98,6 +99,15 @@ interface SupervisorStats {
   workshop: number;
   behavior: number;
   intercom: number;
+  standjack: number;
+  hydraulicjack: number;
+  bottlejack: number;
+  apar: number;
+  impact: number;
+  mesinlas: number;
+  mesinkompresor: number;
+  gerindaduduk: number;
+  fuelstorage: number;
   total: number;
 }
 
@@ -119,6 +129,15 @@ interface RecapData {
     totalWorkshop: number;
     totalBehavior: number;
     totalIntercom: number;
+    totalStandJack: number;
+    totalHydraulicJack: number;
+    totalBottleJack: number;
+    totalApar: number;
+    totalImpact: number;
+    totalMesinLas: number;
+    totalMesinKompresor: number;
+    totalGerindaDuduk: number;
+    totalFuelStorage: number;
     totalKaryawanDiperiksa: number;
     supervisorStats: SupervisorStats[];
   };
@@ -1423,6 +1442,94 @@ function BehaviorFormPreview({ session, records, observers }: {
     </div>
   );
 }
+
+function EquipmentFormPreview({ session, records, observers }: {
+  session: SessionDetail['session'];
+  records: any[];
+  observers: Observer[]
+}) {
+  return (
+    <div className="space-y-4 p-4 bg-white text-black text-sm font-sans">
+      <div className="text-center border-b-2 border-slate-600 pb-3">
+        <h2 className="text-xl font-extrabold text-slate-800">CHECKLIST PEMERIKSAAN {session.type.toUpperCase()}</h2>
+        <p className="text-gray-600 font-semibold">PT. Goden Energi Cemerlang Lesrari</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded-xl bg-slate-50">
+        <div className="flex flex-col"><span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Tanggal</span> <span className="font-medium text-gray-900">{session.tanggal}</span></div>
+        <div className="flex flex-col"><span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Jam</span> <span className="font-medium text-gray-900">{session.waktu}</span></div>
+        <div className="flex flex-col"><span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Shift</span> <span className="font-medium text-gray-900">{session.shift || '-'}</span></div>
+        <div className="flex flex-col"><span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Lokasi</span> <span className="font-medium text-gray-900">{session.lokasi || '-'}</span></div>
+        <div className="col-span-2 flex flex-col pt-2 border-t border-slate-200"><span className="text-xs font-bold text-slate-600 uppercase tracking-wider">Supervisor</span> <span className="font-bold text-gray-900">{session.supervisorName}</span></div>
+      </div>
+
+      <div className="overflow-hidden border border-slate-200 rounded-xl shadow-sm">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-600 text-white">
+              <th className="p-3 w-8 text-center border-r border-slate-500">No</th>
+              <th className="p-3 text-left border-r border-slate-500">Nama Alat / No. Register</th>
+              <th className="p-3 w-20 text-center border-r border-slate-500">Kondisi (S)</th>
+              <th className="p-3 text-left">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map((record, idx) => {
+              const results = record.inspectionResults || {};
+              const vals = Object.values(results);
+              const allOk = vals.length > 0 && vals.every(v => v === 'S');
+              let tindakLanjut = "-";
+              if (record.tindakLanjutPerbaikan && typeof record.tindakLanjutPerbaikan === 'object') {
+                tindakLanjut = Object.values(record.tindakLanjutPerbaikan).filter(Boolean).join(", ") || "-";
+              } else if (typeof record.tindakLanjutPerbaikan === 'string') {
+                tindakLanjut = record.tindakLanjutPerbaikan;
+              }
+
+              return (
+                <tr key={record.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'} hover:bg-slate-100 transition-colors`}>
+                  <td className="p-3 text-center border-r border-slate-200 font-bold text-slate-700">{record.ordinal}</td>
+                  <td className="p-3 font-extrabold text-gray-900 border-r border-slate-200">{record.noRegisterPeralatan || record.namaAlat || 'Alat ' + record.ordinal}</td>
+                  <td className="p-3 text-center border-r border-slate-200">
+                    <div className={`inline-flex items-center justify-center p-1 rounded-full ${allOk ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      <CheckIcon checked={allOk} />
+                    </div>
+                  </td>
+                  <td className="p-3 text-gray-500 italic">{tindakLanjut}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="border border-slate-200 rounded-xl p-4 bg-gray-50/30">
+        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <Signature className="h-5 w-5" />
+          Observer / Pengamat:
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {observers.map((obs) => (
+            <div key={obs.id} className="flex items-center gap-4 border border-slate-200 p-4 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex-1">
+                <p className="font-extrabold text-gray-900">{obs.nama}</p>
+                <div className="flex flex-col mt-1">
+                  <p className="text-xs font-bold text-slate-600">{obs.nik || '-'}</p>
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-tighter">{obs.perusahaan || 'BIB'}</p>
+                </div>
+              </div>
+              {obs.tandaTangan && (
+                <div className="p-2 border border-slate-100 rounded-lg bg-gray-50">
+                  <img src={obs.tandaTangan} alt="TTD" className="h-16 w-24 object-contain" />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function IntercomFormPreview({ session, records, observers }: {
   session: SessionDetail['session'];
   records: IntercomRecord[];
@@ -1897,6 +2004,132 @@ export default function SidakRecap() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-lg">
+                <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalStandJack || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Stand Jack</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-lg">
+                <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalHydraulicJack || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Hydraulic Jack</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-lg">
+                <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalBottleJack || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Bottle Jack</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <Activity className="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalApar || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK APAR</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-zinc-100 dark:bg-zinc-900/30 rounded-lg">
+                <PenTool className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalImpact || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Impact</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalMesinLas || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Mesin Las</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
+                <Activity className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalMesinKompresor || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Mesin Kompresor</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <PenTool className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalGerindaDuduk || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Gerinda Duduk</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-stone-100 dark:bg-stone-900/30 rounded-lg">
+                <Building className="h-5 w-5 text-stone-600 dark:text-stone-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalFuelStorage || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Fuel Storage</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Supervisor Stats */}
@@ -2332,7 +2565,50 @@ export default function SidakRecap() {
                         records={detailData.records as BehaviorRecord[]}
                         observers={detailData.observers}
                       />
-                    ) : selectedSession?.type === 'Intercom' ? (
+                    ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' ? (
+                      <EquipmentFormPreview
+                        session={detailData.session}
+                        records={detailData.records as any[]}
+                        observers={detailData.observers}
+                      />
+                    
+                    ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>No</TableHead>
+                            <TableHead>Nama Alat</TableHead>
+                            <TableHead className="text-center">Kondisi</TableHead>
+                            <TableHead>Keterangan</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(detailData.records as any[])?.map((record) => {
+                            const results = record.inspectionResults || {};
+                            const vals = Object.values(results);
+                            const allOk = vals.length > 0 && vals.every(v => v === 'S');
+                            let tindakLanjut = "-";
+                            if (record.tindakLanjutPerbaikan && typeof record.tindakLanjutPerbaikan === 'object') {
+                              tindakLanjut = Object.values(record.tindakLanjutPerbaikan).filter(Boolean).join(", ") || "-";
+                            } else if (typeof record.tindakLanjutPerbaikan === 'string') {
+                              tindakLanjut = record.tindakLanjutPerbaikan;
+                            }
+                            return (
+                              <TableRow key={record.id}>
+                                <TableCell>{record.ordinal}</TableCell>
+                                <TableCell className="font-medium">{record.noRegisterPeralatan || record.namaAlat || 'Alat ' + record.ordinal}</TableCell>
+                                <TableCell className="text-center">
+                                  <Badge variant={allOk ? 'default' : 'destructive'}>
+                                    {allOk ? 'Baik (S)' : 'Buruk'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-sm text-gray-500">{tindakLanjut}</TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+) : selectedSession?.type === 'Intercom' ? (
                       <IntercomFormPreview
                         session={detailData.session}
                         records={detailData.records as IntercomRecord[]}

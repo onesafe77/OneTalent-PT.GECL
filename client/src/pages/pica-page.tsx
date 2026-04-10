@@ -12,7 +12,9 @@ import {
     Calendar,
     MoreVertical,
     ExternalLink,
-    Edit2
+    Edit2,
+    Trash2,
+    Paperclip
 } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useMemo } from "react";
@@ -56,6 +58,7 @@ export default function PicaPage() {
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
     const [selectedRecord, setSelectedRecord] = useState<PicaRecord | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
 
     // Fetch PICA data
     const { data: records, isLoading } = useQuery<PicaRecord[]>({
@@ -82,6 +85,25 @@ export default function PicaPage() {
                 description: err.message,
                 variant: "destructive"
             });
+        }
+    });
+
+    // Delete All Mutation
+    const deleteAllMutation = useMutation({
+        mutationFn: async () => {
+            if (!confirm("Apakah Anda yakin ingin menghapus semua data temuan PICA? Tindakan ini tidak dapat dibatalkan.")) {
+                throw new Error("Dibatalkan");
+            }
+            return await apiRequest("/api/pica", "DELETE");
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/pica"] });
+            toast({ title: "Berhasil", description: "Semua data temuan berhasil dihapus", variant: "default" });
+        },
+        onError: (err: any) => {
+            if (err.message !== "Dibatalkan") {
+                toast({ title: "Gagal Menghapus Data", description: err.message, variant: "destructive" });
+            }
         }
     });
 
@@ -128,6 +150,7 @@ export default function PicaPage() {
 
     const handleEditClick = (record: PicaRecord) => {
         setSelectedRecord(record);
+        setEvidenceFile(null); // reset file when opening dialog
         setIsEditDialogOpen(true);
     };
 
@@ -175,14 +198,26 @@ export default function PicaPage() {
                             </div>
                         </div>
 
-                        <Button
-                            onClick={() => syncMutation.mutate()}
-                            disabled={syncMutation.isPending}
-                            className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-200 dark:shadow-none rounded-xl h-11 px-6 transition-all active:scale-95"
-                        >
-                            <RefreshCw className={cn("h-4 w-4 mr-2", syncMutation.isPending && "animate-spin")} />
-                            Sync Findings
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                onClick={() => deleteAllMutation.mutate()}
+                                disabled={deleteAllMutation.isPending}
+                                variant="outline"
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 rounded-xl h-11 px-6 shadow-sm transition-all"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Hapus Semua
+                            </Button>
+
+                            <Button
+                                onClick={() => syncMutation.mutate()}
+                                disabled={syncMutation.isPending}
+                                className="bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-200 dark:shadow-none rounded-xl h-11 px-6 transition-all active:scale-95"
+                            >
+                                <RefreshCw className={cn("h-4 w-4 mr-2", syncMutation.isPending && "animate-spin")} />
+                                Sync Findings
+                            </Button>
+                        </div>
                     </div>
 
                     {/* Stats Cards */}
@@ -501,6 +536,36 @@ export default function PicaPage() {
                                     className="rounded-xl border-gray-200 min-h-[100px] font-medium leading-relaxed shadow-sm"
                                 />
                             </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-xs font-black text-gray-500 uppercase tracking-wider ml-1">Evidence (Bukti Perbaikan)</Label>
+                                <div className="space-y-3">
+                                    {selectedRecord.verificationEvidence && (
+                                        <div className="flex items-center gap-3 p-3 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-100 rounded-xl">
+                                            <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                                                <Paperclip className="h-4 w-4 text-blue-600" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-gray-900 truncate">Sudi di-upload</p>
+                                                <a href={selectedRecord.verificationEvidence} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-blue-600 hover:underline">
+                                                    Lihat Berkas
+                                                </a>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <Input
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        onChange={(e) => {
+                                            if (e.target.files && e.target.files.length > 0) {
+                                                setEvidenceFile(e.target.files[0]);
+                                            }
+                                        }}
+                                        className="h-11 rounded-xl shadow-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 cursor-pointer"
+                                    />
+                                    <p className="text-[10px] text-gray-400 font-medium px-1">Upload foto/dokumen sebagai bukti jika temuan akan di-CLOSED.</p>
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -521,10 +586,30 @@ export default function PicaPage() {
                                             correctiveAction: selectedRecord.correctiveAction,
                                             updatedAt: new Date()
                                         }
+                                    }, {
+                                        onSuccess: async () => {
+                                            if (evidenceFile) {
+                                                const formData = new FormData();
+                                                formData.append('evidence', evidenceFile);
+                                                try {
+                                                    const res = await fetch(`/api/pica/${selectedRecord.id}/upload-evidence`, {
+                                                        method: 'POST',
+                                                        body: formData
+                                                    });
+                                                    if (res.ok) {
+                                                        queryClient.invalidateQueries({ queryKey: ["/api/pica"] });
+                                                        toast({ title: "Evidence Uploaded", variant: "default" });
+                                                    }
+                                                } catch (e) {
+                                                    toast({ title: "Gagal Upload Evidence", variant: "destructive" });
+                                                }
+                                            }
+                                            setEvidenceFile(null);
+                                        }
                                     });
                                 }
                             }}
-                            disabled={updateMutation.isPending}
+                            disabled={updateMutation.isPending || deleteAllMutation.isPending}
                             className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-11 px-10 shadow-lg shadow-blue-200 transition-all active:scale-95"
                         >
                             {updateMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}

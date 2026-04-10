@@ -228,6 +228,30 @@ export const leaveReminders = pgTable("leave_reminders", {
 // Insert schemas
 export const insertEmployeeSchema = createInsertSchema(employees).omit({
   createdAt: true,
+}).extend({
+  // Preprocess all nullable/optional fields to convert empty strings to null
+  // This prevents validation errors when the frontend sends "" for empty date/numeric fields
+  position: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  department: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  investorGroup: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  dob: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  doh: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  tanggalResign: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  expiredSimpol: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  expiredSimperBib: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  expiredSimperTia: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  tglIkutPelatihanOs: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  tglRefreshmentOs: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  catatanResign: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  typeSim: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  simNo: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  address: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  provinsi: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  addressGroup: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  domisiliKaryawan: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  merekUnitDigunakanOs: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  keteranganOs: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  bpjsKesehatan: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
 });
 
 export const insertAttendanceSchema = createInsertSchema(attendanceRecords).omit({

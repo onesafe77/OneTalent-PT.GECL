@@ -605,6 +605,7 @@ export interface IStorage {
   createPicaRecord(record: InsertPicaRecord): Promise<PicaRecord>;
   updatePicaRecord(id: string, record: Partial<InsertPicaRecord>): Promise<PicaRecord | undefined>;
   deletePicaRecord(id: string): Promise<boolean>;
+  deleteAllPicaRecords(): Promise<void>;
 
   // Announcement read tracking methods
   getAnnouncementReads(announcementId: string): Promise<AnnouncementRead[]>;
@@ -1574,6 +1575,10 @@ export class MemStorage implements IStorage {
 
   async deletePicaRecord(id: string): Promise<boolean> {
     return this.picaRecords.delete(id);
+  }
+
+  async deleteAllPicaRecords(): Promise<void> {
+    this.picaRecords.clear();
   }
 
   async deleteAllLeaveRosterMonitoring(): Promise<void> {
@@ -10845,6 +10850,10 @@ export class DrizzleStorage implements IStorage {
   async deletePicaRecord(id: string): Promise<boolean> {
     const result = await this.db.delete(picaRecords).where(eq(picaRecords.id, id)).returning();
     return result.length > 0;
+  }
+
+  async deleteAllPicaRecords(): Promise<void> {
+    await this.db.delete(picaRecords);
   }
 }
 

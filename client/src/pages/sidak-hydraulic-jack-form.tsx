@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ClipboardCheck, Check, ArrowRight, Save, Plus, Shield, ChevronDown } from "lucide-react";
+import { Camera,  ClipboardCheck, Check, ArrowRight, Save, Plus, Shield, ChevronDown  } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { DraftRecoveryDialog } from "@/components/sidak/draft-recovery-dialog";
@@ -87,6 +87,7 @@ const MAX_INSPECTORS = 2;
 export default function SidakHydraulicJackForm() {
     const [, navigate] = useLocation();
     const { toast } = useToast();
+    const queryClient = useQueryClient();
 
     const {
         saveDraft,
@@ -115,6 +116,8 @@ export default function SidakHydraulicJackForm() {
         perusahaan: "",
         tandaTangan: ""
     });
+
+    const [activityPhotos, setActivityPhotos] = useState<string[]>([]);
 
     useEffect(() => {
         saveDraft(draft);
@@ -229,7 +232,7 @@ export default function SidakHydraulicJackForm() {
         }
     });
 
-    const handleFinish = () => {
+    const handleFinish = async () => {
         if (draft.inspectors.length === 0) {
             toast({
                 title: "Inspektor Diperlukan",
@@ -238,8 +241,21 @@ export default function SidakHydraulicJackForm() {
             });
             return;
         }
+
+        if (activityPhotos.length > 0 && draft.sessionId) {
+            try {
+                await apiRequest(`/api/sidak-hydraulic-jack/${draft.sessionId}/photos`, "POST", { photos: activityPhotos });
+            } catch (err) {
+                console.error("Failed to upload photos:", err);
+                toast({ title: "Peringatan", description: "Gagal mengupload bukti kegiatan, namun data inspeksi tetap tersimpan.", variant: "destructive" });
+            }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['/api/sidak-hydraulic-jack/sessions'] });
+        ignoreDraft(); // Clear draft data
+
         navigate("/workspace/sidak/hydraulic-jack/history");
-        toast({ title: "Selesai", description: "Laporan SIDAK Hydraulic Jack telah disimpan." });
+        toast({ title: "Selesai", description: "Laporan SIDAK telah disimpan." });
     };
 
     // ============================================
@@ -650,6 +666,53 @@ export default function SidakHydraulicJackForm() {
                                     </Button>
                                 </div>
                             )}
+                        
+                            {/* Section Upload Foto Kegiatan - BEGIN */}
+                            <div className="space-y-4 pt-6 border-t mt-6">
+                                <div className="flex items-center justify-between">
+                                    <Label className="font-bold text-gray-700">Bukti Kegiatan (Opsional)</Label>
+                                    <Badge variant="outline" className="bg-blue-50 text-blue-600 align-middle">
+                                        {activityPhotos.length}/6 Foto
+                                    </Badge>
+                                </div>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {activityPhotos.map((photo, i) => (
+                                        <div key={i} className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden group border border-gray-200">
+                                            <img src={photo} alt="Bukti" className="w-full h-full object-cover" />
+                                            <button 
+                                                onClick={() => setActivityPhotos(prev => prev.filter((_, idx) => idx !== i))}
+                                                className="absolute top-1.5 right-1.5 h-6 w-6 bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transform scale-90 opacity-80 hover:scale-100 hover:opacity-100 transition-all"
+                                            >✕</button>
+                                        </div>
+                                    ))}
+                                    {activityPhotos.length < 6 && (
+                                        <Label className="flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                            <Camera className="w-6 h-6 text-gray-400 mb-2" />
+                                            <span className="text-[10px] font-bold text-gray-500">TAMBAH FOTO</span>
+                                            <Input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                multiple
+                                                className="hidden" 
+                                                onChange={e => {
+                                                    const files = Array.from(e.target.files || []);
+                                                    files.forEach(file => {
+                                                        const reader = new FileReader();
+                                                        reader.onloadend = () => {
+                                                            setActivityPhotos(prev => {
+                                                                if (prev.length >= 6) return prev;
+                                                                return [...prev, reader.result];
+                                                            });
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    });
+                                                }}
+                                            />
+                                        </Label>
+                                    )}
+                                </div>
+                            </div>
+                            {/* Section Upload Foto Kegiatan - END */}
                         </div>
                     </div>
                 )}

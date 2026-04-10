@@ -127,7 +127,6 @@ export const navigationGroups: NavGroup[] = [
                                 icon: Activity,
                                 children: [
                                     { name: "Sidak", href: "/workspace/sidak", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
-                                    { name: "Sidak Fuel Storage", href: "/workspace/sidak/fuel-storage/new", icon: Shield, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Rekap Sidak", href: "/workspace/sidak/rekap", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Evaluasi Driver", href: "/workspace/evaluasi-driver", icon: TrendingUp, requiredPermissions: [Permission.VIEW_EVALUASI] },
                                     { name: "Evaluasi SIDAK Roster", href: "/workspace/hse/evaluasi-roster", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },

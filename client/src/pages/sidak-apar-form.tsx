@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { ClipboardCheck, Check, ArrowRight, Save, Plus, Shield, ChevronDown } from "lucide-react";
+import { Camera,  ClipboardCheck, Check, ArrowRight, Save, Plus, Shield, ChevronDown  } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { DraftRecoveryDialog } from "@/components/sidak/draft-recovery-dialog";
@@ -96,6 +96,7 @@ const MAX_INSPECTORS = 2;
 export default function SidakAparForm() {
     const [, navigate] = useLocation();
     const { toast } = useToast();
+    const queryClient = useQueryClient();
 
     const {
         saveDraft,
@@ -124,6 +125,8 @@ export default function SidakAparForm() {
         perusahaan: "",
         tandaTangan: ""
     });
+
+    const [activityPhotos, setActivityPhotos] = useState<string[]>([]);
 
     useEffect(() => {
         saveDraft(draft);
@@ -238,7 +241,7 @@ export default function SidakAparForm() {
         }
     });
 
-    const handleFinish = () => {
+    const handleFinish = async () => {
         if (draft.inspectors.length === 0) {
             toast({
                 title: "Inspektor Diperlukan",
@@ -247,8 +250,21 @@ export default function SidakAparForm() {
             });
             return;
         }
+
+        if (activityPhotos.length > 0 && draft.sessionId) {
+            try {
+                await apiRequest(`/api/sidak-apar/${draft.sessionId}/photos`, "POST", { photos: activityPhotos });
+            } catch (err) {
+                console.error("Failed to upload photos:", err);
+                toast({ title: "Peringatan", description: "Gagal mengupload bukti kegiatan, namun data inspeksi tetap tersimpan.", variant: "destructive" });
+            }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['/api/sidak-apar/sessions'] });
+        ignoreDraft(); // Clear draft data
+
         navigate("/workspace/sidak/apar/history");
-        toast({ title: "Selesai", description: "Laporan SIDAK APAR telah disimpan." });
+        toast({ title: "Selesai", description: "Laporan SIDAK telah disimpan." });
     };
 
     // ============================================

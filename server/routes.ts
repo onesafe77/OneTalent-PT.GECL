@@ -393,7 +393,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Verify file was actually saved to disk
       const savedFilePath = path.join(uploadsDir, file.filename);
-      const fileExists = fs.existsSync(savedFilePath);
+      let fileExists = false;
+      try {
+        fileExists = fs.existsSync(savedFilePath);
+      } catch (e) {
+        console.error('DEBUG: Error checking file existence:', e);
+      }
+
       console.log('DEBUG: Photo uploaded!', {
         originalName: file.originalname,
         filename: file.filename,
@@ -1173,8 +1179,12 @@ Format sebagai bullet points singkat per insight.`;
       if (error instanceof Error && error.name === 'ZodError') {
         const zodError = error as any;
         const errorMessages = zodError.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ');
-        console.error("Zod validation errors:", errorMessages);
-        return res.status(400).json({ message: `Validasi gagal. Periksa data berikut: ${errorMessages}` });
+        console.error("❌ Zod validation errors:", errorMessages);
+        console.error("Payload received:", JSON.stringify(req.body, null, 2));
+        return res.status(400).json({
+          message: `Validasi gagal. Periksa data berikut: ${errorMessages}`,
+          details: zodError.errors
+        });
       }
 
       const errorMessage = error instanceof Error ? error.message : "Kesalahan tidak diketahui";
@@ -7695,6 +7705,32 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  app.delete("/api/pica", async (req, res) => {
+    try {
+      await storage.deleteAllPicaRecords();
+      res.json({ message: "All PICA records deleted successfully" });
+    } catch (error) {
+      console.error("❌ DELETE /api/pica error:", error);
+      res.status(500).json({ message: "Failed to delete all PICA records" });
+    }
+  });
+
+  app.post("/api/pica/:id/upload-evidence", upload.single('evidence'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No evidence file provided" });
+      }
+      const recordId = req.params.id;
+      const fileUrl = `/uploads/${req.file.filename}`;
+      const updated = await storage.updatePicaRecord(recordId, { verificationEvidence: fileUrl });
+      if (!updated) return res.status(404).json({ message: "PICA record not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("❌ POST /api/pica/:id/upload-evidence error:", error);
+      res.status(500).json({ message: "Failed to upload evidence" });
+    }
+  });
+
   app.post("/api/sidak-impact", async (req, res) => {
     try {
       const validatedData = insertSidakImpactSessionSchema.parse(req.body);
@@ -8433,6 +8469,7 @@ Format sebagai bullet points singkat per insight.`;
 
       const results = [];
       for (const record of records) {
+        if (record.dueDate === "") record.dueDate = null;
         const parsed = insertSidakMesinLasRecordSchema.parse({
           ...record,
           sessionId: req.params.id
@@ -8619,6 +8656,10 @@ Format sebagai bullet points singkat per insight.`;
           fetchSession('BottleJack', storage.getAllSidakBottleJackSessions()),
           fetchSession('Impact', storage.getSidakImpactSessions()),
           fetchSession('Apar', storage.getSidakAparSessions()),
+          fetchSession('MesinLas', storage.getSidakMesinLasSessions()),
+          fetchSession('MesinKompresor', storage.getSidakMesinKompresorSessions()),
+          fetchSession('GerindaDuduk', storage.getSidakGerindaDudukSessions()),
+          fetchSession('FuelStorage', storage.getSidakFuelStorageSessions()),
         ]);
 
         const [results1, results2, results3] = await Promise.all([batch1, batch2, batch3]);
@@ -8630,7 +8671,7 @@ Format sebagai bullet points singkat per insight.`;
         antrianFull, jarakFull, kecepatanFull, pencahayaanFull,
         lotoFull, digitalFull, workshopFull, behaviorFull,
         standJackFull, hydraulicJackFull, bottleJackFull, impactFull,
-        aparFull
+        aparFull, mesinLasFull, mesinKompresorFull, gerindaDudukFull, fuelStorageFull
       ] = await fetchAllInBatches();
 
       // Omit large fields like activityPhotos for the recap list to save bandwidth and speed up JSON serialization
@@ -8656,11 +8697,15 @@ Format sebagai bullet points singkat per insight.`;
       const bottleJack = omitLargeFields(bottleJackFull);
       const impact = omitLargeFields(impactFull);
       const apar = omitLargeFields(aparFull);
+      const mesinLas = omitLargeFields(mesinLasFull || []);
+      const mesinKompresor = omitLargeFields(mesinKompresorFull || []);
+      const gerindaDuduk = omitLargeFields(gerindaDudukFull || []);
+      const fuelStorage = omitLargeFields(fuelStorageFull || []);
 
       const allSessionsCount = fatigue.length + roster.length + seatbelt.length + rambu.length +
         antrian.length + jarak.length + kecepatan.length + pencahayaan.length +
         loto.length + digital.length + workshop.length + behavior.length + standJack.length +
-        hydraulicJack.length + bottleJack.length + impact.length + apar.length;
+        hydraulicJack.length + bottleJack.length + impact.length + apar.length + mesinLas.length + mesinKompresor.length + gerindaDuduk.length + fuelStorage.length;
 
       // Extract all session IDs for targeted observer fetch
       const fatigueIds = fatigue.map(s => s.id).filter(id => !!id);
@@ -8735,7 +8780,11 @@ Format sebagai bullet points singkat per insight.`;
         ...hydraulicJack.map((s: any) => mapSession(s, 'HydraulicJack')),
         ...bottleJack.map((s: any) => mapSession(s, 'BottleJack')),
         ...impact.map((s: any) => mapSession(s, 'Impact')),
-        ...apar.map((s: any) => mapSession(s, 'Apar'))
+        ...apar.map((s: any) => mapSession(s, 'Apar')),
+        ...mesinLas.map((s: any) => mapSession(s, 'MesinLas')),
+        ...mesinKompresor.map((s: any) => mapSession(s, 'MesinKompresor')),
+        ...gerindaDuduk.map((s: any) => mapSession(s, 'GerindaDuduk')),
+        ...fuelStorage.map((s: any) => mapSession(s, 'FuelStorage'))
       ];
 
       // Optimization: Fetch only used employee names to avoid fetching thousands of unrelated records
@@ -8842,6 +8891,12 @@ Format sebagai bullet points singkat per insight.`;
         totalStandJack: standJack.length,
         totalHydraulicJack: hydraulicJack.length,
         totalBottleJack: bottleJack.length,
+        totalApar: apar.length,
+        totalImpact: impact.length,
+        totalMesinLas: mesinLas.length,
+        totalMesinKompresor: mesinKompresor.length,
+        totalGerindaDuduk: gerindaDuduk.length,
+        totalFuelStorage: fuelStorage.length,
         totalKaryawanDiperiksa: finalSessions.reduce((acc, curr) => acc + (curr.totalSampel || 0), 0),
         supervisorStats: [] as any[]
       };
@@ -8854,7 +8909,9 @@ Format sebagai bullet points singkat per insight.`;
             supervisorMap.set(name, {
               name,
               fatigue: 0, roster: 0, seatbelt: 0, rambu: 0, antrian: 0,
-              jarak: 0, kecepatan: 0, pencahayaan: 0, loto: 0, digital: 0, workshop: 0, behavior: 0, standjack: 0,
+              jarak: 0, kecepatan: 0, pencahayaan: 0, loto: 0, digital: 0, workshop: 0, behavior: 0,
+              standjack: 0, hydraulicjack: 0, bottlejack: 0, apar: 0, impact: 0, mesinlas: 0,
+              mesinkompresor: 0, gerindaduduk: 0, fuelstorage: 0,
               total: 0
             });
           }
@@ -9185,6 +9242,197 @@ Format sebagai bullet points singkat per insight.`;
             waktu: session.waktu,
             shift: session.shift,
             lokasi: session.lokasi,
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+
+
+      if (type === 'StandJack') {
+        const session = await storage.getSidakStandJackSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakStandJackRecords(sessionId as string);
+        const observers = await storage.getSidakStandJackObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'StandJack',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'HydraulicJack') {
+        const session = await storage.getSidakHydraulicJackSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakHydraulicJackRecords(sessionId as string);
+        const observers = await storage.getSidakHydraulicJackObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'HydraulicJack',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'BottleJack') {
+        const session = await storage.getSidakBottleJackSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakBottleJackRecords(sessionId as string);
+        const observers = await storage.getSidakBottleJackObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'BottleJack',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'Impact') {
+        const session = await storage.getSidakImpactSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakImpactRecords(sessionId as string);
+        const observers = await storage.getSidakImpactObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'Impact',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'Apar') {
+        const session = await storage.getSidakAparSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakAparRecords(sessionId as string);
+        const observers = await storage.getSidakAparObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'Apar',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'MesinLas') {
+        const session = await storage.getSidakMesinLasSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakMesinLasRecords(sessionId as string);
+        const observers = await storage.getSidakMesinLasObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'MesinLas',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'MesinKompresor') {
+        const session = await storage.getSidakMesinKompresorSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakMesinKompresorRecords(sessionId as string);
+        const observers = await storage.getSidakMesinKompresorObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'MesinKompresor',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'GerindaDuduk') {
+        const session = await storage.getSidakGerindaDudukSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakGerindaDudukRecords(sessionId as string);
+        const observers = await storage.getSidakGerindaDudukObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'GerindaDuduk',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'FuelStorage') {
+        const session = await storage.getSidakFuelStorageSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakFuelStorageRecords(sessionId as string);
+        const observers = await storage.getSidakFuelStorageObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'FuelStorage',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
             supervisorName,
             photos: session.activityPhotos
           },
