@@ -126,6 +126,20 @@ export default function SafetyPatrol() {
     }
   });
 
+  const batchReparseMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest("/api/safety-patrol/batch-reparse?limit=20", "POST");
+    },
+    onSuccess: (data) => {
+      toast({ title: "Batch Re-parse Selesai", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/reports'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/stats'] });
+    },
+    onError: () => {
+      toast({ title: "Gagal", description: "Batch re-parse gagal", variant: "destructive" });
+    }
+  });
+
   const reparseMutation = useMutation({
     mutationFn: async (id: string) => {
       return apiRequest(`/api/safety-patrol/reports/${id}/reparse`, "POST");
@@ -359,10 +373,22 @@ export default function SafetyPatrol() {
           {/* Reports Table */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Daftar Laporan ({filteredReports.length})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Daftar Laporan ({filteredReports.length})
+                </CardTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => batchReparseMutation.mutate()}
+                  disabled={batchReparseMutation.isPending}
+                  title="Re-parse laporan yang info-nya masih kosong (maks 20 per klik)"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${batchReparseMutation.isPending ? 'animate-spin' : ''}`} />
+                  {batchReparseMutation.isPending ? "Memproses..." : "Re-parse Kosong"}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (

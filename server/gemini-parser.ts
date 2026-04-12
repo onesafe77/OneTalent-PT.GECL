@@ -190,6 +190,41 @@ Fokus pada:
 }
 
 // ==========================================
+// PATROL REPORT CLASSIFIER
+// ==========================================
+
+/**
+ * Quick keyword-based check sebelum memanggil AI.
+ * Mengembalikan true jika pesan mengandung cukup ciri laporan patrol.
+ */
+export function isLikelyPatrolReport(text: string): boolean {
+  const lower = text.toLowerCase();
+
+  // Kata kunci kuat — satu saja cukup
+  const strongKeywords = [
+    "shift", "patrol", "inspeksi", "observasi", "briefing",
+    "sidak", "p2h", "roster", "temuan", "pelaksana",
+    "hari/tanggal", "hari, tanggal", "laporan", "kegiatan",
+    "hadir", "unit dt", "unit ht", "dump truck", "hauling",
+    "wake up call", "safety meeting", "pelanggaran",
+    "kondisi jalan", "kondisi unit", "km ", "phase ", "pit ",
+    "piket", "patroli"
+  ];
+
+  // Kata kunci lemah — butuh 2+ untuk lolos
+  const weakKeywords = [
+    "lokasi", "waktu", "jam", "shift", "tanggal", "selesai",
+    "wita", "team", "tim", "driver", "operator"
+  ];
+
+  const hasStrong = strongKeywords.some(k => lower.includes(k));
+  if (hasStrong) return true;
+
+  const weakCount = weakKeywords.filter(k => lower.includes(k)).length;
+  return weakCount >= 3;
+}
+
+// ==========================================
 // MCU PARSING LOGIC
 // ==========================================
 

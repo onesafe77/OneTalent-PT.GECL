@@ -189,8 +189,17 @@ export const navigationGroups: NavGroup[] = [
                                 name: "SPIP",
                                 icon: FolderOpen,
                                 children: [
-                                    { name: "Peralatan", href: "/workspace/hse/ko/spip/peralatan", icon: LayoutGrid },
-                                    { name: "Prasarana", href: "/workspace/hse/ko/spip/prasarana", icon: Building2 }
+                                    {
+                                        name: "Peralatan",
+                                        icon: LayoutGrid,
+                                        children: [
+                                            { name: "Peralatan Bergerak (HE)", href: "/workspace/hse/ko/spip/peralatan", icon: Car },
+                                            { name: "Peralatan Bergerak", href: "/workspace/hse/ko/spip/peralatan/bergerak", icon: Settings },
+                                            { name: "Peralatan Tidak Bergerak (Coming Soon)", icon: Lock },
+                                        ]
+                                    },
+                                    { name: "Sarana & Prasarana", href: "/workspace/hse/ko/spip/prasarana", icon: Building2 },
+                                    { name: "Instalasi", href: "/workspace/hse/ko/spip/instalasi", icon: Zap }
                                 ]
                             }
                         ]

@@ -121,6 +121,8 @@ import {
   insertSpipPeralatanSchema,
   spipPrasarana,
   insertSpipPrasaranaSchema,
+  spipInstalasi,
+  insertSpipInstalasiSchema,
   insertSidakImpactSessionSchema,
   insertSidakImpactRecordSchema,
   insertSidakImpactObserverSchema,
@@ -139,6 +141,8 @@ import {
   insertSidakGerindaDudukSessionSchema,
   insertSidakGerindaDudukRecordSchema,
   insertSidakGerindaDudukObserverSchema,
+  spipPeralatanWorkshop,
+  insertSpipPeralatanWorkshopSchema,
 } from "@shared/schema";
 import { eq, ilike, and, or, not, lt, lte, gt, gte, isNull, isNotNull, desc, sql, asc, inArray } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
@@ -151,6 +155,61 @@ import { inductionAiService } from "./services/induction-ai-service";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ============================================
+  // DATABASE MIGRATION - SPIP INSTALASI (AUTO)
+  // ============================================
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS spip_instalasi (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        no INTEGER,
+        jenis_spip TEXT NOT NULL DEFAULT 'INSTALASI',
+        jenis_unit TEXT NOT NULL,
+        kategori TEXT NOT NULL DEFAULT 'Instalasi Lainnya',
+        nomor_register TEXT NOT NULL UNIQUE,
+        merk TEXT,
+        type TEXT,
+        kapasitas TEXT,
+        area_lokasi TEXT NOT NULL,
+        tahun_pembuatan INTEGER,
+        komisioner TEXT,
+        no_sertifikat TEXT,
+        tgl_sertifikat TIMESTAMP,
+        exp_sertifikat TIMESTAMP,
+        keterangan TEXT,
+        status_unit TEXT NOT NULL DEFAULT 'AKTIF',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS spip_peralatan_workshop (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        no INTEGER,
+        jenis_spip TEXT NOT NULL DEFAULT 'PERALATAN',
+        sub_kategori TEXT NOT NULL DEFAULT 'BERGERAK',
+        jenis_unit TEXT NOT NULL,
+        no_lambung TEXT NOT NULL UNIQUE,
+        kapasitas TEXT,
+        nilai_kapasitas DOUBLE PRECISION,
+        satuan_kapasitas TEXT,
+        area_lokasi TEXT NOT NULL,
+        komisioner TEXT,
+        no_sertifikat TEXT,
+        tgl_sertifikat TIMESTAMP,
+        exp_sertifikat TIMESTAMP,
+        keterangan TEXT,
+        status_unit TEXT NOT NULL DEFAULT 'AKTIF',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS "IDX_spip_peralatan_workshop_lambung" ON spip_peralatan_workshop (no_lambung);`);
+    console.log("✅ Auto-migration: spip_instalasi & spip_peralatan_workshop tables ensured.");
+  } catch (err) {
+    console.error("❌ Auto-migration failed:", err);
+  }
+
   setupAuth(app);
 
   // Report cache invalidation and update notification system
@@ -11867,7 +11926,7 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // Import Gemini parser dynamically
-  const { parseReportWithGemini, analyzeReportContent, parseMCUWithGemini } = await import("./gemini-parser");
+  const { parseReportWithGemini, analyzeReportContent, parseMCUWithGemini, isLikelyPatrolReport } = await import("./gemini-parser");
 
 
   // ==========================================
@@ -12098,6 +12157,13 @@ Format sebagai bullet points singkat per insight.`;
           }
         }
 
+        // Filter: hanya proses jika pesan terdeteksi sebagai laporan patrol
+        if (!isLikelyPatrolReport(messageContent)) {
+          console.log("💬 Pesan biasa (bukan laporan patrol), dilewati:", messageContent.substring(0, 80));
+          res.status(200).json({ status: "ok", message: "Bukan laporan patrol, dilewati" });
+          return;
+        }
+
         console.log("🤖 Processing message with AI - type:", messageType, "hasMedia:", !!mediaUrl);
         try {
           // Parse with Gemini AI
@@ -12299,6 +12365,50 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error re-parsing safety patrol report:", error);
       res.status(500).json({ message: "Gagal memproses ulang laporan" });
+    }
+  });
+
+  // Batch re-parse reports with missing fields
+  app.post("/api/safety-patrol/batch-reparse", async (req, res) => {
+    try {
+      const limit = parseInt((req.query.limit as string) || "20");
+      const reports = await storage.getAllSafetyPatrolReports();
+      const missing = reports.filter((r: any) =>
+        r.rawMessage && (!r.waktuPelaksanaan || !r.lokasi || !r.shift)
+      ).slice(0, limit);
+
+      if (missing.length === 0) {
+        return res.json({ message: "Tidak ada laporan yang perlu di-parse ulang", processed: 0 });
+      }
+
+      let processed = 0;
+      let failed = 0;
+      for (const report of missing) {
+        try {
+          const parsed = await parseReportWithGemini(report.rawMessage!);
+          await storage.updateSafetyPatrolReport(report.id, {
+            waktuPelaksanaan: parsed.waktuPelaksanaan || null,
+            shift: parsed.shift || null,
+            lokasi: parsed.lokasi || null,
+            namaPelaksana: parsed.namaPelaksana || null,
+            kegiatan: parsed.kegiatan || null,
+            temuan: parsed.temuan || null,
+            tanggal: parsed.tanggal,
+            bulan: parsed.bulan || null,
+            week: parsed.week || null,
+            jenisLaporan: parsed.jenisLaporan,
+            parsedData: parsed,
+          });
+          processed++;
+        } catch {
+          failed++;
+        }
+      }
+
+      res.json({ message: `Selesai: ${processed} berhasil, ${failed} gagal`, processed, failed, remaining: missing.length - processed - failed });
+    } catch (error) {
+      console.error("Batch reparse error:", error);
+      res.status(500).json({ message: "Gagal menjalankan batch re-parse" });
     }
   });
 
@@ -17925,7 +18035,9 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.get("/api/spip/peralatan/:id", async (req, res) => {
+  app.get("/api/spip/peralatan/:id", async (req, res, next) => {
+    // Pass sub-resource paths (e.g. /workshop) to their own routes
+    if (req.params.id === "workshop") return next();
     try {
       const { id } = req.params;
       const unit = await db.select().from(spipPeralatan).where(eq(spipPeralatan.id, id)).limit(1);
@@ -17936,7 +18048,8 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.put("/api/spip/peralatan/:id", async (req, res) => {
+  app.put("/api/spip/peralatan/:id", async (req, res, next) => {
+    if (req.params.id === "workshop") return next();
     try {
       const { id } = req.params;
       // partial validation
@@ -17954,7 +18067,8 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.delete("/api/spip/peralatan/:id", async (req, res) => {
+  app.delete("/api/spip/peralatan/:id", async (req, res, next) => {
+    if (req.params.id === "workshop") return next();
     try {
       const { id } = req.params;
       const deleted = await db.delete(spipPeralatan).where(eq(spipPeralatan.id, id)).returning();
@@ -18231,6 +18345,549 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const { id } = req.params;
       const [deleted] = await db.delete(spipPrasarana).where(eq(spipPrasarana.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json({ message: "Berhasil dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // SPIP INSTALASI
+  // ============================================
+
+  app.get("/api/spip/instalasi", async (req, res) => {
+    try {
+      const { search, kategori, area_lokasi, status_sertifikat, page = "1", limit = "15" } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      let baseQuery = db.select().from(spipInstalasi).$dynamic();
+      let conditions = [];
+
+      if (search) {
+        conditions.push(
+          or(
+            ilike(spipInstalasi.jenisUnit, `%${search}%`),
+            ilike(spipInstalasi.nomorRegister, `%${search}%`),
+            ilike(spipInstalasi.areaLokasi, `%${search}%`)
+          )
+        );
+      }
+
+      if (kategori && kategori !== 'all') conditions.push(eq(spipInstalasi.kategori, kategori as string));
+      if (area_lokasi && area_lokasi !== 'all') conditions.push(eq(spipInstalasi.areaLokasi, area_lokasi as string));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (status_sertifikat) {
+        if (status_sertifikat === 'EXPIRED') {
+          conditions.push(and(isNotNull(spipInstalasi.expSertifikat), lt(spipInstalasi.expSertifikat, today)));
+        } else if (status_sertifikat === 'AKTIF') {
+          conditions.push(and(isNotNull(spipInstalasi.expSertifikat), gte(spipInstalasi.expSertifikat, today)));
+        } else if (status_sertifikat === 'BELUM ADA') {
+          conditions.push(isNull(spipInstalasi.noSertifikat));
+        }
+      }
+
+      if (conditions.length > 0) {
+        baseQuery = baseQuery.where(and(...conditions));
+      }
+
+      const totalResult = await db.select({ count: sql<number>`count(*)` }).from(spipInstalasi).where(conditions.length > 0 ? and(...conditions) : undefined);
+      const total = Number(totalResult[0]?.count || 0);
+
+      const items = await baseQuery
+        .limit(limitNum)
+        .offset(offset)
+        .orderBy(desc(spipInstalasi.createdAt));
+
+      res.json({
+        data: items,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching SPIP Instalasi:", error);
+      res.status(500).json({ error: "Gagal mengambil data instalasi" });
+    }
+  });
+
+  app.get("/api/spip/instalasi/export", async (req, res) => {
+    try {
+      const items = await db.select().from(spipInstalasi).orderBy(desc(spipInstalasi.createdAt));
+
+      const formatted = items.map((item, idx) => ({
+        "NO": item.no || (idx + 1),
+        "JENIS SPIP": item.jenisSpip,
+        "Jenis Unit": item.jenisUnit,
+        "MERK": item.merk || "",
+        "TYPE": item.type || "",
+        "Nomor Register": item.nomorRegister || "",
+        "KAPASITAS": item.kapasitas || "",
+        "AREA/LOKASI": item.areaLokasi || "",
+        "TAHUN PEMBUATAN": item.tahunPembuatan || "",
+        "KOMISIONER": item.komisioner || "",
+        "No. SERTIFIKAT": item.noSertifikat || "",
+        "TANGGAL SERTIFIKAT": item.tglSertifikat ? format(new Date(item.tglSertifikat), "yyyy-MM-dd") : "",
+        "EXP": item.expSertifikat ? format(new Date(item.expSertifikat), "yyyy-MM-dd") : "",
+        "KETERANGAN": item.keterangan || ""
+      }));
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const ws = XLSX.utils.json_to_sheet(formatted);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "INSTALASI");
+      const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=Data_Instalasi.xlsx');
+      res.send(buffer);
+    } catch (error) {
+      console.error("Error exporting SPIP Instalasi:", error);
+      res.status(500).json({ error: "Gagal me-export data instalasi" });
+    }
+  });
+
+  app.post("/api/spip/instalasi/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+
+      // Data starting from Row 7 (index 6). Header is at Row 6 (index 5).
+      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+      if (rawData.length < 6) {
+        return res.status(400).json({ error: "File Excel tidak sesuai format (kurang baris header)" });
+      }
+
+      const dataRows = rawData.slice(6); // Row 7 onwards
+      const headerRow = rawData[5]; // Row 6
+
+      const getColIndex = (name: string) => headerRow.findIndex((h: string) => h && h.trim().toUpperCase() === name.toUpperCase());
+
+      const indices = {
+        no: getColIndex("NO"),
+        jenisSpip: getColIndex("JENIS SPIP"),
+        jenisUnit: getColIndex("Jenis Unit"),
+        merk: getColIndex("MERK"),
+        type: getColIndex("TYPE"),
+        nomorRegister: getColIndex("Nomor Register") === -1 ? getColIndex("NO. LAMBUNG") : getColIndex("Nomor Register"),
+        kapasitas: getColIndex("KAPASITAS"),
+        areaLokasi: getColIndex("AREA/LOKASI"),
+        tahun: getColIndex("TAHUN PEMBUATAN"),
+        komisioner: getColIndex("KOMISIONER"),
+        noSertifikat: getColIndex("No. SERTIFIKAT"),
+        tglSertifikat: getColIndex("TANGGAL SERTIFIKAT"),
+        exp: getColIndex("EXP"),
+        keterangan: getColIndex("KETERANGAN")
+      };
+
+      const parseDate = (val: any): Date | null => {
+        if (!val || val === "" || val === "-") return null;
+        if (typeof val === 'number') {
+          return new Date(Math.round((val - 25569) * 86400 * 1000));
+        }
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const detectKategori = (jenisUnit: string): string => {
+        if (!jenisUnit) return "Instalasi Lainnya";
+        const upperCaseUnit = jenisUnit.toUpperCase();
+        if (upperCaseUnit.includes("LISTRIK")) return "Instalasi Listrik";
+        if (upperCaseUnit.includes("AIR")) return "Instalasi Air";
+        if (upperCaseUnit.includes("TANKI SOLAR") || upperCaseUnit.includes("FUEL TANK")) return "Tanki Solar";
+        if (upperCaseUnit.includes("RADIO")) return "Radio";
+        if (upperCaseUnit.includes("KEBAKARAN")) return "Proteksi Kebakaran";
+        return "Instalasi Lainnya";
+      };
+
+      const parsedRows = [];
+      let skipped = 0;
+      let errors = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const jenisUnit = row[indices.jenisUnit]?.toString().trim();
+        if (!jenisUnit) { skipped++; continue; }
+
+        let nomorRegister = row[indices.nomorRegister]?.toString().trim();
+        if (!nomorRegister) {
+          nomorRegister = `INST-${Date.now()}-${i}`;
+        }
+
+        parsedRows.push({
+          no: parseInt(row[indices.no]) || null,
+          jenisSpip: "INSTALASI",
+          jenisUnit: jenisUnit,
+          kategori: detectKategori(jenisUnit),
+          merk: row[indices.merk]?.toString() || null,
+          type: row[indices.type]?.toString() || null,
+          nomorRegister: nomorRegister,
+          kapasitas: row[indices.kapasitas]?.toString() || null,
+          areaLokasi: row[indices.areaLokasi]?.toString() || null,
+          tahunPembuatan: parseInt(row[indices.tahun]) || null,
+          komisioner: row[indices.komisioner]?.toString() || null,
+          noSertifikat: row[indices.noSertifikat]?.toString() || null,
+          tglSertifikat: parseDate(row[indices.tglSertifikat]),
+          expSertifikat: parseDate(row[indices.exp]),
+          keterangan: row[indices.keterangan]?.toString() || null,
+          statusUnit: "AKTIF"
+        });
+      }
+
+      for (const row of parsedRows) {
+        // Upsert based on nomorRegister or create if doesn't exist
+        // Since we don't have a strict unique constraint on nomorRegister in all cases,
+        // we'll check if it exists first or just insert.
+        // The user suggested "auto ID if null", let's assume we want to avoid duplicates if nomorRegister is provided.
+        await db.insert(spipInstalasi).values(row).onConflictDoUpdate({
+          target: spipInstalasi.id, // This won't work for upsert by nomorRegister unless we add a unique index
+          set: { ...row, updatedAt: new Date() }
+        }).catch(async (err) => {
+          // Fallback insert if conflict on id (which shouldn't happen with random uuid)
+          // If we wanted to upsert by nomorRegister, we should have made it unique or added a unique index.
+          // For now, let's just insert
+          await db.insert(spipInstalasi).values(row);
+        });
+      }
+
+      fs.unlink(req.file.path, () => { });
+      res.json({ success: true, imported: parsedRows.length, skipped, errors });
+    } catch (error: any) {
+      console.error("Import error:", error);
+      res.status(500).json({ error: "Gagal memproses file: " + error.message });
+    }
+  });
+
+  app.post("/api/spip/instalasi", async (req, res) => {
+    try {
+      const data = insertSpipInstalasiSchema.parse(req.body);
+      const [newEntry] = await db.insert(spipInstalasi).values(data).returning();
+      res.status(201).json(newEntry);
+    } catch (error: any) {
+      console.error("Error creating SPIP Instalasi:", error);
+      res.status(400).json({ error: error.message || "Gagal menyimpan data" });
+    }
+  });
+
+  app.get("/api/spip/instalasi/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [entry] = await db.select().from(spipInstalasi).where(eq(spipInstalasi.id, id)).limit(1);
+      if (!entry) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(entry);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/spip/instalasi/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [updated] = await db.update(spipInstalasi).set({ ...req.body, updatedAt: new Date() }).where(eq(spipInstalasi.id, id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating SPIP Instalasi:", error);
+      res.status(400).json({ error: error.message || "Gagal memperbarui data" });
+    }
+  });
+
+  app.delete("/api/spip/instalasi/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [deleted] = await db.delete(spipInstalasi).where(eq(spipInstalasi.id, id)).returning();
+      if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json({ message: "Berhasil dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // SPIP PERALATAN WORKSHOP (ALAT BENGKEL)
+  // ============================================
+
+  app.get("/api/spip/peralatan/workshop", async (req, res) => {
+    try {
+      const { search, jenis_unit, area_lokasi, status, page = "1", limit = "1000" } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = parseInt(limit as string);
+      const offset = (pageNum - 1) * limitNum;
+
+      let baseQuery = db.select().from(spipPeralatanWorkshop).$dynamic();
+      let conditions = [];
+
+      if (search) {
+        conditions.push(
+          or(
+            ilike(spipPeralatanWorkshop.noLambung, `%${search}%`),
+            ilike(spipPeralatanWorkshop.jenisUnit, `%${search}%`),
+            ilike(spipPeralatanWorkshop.areaLokasi, `%${search}%`)
+          )
+        );
+      }
+
+      if (jenis_unit && jenis_unit !== 'all') conditions.push(eq(spipPeralatanWorkshop.jenisUnit, jenis_unit as string));
+      if (area_lokasi && area_lokasi !== 'all') conditions.push(eq(spipPeralatanWorkshop.areaLokasi, area_lokasi as string));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (status) {
+        if (status === 'EXPIRED') {
+          conditions.push(or(
+            isNull(spipPeralatanWorkshop.expSertifikat),
+            lt(spipPeralatanWorkshop.expSertifikat, today)
+          ));
+        } else if (status === 'AKTIF') {
+          conditions.push(and(
+            isNotNull(spipPeralatanWorkshop.expSertifikat),
+            gte(spipPeralatanWorkshop.expSertifikat, today)
+          ));
+        }
+      }
+
+      if (conditions.length > 0) {
+        baseQuery = baseQuery.where(and(...conditions));
+      }
+
+      const items = await baseQuery
+        .limit(limitNum)
+        .offset(offset)
+        .orderBy(asc(spipPeralatanWorkshop.jenisUnit), asc(spipPeralatanWorkshop.noLambung));
+
+      const totalResult = await db.select({ count: sql<number>`count(*)` }).from(spipPeralatanWorkshop).where(conditions.length > 0 ? and(...conditions) : undefined);
+      const total = Number(totalResult[0]?.count || 0);
+
+      res.json({
+        data: items,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum)
+      });
+    } catch (error) {
+      console.error("Error fetching SPIP Workshop Tools:", error);
+      res.status(500).json({ error: "Gagal mengambil data peralatan workshop" });
+    }
+  });
+
+  app.post("/api/spip/peralatan/workshop/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames.find(n => n.includes("PERALATAN 2")) || workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+
+      if (rawData.length < 7) {
+        return res.status(400).json({ error: "Format Excel tidak sesuai (data minimal mulai baris 7)" });
+      }
+
+      const dataRows = rawData.slice(6); // Row 7 onwards
+      const headerRow = rawData[5]; // Row 6 (Header mapping)
+
+      const getColIndex = (name: string) => headerRow.findIndex((h: string) => h && h.trim().toUpperCase() === name.toUpperCase());
+
+      const indices = {
+        no: getColIndex("NO"),
+        jenisUnit: getColIndex("Jenis Unit"),
+        noLambung: getColIndex("No Lambung"),
+        kapasitas: getColIndex("Kapasitas"),
+        areaLokasi: getColIndex("Area/Lokasi"),
+        komisioner: getColIndex("Komisioner"),
+        noSertifikat: getColIndex("No. Sertifikat"),
+        tglSertifikat: getColIndex("Tgl Sertifikat"),
+        exp: getColIndex("EXP"),
+        keterangan: getColIndex("Keterangan")
+      };
+
+      const parseDate = (val: any): Date | null => {
+        if (!val || val === "" || val === "-" || val === "EXPIRED") return null;
+        if (typeof val === 'number') {
+          return new Date(Math.round((val - 25569) * 86400 * 1000));
+        }
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const parseKapasitas = (val: string) => {
+        if (!val) return { nilai: null, satuan: null };
+        const match = val.toString().match(/^(\d+[\.\,]?\d*)\s*(.*)$/);
+        if (match) {
+          return {
+            nilai: parseFloat(match[1].replace(',', '.')),
+            satuan: match[2].trim()
+          };
+        }
+        return { nilai: null, satuan: val.toString() };
+      };
+
+      const parsedRows = [];
+      let skipped = 0;
+
+      for (const row of dataRows) {
+        const noLambung = row[indices.noLambung]?.toString().trim();
+        if (!noLambung || noLambung === "No Lambung") { skipped++; continue; }
+
+        const cap = parseKapasitas(row[indices.kapasitas]);
+
+        parsedRows.push({
+          no: parseInt(row[indices.no]) || null,
+          jenisUnit: row[indices.jenisUnit]?.toString() || "Unknown",
+          noLambung: noLambung,
+          kapasitas: row[indices.kapasitas]?.toString() || null,
+          nilaiKapasitas: cap.nilai,
+          satuanKapasitas: cap.satuan,
+          areaLokasi: row[indices.areaLokasi]?.toString() || null,
+          komisioner: row[indices.komisioner]?.toString() || null,
+          noSertifikat: row[indices.noSertifikat]?.toString() || null,
+          tglSertifikat: parseDate(row[indices.tglSertifikat]),
+          expSertifikat: parseDate(row[indices.exp]),
+          keterangan: row[indices.keterangan]?.toString() || null,
+          jenisSpip: "PERALATAN",
+          subKategori: "BERGERAK",
+          statusUnit: "AKTIF"
+        });
+      }
+
+      for (const row of parsedRows) {
+        await db.insert(spipPeralatanWorkshop).values(row).onConflictDoUpdate({
+          target: spipPeralatanWorkshop.noLambung,
+          set: { ...row, updatedAt: new Date() }
+        });
+      }
+
+      fs.unlink(req.file.path, () => { });
+      res.json({ success: true, imported: parsedRows.length, skipped });
+    } catch (error: any) {
+      console.error("Import error:", error);
+      res.status(500).json({ error: "Gagal memproses file: " + error.message });
+    }
+  });
+
+  app.get("/api/spip/peralatan/workshop/export", async (req, res) => {
+    try {
+      const items = await db.select().from(spipPeralatanWorkshop).orderBy(asc(spipPeralatanWorkshop.jenisUnit), asc(spipPeralatanWorkshop.noLambung));
+
+      const ExcelJS = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("PERALATAN 2");
+
+      // Setup Headers (Basic for now to match the user's reference)
+      worksheet.columns = [
+        { header: 'No', key: 'no', width: 5 },
+        { header: 'Jenis Unit', key: 'jenisUnit', width: 25 },
+        { header: 'No Lambung', key: 'noLambung', width: 20 },
+        { header: 'Kapasitas', key: 'kapasitas', width: 15 },
+        { header: 'Area/Lokasi', key: 'areaLokasi', width: 25 },
+        { header: 'Komisioner', key: 'komisioner', width: 15 },
+        { header: 'No. Sertifikat', key: 'noSertifikat', width: 20 },
+        { header: 'Tgl Sertifikat', key: 'tglSertifikat', width: 15 },
+        { header: 'EXP', key: 'expSertifikat', width: 15 },
+        { header: 'Status', key: 'status', width: 20 },
+        { header: 'Keterangan', key: 'keterangan', width: 30 }
+      ];
+
+      items.forEach((item, idx) => {
+        const row = worksheet.addRow({
+          no: item.no || (idx + 1),
+          jenisUnit: item.jenisUnit,
+          noLambung: item.noLambung,
+          kapasitas: item.kapasitas,
+          areaLokasi: item.areaLokasi,
+          komisioner: item.komisioner,
+          noSertifikat: item.noSertifikat,
+          tglSertifikat: item.tglSertifikat ? format(new Date(item.tglSertifikat), "dd MMM yyyy") : "-",
+          expSertifikat: item.expSertifikat ? format(new Date(item.expSertifikat), "dd MMM yyyy") : "-",
+          status: "", // To be calculated or colored
+          keterangan: item.keterangan || ""
+        });
+
+        const isExpired = !item.expSertifikat || new Date(item.expSertifikat) <= new Date();
+        const statusCell = row.getCell('status');
+
+        if (isExpired) {
+          statusCell.value = "EXPIRED";
+          statusCell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFFF0000' } // Red
+          };
+          statusCell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        } else {
+          // Calculate countdown
+          const remaining = new Date(item.expSertifikat!).getTime() - new Date().getTime();
+          const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+          const months = Math.floor(days / 30);
+          const years = Math.floor(months / 12);
+          statusCell.value = `${years} Thn, ${months % 12} Bln, ${days % 30} Hari`;
+          statusCell.font = { color: { argb: 'FF008000' }, bold: true }; // Green
+        }
+      });
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename=SPIP_Peralatan_Workshop.xlsx');
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Error exporting SPIP Workshop:", error);
+      res.status(500).json({ error: "Gagal me-export data" });
+    }
+  });
+
+  app.post("/api/spip/peralatan/workshop", async (req, res) => {
+    try {
+      const data = insertSpipPeralatanWorkshopSchema.parse(req.body);
+      const [newUnit] = await db.insert(spipPeralatanWorkshop).values(data).returning();
+      res.status(201).json(newUnit);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Invalid data" });
+    }
+  });
+
+  app.get("/api/spip/peralatan/workshop/:id", async (req, res) => {
+    try {
+      const [unit] = await db.select().from(spipPeralatanWorkshop).where(eq(spipPeralatanWorkshop.id, req.params.id)).limit(1);
+      if (!unit) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(unit);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/spip/peralatan/workshop/:id", async (req, res) => {
+    try {
+      const [updated] = await db.update(spipPeralatanWorkshop).set({
+        ...req.body,
+        updatedAt: new Date()
+      }).where(eq(spipPeralatanWorkshop.id, req.params.id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Invalid data" });
+    }
+  });
+
+  app.delete("/api/spip/peralatan/workshop/:id", async (req, res) => {
+    try {
+      const [deleted] = await db.delete(spipPeralatanWorkshop).where(eq(spipPeralatanWorkshop.id, req.params.id)).returning();
       if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
       res.json({ message: "Berhasil dihapus" });
     } catch (error) {

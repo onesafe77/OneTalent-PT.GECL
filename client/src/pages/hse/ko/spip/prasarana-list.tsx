@@ -115,7 +115,7 @@ export default function PrasaranaList() {
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold tracking-tight text-red-600">SPIP Prasarana</h1>
+                <h1 className="text-3xl font-bold tracking-tight text-red-600">SPIP Sarana & Prasarana</h1>
                 <p className="text-muted-foreground">Data Fasilitas & Bangunan Area Tambang PT GECL</p>
             </div>
 

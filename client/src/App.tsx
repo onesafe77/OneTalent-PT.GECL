@@ -11,7 +11,7 @@ import { Route, Switch, useLocation } from "wouter";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 
 // Lazy load components for better performance
-const Workspace = lazy(() => import("@/components/workspace").then(module => ({ default: module.Workspace })));
+import { Workspace } from "@/components/workspace";
 const MobileDriverView = lazy(() => import("@/pages/mobile-driver-view"));
 const DriverView = lazy(() => import("@/pages/driver-view"));
 import LoginPage from "@/pages/login";

@@ -1,5 +1,5 @@
 ﻿import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, unique, jsonb, index, uniqueIndex, real, date, time, uuid, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, unique, jsonb, index, uniqueIndex, real, date, time, uuid, numeric, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -3866,6 +3866,98 @@ export const insertSpipPrasaranaSchema = createInsertSchema(spipPrasarana, {
 
 export type SpipPrasarana = typeof spipPrasarana.$inferSelect;
 export type InsertSpipPrasarana = z.infer<typeof insertSpipPrasaranaSchema>;
+
+export const spipInstalasi = pgTable("spip_instalasi", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  no: integer("no"),
+  jenisSpip: text("jenis_spip").notNull().default("INSTALASI"),
+
+  // Identitas Instalasi
+  jenisUnit: text("jenis_unit").notNull(),
+  kategori: text("kategori"),
+  merk: text("merk"),
+  type: text("type"),
+  nomorRegister: text("nomor_register"),
+  kapasitas: text("kapasitas"),
+  satuanKapasitas: text("satuan_kapasitas"),
+  areaLokasi: text("area_lokasi"),
+  tahunPembuatan: integer("tahun_pembuatan"),
+  komisioner: text("komisioner"),
+
+  // Sertifikasi & Pengujian
+  noSertifikat: text("no_sertifikat"),
+  tglSertifikat: timestamp("tgl_sertifikat"),
+  expSertifikat: timestamp("exp_sertifikat"),
+  statusSertifikat: text("status_sertifikat"),
+
+  keterangan: text("keterangan"),
+  statusUnit: text("status_unit").notNull().default("AKTIF"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSpipInstalasiSchema = createInsertSchema(spipInstalasi, {
+  tglSertifikat: z.coerce.date().nullable().optional(),
+  expSertifikat: z.coerce.date().nullable().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SpipInstalasi = typeof spipInstalasi.$inferSelect;
+export type InsertSpipInstalasi = z.infer<typeof insertSpipInstalasiSchema>;
+
+
+// ============================================================================
+// SPIP PERALATAN WORKSHOP
+// ============================================================================
+
+export const spipPeralatanWorkshop = pgTable("spip_peralatan_workshop", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  no: integer("no"),
+  jenisSpip: text("jenis_spip").notNull().default("PERALATAN"),
+  subKategori: text("sub_kategori").notNull().default("BERGERAK"),
+
+  // Identitas Alat
+  jenisUnit: text("jenis_unit").notNull(),
+  merk: text("merk"),
+  type: text("type"),
+  noLambung: text("no_lambung").notNull().unique(),
+
+  kapasitas: text("kapasitas"),
+  nilaiKapasitas: doublePrecision("nilai_kapasitas"),
+  satuanKapasitas: text("satuan_kapasitas"),
+
+  areaLokasi: text("area_lokasi"),
+  tahunPembuatan: integer("tahun_pembuatan"),
+  komisioner: text("komisioner"),
+
+  // Sertifikasi
+  noSertifikat: text("no_sertifikat"),
+  tglSertifikat: timestamp("tgl_sertifikat"),
+  expSertifikat: timestamp("exp_sertifikat"),
+  statusExpiredStiker: text("status_expired_stiker"),
+
+  keterangan: text("keterangan"),
+  statusUnit: text("status_unit").notNull().default("AKTIF"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSpipPeralatanWorkshopSchema = createInsertSchema(spipPeralatanWorkshop, {
+  tglSertifikat: z.coerce.date().nullable().optional(),
+  expSertifikat: z.coerce.date().nullable().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SpipPeralatanWorkshop = typeof spipPeralatanWorkshop.$inferSelect;
+export type InsertSpipPeralatanWorkshop = z.infer<typeof insertSpipPeralatanWorkshopSchema>;
 
 // ============================================================================
 // SIDAK GERINDA DUDUK
