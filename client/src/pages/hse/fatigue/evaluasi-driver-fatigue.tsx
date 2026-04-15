@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { getWeeksInMonth } from "@/lib/weekCutoffs";
 import { useQuery } from "@tanstack/react-query";
 import {
     ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
@@ -55,8 +56,9 @@ const MONTHS = [
 
 export default function EvaluasiDriverFatigue() {
     const currentMonth = MONTHS[new Date().getMonth()];
+    const year = new Date().getFullYear();
     const [monthFilter, setMonthFilter] = useState(currentMonth);
-    const [weekFilter, setWeekFilter] = useState("all");
+    const [weekFilter, setWeekFilter] = useState("all"); // value: "YYYY-MM-DD|YYYY-MM-DD" or "all"
     const [searchQuery, setSearchQuery] = useState("");
     const [thresholdTarget, setThresholdTarget] = useState(100);
     const [selectedDriver, setSelectedDriver] = useState<DriverEvaluation | null>(null);
@@ -75,12 +77,22 @@ export default function EvaluasiDriverFatigue() {
         enabled: !!selectedDriver && isDetailOpen,
     });
 
+    const weekOptions = useMemo(() =>
+        monthFilter !== 'all' ? getWeeksInMonth(year, monthFilter) : [],
+        [year, monthFilter]
+    );
+
     const { data, isLoading } = useQuery<DriverEvaluationResponse>({
         queryKey: ['/api/fms/driver-evaluations', { month: monthFilter, week: weekFilter }],
         queryFn: async () => {
             const params = new URLSearchParams();
-            if (monthFilter !== 'all') params.append('month', monthFilter);
-            if (weekFilter !== 'all') params.append('week', weekFilter);
+            if (weekFilter !== 'all') {
+                const [sd, ed] = weekFilter.split('|');
+                params.append('startDate', sd);
+                params.append('endDate', ed);
+            } else if (monthFilter !== 'all') {
+                params.append('month', monthFilter);
+            }
             const res = await fetch(`/api/fms/driver-evaluations?${params.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch");
             return res.json();
@@ -166,7 +178,7 @@ export default function EvaluasiDriverFatigue() {
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                         <Calendar className="w-3 h-3" /> Bulan
                     </label>
-                    <Select value={monthFilter} onValueChange={setMonthFilter}>
+                    <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setWeekFilter("all"); }}>
                         <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg"><SelectValue /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Semua Bulan</SelectItem>
@@ -182,8 +194,10 @@ export default function EvaluasiDriverFatigue() {
                         <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg"><SelectValue /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Semua Minggu</SelectItem>
-                            {Array.from({ length: 15 }, (_, i) => i + 1).map(w => (
-                                <SelectItem key={w} value={String(w)}>Minggu {w}</SelectItem>
+                            {weekOptions.map(w => (
+                                <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
+                                    {w.label}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>

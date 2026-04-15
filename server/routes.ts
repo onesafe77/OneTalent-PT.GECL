@@ -14173,14 +14173,19 @@ Format sebagai bullet points singkat per insight.`;
   // FMS Violation Validation KPI Dashboard — Data from fms_violations
   app.get("/api/fms/violation-validation/summary", async (req, res) => {
     try {
-      const { week, month, shift, supervisor, validationStatus, period = 'day' } = req.query;
+      const { week, month, shift, supervisor, validationStatus, period = 'day', startDate, endDate } = req.query;
 
       // Build conditions — only fatigue-type violations from fms_violations
       const conditions: any[] = [
         sql`${fmsViolations.violationType} IN ('Mata Tertutup', 'Mengantuk', 'Kelelahan')`
       ];
-      if (week && week !== 'all') conditions.push(eq(fmsViolations.week, parseInt(week as string)));
-      if (month && month !== 'all') conditions.push(eq(fmsViolations.month, month as string));
+      if (startDate && endDate) {
+        conditions.push(sql`${fmsViolations.violationTimestamp} >= ${(startDate as string) + ' 00:00:00'}::timestamp`);
+        conditions.push(sql`${fmsViolations.violationTimestamp} <= ${(endDate as string) + ' 23:59:59'}::timestamp`);
+      } else {
+        if (week && week !== 'all') conditions.push(eq(fmsViolations.week, parseInt(week as string)));
+        if (month && month !== 'all') conditions.push(eq(fmsViolations.month, month as string));
+      }
       if (shift && shift !== 'all') conditions.push(ilike(fmsViolations.shift, `%${shift as string}%`));
       if (supervisor && supervisor !== 'all') conditions.push(ilike(fmsViolations.validatedBy, `%${supervisor as string}%`));
       if (validationStatus && validationStatus !== 'all') conditions.push(eq(fmsViolations.validationStatus, validationStatus as string));
@@ -14958,13 +14963,15 @@ Format sebagai bullet points singkat per insight.`;
   });
   app.get("/api/fms/driver-evaluations", async (req, res) => {
     try {
-      const { month, week, violationType } = req.query;
+      const { month, week, violationType, startDate, endDate } = req.query;
 
       // Get all violations that have manual driver name
       const violations = await storage.getFmsViolations({
         violationType: typeof violationType === 'string' ? violationType : 'Mata Tertutup,Mengantuk,Kelelahan',
         month: typeof month === 'string' ? month : undefined,
         week: typeof week === 'string' ? week : undefined,
+        startDate: typeof startDate === 'string' ? startDate : undefined,
+        endDate: typeof endDate === 'string' ? endDate : undefined,
       });
 
       // Filter only records with manual driver name and Valid status

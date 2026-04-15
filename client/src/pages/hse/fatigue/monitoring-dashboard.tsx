@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { getWeeksInMonth } from "@/lib/weekCutoffs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -74,9 +75,17 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 export default function FmsFatigueMonitoringDashboard() {
 
+    const year = new Date().getFullYear();
+    const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
     const [dateFilter, setDateFilter] = useState<string>("");
     const [monthFilter, setMonthFilter] = useState<string>("all");
-    const [weekFilter, setWeekFilter] = useState<string[]>([]);
+    const [weekFilter, setWeekFilter] = useState<string>("all"); // value: "YYYY-MM-DD|YYYY-MM-DD" or "all"
+
+    const weekOptions = useMemo(() => {
+        const month = monthFilter !== 'all' ? monthFilter : MONTH_NAMES[new Date().getMonth()];
+        return getWeeksInMonth(year, month);
+    }, [year, monthFilter]);
     const [validationFilter, setValidationFilter] = useState<string>("all");
     const [evalThreshold, setEvalThreshold] = useState<number>(100);
     const [violationTypeFilter, setViolationTypeFilter] = useState<string>("all");
@@ -164,8 +173,13 @@ export default function FmsFatigueMonitoringDashboard() {
                 params.append('startDate', dateFilter);
                 params.append('endDate', dateFilter);
             }
-            if (monthFilter !== 'all') params.append('month', monthFilter);
-            if (weekFilter.length > 0) params.append('week', weekFilter.join(','));
+            if (weekFilter !== 'all') {
+                const [sd, ed] = weekFilter.split('|');
+                params.append('startDate', sd);
+                params.append('endDate', ed);
+            } else if (monthFilter !== 'all') {
+                params.append('month', monthFilter);
+            }
             if (validationFilter !== 'all') params.append('validationStatus', validationFilter);
 
             const res = await fetch(`/api/fms/analytics?${params.toString()}`);
@@ -186,8 +200,13 @@ export default function FmsFatigueMonitoringDashboard() {
                 params.append('startDate', dateFilter);
                 params.append('endDate', dateFilter);
             }
-            if (monthFilter !== 'all') params.append('month', monthFilter);
-            if (weekFilter.length > 0) params.append('week', weekFilter.join(','));
+            if (weekFilter !== 'all') {
+                const [sd, ed] = weekFilter.split('|');
+                params.append('startDate', sd);
+                params.append('endDate', ed);
+            } else if (monthFilter !== 'all') {
+                params.append('month', monthFilter);
+            }
             if (validationFilter !== 'all') params.append('validationStatus', validationFilter);
 
             const res = await fetch(`/api/fms/violations?${params.toString()}`);
@@ -234,7 +253,7 @@ export default function FmsFatigueMonitoringDashboard() {
                         onChange={(e) => setDateFilter(e.target.value)}
                         className="w-[140px] bg-white text-sm"
                     />
-                    <Select value={monthFilter} onValueChange={setMonthFilter}>
+                    <Select value={monthFilter} onValueChange={(v) => { setMonthFilter(v); setWeekFilter("all"); }}>
                         <SelectTrigger className="w-[140px] bg-white text-sm">
                             <SelectValue placeholder="Semua Bulan" />
                         </SelectTrigger>
@@ -246,49 +265,19 @@ export default function FmsFatigueMonitoringDashboard() {
                         </SelectContent>
                     </Select>
 
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-[140px] justify-between text-sm bg-white font-normal hover:bg-slate-50">
-                                {weekFilter.length === 0 ? "Semua Minggu" : `Minggu (${weekFilter.length})`}
-                                <ChevronDown className="h-4 w-4 opacity-50" />
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[180px] p-0" align="start">
-                            <div className="p-2 border-b text-xs font-semibold text-gray-500 bg-slate-50">Filter Minggu</div>
-                            <ScrollArea className="h-[200px]">
-                                <div className="p-2 flex flex-col gap-2">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id="week-all"
-                                            checked={weekFilter.length === 0}
-                                            onCheckedChange={() => setWeekFilter([])}
-                                        />
-                                        <label htmlFor="week-all" className="text-sm cursor-pointer font-medium leading-none peer-disabled:cursor-not-allowed flex-1">
-                                            Semua Minggu
-                                        </label>
-                                    </div>
-                                    {data?.availableWeeks?.sort((a, b) => a - b).map(w => (
-                                        <div key={w} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`week-${w}`}
-                                                checked={weekFilter.includes(w.toString())}
-                                                onCheckedChange={(checked) => {
-                                                    if (checked) {
-                                                        setWeekFilter([...weekFilter, w.toString()]);
-                                                    } else {
-                                                        setWeekFilter(weekFilter.filter(ww => ww !== w.toString()));
-                                                    }
-                                                }}
-                                            />
-                                            <label htmlFor={`week-${w}`} className="text-sm cursor-pointer leading-none peer-disabled:cursor-not-allowed flex-1">
-                                                Minggu ke-{w}
-                                            </label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </ScrollArea>
-                        </PopoverContent>
-                    </Popover>
+                    <Select value={weekFilter} onValueChange={setWeekFilter}>
+                        <SelectTrigger className="w-[200px] bg-white text-sm">
+                            <SelectValue placeholder="Semua Minggu" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Semua Minggu</SelectItem>
+                            {weekOptions.map(w => (
+                                <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
+                                    {w.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
 
                     <Select value={validationFilter} onValueChange={setValidationFilter}>
                         <SelectTrigger className="w-[150px] bg-white text-sm">
