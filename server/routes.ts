@@ -9,7 +9,7 @@ import path from 'path';
 import bcrypt from 'bcrypt';
 import OpenAI from "openai";
 import { openRouterClient, AI_MODELS } from "./ai-config";
-import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths } from "date-fns";
+import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths, getWeek, startOfWeek, endOfWeek } from "date-fns";
 import { exec } from "child_process";
 import Papa from "papaparse";
 import { PicaService } from "./pica-service";
@@ -2829,6 +2829,8 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const month = req.query.month as string; // Format: YYYY-MM
       const status = req.query.status as string; // "semua" | "sudah" | "belum"
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
 
       if (!month) {
         return res.status(400).json({ message: "Month parameter is required (format: YYYY-MM)" });
@@ -2845,8 +2847,12 @@ Format sebagai bullet points singkat per insight.`;
         emp.position?.toLowerCase() === "driver"
       );
 
-      // Filter sessions by month
-      const monthSessions = allSessions.filter(session => session.tanggal.startsWith(month));
+      // Filter sessions by week range (if provided) or by month
+      const monthSessions = allSessions.filter(session => {
+        const d = String(session.tanggal).slice(0, 10);
+        if (startDate && endDate) return d >= startDate && d <= endDate;
+        return d.startsWith(month);
+      });
 
       // Get all records for filtered sessions using batched storage method (avoids connection limit)
       const sessionIds = monthSessions.map(s => s.id);
@@ -14961,6 +14967,311 @@ Format sebagai bullet points singkat per insight.`;
       res.status(500).json({ error: "Failed to fetch driver violations" });
     }
   });
+
+  // 1.6c. Driver Level History — per-week breakdown explaining level classification
+  app.get("/api/fms/driver-level-history", async (req, res) => {
+    try {
+      const { driverName } = req.query;
+      if (!driverName) return res.status(400).json({ error: "driverName required" });
+
+      function maxConsecDays(dates: string[]): number {
+        const unique = [...new Set(dates)].sort();
+        if (unique.length === 0) return 0;
+        let max = 1, cur = 1;
+        for (let i = 1; i < unique.length; i++) {
+          const diff = Math.round((new Date(unique[i]).getTime() - new Date(unique[i - 1]).getTime()) / 86400000);
+          cur = diff === 1 ? cur + 1 : 1;
+          max = Math.max(max, cur);
+        }
+        return max;
+      }
+
+      function calcWeekLevel(count: number, consecutive: number, lastLvl: 1 | 2 | 3 | null): 1 | 2 | 3 | null {
+        if (consecutive >= 3) return 3; // 3 hari berturut-turut → langsung Level 3
+        if (count >= 4 || (lastLvl === 1 && count >= 1)) return 2;
+        if (count >= 3 || consecutive >= 2) return 1;
+        return null;
+      }
+
+      const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+
+      const histStart = new Date();
+      histStart.setDate(histStart.getDate() - 56);
+
+      const violations = await storage.getFmsViolations({
+        driverName: driverName as string,
+        violationType: 'Mata Tertutup,Mengantuk,Kelelahan',
+        validationStatus: 'Valid',
+        startDate: histStart.toISOString().slice(0, 10),
+        endDate: new Date().toISOString().slice(0, 10),
+      });
+
+      // Group violations by Sun–Sat week key
+      const byWeek = new Map<string, string[]>(); // weekKey → violation dates[]
+      for (const v of violations) {
+        if (!v.violationDate) continue;
+        const d = new Date(v.violationDate);
+        const wk = getWeek(d, { weekStartsOn: 0 });
+        const yr = d.getFullYear();
+        const weekKey = `${yr}-W${String(wk).padStart(2, '0')}`;
+        if (!byWeek.has(weekKey)) byWeek.set(weekKey, []);
+        byWeek.get(weekKey)!.push(v.violationDate);
+      }
+
+      // Generate ALL 8 calendar week keys in order (including empty weeks)
+      // This ensures cascade resets correctly across week gaps
+      const allWeekKeys: string[] = [];
+      const seenKeys = new Set<string>();
+      const now = new Date();
+      for (let i = 7; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i * 7);
+        const wk = getWeek(d, { weekStartsOn: 0 });
+        const yr = d.getFullYear();
+        const key = `${yr}-W${String(wk).padStart(2, '0')}`;
+        if (!seenKeys.has(key)) { seenKeys.add(key); allWeekKeys.push(key); }
+      }
+
+      // Compute level for every week (cascade resets to null in weeks with 0 alerts)
+      const allLevels: (1 | 2 | 3 | null)[] = [];
+      let prevLevel: 1 | 2 | 3 | null = null;
+      for (const weekKey of allWeekKeys) {
+        const dates = byWeek.get(weekKey) || [];
+        const level = calcWeekLevel(dates.length, maxConsecDays(dates), prevLevel);
+        allLevels.push(level);
+        prevLevel = level; // resets to null when no violations, stopping cascade gap
+      }
+
+      // Build weekHistory for display (only weeks WITH violations)
+      const weekHistory: any[] = [];
+      for (let i = 0; i < allWeekKeys.length; i++) {
+        const weekKey = allWeekKeys[i];
+        const dates = byWeek.get(weekKey);
+        if (!dates || dates.length === 0) continue;
+
+        const level = allLevels[i];
+        const prevLvl = i > 0 ? allLevels[i - 1] : null;
+        const count = dates.length;
+        const consecutive = maxConsecDays(dates);
+
+        let levelTrigger: string | null = null;
+        if (level === 3) {
+          levelTrigger = `${consecutive} hari berturut-turut dalam 1 minggu (≥3)`;
+        } else if (level === 2) {
+          if (count >= 4) levelTrigger = `${count} alert dalam 1 minggu (≥4)`;
+          else if (prevLvl === 1) levelTrigger = `Minggu sebelumnya Level 1, ada ${count} alert baru`;
+        } else if (level === 1) {
+          if (count >= 3) levelTrigger = `${count} alert dalam minggu ini (≥3)`;
+          else levelTrigger = `${consecutive} hari berturut-turut (≥2)`;
+        }
+
+        const wkNum = parseInt(weekKey.split('-W')[1]);
+        const sun = startOfWeek(new Date(dates[0]), { weekStartsOn: 0 });
+        const sat = endOfWeek(new Date(dates[0]), { weekStartsOn: 0 });
+        const s = sun, e = sat;
+        const weekLabel = `Week ${wkNum} (${s.getDate()} ${SHORT_MONTHS[s.getMonth()]} – ${e.getDate()} ${SHORT_MONTHS[e.getMonth()]})`;
+
+        weekHistory.push({
+          weekKey, weekNumber: wkNum, weekLabel,
+          startDate: format(sun, 'yyyy-MM-dd'), endDate: format(sat, 'yyyy-MM-dd'),
+          alertCount: count, consecutiveDays: consecutive,
+          alertDates: [...new Set(dates)].sort(),
+          level, levelTrigger,
+        });
+      }
+
+      // Compute current streak: consecutive non-null weeks ENDING at the most recent week
+      // (iterating allLevels from end)
+      let currentStreak = 0;
+      for (let i = allLevels.length - 1; i >= 0; i--) {
+        if (allLevels[i] !== null) currentStreak++;
+        else break;
+      }
+
+      // Determine final level:
+      // Level 4 = 4+ consecutive weeks with alerts
+      // Level 3 = 3 consecutive weeks with alerts
+      // Level 2/1 = current week's computed level
+      let currentLevel: 1 | 2 | 3 | 4 | null;
+      let levelReason: string;
+      const mostRecentLevel = [...allLevels].reverse().find(l => l !== null) ?? null;
+
+      if (currentStreak >= 4) {
+        currentLevel = 4;
+        levelReason = `Driver mencapai alert selama ${currentStreak} minggu berturut-turut — pola kronis`;
+      } else if (currentStreak >= 3) {
+        currentLevel = 3;
+        const streakWeeks = weekHistory.slice(-currentStreak).map((w: any) => w.weekLabel).join(', ');
+        levelReason = `Alert berturut-turut ${currentStreak} minggu: ${streakWeeks}`;
+      } else if (mostRecentLevel === 3) {
+        currentLevel = 3;
+        levelReason = (weekHistory.findLast((w: any) => w.level === 3) as any)?.levelTrigger || '';
+      } else if (mostRecentLevel === 2) {
+        currentLevel = 2;
+        levelReason = (weekHistory.findLast((w: any) => w.level === 2) as any)?.levelTrigger || '';
+      } else if (mostRecentLevel === 1) {
+        currentLevel = 1;
+        levelReason = (weekHistory.findLast((w: any) => w.level === 1) as any)?.levelTrigger || '';
+      } else {
+        currentLevel = null;
+        levelReason = 'Tidak ada alert signifikan dalam 8 minggu terakhir';
+      }
+
+      // Overlay manual week levels from DB (admin overrides auto-computed per-week level)
+      const manualWeekLevels = await storage.getDriverWeekLevels(driverName as string);
+      for (const w of weekHistory) {
+        if (manualWeekLevels.has(w.weekKey)) {
+          w.level = manualWeekLevels.get(w.weekKey) ?? null;
+        }
+      }
+
+      res.json({ currentLevel, levelReason, weekHistory });
+    } catch (err) {
+      console.error("[driver-level-history]", err);
+      res.status(500).json({ error: "Failed to fetch level history" });
+    }
+  });
+
+  // Manual per-week level assignment for a driver
+  app.put("/api/fms/driver-week-level", async (req, res) => {
+    try {
+      const { driverName, weekKey, level } = req.body;
+      if (!driverName || !weekKey) return res.status(400).json({ error: "driverName and weekKey required" });
+      if (level !== null && level !== undefined && ![1, 2, 3, 4].includes(Number(level))) {
+        return res.status(400).json({ error: "level must be 1-4 or null" });
+      }
+      await storage.setDriverWeekLevel(driverName, weekKey, level != null ? Number(level) : null);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[driver-week-level]", err);
+      res.status(500).json({ error: "Failed to save week level" });
+    }
+  });
+
+  // Driver investigation files
+  app.get("/api/fms/driver-investigation", async (req, res) => {
+    try {
+      const { driverName } = req.query;
+      if (!driverName) return res.status(400).json({ error: "driverName required" });
+      const data = await storage.getDriverInvestigation(driverName as string);
+      res.json(data);
+    } catch (err) {
+      console.error("[driver-investigation GET]", err);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
+  const investigationPhotoUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(process.cwd(), 'uploads', 'fms-investigation', 'photos');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname) || '.jpg';
+        cb(null, `photo-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+      },
+    }),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    fileFilter: (req, file, cb) => {
+      if (!file.mimetype.startsWith('image/')) return cb(new Error('Only images allowed'));
+      cb(null, true);
+    },
+  });
+
+  const investigationReportUpload = multer({
+    storage: multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(process.cwd(), 'uploads', 'fms-investigation', 'reports');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        cb(null, `report-${Date.now()}-${Math.round(Math.random() * 1e6)}.pdf`);
+      },
+    }),
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype !== 'application/pdf') return cb(new Error('Only PDF allowed'));
+      cb(null, true);
+    },
+  });
+
+  app.post("/api/fms/driver-investigation/upload-photo", investigationPhotoUpload.single('photo'), async (req, res) => {
+    try {
+      const { driverName } = req.body;
+      if (!driverName || !req.file) return res.status(400).json({ error: "driverName and photo required" });
+      const url = `/uploads/fms-investigation/photos/${req.file.filename}`;
+      await storage.addDriverInvestigationPhoto(driverName, url);
+      res.json({ url });
+    } catch (err) {
+      console.error("[upload-photo]", err);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  app.post("/api/fms/driver-investigation/upload-report", investigationReportUpload.single('report'), async (req, res) => {
+    try {
+      const { driverName, fileName } = req.body;
+      if (!driverName || !req.file) return res.status(400).json({ error: "driverName and report required" });
+      const url = `/uploads/fms-investigation/reports/${req.file.filename}`;
+      const originalName = fileName || req.file.originalname || 'Laporan.pdf';
+      await storage.addDriverInvestigationReport(driverName, `${url}|${originalName}`);
+      res.json({ url, originalName });
+    } catch (err) {
+      console.error("[upload-report]", err);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  app.delete("/api/fms/driver-investigation/photo", async (req, res) => {
+    try {
+      const { driverName, url } = req.body;
+      if (!driverName || !url) return res.status(400).json({ error: "driverName and url required" });
+      await storage.removeDriverInvestigationPhoto(driverName, url);
+      // Delete file from disk
+      const filePath = path.join(process.cwd(), url.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[delete-photo]", err);
+      res.status(500).json({ error: "Delete failed" });
+    }
+  });
+
+  app.delete("/api/fms/driver-investigation/report", async (req, res) => {
+    try {
+      const { driverName, url } = req.body; // url = the file path part (before '|')
+      if (!driverName || !url) return res.status(400).json({ error: "driverName and url required" });
+      await storage.removeDriverInvestigationReport(driverName, url);
+      const filePath = path.join(process.cwd(), url.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[delete-report]", err);
+      res.status(500).json({ error: "Delete failed" });
+    }
+  });
+
+  // Manual driver level assignment
+  app.put("/api/fms/driver-level-manual", async (req, res) => {
+    try {
+      const { driverName, level } = req.body;
+      if (!driverName || typeof driverName !== 'string') {
+        return res.status(400).json({ error: "driverName required" });
+      }
+      if (level !== null && level !== undefined && ![1, 2, 3, 4].includes(Number(level))) {
+        return res.status(400).json({ error: "level must be 1, 2, 3, 4, or null" });
+      }
+      await storage.setFmsDriverLevel(driverName, level != null ? Number(level) : null);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[driver-level-manual]", err);
+      res.status(500).json({ error: "Failed to save driver level" });
+    }
+  });
+
   app.get("/api/fms/driver-evaluations", async (req, res) => {
     try {
       const { month, week, violationType, startDate, endDate } = req.query;
@@ -15049,6 +15360,9 @@ Format sebagai bullet points singkat per insight.`;
         console.log("[driver-evaluations] PVT lookup skipped:", (e as Error).message);
       }
 
+      // Fetch manually-assigned driver levels from DB
+      const manualLevels = await storage.getAllFmsDriverLevels();
+
       // Combine data
       const result = Array.from(driverStats.values())
         .map((stat, index) => {
@@ -15068,6 +15382,7 @@ Format sebagai bullet points singkat per insight.`;
             pvtAvgRT: pvt.avgRT,
             pvtTotalTests: pvt.totalTests,
             pvtStatus: pvt.status,
+            level: (manualLevels.get(nameKey) ?? null) as 1 | 2 | 3 | 4 | null,
           };
         })
         .sort((a, b) => b.totalAlert - a.totalAlert)
@@ -16012,7 +16327,7 @@ Format sebagai bullet points singkat per insight.`;
 
   app.get("/api/evaluasi-driver", async (req, res) => {
     try {
-      const { month, status } = req.query;
+      const { month, status, startDate, endDate } = req.query;
 
       if (!month || typeof month !== 'string') {
         return res.status(400).json({ error: "Month (YYYY-MM) is required" });
@@ -16027,8 +16342,13 @@ Format sebagai bullet points singkat per insight.`;
       ]);
       const activeEmployees = allEmployees.filter(e => e.status === 'active');
 
-      // 2. Filter sessions by month
-      const monthSessions = allSessions.filter(s => s.tanggal.startsWith(month));
+      // 2. Filter sessions by week range (if provided) or month
+      const monthSessions = allSessions.filter(s => {
+        if (startDate && endDate && typeof startDate === 'string' && typeof endDate === 'string') {
+          return s.tanggal >= startDate && s.tanggal <= endDate;
+        }
+        return s.tanggal.startsWith(month);
+      });
       const sessionIds = monthSessions.map(s => s.id);
 
       // 3. Get all records for these sessions
@@ -16167,7 +16487,7 @@ Format sebagai bullet points singkat per insight.`;
 
   app.get("/api/evaluasi-pvt", async (req, res) => {
     try {
-      const { month, status, pvtStatus } = req.query;
+      const { month, status, pvtStatus, startDate, endDate } = req.query;
 
       if (!month || typeof month !== 'string') {
         return res.status(400).json({ error: "Month (YYYY-MM) is required" });
@@ -16179,9 +16499,15 @@ Format sebagai bullet points singkat per insight.`;
       const allEmployees = await storage.getAllEmployees();
       const activeEmployees = allEmployees.filter(e => e.status === 'active');
 
-      // 2. Get all fatigue sessions for the month
+      // 2. Get all fatigue sessions filtered by week range or month
       const allSessions = await storage.getAllSidakFatigueSessions();
-      const monthSessions = allSessions.filter(s => s.tanggal.startsWith(month));
+      const monthSessions = allSessions.filter(s => {
+        const d = String(s.tanggal).slice(0, 10);
+        if (startDate && endDate && typeof startDate === 'string' && typeof endDate === 'string') {
+          return d >= startDate && d <= endDate;
+        }
+        return d.startsWith(month);
+      });
       const sessionIds = monthSessions.map(s => s.id);
 
       // 3. Get all records for these sessions

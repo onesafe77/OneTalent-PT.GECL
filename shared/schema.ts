@@ -2918,6 +2918,38 @@ export const insertFmsViolationSchema = createInsertSchema(fmsViolations);
 export type InsertFmsViolation = z.infer<typeof insertFmsViolationSchema>;
 export type FmsViolation = typeof fmsViolations.$inferSelect;
 
+// Manual driver level assignments (admin sets Level 1-4 per driver)
+export const fmsDriverLevels = pgTable("fms_driver_levels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  driverName: varchar("driver_name", { length: 150 }).notNull().unique(),
+  level: integer("level"), // 1, 2, 3, 4 or null
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by", { length: 150 }),
+});
+export type FmsDriverLevel = typeof fmsDriverLevels.$inferSelect;
+
+// Manual level per week per driver (admin sets Level 1-4 per week entry)
+export const fmsDriverWeekLevels = pgTable("fms_driver_week_levels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  driverName: varchar("driver_name", { length: 150 }).notNull(),
+  weekKey: varchar("week_key", { length: 20 }).notNull(), // e.g. "2026-W16"
+  level: integer("level"), // 1, 2, 3, 4 or null
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  uniq: uniqueIndex("idx_driver_week_level_uniq").on(t.driverName, t.weekKey),
+}));
+export type FmsDriverWeekLevel = typeof fmsDriverWeekLevels.$inferSelect;
+
+// Investigation files per driver (foto investigasi + laporan PDF)
+export const fmsDriverInvestigations = pgTable("fms_driver_investigations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  driverName: varchar("driver_name", { length: 150 }).notNull().unique(),
+  photoUrls: text("photo_urls").array().default([]),  // Array of image paths
+  reportUrls: text("report_urls").array().default([]), // Array of PDF paths
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type FmsDriverInvestigation = typeof fmsDriverInvestigations.$inferSelect;
+
 // ============================================
 // WHATSAPP BLAST HISTORY & TRACKING
 // ============================================

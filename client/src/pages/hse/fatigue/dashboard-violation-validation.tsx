@@ -1,5 +1,6 @@
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import { getWeeksInMonth } from "@/lib/weekCutoffs";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,10 +63,18 @@ interface ViolationValidationSummary {
 }
 
 export default function ViolationValidationDashboard() {
+    const year = new Date().getFullYear();
+    const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
     // Filters
     const [supervisor, setSupervisor] = useState<string>("all");
     const [month, setMonth] = useState<string>("all");
-    const [week, setWeek] = useState<string>("all");
+    const [week, setWeek] = useState<string>("all"); // value: "YYYY-MM-DD|YYYY-MM-DD" or "all"
+
+    const weekOptions = useMemo(() => {
+        const m = month !== 'all' ? month : MONTH_NAMES[new Date().getMonth()];
+        return getWeeksInMonth(year, m);
+    }, [year, month]);
     const [shift, setShift] = useState<string>("all");
     const [validationStatus, setValidationStatus] = useState<string>("all");
     const [period, setPeriod] = useState<string>("day");
@@ -76,8 +85,13 @@ export default function ViolationValidationDashboard() {
         queryFn: async () => {
             const params = new URLSearchParams();
             if (supervisor !== "all") params.append("supervisor", supervisor);
-            if (month !== "all") params.append("month", month);
-            if (week !== "all") params.append("week", week);
+            if (week !== "all") {
+                const [sd, ed] = week.split("|");
+                params.append("startDate", sd);
+                params.append("endDate", ed);
+            } else if (month !== "all") {
+                params.append("month", month);
+            }
             if (shift !== "all") params.append("shift", shift);
             if (validationStatus !== "all") params.append("validationStatus", validationStatus);
             params.append("period", period);
@@ -179,19 +193,21 @@ export default function ViolationValidationDashboard() {
 
                     {/* Week */}
                     <Select value={week} onValueChange={setWeek}>
-                        <SelectTrigger className="h-10 bg-white border-slate-200/80 rounded-xl text-xs font-semibold text-slate-600 w-[130px] shadow-sm hover:border-amber-300 transition-colors">
-                            <SelectValue placeholder="Week" />
+                        <SelectTrigger className="h-10 bg-white border-slate-200/80 rounded-xl text-xs font-semibold text-slate-600 w-[200px] shadow-sm hover:border-amber-300 transition-colors">
+                            <SelectValue placeholder="Semua Week" />
                         </SelectTrigger>
                         <SelectContent className="max-h-[300px]">
                             <SelectItem value="all">Semua Week</SelectItem>
-                            {data?.availableWeeks?.map(w => (
-                                <SelectItem key={w} value={w.toString()}>Week {w}</SelectItem>
+                            {weekOptions.map(w => (
+                                <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
+                                    {w.label}
+                                </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
 
                     {/* Month */}
-                    <Select value={month} onValueChange={setMonth}>
+                    <Select value={month} onValueChange={(v) => { setMonth(v); setWeek("all"); }}>
                         <SelectTrigger className="h-10 bg-white border-slate-200/80 rounded-xl text-xs font-semibold text-slate-600 w-[140px] shadow-sm hover:border-amber-300 transition-colors">
                             <SelectValue placeholder="Bulan" />
                         </SelectTrigger>

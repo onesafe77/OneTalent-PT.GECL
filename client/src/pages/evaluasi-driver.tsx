@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { getWeeksInMonth } from "@/lib/weekCutoffs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,7 +61,14 @@ export default function EvaluasiDriver() {
   const currentMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [weekFilter, setWeekFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("semua");
+
+  const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+  const weekOptions = useMemo(() => {
+    const [y, m] = selectedMonth.split('-').map(Number);
+    return getWeeksInMonth(y, MONTH_NAMES_ID[m - 1]);
+  }, [selectedMonth]);
   const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
@@ -76,10 +84,20 @@ export default function EvaluasiDriver() {
     staleTime: 60_000,
   });
 
-  // Fetch evaluation data (cached for 1 minute, shows previous data while refetching)
+  // Fetch evaluation data with explicit queryFn to ensure correct URL construction
   const { data, isLoading } = useQuery<EvaluationData>({
-    queryKey: [`/api/evaluasi-driver?month=${selectedMonth}&status=${statusFilter}`],
-    staleTime: 60_000,
+    queryKey: ['/api/evaluasi-driver', selectedMonth, statusFilter, weekFilter],
+    queryFn: async () => {
+      const p = new URLSearchParams({ month: selectedMonth, status: statusFilter });
+      if (weekFilter !== "all") {
+        const [sd, ed] = weekFilter.split('|');
+        p.set('startDate', sd);
+        p.set('endDate', ed);
+      }
+      const res = await fetch(`/api/evaluasi-driver?${p.toString()}`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch');
+      return res.json();
+    },
     placeholderData: (prev) => prev,
   });
 
@@ -338,7 +356,7 @@ export default function EvaluasiDriver() {
           <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Calendar className="w-3 h-3" /> Periode
           </label>
-          <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+          <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v); setWeekFilter("all"); }}>
             <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg hover:border-blue-400 transition-colors">
               <SelectValue />
             </SelectTrigger>
@@ -346,6 +364,25 @@ export default function EvaluasiDriver() {
               {monthOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex-1 w-full">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+            <Calendar className="w-3 h-3" /> Minggu
+          </label>
+          <Select value={weekFilter} onValueChange={setWeekFilter}>
+            <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg hover:border-blue-400 transition-colors">
+              <SelectValue placeholder="Semua Minggu" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Minggu</SelectItem>
+              {weekOptions.map(w => (
+                <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
+                  {w.label}
                 </SelectItem>
               ))}
             </SelectContent>

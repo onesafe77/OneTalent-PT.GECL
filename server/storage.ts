@@ -117,6 +117,9 @@ import {
   InsertFmsViolation,
   FmsViolation,
   fmsViolations,
+  fmsDriverLevels,
+  fmsDriverWeekLevels,
+  fmsDriverInvestigations,
   sidakRosterRecords,
   sidakRosterObservers,
   announcements,
@@ -720,6 +723,15 @@ export interface IStorage {
     endDate?: string;
   }): Promise<FmsViolation[]>;
   updateFmsViolationDriver(id: string, overrides: { manualDriverName?: string | null, manualDriverNik?: string | null, evidenceUrl?: string | null }): Promise<FmsViolation>;
+  getAllFmsDriverLevels(): Promise<Map<string, number | null>>;
+  setFmsDriverLevel(driverName: string, level: number | null, updatedBy?: string): Promise<void>;
+  getDriverWeekLevels(driverName: string): Promise<Map<string, number | null>>;
+  setDriverWeekLevel(driverName: string, weekKey: string, level: number | null): Promise<void>;
+  getDriverInvestigation(driverName: string): Promise<{ photoUrls: string[]; reportUrls: string[] }>;
+  addDriverInvestigationPhoto(driverName: string, url: string): Promise<void>;
+  addDriverInvestigationReport(driverName: string, url: string): Promise<void>;
+  removeDriverInvestigationPhoto(driverName: string, url: string): Promise<void>;
+  removeDriverInvestigationReport(driverName: string, url: string): Promise<void>;
 
   // Induction Public
   createPublicInductionAttendance(attendance: InsertPublicInductionAttendance): Promise<PublicInductionAttendance>;
@@ -8934,6 +8946,10 @@ export class DrizzleStorage implements IStorage {
       conditions.push(ilike(fmsViolations.vehicleNo, `%${vNo}%`));
     }
 
+    if (options?.driverName) {
+      conditions.push(ilike(fmsViolations.manualDriverName, `%${options.driverName.trim()}%`));
+    }
+
     if (options?.violationType && options.violationType !== 'all') {
       const types = options.violationType.split(',').map(t => t.trim()).filter(t => t);
       console.log(`[DEBUG getFmsViolations] Adding violationType filter: ${types.join(', ')}`);
@@ -9012,6 +9028,88 @@ export class DrizzleStorage implements IStorage {
       throw new Error(`Failed to update violation ${id}`);
     }
     return updated;
+  }
+
+  async getAllFmsDriverLevels(): Promise<Map<string, number | null>> {
+    const rows = await db.select().from(fmsDriverLevels);
+    const map = new Map<string, number | null>();
+    for (const row of rows) {
+      map.set(row.driverName.toUpperCase(), row.level ?? null);
+    }
+    return map;
+  }
+
+  async setFmsDriverLevel(driverName: string, level: number | null, updatedBy?: string): Promise<void> {
+    const name = driverName.trim().toUpperCase();
+    await db.insert(fmsDriverLevels)
+      .values({ driverName: name, level: level ?? null, updatedBy: updatedBy ?? null })
+      .onConflictDoUpdate({
+        target: fmsDriverLevels.driverName,
+        set: { level: level ?? null, updatedAt: new Date(), updatedBy: updatedBy ?? null },
+      });
+  }
+
+  async getDriverWeekLevels(driverName: string): Promise<Map<string, number | null>> {
+    const name = driverName.trim().toUpperCase();
+    const rows = await db.select().from(fmsDriverWeekLevels)
+      .where(eq(fmsDriverWeekLevels.driverName, name));
+    const map = new Map<string, number | null>();
+    for (const row of rows) {
+      map.set(row.weekKey, row.level ?? null);
+    }
+    return map;
+  }
+
+  async setDriverWeekLevel(driverName: string, weekKey: string, level: number | null): Promise<void> {
+    const name = driverName.trim().toUpperCase();
+    await db.insert(fmsDriverWeekLevels)
+      .values({ driverName: name, weekKey, level: level ?? null })
+      .onConflictDoUpdate({
+        target: [fmsDriverWeekLevels.driverName, fmsDriverWeekLevels.weekKey],
+        set: { level: level ?? null, updatedAt: new Date() },
+      });
+  }
+
+  async getDriverInvestigation(driverName: string): Promise<{ photoUrls: string[]; reportUrls: string[] }> {
+    const name = driverName.trim().toUpperCase();
+    const [row] = await db.select().from(fmsDriverInvestigations).where(eq(fmsDriverInvestigations.driverName, name));
+    return { photoUrls: row?.photoUrls ?? [], reportUrls: row?.reportUrls ?? [] };
+  }
+
+  async addDriverInvestigationPhoto(driverName: string, url: string): Promise<void> {
+    const name = driverName.trim().toUpperCase();
+    const existing = await this.getDriverInvestigation(name);
+    const newUrls = [...existing.photoUrls, url];
+    await db.insert(fmsDriverInvestigations)
+      .values({ driverName: name, photoUrls: newUrls, reportUrls: existing.reportUrls })
+      .onConflictDoUpdate({ target: fmsDriverInvestigations.driverName, set: { photoUrls: newUrls, updatedAt: new Date() } });
+  }
+
+  async addDriverInvestigationReport(driverName: string, url: string): Promise<void> {
+    const name = driverName.trim().toUpperCase();
+    const existing = await this.getDriverInvestigation(name);
+    const newUrls = [...existing.reportUrls, url];
+    await db.insert(fmsDriverInvestigations)
+      .values({ driverName: name, photoUrls: existing.photoUrls, reportUrls: newUrls })
+      .onConflictDoUpdate({ target: fmsDriverInvestigations.driverName, set: { reportUrls: newUrls, updatedAt: new Date() } });
+  }
+
+  async removeDriverInvestigationPhoto(driverName: string, url: string): Promise<void> {
+    const name = driverName.trim().toUpperCase();
+    const existing = await this.getDriverInvestigation(name);
+    const newUrls = existing.photoUrls.filter(u => u !== url);
+    await db.update(fmsDriverInvestigations).set({ photoUrls: newUrls, updatedAt: new Date() }).where(eq(fmsDriverInvestigations.driverName, name));
+  }
+
+  async removeDriverInvestigationReport(driverName: string, fileUrl: string): Promise<void> {
+    const name = driverName.trim().toUpperCase();
+    const existing = await this.getDriverInvestigation(name);
+    // Match by the URL part (before '|') to be resilient to filename encoding issues
+    const newUrls = existing.reportUrls.filter(u => {
+      const storedUrlPart = u.split('|')[0];
+      return storedUrlPart !== fileUrl && u !== fileUrl;
+    });
+    await db.update(fmsDriverInvestigations).set({ reportUrls: newUrls, updatedAt: new Date() }).where(eq(fmsDriverInvestigations.driverName, name));
   }
 
   // Induction Methods Implementation

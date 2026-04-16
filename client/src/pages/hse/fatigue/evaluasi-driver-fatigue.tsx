@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { getWeeksInMonth } from "@/lib/weekCutoffs";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
     Legend, ResponsiveContainer, ReferenceLine, LabelList
@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileDown, Search, Loader2, Calendar, Users, AlertTriangle, Activity, Zap, Eye, ImageIcon, X } from "lucide-react";
+import { FileDown, Search, Loader2, Calendar, Users, AlertTriangle, Activity, Zap, Eye, ImageIcon, X, Upload, Trash2, FileText, Camera } from "lucide-react";
 import * as XLSX from 'xlsx';
 
 interface ViolationDetail {
@@ -29,6 +29,25 @@ interface ViolationDetail {
     evidenceUrl?: string | null;
 }
 
+interface WeekLevelHistory {
+    weekKey: string;
+    weekNumber: number;
+    weekLabel: string;
+    startDate: string;
+    endDate: string;
+    alertCount: number;
+    consecutiveDays: number;
+    alertDates: string[];
+    level: 1 | 2 | 3 | null;
+    levelTrigger: string | null;
+}
+
+interface DriverLevelHistory {
+    currentLevel: 1 | 2 | 3 | 4 | null;
+    levelReason: string;
+    weekHistory: WeekLevelHistory[];
+}
+
 interface DriverEvaluation {
     rank: number;
     driverName: string;
@@ -42,11 +61,33 @@ interface DriverEvaluation {
     pvtAvgRT: number | null;
     pvtTotalTests: number;
     pvtStatus: string;
+    level: 1 | 2 | 3 | 4 | null;
+}
+
+function LevelBadge({ level }: { level: 1 | 2 | 3 | 4 | null }) {
+    if (!level) return <span className="text-gray-400 text-xs">-</span>;
+    const config: Record<number, { label: string; color: string }> = {
+        1: { label: "Level 1", color: "bg-yellow-100 text-yellow-700 border-yellow-300" },
+        2: { label: "Level 2", color: "bg-orange-100 text-orange-700 border-orange-300" },
+        3: { label: "Level 3", color: "bg-red-100 text-red-700 border-red-300" },
+        4: { label: "Level 4", color: "bg-red-900 text-white border-red-900" },
+    };
+    const c = config[level];
+    return (
+        <span className={`px-2 py-0.5 rounded-full text-xs font-bold border ${c.color}`}>
+            {c.label}
+        </span>
+    );
 }
 
 interface DriverEvaluationResponse {
     drivers: DriverEvaluation[];
     total: number;
+}
+
+interface DriverInvestigation {
+    photoUrls: string[];
+    reportUrls: string[]; // format: "url|originalName"
 }
 
 const MONTHS = [
@@ -76,6 +117,107 @@ export default function EvaluasiDriverFatigue() {
         },
         enabled: !!selectedDriver && isDetailOpen,
     });
+
+    // Fetch level history for selected driver
+    const { data: levelHistory } = useQuery<DriverLevelHistory>({
+        queryKey: ['/api/fms/driver-level-history', { driverName: selectedDriver?.driverName }],
+        queryFn: async () => {
+            if (!selectedDriver) return null;
+            const res = await fetch(`/api/fms/driver-level-history?driverName=${encodeURIComponent(selectedDriver.driverName)}`);
+            if (!res.ok) throw new Error("Failed");
+            return res.json();
+        },
+        enabled: !!selectedDriver && isDetailOpen,
+    });
+
+    const queryClient = useQueryClient();
+
+    // Mutation to save manual overall level per driver
+    const levelMutation = useMutation({
+        mutationFn: async ({ driverName, level }: { driverName: string; level: number | null }) => {
+            const res = await fetch('/api/fms/driver-level-manual', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ driverName, level }),
+            });
+            if (!res.ok) throw new Error("Gagal menyimpan level");
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/fms/driver-evaluations'] });
+        },
+    });
+
+    // Mutation to save manual level per week
+    const weekLevelMutation = useMutation({
+        mutationFn: async ({ driverName, weekKey, level }: { driverName: string; weekKey: string; level: number | null }) => {
+            const res = await fetch('/api/fms/driver-week-level', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ driverName, weekKey, level }),
+            });
+            if (!res.ok) throw new Error("Gagal menyimpan level minggu");
+            return res.json();
+        },
+        onSuccess: () => {
+            if (selectedDriver) {
+                queryClient.invalidateQueries({ queryKey: ['/api/fms/driver-level-history', { driverName: selectedDriver.driverName }] });
+            }
+        },
+    });
+
+    // Investigation files query & mutations
+    const { data: investigationData, refetch: refetchInvestigation } = useQuery<DriverInvestigation>({
+        queryKey: ['/api/fms/driver-investigation', { driverName: selectedDriver?.driverName }],
+        queryFn: async () => {
+            if (!selectedDriver) return { photoUrls: [], reportUrls: [] };
+            const res = await fetch(`/api/fms/driver-investigation?driverName=${encodeURIComponent(selectedDriver.driverName)}`);
+            return res.json();
+        },
+        enabled: !!selectedDriver && isDetailOpen,
+    });
+
+    const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+    const [isUploadingReport, setIsUploadingReport] = useState(false);
+
+    const uploadPhoto = async (file: File) => {
+        if (!selectedDriver) return;
+        setIsUploadingPhoto(true);
+        try {
+            const fd = new FormData();
+            fd.append('photo', file);
+            fd.append('driverName', selectedDriver.driverName);
+            const res = await fetch('/api/fms/driver-investigation/upload-photo', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('Upload gagal');
+            await refetchInvestigation();
+        } finally { setIsUploadingPhoto(false); }
+    };
+
+    const uploadReport = async (file: File) => {
+        if (!selectedDriver) return;
+        setIsUploadingReport(true);
+        try {
+            const fd = new FormData();
+            fd.append('report', file);
+            fd.append('driverName', selectedDriver.driverName);
+            fd.append('fileName', file.name);
+            const res = await fetch('/api/fms/driver-investigation/upload-report', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('Upload gagal');
+            await refetchInvestigation();
+        } finally { setIsUploadingReport(false); }
+    };
+
+    const deletePhoto = async (url: string) => {
+        if (!selectedDriver) return;
+        await fetch('/api/fms/driver-investigation/photo', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driverName: selectedDriver.driverName, url }) });
+        await refetchInvestigation();
+    };
+
+    const deleteReport = async (url: string) => {
+        if (!selectedDriver) return;
+        await fetch('/api/fms/driver-investigation/report', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driverName: selectedDriver.driverName, url }) });
+        await refetchInvestigation();
+    };
 
     const weekOptions = useMemo(() =>
         monthFilter !== 'all' ? getWeeksInMonth(year, monthFilter) : [],
@@ -388,6 +530,7 @@ export default function EvaluasiDriverFatigue() {
                                     <TableHead className="text-center bg-blue-50/50">Sidak</TableHead>
                                     <TableHead className="text-center bg-indigo-50/50">PVT (ms)</TableHead>
                                     <TableHead className="text-center bg-indigo-50/50">Status PVT</TableHead>
+                                    <TableHead className="text-center bg-orange-50/50">Level</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -439,6 +582,28 @@ export default function EvaluasiDriverFatigue() {
                                                     {d.pvtStatus}
                                                 </Badge>
                                             </TableCell>
+                                            <TableCell className="text-center bg-orange-50/10">
+                                                <Select
+                                                    value={d.level ? String(d.level) : "none"}
+                                                    onValueChange={(val) => levelMutation.mutate({
+                                                        driverName: d.driverName,
+                                                        level: val === "none" ? null : Number(val),
+                                                    })}
+                                                >
+                                                    <SelectTrigger className="h-7 w-28 text-xs mx-auto border-0 shadow-none focus:ring-0 p-1">
+                                                        <SelectValue>
+                                                            <LevelBadge level={d.level} />
+                                                        </SelectValue>
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="none"><span className="text-gray-400 text-xs">- Belum -</span></SelectItem>
+                                                        <SelectItem value="1"><LevelBadge level={1} /></SelectItem>
+                                                        <SelectItem value="2"><LevelBadge level={2} /></SelectItem>
+                                                        <SelectItem value="3"><LevelBadge level={3} /></SelectItem>
+                                                        <SelectItem value="4"><LevelBadge level={4} /></SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 )}
@@ -473,6 +638,150 @@ export default function EvaluasiDriverFatigue() {
                         )}
 
                         <ScrollArea className="max-h-[65vh]">
+                            {/* Manual Level Assignment */}
+                            <div className="mb-4 p-4 rounded-xl border bg-gradient-to-br from-orange-50 to-red-50 border-orange-200">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className="text-sm font-bold text-gray-700">Penetapan Level Driver</span>
+                                    <Select
+                                        value={selectedDriver.level ? String(selectedDriver.level) : "none"}
+                                        onValueChange={(val) => {
+                                            const newLevel = val === "none" ? null : Number(val) as 1 | 2 | 3 | 4;
+                                            setSelectedDriver(prev => prev ? { ...prev, level: newLevel } : null);
+                                            levelMutation.mutate({ driverName: selectedDriver.driverName, level: newLevel });
+                                        }}
+                                    >
+                                        <SelectTrigger className="h-8 w-36 text-xs">
+                                            <SelectValue placeholder="Pilih Level" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none"><span className="text-gray-400 text-xs">- Belum Ada -</span></SelectItem>
+                                            <SelectItem value="1"><LevelBadge level={1} /></SelectItem>
+                                            <SelectItem value="2"><LevelBadge level={2} /></SelectItem>
+                                            <SelectItem value="3"><LevelBadge level={3} /></SelectItem>
+                                            <SelectItem value="4"><LevelBadge level={4} /></SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            {/* Alert History Section (data otomatis) */}
+                            {levelHistory && levelHistory.weekHistory.some(w => w.alertCount > 0) && (
+                                <div className="mb-4 p-4 rounded-xl border bg-white border-gray-200">
+                                    <p className="text-xs font-bold text-gray-600 mb-3">Riwayat Alert Per Minggu</p>
+                                    <div className="flex flex-col gap-2">
+                                        {levelHistory.weekHistory.filter(w => w.alertCount > 0).map(w => (
+                                            <div key={w.weekKey} className="flex items-start gap-3 bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                <div className="shrink-0">
+                                                    <Select
+                                                        value={w.level ? String(w.level) : "none"}
+                                                        onValueChange={(val) => weekLevelMutation.mutate({
+                                                            driverName: selectedDriver!.driverName,
+                                                            weekKey: w.weekKey,
+                                                            level: val === "none" ? null : Number(val),
+                                                        })}
+                                                    >
+                                                        <SelectTrigger className="h-7 w-24 text-xs p-1 border-gray-200">
+                                                            <SelectValue>
+                                                                {w.level ? <LevelBadge level={w.level} /> : <span className="text-gray-400 text-xs">- Set -</span>}
+                                                            </SelectValue>
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="none"><span className="text-gray-400 text-xs">- Hapus -</span></SelectItem>
+                                                            <SelectItem value="1"><LevelBadge level={1} /></SelectItem>
+                                                            <SelectItem value="2"><LevelBadge level={2} /></SelectItem>
+                                                            <SelectItem value="3"><LevelBadge level={3} /></SelectItem>
+                                                            <SelectItem value="4"><LevelBadge level={4} /></SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-semibold text-gray-700">{w.weekLabel}</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{w.levelTrigger}</p>
+                                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                                        {w.alertDates.map(d => (
+                                                            <span key={d} className="px-1.5 py-0.5 text-[10px] bg-red-50 text-red-600 border border-red-200 rounded font-medium">
+                                                                {d}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="shrink-0 text-right">
+                                                    <p className="text-xl font-black text-red-600">{w.alertCount}</p>
+                                                    <p className="text-[10px] text-gray-400">alert</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Investigation Section */}
+                            <div className="mb-4 p-4 rounded-xl border bg-blue-50/40 border-blue-200">
+                                <p className="text-xs font-bold text-blue-700 mb-3 flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5" /> Investigasi
+                                </p>
+                                {/* Foto Investigasi */}
+                                <div className="mb-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-semibold text-gray-600 flex items-center gap-1"><Camera className="w-3 h-3" /> Foto Investigasi</span>
+                                        <label className="cursor-pointer">
+                                            <input type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(f); e.target.value = ''; }} />
+                                            <span className="flex items-center gap-1 text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors">
+                                                {isUploadingPhoto ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                                Upload Foto
+                                            </span>
+                                        </label>
+                                    </div>
+                                    {investigationData?.photoUrls && investigationData.photoUrls.length > 0 ? (
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {investigationData.photoUrls.map((url, i) => (
+                                                <div key={i} className="relative group rounded-lg overflow-hidden border border-gray-200 bg-gray-50 aspect-square">
+                                                    <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover cursor-pointer" onClick={() => setExpandedImage(url)} />
+                                                    <button onClick={() => deletePhoto(url)} className="absolute top-1 right-1 bg-red-600/80 hover:bg-red-700 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 italic">Belum ada foto investigasi</p>
+                                    )}
+                                </div>
+                                {/* Laporan PDF */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs font-semibold text-gray-600 flex items-center gap-1"><FileText className="w-3 h-3" /> Laporan PDF</span>
+                                        <label className="cursor-pointer">
+                                            <input type="file" accept=".pdf,application/pdf" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadReport(f); e.target.value = ''; }} />
+                                            <span className="flex items-center gap-1 text-xs px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors">
+                                                {isUploadingReport ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                                Upload PDF
+                                            </span>
+                                        </label>
+                                    </div>
+                                    {investigationData?.reportUrls && investigationData.reportUrls.length > 0 ? (
+                                        <div className="flex flex-col gap-1.5">
+                                            {investigationData.reportUrls.map((entry, i) => {
+                                                const [url, name] = entry.split('|');
+                                                return (
+                                                    <div key={i} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
+                                                        <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-blue-600 hover:underline truncate">
+                                                            <FileText className="w-3.5 h-3.5 shrink-0 text-red-500" />
+                                                            {name || `Laporan ${i + 1}`}
+                                                        </a>
+                                                        <button onClick={() => deleteReport(url)} className="ml-2 text-red-400 hover:text-red-600 shrink-0">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs text-gray-400 italic">Belum ada laporan PDF</p>
+                                    )}
+                                </div>
+                            </div>
+
                             {detailLoading ? (
                                 <div className="flex items-center justify-center py-12">
                                     <Loader2 className="h-8 w-8 animate-spin text-red-600" />
