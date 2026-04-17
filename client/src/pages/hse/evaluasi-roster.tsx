@@ -8,13 +8,16 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileDown, Search, Loader2, Calendar, Users, AlertTriangle, CheckCircle } from "lucide-react";
 import * as XLSX from 'xlsx';
+import { getWeeksInMonth } from "@/lib/weekCutoffs";
 
 interface DriverEvaluation {
     id: string;
     nama: string;
     nik: string;
-    totalSidak: number;
-    status: string;
+    investorGroup: string;
+    totalSidak: number;   // count for selected period (week or month)
+    monthTotal: number;   // full-month count (for monthly compliance)
+    status: string;       // "Sudah SIDAK" | "Belum SIDAK" — based on full-month count
 }
 
 interface EvaluasiRosterResponse {
@@ -33,22 +36,40 @@ const MONTHS = [
     "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ];
 
+const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+
 export default function EvaluasiRoster() {
     const now = new Date();
     const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
     const [selectedYear, setSelectedYear] = useState(now.getFullYear());
     const [statusFilter, setStatusFilter] = useState("semua");
+    const [weekFilter, setWeekFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
 
     const monthParam = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
+    const weekOptions = useMemo(() => {
+        return getWeeksInMonth(selectedYear, MONTH_NAMES_ID[selectedMonth - 1]);
+    }, [selectedMonth, selectedYear]);
+
+    // Reset week filter when month/year changes
+    const handleMonthChange = (v: string) => { setSelectedMonth(parseInt(v)); setWeekFilter("all"); };
+    const handleYearChange = (v: string) => { setSelectedYear(parseInt(v)); setWeekFilter("all"); };
+
     const { data, isLoading } = useQuery<EvaluasiRosterResponse>({
-        queryKey: ["/api/evaluasi-roster", monthParam, statusFilter],
+        queryKey: ["/api/evaluasi-roster", monthParam, statusFilter, weekFilter],
         queryFn: async () => {
-            const res = await fetch(`/api/evaluasi-roster?month=${monthParam}&status=${statusFilter}`);
+            const p = new URLSearchParams({ month: monthParam, status: statusFilter });
+            if (weekFilter !== "all") {
+                const [sd, ed] = weekFilter.split('|');
+                p.set('startDate', sd);
+                p.set('endDate', ed);
+            }
+            const res = await fetch(`/api/evaluasi-roster?${p.toString()}`);
             if (!res.ok) throw new Error("Failed to fetch");
             return res.json();
-        }
+        },
+        placeholderData: (prev) => prev,
     });
 
     const filteredDrivers = useMemo(() => {
@@ -60,20 +81,41 @@ export default function EvaluasiRoster() {
         );
     }, [data?.drivers, searchQuery]);
 
+    const weekOption = weekFilter !== "all"
+        ? weekOptions.find(w => `${w.startDate}|${w.endDate}` === weekFilter)
+        : null;
+    const weekLabel = weekOption?.label || "Semua Minggu";
+    const monthLabel = `${MONTHS[selectedMonth - 1]} ${selectedYear}`;
+
     const exportToExcel = () => {
         if (!data) return;
+        const statusLabel = statusFilter === "sudah" ? "Sudah SIDAK"
+            : statusFilter === "belum" ? "Belum SIDAK" : "Semua";
+
         const ws = XLSX.utils.json_to_sheet(
             filteredDrivers.map((d, i) => ({
                 "No": i + 1,
                 "NIK": d.nik,
                 "Nama": d.nama,
+                "Investor Group": d.investorGroup,
                 "Total SIDAK Roster": d.totalSidak,
                 "Status": d.status,
             }))
         );
+
+        // Add summary at the top via header rows
+        XLSX.utils.sheet_add_aoa(ws, [
+            [`Evaluasi SIDAK Roster - ${monthLabel}`],
+            [`Minggu: ${weekLabel}`, `Filter: ${statusLabel}`],
+            [`Total Driver: ${data.summary.totalDrivers}`, `Sudah SIDAK: ${data.summary.sudahSidak}`, `Belum SIDAK (bulan): ${data.summary.belumSidak}`],
+            [],
+        ], { origin: "A1" });
+
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Evaluasi Roster");
-        XLSX.writeFile(wb, `Evaluasi_SIDAK_Roster_${monthParam}.xlsx`);
+        const weekSuffix = weekOption ? `_${weekOption.label.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+        const statusSuffix = statusFilter !== "semua" ? `_${statusLabel.replace(/\s+/g, '_')}` : '';
+        XLSX.writeFile(wb, `Evaluasi_SIDAK_Roster_${monthLabel}${weekSuffix}${statusSuffix}.xlsx`);
     };
 
     const summary = data?.summary;
@@ -99,7 +141,7 @@ export default function EvaluasiRoster() {
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 items-center">
-                <Select value={String(selectedMonth)} onValueChange={v => setSelectedMonth(parseInt(v))}>
+                <Select value={String(selectedMonth)} onValueChange={handleMonthChange}>
                     <SelectTrigger className="w-36">
                         <SelectValue />
                     </SelectTrigger>
@@ -110,13 +152,28 @@ export default function EvaluasiRoster() {
                     </SelectContent>
                 </Select>
 
-                <Select value={String(selectedYear)} onValueChange={v => setSelectedYear(parseInt(v))}>
+                <Select value={String(selectedYear)} onValueChange={handleYearChange}>
                     <SelectTrigger className="w-28">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         {[2024, 2025, 2026, 2027].map(y => (
                             <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                {/* Week filter */}
+                <Select value={weekFilter} onValueChange={setWeekFilter}>
+                    <SelectTrigger className="w-52">
+                        <SelectValue placeholder="Semua Minggu" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Semua Minggu</SelectItem>
+                        {weekOptions.map(w => (
+                            <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
+                                {w.label}
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -155,21 +212,23 @@ export default function EvaluasiRoster() {
                             <CardContent className="pt-4 text-center">
                                 <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
                                 <p className="text-2xl font-bold">{summary.totalDrivers}</p>
-                                <p className="text-xs text-gray-500">Total Driver</p>
+                                <p className="text-xs text-gray-500">Total Driver (bulan)</p>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardContent className="pt-4 text-center">
                                 <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-500" />
                                 <p className="text-2xl font-bold text-green-600">{summary.sudahSidak}</p>
-                                <p className="text-xs text-gray-500">Sudah SIDAK</p>
+                                <p className="text-xs text-gray-500">
+                                    {weekFilter !== "all" ? `SIDAK di ${weekLabel}` : "Sudah SIDAK bulan ini"}
+                                </p>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardContent className="pt-4 text-center">
                                 <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-red-500" />
                                 <p className="text-2xl font-bold text-red-600">{summary.belumSidak}</p>
-                                <p className="text-xs text-gray-500">Belum SIDAK</p>
+                                <p className="text-xs text-gray-500">Belum SIDAK (bulan ini)</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -200,9 +259,16 @@ export default function EvaluasiRoster() {
                     {/* Driver Table */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-lg">
-                                Daftar Driver ({filteredDrivers.length})
-                            </CardTitle>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="text-lg">
+                                    Daftar Driver ({filteredDrivers.length})
+                                </CardTitle>
+                                {weekFilter !== "all" && statusFilter === "belum" && (
+                                    <span className="text-xs text-gray-500">
+                                        Belum SIDAK • bekerja di {weekLabel}
+                                    </span>
+                                )}
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <ScrollArea className="h-[500px]">
@@ -212,19 +278,27 @@ export default function EvaluasiRoster() {
                                             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">No</th>
                                             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">NIK</th>
                                             <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Nama</th>
+                                            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Investor Group</th>
                                             <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Total SIDAK</th>
                                             <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y">
-                                        {filteredDrivers.map((driver, idx) => (
+                                        {filteredDrivers.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={6} className="text-center py-8 text-gray-400 text-sm">
+                                                    Tidak ada data driver ditemukan
+                                                </td>
+                                            </tr>
+                                        ) : filteredDrivers.map((driver, idx) => (
                                             <tr key={driver.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
                                                 <td className="py-2 px-3 text-sm">{idx + 1}</td>
                                                 <td className="py-2 px-3 text-sm font-mono">{driver.nik}</td>
                                                 <td className="py-2 px-3 text-sm">{driver.nama}</td>
+                                                <td className="py-2 px-3 text-sm text-gray-600">{driver.investorGroup}</td>
                                                 <td className="py-2 px-3 text-center text-sm font-semibold">{driver.totalSidak}</td>
                                                 <td className="py-2 px-3 text-center">
-                                                    <Badge className={driver.totalSidak > 0
+                                                    <Badge className={driver.status === "Sudah SIDAK"
                                                         ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                                                         : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                                                     }>

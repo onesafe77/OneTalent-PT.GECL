@@ -60,7 +60,8 @@ import {
     Pie,
     Cell,
     AreaChart,
-    Area
+    Area,
+    LabelList
 } from "recharts";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -410,6 +411,7 @@ export default function EmployeesDashboard() {
                                         />
                                         <Bar dataKey="value" radius={[0, 6, 6, 0]} fill="url(#barGradient)">
                                             <Cell fill="url(#barGradient)" />
+                                            <LabelList dataKey="value" position="right" fill="#64748b" fontSize={11} fontWeight={600} offset={8} />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>

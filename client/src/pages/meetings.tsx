@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Download, FileText, Camera, X, Upload, Pencil, ZoomIn } from "lucide-react";
+import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Download, FileText, Camera, X, Upload, Pencil, ZoomIn, BookOpen, ClipboardList } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import type { Meeting, InsertMeeting, MeetingAttendance } from "@shared/schema";
 import QRCode from "qrcode";
@@ -179,6 +179,14 @@ export default function Meetings() {
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState("");
+
+  // Materi PDF dialog
+  const [isMateriDialogOpen, setIsMateriDialogOpen] = useState(false);
+  const [uploadedMateriFiles, setUploadedMateriFiles] = useState<File[]>([]);
+
+  // MoM PDF dialog
+  const [isMomDialogOpen, setIsMomDialogOpen] = useState(false);
+  const [uploadedMomFiles, setUploadedMomFiles] = useState<File[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -307,6 +315,66 @@ export default function Meetings() {
         variant: "destructive",
       });
     },
+  });
+
+  // ── Materi mutations ──────────────────────────────────────────────────────
+  const uploadMateriMutation = useMutation({
+    mutationFn: async ({ meetingId, files }: { meetingId: string; files: File[] }) => {
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      const res = await fetch(`/api/meetings/${meetingId}/upload-materi`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      if (selectedMeeting) setSelectedMeeting({ ...selectedMeeting, ...(data.meeting || {}) });
+      setUploadedMateriFiles([]);
+      setIsMateriDialogOpen(false);
+      toast({ title: "Materi Diupload", description: `${data.files.length} file materi berhasil disimpan` });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMateriMutation = useMutation({
+    mutationFn: async ({ meetingId, fileIndex }: { meetingId: string; fileIndex: number }) =>
+      apiRequest(`/api/meetings/${meetingId}/materi/${fileIndex}`, "DELETE"),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      if (selectedMeeting) setSelectedMeeting({ ...selectedMeeting, ...(data.meeting || {}) });
+      toast({ title: "Materi Dihapus", description: "File materi berhasil dihapus" });
+    },
+    onError: () => toast({ title: "Error", description: "Gagal menghapus materi", variant: "destructive" }),
+  });
+
+  // ── MoM mutations ──────────────────────────────────────────────────────────
+  const uploadMomMutation = useMutation({
+    mutationFn: async ({ meetingId, files }: { meetingId: string; files: File[] }) => {
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      const res = await fetch(`/api/meetings/${meetingId}/upload-mom`, { method: 'POST', body: fd });
+      if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      if (selectedMeeting) setSelectedMeeting({ ...selectedMeeting, ...(data.meeting || {}) });
+      setUploadedMomFiles([]);
+      setIsMomDialogOpen(false);
+      toast({ title: "MoM Diupload", description: `${data.files.length} file MoM berhasil disimpan` });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteMomMutation = useMutation({
+    mutationFn: async ({ meetingId, fileIndex }: { meetingId: string; fileIndex: number }) =>
+      apiRequest(`/api/meetings/${meetingId}/mom/${fileIndex}`, "DELETE"),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/meetings"] });
+      if (selectedMeeting) setSelectedMeeting({ ...selectedMeeting, ...(data.meeting || {}) });
+      toast({ title: "MoM Dihapus", description: "File MoM berhasil dihapus" });
+    },
+    onError: () => toast({ title: "Error", description: "Gagal menghapus MoM", variant: "destructive" }),
   });
 
   const { data: attendanceData } = useQuery<{
@@ -855,6 +923,26 @@ export default function Meetings() {
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => { setSelectedMeeting(meeting); setIsMateriDialogOpen(true); }}
+                          title="Upload Materi"
+                          className={(meeting as any).materiFiles?.length ? "text-blue-600 border-blue-300" : ""}
+                        >
+                          <BookOpen className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setSelectedMeeting(meeting); setIsMomDialogOpen(true); }}
+                          title="Upload MoM"
+                          className={(meeting as any).momFiles?.length ? "text-purple-600 border-purple-300" : ""}
+                        >
+                          <ClipboardList className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleDelete(meeting)}
                           data-testid={`button-delete-meeting-${meeting.id}`}
                           title="Hapus Meeting"
@@ -1293,6 +1381,196 @@ export default function Meetings() {
             >
               <X className="w-6 h-6" />
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Materi PDF Upload Dialog ─────────────────────────────────────── */}
+      <Dialog open={isMateriDialogOpen} onOpenChange={(open) => { setIsMateriDialogOpen(open); if (!open) setUploadedMateriFiles([]); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-blue-600" />
+              Materi Meeting
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMeeting?.title} — Kelola file PDF materi presentasi
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="flex-1 pr-1">
+            <div className="space-y-4">
+              {/* Existing materi files */}
+              {(selectedMeeting as any)?.materiFiles?.length > 0 ? (
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">File Tersimpan ({(selectedMeeting as any).materiFiles.length})</Label>
+                  <div className="space-y-2">
+                    {((selectedMeeting as any).materiFiles as string[]).map((url: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 p-3 border rounded-lg bg-blue-50">
+                        <FileText className="w-5 h-5 text-blue-600 shrink-0" />
+                        <span className="text-sm text-gray-700 flex-1 font-medium">Materi {idx + 1}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* View */}
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-blue-700 border-blue-300 hover:bg-blue-100"
+                            onClick={() => window.open(url, '_blank')}
+                            title="Lihat PDF">
+                            <Eye className="w-3 h-3 mr-1" />
+                            <span className="text-xs">Lihat</span>
+                          </Button>
+                          {/* Download */}
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => window.open(`${url}?download=1`, '_blank')}
+                            title="Download PDF">
+                            <Download className="w-3 h-3 mr-1" />
+                            <span className="text-xs">Unduh</span>
+                          </Button>
+                          {/* Delete */}
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => { if (confirm("Hapus file ini?")) deleteMateriMutation.mutate({ meetingId: selectedMeeting!.id, fileIndex: idx }); }}
+                            title="Hapus file">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-400 text-sm border-2 border-dashed rounded-lg">
+                  Belum ada file materi
+                </div>
+              )}
+
+              {/* New file picker */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Tambah File Materi (PDF, maks 20MB)</Label>
+                <Input type="file" accept=".pdf,application/pdf" multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    const valid = files.filter(f => {
+                      if (f.size > 20 * 1024 * 1024) { toast({ title: "File terlalu besar", description: `${f.name} melebihi 20MB`, variant: "destructive" }); return false; }
+                      return true;
+                    });
+                    setUploadedMateriFiles(prev => [...prev, ...valid]);
+                    e.target.value = '';
+                  }}
+                />
+                {uploadedMateriFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {uploadedMateriFiles.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm p-1 bg-gray-50 rounded">
+                        <span className="flex items-center gap-1 truncate"><FileText className="w-3 h-3 text-gray-500" />{f.name}</span>
+                        <button onClick={() => setUploadedMateriFiles(prev => prev.filter((_, j) => j !== i))} className="text-red-500 ml-2"><X className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+
+          <div className="flex gap-2 pt-3 border-t mt-2">
+            <Button className="flex-1 bg-blue-600 hover:bg-blue-700"
+              disabled={uploadedMateriFiles.length === 0 || uploadMateriMutation.isPending}
+              onClick={() => uploadMateriMutation.mutate({ meetingId: selectedMeeting!.id, files: uploadedMateriFiles })}>
+              {uploadMateriMutation.isPending ? <><Upload className="w-4 h-4 mr-2 animate-spin" />Mengupload...</> : <><Upload className="w-4 h-4 mr-2" />Upload {uploadedMateriFiles.length} File</>}
+            </Button>
+            <Button variant="outline" onClick={() => { setIsMateriDialogOpen(false); setUploadedMateriFiles([]); }}>Tutup</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── MoM PDF Upload Dialog ────────────────────────────────────────── */}
+      <Dialog open={isMomDialogOpen} onOpenChange={(open) => { setIsMomDialogOpen(open); if (!open) setUploadedMomFiles([]); }}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-purple-600" />
+              Minutes of Meeting (MoM)
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMeeting?.title} — Kelola file PDF notulensi meeting
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="flex-1 pr-1">
+            <div className="space-y-4">
+              {/* Existing MoM files */}
+              {(selectedMeeting as any)?.momFiles?.length > 0 ? (
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">File Tersimpan ({(selectedMeeting as any).momFiles.length})</Label>
+                  <div className="space-y-2">
+                    {((selectedMeeting as any).momFiles as string[]).map((url: string, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2 p-3 border rounded-lg bg-purple-50">
+                        <FileText className="w-5 h-5 text-purple-600 shrink-0" />
+                        <span className="text-sm text-gray-700 flex-1 font-medium">MoM {idx + 1}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* View */}
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-purple-700 border-purple-300 hover:bg-purple-100"
+                            onClick={() => window.open(url, '_blank')}
+                            title="Lihat PDF">
+                            <Eye className="w-3 h-3 mr-1" />
+                            <span className="text-xs">Lihat</span>
+                          </Button>
+                          {/* Download */}
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-green-700 border-green-300 hover:bg-green-100"
+                            onClick={() => window.open(`${url}?download=1`, '_blank')}
+                            title="Download PDF">
+                            <Download className="w-3 h-3 mr-1" />
+                            <span className="text-xs">Unduh</span>
+                          </Button>
+                          {/* Delete */}
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => { if (confirm("Hapus file ini?")) deleteMomMutation.mutate({ meetingId: selectedMeeting!.id, fileIndex: idx }); }}
+                            title="Hapus file">
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-400 text-sm border-2 border-dashed rounded-lg">
+                  Belum ada file MoM
+                </div>
+              )}
+
+              {/* New file picker */}
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Tambah File MoM (PDF, maks 20MB)</Label>
+                <Input type="file" accept=".pdf,application/pdf" multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    const valid = files.filter(f => {
+                      if (f.size > 20 * 1024 * 1024) { toast({ title: "File terlalu besar", description: `${f.name} melebihi 20MB`, variant: "destructive" }); return false; }
+                      return true;
+                    });
+                    setUploadedMomFiles(prev => [...prev, ...valid]);
+                    e.target.value = '';
+                  }}
+                />
+                {uploadedMomFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {uploadedMomFiles.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between text-sm p-1 bg-gray-50 rounded">
+                        <span className="flex items-center gap-1 truncate"><FileText className="w-3 h-3 text-gray-500" />{f.name}</span>
+                        <button onClick={() => setUploadedMomFiles(prev => prev.filter((_, j) => j !== i))} className="text-red-500 ml-2"><X className="w-3 h-3" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+
+          <div className="flex gap-2 pt-3 border-t mt-2">
+            <Button className="flex-1 bg-purple-600 hover:bg-purple-700"
+              disabled={uploadedMomFiles.length === 0 || uploadMomMutation.isPending}
+              onClick={() => uploadMomMutation.mutate({ meetingId: selectedMeeting!.id, files: uploadedMomFiles })}>
+              {uploadMomMutation.isPending ? <><Upload className="w-4 h-4 mr-2 animate-spin" />Mengupload...</> : <><Upload className="w-4 h-4 mr-2" />Upload {uploadedMomFiles.length} File</>}
+            </Button>
+            <Button variant="outline" onClick={() => { setIsMomDialogOpen(false); setUploadedMomFiles([]); }}>Tutup</Button>
           </div>
         </DialogContent>
       </Dialog>

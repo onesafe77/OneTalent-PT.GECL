@@ -271,6 +271,7 @@ import {
   trainings, tnaSummaries, tnaEntries, competencyMonitoringLogs, kompetensiMonitoring,
   changeRequests, type ChangeRequest, documentMasterlist, documentVersions,
   documentApprovals, documentApprovalSteps, documentStepAssignees,
+  documentDistributions, documentExportLogs, esignRequests,
   documentDisposalRecords, type DocumentDisposalRecord, type InsertDocumentDisposalRecord,
   fmsFatigueAlerts,
   type ActivityEvent,
@@ -2482,7 +2483,11 @@ export class DrizzleStorage implements IStorage {
   }
 
   async updateEmployee(id: string, updateData: Partial<InsertEmployee>): Promise<Employee | undefined> {
-    const result = await this.db.update(employees).set(updateData).where(eq(employees.id, id)).returning();
+    // Filter out undefined values to prevent overwriting existing DB values with NULL
+    const filteredData = Object.fromEntries(
+      Object.entries(updateData).filter(([, v]) => v !== undefined)
+    );
+    const result = await this.db.update(employees).set(filteredData).where(eq(employees.id, id)).returning();
     return result[0];
   }
 
@@ -2516,8 +2521,41 @@ export class DrizzleStorage implements IStorage {
         await tx.delete(mcuRecords).where(eq(mcuRecords.employeeId, id));
         await tx.delete(sickLeaves).where(eq(sickLeaves.employeeId, id));
 
+        // Sidak records - set employeeId null to preserve historical inspection data
+        await tx.update(sidakFatigueRecords).set({ employeeId: null }).where(eq(sidakFatigueRecords.employeeId, id));
+        await tx.update(sidakRosterRecords).set({ employeeId: null }).where(eq(sidakRosterRecords.employeeId, id));
+        await tx.update(sidakSeatbeltRecords).set({ employeeId: null }).where(eq(sidakSeatbeltRecords.employeeId, id));
+        await tx.update(inductionMaterials).set({ uploadedBy: null }).where(eq(inductionMaterials.uploadedBy, id));
+
         // Meeting attendance
         await tx.delete(meetingAttendance).where(eq(meetingAttendance.employeeId, id));
+
+        // Push subscriptions
+        await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.employeeId, id));
+
+        // TNA summaries
+        await tx.delete(tnaSummaries).where(eq(tnaSummaries.employeeId, id));
+
+        // Induction schedules
+        await tx.delete(inductionSchedules).where(eq(inductionSchedules.employeeId, id));
+
+        // Kompetensi monitoring
+        await tx.delete(kompetensiMonitoring).where(eq(kompetensiMonitoring.employeeId, id));
+
+        // WhatsApp blast recipients
+        await tx.delete(whatsappBlastRecipients).where(eq(whatsappBlastRecipients.employeeId, id));
+
+        // Document-related: step assignees, distributions, export logs, esign requests, change requests
+        await tx.delete(documentStepAssignees).where(eq(documentStepAssignees.assigneeId, id));
+        await tx.delete(documentDistributions).where(eq(documentDistributions.recipientId, id));
+        await tx.delete(documentExportLogs).where(eq(documentExportLogs.exportedBy, id));
+        await tx.delete(esignRequests).where(eq(esignRequests.signerId, id));
+        await tx.delete(changeRequests).where(eq(changeRequests.requestedBy, id));
+
+        // USign: notifications and approval steps (by recipient/approver), then documents by owner
+        await tx.delete(usignNotifications).where(eq(usignNotifications.recipientId, id));
+        await tx.delete(usignApprovalSteps).where(eq(usignApprovalSteps.approverId, id));
+        await tx.delete(usignDocuments).where(eq(usignDocuments.ownerId, id));
 
         // Finally delete the employee
         await tx.delete(employees).where(eq(employees.id, id));
@@ -3105,9 +3143,13 @@ export class DrizzleStorage implements IStorage {
   }
 
   async updateMeeting(id: string, meeting: Partial<InsertMeeting>): Promise<Meeting | undefined> {
+    // Filter out undefined values so Drizzle does not reset columns to NULL
+    const filteredData = Object.fromEntries(
+      Object.entries(meeting).filter(([, v]) => v !== undefined)
+    );
     const [result] = await this.db
       .update(meetings)
-      .set({ ...meeting, updatedAt: sql`now()` })
+      .set({ ...filteredData, updatedAt: sql`now()` })
       .where(eq(meetings.id, id))
       .returning();
     return result;

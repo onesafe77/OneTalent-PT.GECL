@@ -328,6 +328,8 @@ export const meetings = pgTable("meetings", {
   status: varchar("status").notNull().default("scheduled"), // scheduled, ongoing, completed, cancelled
   qrToken: varchar("qr_token").unique(), // Unique token for QR code
   meetingPhotos: text("meeting_photos").array(), // Array of photo paths (max 4)
+  materiFiles: text("materi_files").array(),     // Array of materi PDF file URLs
+  momFiles: text("mom_files").array(),           // Array of MoM PDF file URLs
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

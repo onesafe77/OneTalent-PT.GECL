@@ -253,9 +253,15 @@ export default function EmployeeDetail() {
 
     const updateMutation = useMutation<Employee, Error, { id: string; data: Partial<InsertEmployee> }>({
         mutationFn: async ({ id, data }) => {
-            const updatedEmployee = await apiRequest(`/api/employees/${id}`, "PUT", data);
-            if (photo) await uploadPhoto(id, photo);
-            return updatedEmployee;
+            await apiRequest(`/api/employees/${id}`, "PUT", data);
+            if (photo) {
+                const uploadResult = await uploadPhoto(id, photo);
+                if (uploadResult?.photoUrl) setPhotoPreview(uploadResult.photoUrl);
+                setPhoto(null);
+            }
+            // Refetch the updated employee to get the latest data including photoUrl
+            const res = await fetch(`/api/employees/${id}`);
+            return res.json();
         },
         onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ["/api/employees"] });

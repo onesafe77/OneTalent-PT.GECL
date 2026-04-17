@@ -71,7 +71,7 @@ export const navigationGroups: NavGroup[] = [
                 ]
             },
             {
-                name: "USign",
+                name: "OneSign",
                 icon: PenTool,
                 children: [
                     { name: "Dashboard", href: "/workspace/usign", icon: BarChart3 },

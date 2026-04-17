@@ -498,8 +498,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "File not found" });
       }
 
+      const disposition = req.query.download === '1' ? 'attachment' : 'inline';
       res.setHeader("Content-Type", file.mimeType);
-      res.setHeader("Content-Disposition", `inline; filename="${file.filename}"`);
+      res.setHeader("Content-Disposition", `${disposition}; filename="${encodeURIComponent(file.filename)}"`);
       res.send(file.data);
     } catch (error) {
       console.error("Error serving file from database:", error);
@@ -1181,6 +1182,8 @@ Format sebagai bullet points singkat per insight.`;
     let employeeIdForMsg = req.body?.id;
 
     try {
+      // Trim employee ID to prevent duplicate records caused by trailing/leading spaces
+      if (req.body?.id) req.body.id = req.body.id.trim();
       const validatedData = insertEmployeeSchema.parse(req.body);
       employeeIdForMsg = validatedData.id; // Update with validated ID
 
@@ -1315,8 +1318,9 @@ Format sebagai bullet points singkat per insight.`;
 
       res.status(204).send();
     } catch (error) {
-      console.error(`❌ Error deleting employee ${req.params.id}:`, error);
-      res.status(500).json({ message: "Failed to delete employee" });
+      const errMsg = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Error deleting employee ${req.params.id}:`, errMsg);
+      res.status(500).json({ message: `Failed to delete employee: ${errMsg}` });
     }
   });
 
@@ -1349,6 +1353,8 @@ Format sebagai bullet points singkat per insight.`;
 
       for (const emp of employeeData) {
         try {
+          // Trim ID to prevent duplicates from trailing/leading spaces in import data
+          if (emp?.id) emp.id = emp.id.trim();
           // Validate each employee data
           const validatedEmployee = insertEmployeeSchema.parse(emp);
 
@@ -2836,56 +2842,128 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ message: "Month parameter is required (format: YYYY-MM)" });
       }
 
-      // Get all employees and SIDAK Fatigue sessions
-      const [allEmployees, allSessions] = await Promise.all([
+      const hasWeekFilter = !!(startDate && endDate);
+
+      // Fetch full-month roster entries (driver pool is always month-based)
+      const monthStart = `${month}-01`;
+      const monthEnd   = `${month}-31`;
+
+      // Fetch full-month roster + week roster (if applicable) + employees + sessions in parallel
+      const [rosterEntries, weekRosterEntries, allEmployees, allSessions] = await Promise.all([
+        storage.getRosterByDateRange(monthStart, monthEnd),
+        hasWeekFilter
+          ? storage.getRosterByDateRange(startDate!, endDate!)
+          : Promise.resolve(null),
         storage.getAllEmployees(),
         storage.getAllSidakFatigueSessions()
       ]);
 
-      // Filter to get DRIVERS ONLY (position = "driver")
-      const driversOnly = allEmployees.filter(emp =>
-        emp.position?.toLowerCase() === "driver"
+      // Build employee lookup map
+      const employeeMap = new Map(allEmployees.map(e => [e.id, e]));
+
+      // Get unique driver IDs from full-month roster (including CUTI days) — total driver pool
+      const uniqueDriverIds = [
+        ...new Set(
+          rosterEntries
+            .filter(r => r.employeeId)
+            .map(r => r.employeeId!)
+        )
+      ];
+
+      // Get unique driver IDs from week roster who have at least one working shift
+      // (SHIFT 1, SHIFT 2, OVER SHIFT — excludes all-CUTI drivers who can't be SIDAK'd)
+      const workingShifts = new Set(['SHIFT 1', 'SHIFT 2', 'OVER SHIFT']);
+      const weekRosterDriverIds = new Set(
+        (weekRosterEntries ?? rosterEntries)
+          .filter(r => r.employeeId && workingShifts.has(r.shift))
+          .map(r => r.employeeId!)
       );
 
-      // Filter sessions by week range (if provided) or by month
-      const monthSessions = allSessions.filter(session => {
+      // Resolve to employee objects — only ACTIVE employees (exclude non-aktif)
+      const driversOnly = uniqueDriverIds
+        .map(id => employeeMap.get(id))
+        .filter(emp => emp != null && emp.status === 'active') as typeof allEmployees;
+
+      // Full-month SIDAK sessions (always used for "Belum SIDAK" calculation)
+      const fullMonthSessions = allSessions.filter(session => {
         const d = String(session.tanggal).slice(0, 10);
-        if (startDate && endDate) return d >= startDate && d <= endDate;
         return d.startsWith(month);
       });
 
-      // Get all records for filtered sessions using batched storage method (avoids connection limit)
-      const sessionIds = monthSessions.map(s => s.id);
-      const allRecords = await storage.getSidakFatigueRecordsBySessionIds(sessionIds);
+      // Week-specific SIDAK sessions (only when week filter active, for "Sudah SIDAK")
+      const weekSessions = hasWeekFilter
+        ? allSessions.filter(session => {
+            const d = String(session.tanggal).slice(0, 10);
+            return d >= startDate! && d <= endDate!;
+          })
+        : fullMonthSessions;
 
-      // Count SIDAK per employee (by NIK)
-      const sidakCountByNik = allRecords.reduce((acc, record) => {
-        acc[record.nik] = (acc[record.nik] || 0) + 1;
+      // Fetch records for both scopes in parallel
+      const fullMonthSessionIds = fullMonthSessions.map(s => s.id);
+      const weekSessionIds = weekSessions.map(s => s.id);
+
+      const [fullMonthRecords, weekRecords] = await Promise.all([
+        fullMonthSessionIds.length > 0
+          ? storage.getSidakFatigueRecordsBySessionIds(fullMonthSessionIds)
+          : Promise.resolve([]),
+        hasWeekFilter && weekSessionIds.length > 0
+          ? storage.getSidakFatigueRecordsBySessionIds(weekSessionIds)
+          : Promise.resolve(null) // null means "use full month records"
+      ]);
+
+      const resolvedWeekRecords = weekRecords ?? fullMonthRecords;
+
+      // Count SIDAKs per employee for both scopes
+      const fullMonthCountByNik = fullMonthRecords.reduce((acc, r) => {
+        acc[r.nik] = (acc[r.nik] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      // Build evaluation data for DRIVERS ONLY (BEFORE status filtering)
-      const allEvaluationData = driversOnly.map(employee => ({
-        id: employee.id,
-        nama: employee.name,
-        nik: employee.id, // Using ID as NIK
-        totalSidak: sidakCountByNik[employee.id] || 0,
-        status: (sidakCountByNik[employee.id] || 0) > 0 ? "Sudah SIDAK" : "Belum SIDAK"
-      }));
+      const weekCountByNik = resolvedWeekRecords.reduce((acc, r) => {
+        acc[r.nik] = (acc[r.nik] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-      // Calculate summary stats from DRIVERS ONLY (UNFILTERED by status)
+      // Build evaluation data:
+      // - totalSidak: reflects the selected period (week or month) — for display/sorting
+      // - monthTotal: always full-month count — for determining "Belum SIDAK"
+      const allEvaluationData = driversOnly.map(employee => {
+        const monthTotal = fullMonthCountByNik[employee.id] || 0;
+        const periodTotal = weekCountByNik[employee.id] || 0;
+        return {
+          id: employee.id,
+          nama: employee.name,
+          nik: employee.id,
+          investorGroup: employee.investorGroup || '-',
+          totalSidak: periodTotal,       // count for selected period
+          monthTotal,                    // full-month count (for belum/sudah determination)
+          status: monthTotal > 0 ? "Sudah SIDAK" : "Belum SIDAK"
+        };
+      });
+
+      // Summary stats:
+      // - sudahSidak: drivers who did SIDAK in selected period (week or month)
+      // - belumSidak: drivers with 0 SIDAK in the FULL MONTH (monthly compliance target)
       const totalDrivers = driversOnly.length;
-      const sudahSidak = allEvaluationData.filter(emp => emp.totalSidak > 0).length;
-      const belumSidak = totalDrivers - sudahSidak;
-      const totalSidakKeseluruhan = allRecords.length;
+      const sudahSidak = allEvaluationData.filter(d => d.totalSidak > 0).length;
+      const belumSidak = allEvaluationData.filter(d => d.monthTotal === 0).length;
+      const totalSidakKeseluruhan = fullMonthRecords.length;
 
-      // Apply status filter AFTER computing summary
+      // Apply status filter:
+      // "sudah" = did SIDAK in the selected period (week or month)
+      // "belum" = no SIDAK all month, AND (if week filter active) must be in week roster
       let filteredEvaluationData = allEvaluationData;
       if (status === "sudah") {
-        filteredEvaluationData = allEvaluationData.filter(emp => emp.totalSidak > 0);
+        filteredEvaluationData = allEvaluationData.filter(d => d.totalSidak > 0);
       } else if (status === "belum") {
-        filteredEvaluationData = allEvaluationData.filter(emp => emp.totalSidak === 0);
+        filteredEvaluationData = allEvaluationData.filter(d =>
+          d.monthTotal === 0 &&
+          (!hasWeekFilter || weekRosterDriverIds.has(d.id))
+        );
       }
+
+      // Sort: highest SIDAK count first, then by name
+      filteredEvaluationData.sort((a, b) => b.totalSidak - a.totalSidak || a.nama.localeCompare(b.nama));
 
       res.json({
         summary: {
@@ -2914,65 +2992,121 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const month = req.query.month as string; // Format: YYYY-MM
       const status = req.query.status as string; // "semua" | "sudah" | "belum"
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
 
       if (!month) {
         return res.status(400).json({ message: "Month parameter is required (format: YYYY-MM)" });
       }
 
-      // Get all employees and SIDAK Roster sessions
-      const [allEmployees, allSessions] = await Promise.all([
+      const hasWeekFilter = !!(startDate && endDate);
+      const monthStart = `${month}-01`;
+      const monthEnd   = `${month}-31`;
+
+      // Fetch full-month roster + week roster (if applicable) + employees + sessions in parallel
+      const [rosterEntries, weekRosterEntries, allEmployees, allSessions] = await Promise.all([
+        storage.getRosterByDateRange(monthStart, monthEnd),
+        hasWeekFilter
+          ? storage.getRosterByDateRange(startDate!, endDate!)
+          : Promise.resolve(null),
         storage.getAllEmployees(),
         storage.getAllSidakRosterSessions()
       ]);
 
-      // Filter to get DRIVERS ONLY
-      const driversOnly = allEmployees.filter(emp =>
-        emp.position?.toLowerCase() === "driver"
+      const employeeMap = new Map(allEmployees.map(e => [e.id, e]));
+
+      // Full-month roster — active employees only
+      const uniqueDriverIds = [
+        ...new Set(
+          rosterEntries
+            .filter(r => r.employeeId)
+            .map(r => r.employeeId!)
+        )
+      ];
+      const driversOnly = uniqueDriverIds
+        .map(id => employeeMap.get(id))
+        .filter(emp => emp != null && emp.status === 'active') as typeof allEmployees;
+
+      // Week roster — drivers with at least one working shift (excludes all-CUTI)
+      const workingShifts = new Set(['SHIFT 1', 'SHIFT 2', 'OVER SHIFT']);
+      const weekRosterDriverIds = new Set(
+        (weekRosterEntries ?? rosterEntries)
+          .filter(r => r.employeeId && workingShifts.has(r.shift))
+          .map(r => r.employeeId!)
       );
 
-      // Filter sessions by month
-      const monthSessions = allSessions.filter(session => session.tanggal.startsWith(month));
+      // Full-month SIDAK sessions (always used for "Belum SIDAK")
+      const fullMonthSessions = allSessions.filter(s =>
+        String(s.tanggal).slice(0, 10).startsWith(month)
+      );
 
-      // Get all records for filtered sessions
-      const sessionIds = monthSessions.map(s => s.id);
-      const allRecords = await storage.getSidakRosterRecordsBySessionIds(sessionIds);
+      // Week-specific sessions (for "Sudah SIDAK" when week filter active)
+      const weekSessions = hasWeekFilter
+        ? allSessions.filter(s => {
+            const d = String(s.tanggal).slice(0, 10);
+            return d >= startDate! && d <= endDate!;
+          })
+        : fullMonthSessions;
 
-      // Count SIDAK per employee (by NIK)
-      const sidakCountByNik = allRecords.reduce((acc, record) => {
-        acc[record.nik] = (acc[record.nik] || 0) + 1;
+      const fullMonthSessionIds = fullMonthSessions.map(s => s.id);
+      const weekSessionIds = weekSessions.map(s => s.id);
+
+      const [fullMonthRecords, weekRecords] = await Promise.all([
+        fullMonthSessionIds.length > 0
+          ? storage.getSidakRosterRecordsBySessionIds(fullMonthSessionIds)
+          : Promise.resolve([]),
+        hasWeekFilter && weekSessionIds.length > 0
+          ? storage.getSidakRosterRecordsBySessionIds(weekSessionIds)
+          : Promise.resolve(null)
+      ]);
+
+      const resolvedWeekRecords = weekRecords ?? fullMonthRecords;
+
+      const fullMonthCountByNik = fullMonthRecords.reduce((acc, r) => {
+        acc[r.nik] = (acc[r.nik] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
-      // Build evaluation data for DRIVERS ONLY
-      const allEvaluationData = driversOnly.map(employee => ({
-        id: employee.id,
-        nama: employee.name,
-        nik: employee.id,
-        totalSidak: sidakCountByNik[employee.id] || 0,
-        status: (sidakCountByNik[employee.id] || 0) > 0 ? "Sudah SIDAK" : "Belum SIDAK"
-      }));
+      const weekCountByNik = resolvedWeekRecords.reduce((acc, r) => {
+        acc[r.nik] = (acc[r.nik] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
-      // Calculate summary stats
+      const allEvaluationData = driversOnly.map(employee => {
+        const monthTotal = fullMonthCountByNik[employee.id] || 0;
+        const periodTotal = weekCountByNik[employee.id] || 0;
+        return {
+          id: employee.id,
+          nama: employee.name,
+          nik: employee.id,
+          investorGroup: employee.investorGroup || '-',
+          totalSidak: periodTotal,
+          monthTotal,
+          status: monthTotal > 0 ? "Sudah SIDAK" : "Belum SIDAK"
+        };
+      });
+
       const totalDrivers = driversOnly.length;
-      const sudahSidak = allEvaluationData.filter(emp => emp.totalSidak > 0).length;
-      const belumSidak = totalDrivers - sudahSidak;
-      const totalSidakKeseluruhan = allRecords.length;
+      const sudahSidak = allEvaluationData.filter(d => d.totalSidak > 0).length;
+      const belumSidak = allEvaluationData.filter(d => d.monthTotal === 0).length;
+      const totalSidakKeseluruhan = fullMonthRecords.length;
 
-      // Apply status filter
+      // "sudah" = did SIDAK in selected period
+      // "belum" = 0 SIDAK all month, AND (if week filter) must be in week roster
       let filteredEvaluationData = allEvaluationData;
       if (status === "sudah") {
-        filteredEvaluationData = allEvaluationData.filter(emp => emp.totalSidak > 0);
+        filteredEvaluationData = allEvaluationData.filter(d => d.totalSidak > 0);
       } else if (status === "belum") {
-        filteredEvaluationData = allEvaluationData.filter(emp => emp.totalSidak === 0);
+        filteredEvaluationData = allEvaluationData.filter(d =>
+          d.monthTotal === 0 &&
+          (!hasWeekFilter || weekRosterDriverIds.has(d.id))
+        );
       }
 
+      filteredEvaluationData.sort((a, b) => b.totalSidak - a.totalSidak || a.nama.localeCompare(b.nama));
+
       res.json({
-        summary: {
-          totalDrivers,
-          sudahSidak,
-          belumSidak,
-          totalSidakKeseluruhan
-        },
+        summary: { totalDrivers, sudahSidak, belumSidak, totalSidakKeseluruhan },
         drivers: filteredEvaluationData,
         month
       });
@@ -3965,11 +4099,8 @@ Format sebagai bullet points singkat per insight.`;
       const existingPhotos = meeting.meetingPhotos || [];
       const allPhotos = [...existingPhotos, ...newPhotoUrls].slice(0, 4);
 
-      // Update meeting with photos
-      const updatedMeeting = await storage.updateMeeting(id, {
-        ...meeting,
-        meetingPhotos: allPhotos
-      });
+      // Update only meetingPhotos — don't spread full Meeting object to avoid overwriting with stale data
+      const updatedMeeting = await storage.updateMeeting(id, { meetingPhotos: allPhotos });
 
       res.json({
         message: "Photos uploaded successfully",
@@ -3998,25 +4129,25 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ error: "Invalid photo index" });
       }
 
-      // Handle physical file deletion (legacy)
+      // Delete the actual file from storage
       const photoPath = photos[index];
       if (photoPath.startsWith('/uploads/')) {
+        // Legacy: filesystem-stored file
         const fullPath = path.join(process.cwd(), photoPath);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
         }
+      } else if (photoPath.startsWith('/api/uploads/')) {
+        // Database-stored file: delete the uploadedFiles record
+        const fileId = photoPath.replace('/api/uploads/', '');
+        try { await dbStorage.deleteFile(fileId); } catch (_) { /* ignore if already gone */ }
       }
-      // For database storage (/api/uploads/id), we currently just remove the reference from the meeting record.
-      // Deleting orphaned records in the uploadedFiles table can be implemented later as a cleanup task.
 
       // Remove from array
       const updatedPhotos = photos.filter((_, i) => i !== index);
 
-      // Update meeting
-      const updatedMeeting = await storage.updateMeeting(id, {
-        ...meeting,
-        meetingPhotos: updatedPhotos
-      });
+      // Update only meetingPhotos
+      const updatedMeeting = await storage.updateMeeting(id, { meetingPhotos: updatedPhotos });
 
       res.json({
         message: "Photo deleted successfully",
@@ -4026,6 +4157,126 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error deleting meeting photo:", error);
       res.status(500).json({ error: "Failed to delete photo" });
+    }
+  });
+
+  // ── Materi PDF upload ──────────────────────────────────────────────────────
+  const uploadPdf = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+
+  app.post("/api/meetings/:id/upload-materi", uploadPdf.array('files', 5), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ error: "No files uploaded" });
+
+      const meeting = await storage.getMeeting(id);
+      if (!meeting) return res.status(404).json({ error: "Meeting not found" });
+
+      const uploadResults = await Promise.all(files.map(f => dbStorage.uploadFile(f)));
+      const newUrls = uploadResults.map(r => r.url);
+
+      const existing = (meeting.materiFiles as string[] | null) || [];
+      const allFiles = [...existing, ...newUrls];
+
+      // Update DB directly to avoid InsertMeeting type constraint
+      const { db } = await import("./db");
+      const { meetings: meetingsTable } = await import("@shared/schema");
+      const { eq: eqFn } = await import("drizzle-orm");
+      const [updatedMeeting] = await db.update(meetingsTable)
+        .set({ materiFiles: allFiles, updatedAt: sql`now()` })
+        .where(eqFn(meetingsTable.id, id))
+        .returning();
+
+      res.json({ message: "Materi uploaded", files: allFiles, meeting: updatedMeeting });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Error uploading materi:", msg);
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.delete("/api/meetings/:id/materi/:fileIndex", async (req, res) => {
+    try {
+      const { id, fileIndex } = req.params;
+      const index = parseInt(fileIndex);
+
+      const meeting = await storage.getMeeting(id);
+      if (!meeting) return res.status(404).json({ error: "Meeting not found" });
+
+      const files: string[] = (meeting as any).materiFiles || [];
+      if (index < 0 || index >= files.length) return res.status(400).json({ error: "Invalid index" });
+
+      const filePath = files[index];
+      if (filePath.startsWith('/api/uploads/')) {
+        const fileId = filePath.replace('/api/uploads/', '');
+        try { await dbStorage.deleteFile(fileId); } catch (_) {}
+      }
+
+      const updatedFiles = files.filter((_, i) => i !== index);
+      const updatedMeeting = await storage.updateMeeting(id, { materiFiles: updatedFiles } as any);
+      res.json({ message: "Materi deleted", files: updatedFiles, meeting: updatedMeeting });
+    } catch (error) {
+      console.error("Error deleting materi:", error);
+      res.status(500).json({ error: "Failed to delete materi" });
+    }
+  });
+
+  // ── MoM PDF upload ─────────────────────────────────────────────────────────
+  app.post("/api/meetings/:id/upload-mom", uploadPdf.array('files', 5), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) return res.status(400).json({ error: "No files uploaded" });
+
+      const meeting = await storage.getMeeting(id);
+      if (!meeting) return res.status(404).json({ error: "Meeting not found" });
+
+      const uploadResults = await Promise.all(files.map(f => dbStorage.uploadFile(f)));
+      const newUrls = uploadResults.map(r => r.url);
+
+      const existing = (meeting as any).momFiles || [];
+      const allFiles = [...existing, ...newUrls];
+
+      // Update DB directly to avoid InsertMeeting type constraint
+      const { db } = await import("./db");
+      const { meetings: meetingsTable } = await import("@shared/schema");
+      const { eq: eqFn } = await import("drizzle-orm");
+      const [updatedMeeting] = await db.update(meetingsTable)
+        .set({ momFiles: allFiles, updatedAt: sql`now()` })
+        .where(eqFn(meetingsTable.id, id))
+        .returning();
+
+      res.json({ message: "MoM uploaded", files: allFiles, meeting: updatedMeeting });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Error uploading MoM:", msg);
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.delete("/api/meetings/:id/mom/:fileIndex", async (req, res) => {
+    try {
+      const { id, fileIndex } = req.params;
+      const index = parseInt(fileIndex);
+
+      const meeting = await storage.getMeeting(id);
+      if (!meeting) return res.status(404).json({ error: "Meeting not found" });
+
+      const files: string[] = (meeting as any).momFiles || [];
+      if (index < 0 || index >= files.length) return res.status(400).json({ error: "Invalid index" });
+
+      const filePath = files[index];
+      if (filePath.startsWith('/api/uploads/')) {
+        const fileId = filePath.replace('/api/uploads/', '');
+        try { await dbStorage.deleteFile(fileId); } catch (_) {}
+      }
+
+      const updatedFiles = files.filter((_, i) => i !== index);
+      const updatedMeeting = await storage.updateMeeting(id, { momFiles: updatedFiles } as any);
+      res.json({ message: "MoM deleted", files: updatedFiles, meeting: updatedMeeting });
+    } catch (error) {
+      console.error("Error deleting MoM:", error);
+      res.status(500).json({ error: "Failed to delete MoM" });
     }
   });
 

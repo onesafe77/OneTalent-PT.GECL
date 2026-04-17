@@ -40,8 +40,10 @@ interface DriverEvaluation {
   id: string;
   nama: string;
   nik: string;
-  totalSidak: number;
-  status: string;
+  investorGroup: string;
+  totalSidak: number;  // count for selected period (week or month)
+  monthTotal: number;  // count for full month (used for monthly compliance)
+  status: string;      // "Sudah SIDAK" | "Belum SIDAK" — based on full-month count
 }
 
 interface EvaluationData {
@@ -266,36 +268,60 @@ export default function EvaluasiDriver() {
     const doc = new jsPDF();
     const monthLabel = monthOptions.find(m => m.value === selectedMonth)?.label || selectedMonth;
 
+    // Resolve week label
+    const weekOption = weekFilter !== "all"
+      ? weekOptions.find(w => `${w.startDate}|${w.endDate}` === weekFilter)
+      : null;
+    const weekLabel = weekOption?.label || "Semua Minggu";
+
+    // Resolve status label
+    const statusLabel = statusFilter === "sudah" ? "Sudah SIDAK"
+      : statusFilter === "belum" ? "Belum SIDAK"
+      : "Semua Driver";
+
     // Title
     doc.setFontSize(16);
     doc.text('Evaluasi Driver SIDAK Fatigue', 14, 15);
 
-    doc.setFontSize(12);
-    doc.text(`Periode: ${monthLabel}`, 14, 22);
+    // Periode & filter info
+    doc.setFontSize(11);
+    let yPos = 23;
+    doc.text(`Periode   : ${monthLabel}`, 14, yPos); yPos += 7;
+    doc.text(`Minggu    : ${weekLabel}`, 14, yPos); yPos += 7;
+    doc.text(`Filter    : ${statusLabel}`, 14, yPos); yPos += 10;
 
     // Summary
     doc.setFontSize(10);
-    doc.text(`Total Driver: ${data.summary.totalDrivers}`, 14, 32);
-    doc.text(`Sudah SIDAK: ${data.summary.sudahSidak}`, 14, 38);
-    doc.text(`Belum SIDAK: ${data.summary.belumSidak}`, 14, 44);
-    doc.text(`Total SIDAK Keseluruhan: ${data.summary.totalSidakKeseluruhan}`, 14, 50);
+    doc.text(`Total Driver (bulan)   : ${data.summary.totalDrivers}`, 14, yPos); yPos += 6;
+    const sudahLabel = weekOption ? `Sudah SIDAK (${weekLabel})` : 'Sudah SIDAK (bulan ini)';
+    doc.text(`${sudahLabel.padEnd(23)}: ${data.summary.sudahSidak}`, 14, yPos); yPos += 6;
+    doc.text(`Belum SIDAK (bulan ini): ${data.summary.belumSidak}`, 14, yPos); yPos += 6;
+    doc.text(`Total SIDAK Keseluruhan: ${data.summary.totalSidakKeseluruhan}`, 14, yPos); yPos += 6;
+    const ditampilkanLabel = (weekOption && statusFilter === 'belum')
+      ? `Belum SIDAK di ${weekLabel}`
+      : 'Ditampilkan            ';
+    doc.text(`${ditampilkanLabel}: ${sortedDrivers.length} driver`, 14, yPos); yPos += 8;
 
     // Table
     autoTable(doc, {
-      startY: 58,
-      head: [['No', 'Nama Driver', 'NIK', 'Total SIDAK', 'Status']],
+      startY: yPos,
+      head: [['No', 'Nama Driver', 'NIK', 'Investor Group', 'Total SIDAK', 'Status']],
       body: sortedDrivers.map((driver, index) => [
         index + 1,
         driver.nama,
         driver.nik,
+        driver.investorGroup,
         driver.totalSidak,
         driver.status,
       ]),
       styles: { fontSize: 9 },
-      headStyles: { fillColor: [59, 130, 246] }, // Blue header
+      headStyles: { fillColor: [59, 130, 246] },
     });
 
-    doc.save(`Evaluasi_Driver_${monthLabel}.pdf`);
+    // Filename reflects active filters
+    const weekSuffix = weekOption ? `_${weekOption.label.replace(/[^a-zA-Z0-9]/g, '_')}` : '';
+    const statusSuffix = statusFilter !== "semua" ? `_${statusLabel.replace(/\s+/g, '_')}` : '';
+    doc.save(`Evaluasi_Driver_${monthLabel}${weekSuffix}${statusSuffix}.pdf`);
   };
 
   if (isLoading) {
@@ -449,7 +475,9 @@ export default function EvaluasiDriver() {
             <div className="text-3xl font-black text-green-600">
               {data?.summary.sudahSidak || 0}
             </div>
-            <p className="text-xs text-green-600 font-medium mt-1">Driver dengan minimal 1 SIDAK</p>
+            <p className="text-xs text-green-600 font-medium mt-1">
+              {weekFilter !== "all" ? "SIDAK pada minggu ini" : "Minimal 1 SIDAK bulan ini"}
+            </p>
           </CardContent>
         </Card>
 
@@ -464,7 +492,7 @@ export default function EvaluasiDriver() {
             <div className="text-3xl font-black text-red-600">
               {data?.summary.belumSidak || 0}
             </div>
-            <p className="text-xs text-red-600 font-medium mt-1">Driver belum ada SIDAK</p>
+            <p className="text-xs text-red-600 font-medium mt-1">Belum ada SIDAK sepanjang bulan</p>
           </CardContent>
         </Card>
 
@@ -538,6 +566,7 @@ export default function EvaluasiDriver() {
                   <TableHead className="w-16 font-bold text-gray-600">No</TableHead>
                   <TableHead className="font-bold text-gray-600">Nama Driver</TableHead>
                   <TableHead className="font-bold text-gray-600">NIK</TableHead>
+                  <TableHead className="font-bold text-gray-600">Investor Group</TableHead>
                   <TableHead className="text-center font-bold text-gray-600">Total SIDAK</TableHead>
                   <TableHead className="text-center font-bold text-gray-600">Status</TableHead>
                   <TableHead className="text-center font-bold text-gray-600">Aksi</TableHead>
@@ -546,7 +575,7 @@ export default function EvaluasiDriver() {
               <TableBody>
                 {sortedDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-12 text-gray-500">
                       <div className="flex flex-col items-center gap-2">
                         <XCircle className="w-8 h-8 text-gray-300" />
                         <p>Tidak ada data driver ditemukan</p>
@@ -561,6 +590,7 @@ export default function EvaluasiDriver() {
                         <span className="font-semibold text-gray-700">{driver.nama}</span>
                       </TableCell>
                       <TableCell className="text-gray-500 font-mono text-xs">{driver.nik}</TableCell>
+                      <TableCell className="text-gray-600 text-sm">{driver.investorGroup}</TableCell>
                       <TableCell className="text-center">
                         <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${driver.totalSidak > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
                           {driver.totalSidak}
@@ -568,7 +598,7 @@ export default function EvaluasiDriver() {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge
-                          className={`px-3 py-1 rounded-full font-medium ${driver.totalSidak > 0
+                          className={`px-3 py-1 rounded-full font-medium ${driver.status === "Sudah SIDAK"
                             ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
                             : "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
                             }`}
