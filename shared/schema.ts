@@ -469,6 +469,7 @@ export const sidakFatigueSessions = pgTable("sidak_fatigue_sessions", {
   totalSampel: integer("total_sampel").notNull().default(0), // Auto calculated from records
   createdBy: varchar("created_by"), // NIK of supervisor who created the SIDAK
   activityPhotos: text("activity_photos").array(), // Array of photo paths for activity documentation
+  supervisorVideoUrl: text("supervisor_video_url"), // Short video recorded when session is created
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -511,6 +512,9 @@ export const sidakFatigueRecords = pgTable("sidak_fatigue_records", {
 
   // PVT Data
   pvtMeanRT: integer("pvt_mean_rt"), // Rata-rata waktu reaksi dalam ms
+
+  // Scan recording — short video captured when this driver was scanned during SIDAK
+  scanVideoUrl: text("scan_video_url"),
 
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [

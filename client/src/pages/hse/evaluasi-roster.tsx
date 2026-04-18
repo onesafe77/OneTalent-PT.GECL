@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileDown, Search, Loader2, Calendar, Users, AlertTriangle, CheckCircle } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { FileDown, Search, Loader2, Calendar, Users, AlertTriangle, CheckCircle, ShieldAlert } from "lucide-react";
 import * as XLSX from 'xlsx';
 import { getWeeksInMonth } from "@/lib/weekCutoffs";
 
@@ -29,6 +30,20 @@ interface EvaluasiRosterResponse {
     };
     drivers: DriverEvaluation[];
     month: string;
+}
+
+interface RosterViolation {
+    id: string;
+    sessionId: string;
+    nama: string;
+    nik: string;
+    nomorLambung: string;
+    keterangan: string;
+    tanggal: string;
+    waktu: string;
+    shift: string;
+    perusahaan: string;
+    lokasi: string;
 }
 
 const MONTHS = [
@@ -56,6 +71,9 @@ export default function EvaluasiRoster() {
     const handleMonthChange = (v: string) => { setSelectedMonth(parseInt(v)); setWeekFilter("all"); };
     const handleYearChange = (v: string) => { setSelectedYear(parseInt(v)); setWeekFilter("all"); };
 
+    const [activeTab, setActiveTab] = useState("evaluasi");
+    const [violationSearch, setViolationSearch] = useState("");
+
     const { data, isLoading } = useQuery<EvaluasiRosterResponse>({
         queryKey: ["/api/evaluasi-roster", monthParam, statusFilter, weekFilter],
         queryFn: async () => {
@@ -71,6 +89,27 @@ export default function EvaluasiRoster() {
         },
         placeholderData: (prev) => prev,
     });
+
+    const { data: violations, isLoading: violationsLoading } = useQuery<RosterViolation[]>({
+        queryKey: ["/api/sidak-roster-violations", monthParam],
+        queryFn: async () => {
+            const res = await fetch(`/api/sidak-roster-violations?month=${monthParam}`);
+            if (!res.ok) throw new Error("Failed to fetch");
+            return res.json();
+        },
+        placeholderData: (prev) => prev,
+    });
+
+    const filteredViolations = useMemo(() => {
+        if (!violations) return [];
+        if (!violationSearch) return violations;
+        const q = violationSearch.toLowerCase();
+        return violations.filter(v =>
+            v.nama.toLowerCase().includes(q) ||
+            v.nik.toLowerCase().includes(q) ||
+            v.keterangan.toLowerCase().includes(q)
+        );
+    }, [violations, violationSearch]);
 
     const filteredDrivers = useMemo(() => {
         if (!data?.drivers) return [];
@@ -133,13 +172,15 @@ export default function EvaluasiRoster() {
                         Rekap kesesuaian gilir kerja per driver per bulan
                     </p>
                 </div>
-                <Button onClick={exportToExcel} variant="outline" size="sm" disabled={!data}>
-                    <FileDown className="w-4 h-4 mr-2" />
-                    Export Excel
-                </Button>
+                {activeTab === "evaluasi" && (
+                    <Button onClick={exportToExcel} variant="outline" size="sm" disabled={!data}>
+                        <FileDown className="w-4 h-4 mr-2" />
+                        Export Excel
+                    </Button>
+                )}
             </div>
 
-            {/* Filters */}
+            {/* Month/Year filter — shared between tabs */}
             <div className="flex flex-wrap gap-3 items-center">
                 <Select value={String(selectedMonth)} onValueChange={handleMonthChange}>
                     <SelectTrigger className="w-36">
@@ -162,158 +203,288 @@ export default function EvaluasiRoster() {
                         ))}
                     </SelectContent>
                 </Select>
-
-                {/* Week filter */}
-                <Select value={weekFilter} onValueChange={setWeekFilter}>
-                    <SelectTrigger className="w-52">
-                        <SelectValue placeholder="Semua Minggu" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua Minggu</SelectItem>
-                        {weekOptions.map(w => (
-                            <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
-                                {w.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-40">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="semua">Semua Status</SelectItem>
-                        <SelectItem value="sudah">Sudah SIDAK</SelectItem>
-                        <SelectItem value="belum">Belum SIDAK</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <Input
-                        placeholder="Cari nama/NIK..."
-                        value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
-                        className="pl-9 w-48"
-                    />
-                </div>
             </div>
 
-            {/* Summary Cards */}
-            {isLoading ? (
-                <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-                </div>
-            ) : summary ? (
-                <>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <Card>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList>
+                    <TabsTrigger value="evaluasi">
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Evaluasi Driver
+                    </TabsTrigger>
+                    <TabsTrigger value="ketidaksesuaian">
+                        <ShieldAlert className="w-4 h-4 mr-2" />
+                        Monitoring Ketidaksesuaian
+                        {violations && violations.length > 0 && (
+                            <span className="ml-2 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                                {violations.length}
+                            </span>
+                        )}
+                    </TabsTrigger>
+                </TabsList>
+
+                {/* ── Tab 1: Evaluasi Driver ── */}
+                <TabsContent value="evaluasi" className="space-y-6 mt-4">
+                    {/* Extra filters for this tab */}
+                    <div className="flex flex-wrap gap-3 items-center">
+                        {/* Week filter */}
+                        <Select value={weekFilter} onValueChange={setWeekFilter}>
+                            <SelectTrigger className="w-52">
+                                <SelectValue placeholder="Semua Minggu" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua Minggu</SelectItem>
+                                {weekOptions.map(w => (
+                                    <SelectItem key={w.weekNumber} value={`${w.startDate}|${w.endDate}`}>
+                                        {w.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-40">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="semua">Semua Status</SelectItem>
+                                <SelectItem value="sudah">Sudah SIDAK</SelectItem>
+                                <SelectItem value="belum">Belum SIDAK</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Input
+                                placeholder="Cari nama/NIK..."
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                className="pl-9 w-48"
+                            />
+                        </div>
+                    </div>
+
+                    {isLoading ? (
+                        <div className="flex justify-center py-12">
+                            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                        </div>
+                    ) : summary ? (
+                        <>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                <Card>
+                                    <CardContent className="pt-4 text-center">
+                                        <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
+                                        <p className="text-2xl font-bold">{summary.totalDrivers}</p>
+                                        <p className="text-xs text-gray-500">Total Driver (bulan)</p>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardContent className="pt-4 text-center">
+                                        <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-500" />
+                                        <p className="text-2xl font-bold text-green-600">{summary.sudahSidak}</p>
+                                        <p className="text-xs text-gray-500">
+                                            {weekFilter !== "all" ? `SIDAK di ${weekLabel}` : "Sudah SIDAK bulan ini"}
+                                        </p>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardContent className="pt-4 text-center">
+                                        <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-red-500" />
+                                        <p className="text-2xl font-bold text-red-600">{summary.belumSidak}</p>
+                                        <p className="text-xs text-gray-500">Belum SIDAK (bulan ini)</p>
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardContent className="pt-4 text-center">
+                                        <Calendar className="w-6 h-6 mx-auto mb-2 text-purple-500" />
+                                        <p className="text-2xl font-bold">{completionPercent}%</p>
+                                        <p className="text-xs text-gray-500">Penyelesaian</p>
+                                    </CardContent>
+                                </Card>
+                            </div>
+
+                            <Card>
+                                <CardContent className="pt-4">
+                                    <div className="flex justify-between mb-1">
+                                        <span className="text-sm font-medium">Progress Evaluasi SIDAK Roster</span>
+                                        <span className="text-sm font-medium">{completionPercent}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                        <div
+                                            className={`h-3 rounded-full transition-all ${completionPercent === 100 ? 'bg-green-500' : completionPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                            style={{ width: `${completionPercent}%` }}
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex justify-between items-center">
+                                        <CardTitle className="text-lg">
+                                            Daftar Driver ({filteredDrivers.length})
+                                        </CardTitle>
+                                        {weekFilter !== "all" && statusFilter === "belum" && (
+                                            <span className="text-xs text-gray-500">
+                                                Belum SIDAK • bekerja di {weekLabel}
+                                            </span>
+                                        )}
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <ScrollArea className="h-[500px]">
+                                        <table className="w-full">
+                                            <thead className="sticky top-0 bg-white dark:bg-gray-900">
+                                                <tr className="border-b">
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">No</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">NIK</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Nama</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Investor Group</th>
+                                                    <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Total SIDAK</th>
+                                                    <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {filteredDrivers.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={6} className="text-center py-8 text-gray-400 text-sm">
+                                                            Tidak ada data driver ditemukan
+                                                        </td>
+                                                    </tr>
+                                                ) : filteredDrivers.map((driver, idx) => (
+                                                    <tr key={driver.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                        <td className="py-2 px-3 text-sm">{idx + 1}</td>
+                                                        <td className="py-2 px-3 text-sm font-mono">{driver.nik}</td>
+                                                        <td className="py-2 px-3 text-sm">{driver.nama}</td>
+                                                        <td className="py-2 px-3 text-sm text-gray-600">{driver.investorGroup}</td>
+                                                        <td className="py-2 px-3 text-center text-sm font-semibold">{driver.totalSidak}</td>
+                                                        <td className="py-2 px-3 text-center">
+                                                            <Badge className={driver.status === "Sudah SIDAK"
+                                                                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                                                : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                                                            }>
+                                                                {driver.status}
+                                                            </Badge>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </ScrollArea>
+                                </CardContent>
+                            </Card>
+                        </>
+                    ) : null}
+                </TabsContent>
+
+                {/* ── Tab 2: Monitoring Ketidaksesuaian ── */}
+                <TabsContent value="ketidaksesuaian" className="space-y-6 mt-4">
+                    {/* Summary banner */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <Card className="border-red-200 bg-red-50 dark:bg-red-900/10">
                             <CardContent className="pt-4 text-center">
-                                <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
-                                <p className="text-2xl font-bold">{summary.totalDrivers}</p>
-                                <p className="text-xs text-gray-500">Total Driver (bulan)</p>
+                                <ShieldAlert className="w-6 h-6 mx-auto mb-2 text-red-500" />
+                                <p className="text-2xl font-bold text-red-600">{violations?.length ?? 0}</p>
+                                <p className="text-xs text-gray-500">Total Pelanggaran ({monthLabel})</p>
                             </CardContent>
                         </Card>
-                        <Card>
+                        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/10">
                             <CardContent className="pt-4 text-center">
-                                <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                                <p className="text-2xl font-bold text-green-600">{summary.sudahSidak}</p>
-                                <p className="text-xs text-gray-500">
-                                    {weekFilter !== "all" ? `SIDAK di ${weekLabel}` : "Sudah SIDAK bulan ini"}
+                                <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-orange-500" />
+                                <p className="text-2xl font-bold text-orange-600">
+                                    {violations?.filter(v => v.keterangan?.toLowerCase().includes("shift")).length ?? 0}
                                 </p>
+                                <p className="text-xs text-gray-500">Shift Tidak Sesuai</p>
                             </CardContent>
                         </Card>
-                        <Card>
+                        <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
                             <CardContent className="pt-4 text-center">
-                                <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-red-500" />
-                                <p className="text-2xl font-bold text-red-600">{summary.belumSidak}</p>
-                                <p className="text-xs text-gray-500">Belum SIDAK (bulan ini)</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="pt-4 text-center">
-                                <Calendar className="w-6 h-6 mx-auto mb-2 text-purple-500" />
-                                <p className="text-2xl font-bold">{completionPercent}%</p>
-                                <p className="text-xs text-gray-500">Penyelesaian</p>
+                                <Calendar className="w-6 h-6 mx-auto mb-2 text-yellow-500" />
+                                <p className="text-2xl font-bold text-yellow-600">
+                                    {violations?.filter(v => v.keterangan?.toLowerCase().includes("tidak terjadwal")).length ?? 0}
+                                </p>
+                                <p className="text-xs text-gray-500">Tidak Terjadwal</p>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Progress Bar */}
-                    <Card>
-                        <CardContent className="pt-4">
-                            <div className="flex justify-between mb-1">
-                                <span className="text-sm font-medium">Progress Evaluasi SIDAK Roster</span>
-                                <span className="text-sm font-medium">{completionPercent}%</span>
-                            </div>
-                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                                <div
-                                    className={`h-3 rounded-full transition-all ${completionPercent === 100 ? 'bg-green-500' : completionPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                    style={{ width: `${completionPercent}%` }}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {/* Search */}
+                    <div className="relative max-w-xs">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                            placeholder="Cari nama/NIK/keterangan..."
+                            value={violationSearch}
+                            onChange={e => setViolationSearch(e.target.value)}
+                            className="pl-9"
+                        />
+                    </div>
 
-                    {/* Driver Table */}
+                    {/* Table */}
                     <Card>
                         <CardHeader>
-                            <div className="flex justify-between items-center">
-                                <CardTitle className="text-lg">
-                                    Daftar Driver ({filteredDrivers.length})
-                                </CardTitle>
-                                {weekFilter !== "all" && statusFilter === "belum" && (
-                                    <span className="text-xs text-gray-500">
-                                        Belum SIDAK • bekerja di {weekLabel}
-                                    </span>
-                                )}
-                            </div>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <ShieldAlert className="w-5 h-5 text-red-500" />
+                                Daftar Ketidaksesuaian ({filteredViolations.length})
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ScrollArea className="h-[500px]">
-                                <table className="w-full">
-                                    <thead className="sticky top-0 bg-white dark:bg-gray-900">
-                                        <tr className="border-b">
-                                            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">No</th>
-                                            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">NIK</th>
-                                            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Nama</th>
-                                            <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Investor Group</th>
-                                            <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Total SIDAK</th>
-                                            <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {filteredDrivers.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={6} className="text-center py-8 text-gray-400 text-sm">
-                                                    Tidak ada data driver ditemukan
-                                                </td>
+                            {violationsLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                                </div>
+                            ) : (
+                                <ScrollArea className="h-[500px]">
+                                    <table className="w-full">
+                                        <thead className="sticky top-0 bg-white dark:bg-gray-900">
+                                            <tr className="border-b">
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">No</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Tanggal</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">NIK</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Nama</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Unit</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Shift SIDAK</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Keterangan</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Lokasi</th>
                                             </tr>
-                                        ) : filteredDrivers.map((driver, idx) => (
-                                            <tr key={driver.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                                <td className="py-2 px-3 text-sm">{idx + 1}</td>
-                                                <td className="py-2 px-3 text-sm font-mono">{driver.nik}</td>
-                                                <td className="py-2 px-3 text-sm">{driver.nama}</td>
-                                                <td className="py-2 px-3 text-sm text-gray-600">{driver.investorGroup}</td>
-                                                <td className="py-2 px-3 text-center text-sm font-semibold">{driver.totalSidak}</td>
-                                                <td className="py-2 px-3 text-center">
-                                                    <Badge className={driver.status === "Sudah SIDAK"
-                                                        ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                                                        : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
-                                                    }>
-                                                        {driver.status}
-                                                    </Badge>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </ScrollArea>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {filteredViolations.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={8} className="text-center py-8 text-gray-400 text-sm">
+                                                        {violations?.length === 0
+                                                            ? "Tidak ada ketidaksesuaian bulan ini"
+                                                            : "Tidak ada hasil pencarian"}
+                                                    </td>
+                                                </tr>
+                                            ) : filteredViolations.map((v, idx) => (
+                                                <tr key={v.id} className="hover:bg-red-50 dark:hover:bg-red-900/10">
+                                                    <td className="py-2 px-3 text-sm">{idx + 1}</td>
+                                                    <td className="py-2 px-3 text-sm font-medium">{v.tanggal}</td>
+                                                    <td className="py-2 px-3 text-sm font-mono">{v.nik}</td>
+                                                    <td className="py-2 px-3 text-sm font-medium">{v.nama}</td>
+                                                    <td className="py-2 px-3 text-sm text-gray-600">{v.nomorLambung || "-"}</td>
+                                                    <td className="py-2 px-3 text-sm">
+                                                        <Badge variant="outline" className="text-xs">{v.shift || "-"}</Badge>
+                                                    </td>
+                                                    <td className="py-2 px-3 text-sm">
+                                                        <Badge className={
+                                                            v.keterangan?.toLowerCase().includes("shift")
+                                                                ? "bg-orange-100 text-orange-700 text-xs"
+                                                                : "bg-yellow-100 text-yellow-700 text-xs"
+                                                        }>
+                                                            {v.keterangan || "Tidak Sesuai"}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="py-2 px-3 text-sm text-gray-500">{v.lokasi || "-"}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </ScrollArea>
+                            )}
                         </CardContent>
                     </Card>
-                </>
-            ) : null}
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

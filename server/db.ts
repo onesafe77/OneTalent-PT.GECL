@@ -11,11 +11,19 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 50, // Increase max connections
+  max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Increased timeout
+  connectionTimeoutMillis: 10000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
   ssl: {
     rejectUnauthorized: false
   }
 });
+
+// Prevent ECONNRESET on idle clients from crashing the process
+pool.on('error', (err) => {
+  console.error('[pg-pool] Idle client error:', err.message);
+});
+
 export const db = drizzle(pool, { schema });

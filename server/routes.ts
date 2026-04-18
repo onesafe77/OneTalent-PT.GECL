@@ -5472,6 +5472,99 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // ── Upload scan recording per driver record (MUST be before /:id) ──────────
+  app.post("/api/sidak-fatigue/records/:recordId/scan-recording", uploadPdf.single('file'), async (req, res) => {
+    try {
+      const { recordId } = req.params;
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+      const { url } = await dbStorage.uploadFile(file);
+
+      const { db: dbClient } = await import("./db");
+      const { sidakFatigueRecords: recTable } = await import("@shared/schema");
+      const { eq: eqFn } = await import("drizzle-orm");
+      await dbClient.update(recTable)
+        .set({ scanVideoUrl: url } as any)
+        .where(eqFn(recTable.id, recordId));
+
+      res.json({ url });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Error uploading scan recording:", msg);
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // ── Get session scan recordings (MUST be before /:id) ───────────────────
+  app.get("/api/sidak-fatigue/:sessionId/scan-recordings", async (req, res) => {
+    try {
+      const sessionUser = (req.session as any).user;
+      if (!sessionUser || sessionUser.role !== 'ADMIN') {
+        return res.status(403).json({ error: "Akses ditolak. Hanya ADMIN." });
+      }
+      const { sessionId } = req.params;
+      const records = await storage.getSidakFatigueRecords(sessionId);
+      const result = records.map(r => ({
+        id: r.id,
+        nama: r.nama,
+        nik: r.nik,
+        jabatan: r.jabatan,
+        nomorLambung: r.nomorLambung,
+        karyawanSiapBekerja: r.karyawanSiapBekerja,
+        scanVideoUrl: (r as any).scanVideoUrl || null,
+        createdAt: r.createdAt,
+      }));
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching scan recordings:", error);
+      res.status(500).json({ error: "Gagal mengambil data" });
+    }
+  });
+
+  // ── List supervisor recordings (admin only) — MUST be before /:id ─────────
+  app.get("/api/sidak-fatigue/supervisor-recordings", async (req, res) => {
+    try {
+      const sessionUser = (req.session as any).user;
+      if (!sessionUser || sessionUser.role !== 'ADMIN') {
+        return res.status(403).json({ error: "Akses ditolak. Hanya ADMIN." });
+      }
+
+      const { month } = req.query as { month?: string };
+
+      let sessions = await storage.getAllSidakFatigueSessions();
+
+      // Filter by month
+      if (month) {
+        sessions = sessions.filter(s => String(s.tanggal).startsWith(month));
+      }
+
+      const allEmployees = await storage.getAllEmployees();
+      const employeeMap = new Map(allEmployees.map(e => [e.id, e]));
+
+      const result = sessions.map(s => {
+        const emp = s.createdBy ? employeeMap.get(s.createdBy) : null;
+        return {
+          sessionId: s.id,
+          tanggal: s.tanggal,
+          shift: s.shift,
+          lokasi: s.lokasi,
+          area: s.area,
+          createdBy: s.createdBy || "",
+          supervisorName: emp?.name || s.createdBy || "Unknown",
+          supervisorVideoUrl: (s as any).supervisorVideoUrl || null,
+          hasRecording: !!(s as any).supervisorVideoUrl,
+        };
+      });
+
+      result.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching supervisor recordings:", error);
+      res.status(500).json({ error: "Gagal mengambil data rekaman" });
+    }
+  });
+
   // Get single Sidak Fatigue session with records and observers
   app.get("/api/sidak-fatigue/:id", async (req, res) => {
     try {
@@ -5824,6 +5917,33 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error deleting photo:", error);
       res.status(500).json({ error: "Failed to delete photo" });
+    }
+  });
+
+  // ── Supervisor recording upload ─────────────────────────────────────────
+  app.post("/api/sidak-fatigue/:id/supervisor-recording", uploadPdf.single('file'), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+      const session = await storage.getSidakFatigueSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const { url } = await dbStorage.uploadFile(file);
+
+      const { db: dbClient } = await import("./db");
+      const { sidakFatigueSessions: sessTable } = await import("@shared/schema");
+      const { eq: eqFn } = await import("drizzle-orm");
+      await dbClient.update(sessTable)
+        .set({ supervisorVideoUrl: url, updatedAt: sql`now()` })
+        .where(eqFn(sessTable.id, id));
+
+      res.json({ url });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Error uploading supervisor recording:", msg);
+      res.status(500).json({ error: msg });
     }
   });
 
@@ -10804,6 +10924,56 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error fetching Sidak Roster sessions:", error);
       res.status(500).json({ message: "Gagal mengambil data sesi Sidak Roster" });
+    }
+  });
+
+  // Get non-compliant (rosterSesuai = false) records for monitoring
+  app.get("/api/sidak-roster-violations", async (req, res) => {
+    try {
+      const { month } = req.query as { month?: string };
+
+      let sessions = await storage.getAllSidakRosterSessions();
+
+      // Filter by month if provided (format: YYYY-MM)
+      if (month) {
+        sessions = sessions.filter(s => String(s.tanggal).startsWith(month));
+      }
+
+      if (sessions.length === 0) return res.json([]);
+
+      const sessionIds = sessions.map(s => s.id);
+      const allRecords = await storage.getSidakRosterRecordsBySessionIds(sessionIds);
+
+      // Only non-compliant records
+      const violations = allRecords.filter(r => r.rosterSesuai === false);
+
+      // Join with session data
+      const sessionMap = new Map(sessions.map(s => [s.id, s]));
+      const result = violations.map(r => {
+        const session = sessionMap.get(r.sessionId);
+        return {
+          id: r.id,
+          sessionId: r.sessionId,
+          nama: r.nama,
+          nik: r.nik,
+          nomorLambung: r.nomorLambung,
+          keterangan: r.keterangan,
+          tanggal: session?.tanggal || "",
+          waktu: session?.waktu || "",
+          shift: session?.shift || "",
+          perusahaan: session?.perusahaan || "",
+          lokasi: session?.lokasi || "",
+          createdAt: r.createdAt,
+        };
+      });
+
+      // Sort by tanggal desc
+      result.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching roster violations:", error);
+      res.status(500).json({ message: "Gagal mengambil data pelanggaran roster" });
     }
   });
 

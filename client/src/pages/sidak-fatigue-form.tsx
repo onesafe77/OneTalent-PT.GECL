@@ -412,6 +412,86 @@ export default function SidakFatigueForm() {
     });
   };
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingCountdown, setRecordingCountdown] = useState(0);
+
+  const startSupervisorRecording = async (sid: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: false,
+      });
+
+      // Pick a supported mimeType
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm")
+        ? "video/webm"
+        : "";
+
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks: Blob[] = [];
+
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setIsRecording(false);
+        const blob = new Blob(chunks, { type: mimeType || "video/webm" });
+        const formData = new FormData();
+        formData.append("file", blob, `supervisor-${sid}-${Date.now()}.webm`);
+        try {
+          await fetch(`/api/sidak-fatigue/${sid}/supervisor-recording`, {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          });
+        } catch (_) { /* silent fail — don't block main flow */ }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      let count = 5;
+      setRecordingCountdown(count);
+      const interval = setInterval(() => {
+        count--;
+        setRecordingCountdown(count);
+        if (count <= 0) {
+          clearInterval(interval);
+          if (recorder.state !== "inactive") recorder.stop();
+        }
+      }, 1000);
+    } catch (_) { /* Camera not available — silent fail */ }
+  };
+
+  // Record per-driver scan (silent, no countdown UI — runs in background)
+  const startScanRecording = async (recordId: string, driverName: string) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: false,
+      });
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+        ? "video/webm;codecs=vp9"
+        : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(chunks, { type: mimeType || "video/webm" });
+        const formData = new FormData();
+        formData.append("file", blob, `scan-${recordId}-${Date.now()}.webm`);
+        try {
+          await fetch(`/api/sidak-fatigue/records/${recordId}/scan-recording`, {
+            method: "POST", body: formData, credentials: "include",
+          });
+        } catch (_) {}
+      };
+      recorder.start();
+      setTimeout(() => { if (recorder.state !== "inactive") recorder.stop(); }, 5000);
+    } catch (_) {}
+  };
+
   const createSessionMutation = useMutation({
     mutationFn: async (data: typeof headerData) => {
       const response = await apiRequest("/api/sidak-fatigue", "POST", { ...data, waktu: data.waktuMulai });
@@ -419,6 +499,7 @@ export default function SidakFatigueForm() {
     },
     onSuccess: (data) => {
       setSessionId(data.id);
+      startSupervisorRecording(data.id);
       toast({
         title: "Sesi dibuat",
         description: "Sesi Sidak Fatigue berhasil dibuat",
@@ -465,6 +546,8 @@ export default function SidakFatigueForm() {
     onSuccess: (data: any) => {
       // Store backend record ID so we can PATCH it later during retest
       const savedEmployee = { ...currentEmployee, backendRecordId: data?.id };
+      // Record a short video for this specific driver scan
+      if (data?.id) startScanRecording(data.id, savedEmployee.nama);
       setEmployees(prev => {
         const updatedEmployees = [...prev, savedEmployee];
         toast({
@@ -765,6 +848,14 @@ export default function SidakFatigueForm() {
           employeeName={employees.find(e => e.nik === interventionEmployeeId)?.nama || "Karyawan"}
           onProcceedToRetest={handleInterventionComplete}
         />
+      )}
+
+      {/* Recording indicator — shown for 5s after session creation */}
+      {isRecording && (
+        <div className="fixed top-4 right-4 z-50 bg-red-600 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg animate-in fade-in duration-300">
+          <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          Merekam {recordingCountdown}s
+        </div>
       )}
 
       <MobileSidakLayout

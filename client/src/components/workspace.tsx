@@ -87,6 +87,7 @@ import FmsFatigueMonitoringDashboard from "@/pages/hse/fatigue/monitoring-dashbo
 import ViolationValidationDashboard from "@/pages/hse/fatigue/dashboard-violation-validation";
 import EvaluasiDriverFatigue from "@/pages/hse/fatigue/evaluasi-driver-fatigue";
 import EvaluasiRoster from "@/pages/hse/evaluasi-roster";
+import SupervisorRecordings from "@/pages/hse/supervisor-recordings";
 import HrInductionAttendance from "@/pages/hr-induction-attendance";
 
 import SafetyPatrol from "@/pages/safety-patrol";
@@ -198,6 +199,7 @@ const workspaceRoutes = [
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
   { path: "/workspace/hse/evaluasi-driver-fatigue", component: EvaluasiDriverFatigue, title: "Evaluasi Driver Fatigue" },
   { path: "/workspace/hse/evaluasi-roster", component: EvaluasiRoster, title: "Evaluasi SIDAK Roster" },
+  { path: "/workspace/hse/supervisor-recordings", component: SupervisorRecordings, title: "Rekaman Pengawas SIDAK" },
   { path: "/workspace/hse/evaluasi-pvt", component: EvaluasiPvt, title: "Evaluasi Data PVT (Reaction Time)" },
   { path: "/workspace/announcements", component: Announcements, title: "Kelola Pengumuman" },
   { path: "/workspace/news", component: News, title: "Kelola Berita" },
@@ -421,6 +423,11 @@ export function Workspace() {
               <Route path="/workspace/hse/fms-violation-validation" component={ViolationValidationDashboard} />
               <Route path="/workspace/hse/evaluasi-driver-fatigue" component={EvaluasiDriverFatigue} />
               <Route path="/workspace/hse/evaluasi-roster" component={EvaluasiRoster} />
+              <Route path="/workspace/hse/supervisor-recordings">
+                <PermissionGuard requiredPermissions={[Permission.MANAGE_SIDAK]}>
+                  <SupervisorRecordings />
+                </PermissionGuard>
+              </Route>
               <Route path="/workspace/hse/statistics" component={DashboardStatistics} />
               <Route path="/workspace/settings/google-sheets" component={GoogleSheetsConfig} />
 

@@ -134,6 +134,7 @@ export default function SidakRosterForm() {
   const [showEmployeeScanner, setShowEmployeeScanner] = useState(false);
   const [isLoadedFromQr, setIsLoadedFromQr] = useState(false); // Track if data loaded from QR
   const [isLookingUpRoster, setIsLookingUpRoster] = useState(false); // Loading state for roster lookup
+  const [rosterInfo, setRosterInfo] = useState<{ scheduledShift?: string; nomorLambung?: string; isScheduled: boolean } | null>(null);
 
   // Manual observer input state (replacing dropdown and QR scanner)
   const [manualObserver, setManualObserver] = useState({
@@ -224,10 +225,10 @@ export default function SidakRosterForm() {
 
       setIsLookingUpRoster(true);
 
-      // Detect current shift based on system time
-      const currentShift = getCurrentShift();
+      // Use the shift selected by supervisor in Step 1 (not system clock)
+      const currentShift = headerData.shift;
 
-      // Call roster lookup API to auto-fill roster data with shift validation
+      // Call roster lookup API — validates against Roster page data
       const rosterLookupUrl = `/api/roster-lookup/${employee.id}/${headerData.tanggal}?currentShift=${encodeURIComponent(currentShift)}`;
       const rosterResponse = await fetch(rosterLookupUrl);
 
@@ -238,33 +239,52 @@ export default function SidakRosterForm() {
 
       const rosterData = await rosterResponse.json();
 
-      // Check if shift validation failed
+      // Save roster reference info for display
+      setRosterInfo({
+        scheduledShift: rosterData.shift || rosterData.scheduledShift,
+        nomorLambung: rosterData.nomorLambung,
+        isScheduled: rosterData.isScheduled ?? false,
+      });
+
+      // Determine keterangan based on roster result
+      let keterangan = rosterData.keterangan || "";
       if (rosterData.shiftMismatch) {
-        toast({
-          title: "Shift Tidak Sesuai",
-          description: rosterData.message || `Driver terjadwal di ${rosterData.scheduledShift} tetapi inspeksi dilakukan di ${currentShift}`,
-          variant: "destructive",
-        });
-        return;
+        keterangan = `Terjadwal di ${rosterData.scheduledShift} (sidak: ${currentShift})`;
+      } else if (!rosterData.isScheduled) {
+        keterangan = "Tidak Terjadwal di Roster";
       }
 
-      // Auto-fill all fields
+      // Auto-fill all fields — shift mismatch / not scheduled = TIDAK SESUAI, still recorded
       setCurrentEmployee({
         employeeId: employee.id,
         nama: employee.name,
-        nik: employee.id, // Employee ID is used as NIK
-        nomorLambung: rosterData.nomorLambung || employee.nomorLambung || "",
+        nik: employee.id,
+        nomorLambung: rosterData.nomorLambung || (employee as any).nomorLambung || "",
         rosterSesuai: rosterData.rosterSesuai,
-        keterangan: rosterData.keterangan
+        keterangan,
       });
 
-      setIsLoadedFromQr(true); // Lock all fields except Nomor Lambung
+      setIsLoadedFromQr(true);
       setShowEmployeeScanner(false);
 
-      toast({
-        title: "Data Dimuat",
-        description: `Data karyawan ${employee.name} berhasil dimuat dari QR Code`,
-      });
+      if (rosterData.shiftMismatch) {
+        toast({
+          title: "Shift Tidak Sesuai",
+          description: keterangan,
+          variant: "destructive",
+        });
+      } else if (!rosterData.isScheduled) {
+        toast({
+          title: "Tidak Terjadwal",
+          description: `${employee.name} tidak ada di roster tanggal ini`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Data Dimuat",
+          description: `${employee.name} — Roster sesuai`,
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -317,8 +337,9 @@ export default function SidakRosterForm() {
         rosterSesuai: null,
         keterangan: ""
       });
-      setIsLoadedFromQr(false); // Reset locked state for next employee
-      setShowEmployeeScanner(false); // Close scanner
+      setIsLoadedFromQr(false);
+      setRosterInfo(null);
+      setShowEmployeeScanner(false);
       toast({
         title: "Karyawan ditambahkan",
         description: `Karyawan berhasil disimpan`,
@@ -657,6 +678,27 @@ export default function SidakRosterForm() {
 
                   <Separator />
 
+                  {/* Roster reference info from Roster page */}
+                  {rosterInfo && (
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm space-y-1">
+                      <p className="text-xs font-semibold uppercase text-blue-500 mb-1">Data dari Roster</p>
+                      <div className="flex justify-between text-blue-700">
+                        <span>Jadwal Shift</span>
+                        <span className="font-semibold">{rosterInfo.scheduledShift || (rosterInfo.isScheduled ? headerData.shift : "Tidak Ada")}</span>
+                      </div>
+                      {rosterInfo.nomorLambung && (
+                        <div className="flex justify-between text-blue-700">
+                          <span>Unit (Roster)</span>
+                          <span className="font-semibold">{rosterInfo.nomorLambung}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-blue-700">
+                        <span>Status</span>
+                        <span className="font-semibold">{rosterInfo.isScheduled ? "Terjadwal" : "Tidak Terjadwal"}</span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-3 pt-2">
                     <Label className="text-xs font-semibold uppercase text-gray-500">Status Roster</Label>
                     <div className={cn(
@@ -683,6 +725,7 @@ export default function SidakRosterForm() {
                     className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
                     onClick={() => {
                       setIsLoadedFromQr(false);
+                      setRosterInfo(null);
                       setCurrentEmployee({
                         nama: "",
                         nik: "",

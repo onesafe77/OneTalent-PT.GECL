@@ -25,10 +25,14 @@ export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
-    pool, // Use existing pool
-    createTableIfMissing: true, // Auto-create table
+    pool,
+    createTableIfMissing: true,
     ttl: sessionTtl,
     tableName: "sessions",
+  });
+  // Prevent unhandled 'error' events from crashing the process
+  (sessionStore as any).on?.('error', (err: any) => {
+    console.error('[session-store] Error:', err.message);
   });
   return session({
     secret: process.env.SESSION_SECRET || "dev_secret_key_123",
@@ -72,9 +76,27 @@ async function upsertUser(
   });
 }
 
+let _authSetup = false;
+
 export async function setupAuth(app: Express) {
+  if (_authSetup) return; // Prevent double/triple registration
+  _authSetup = true;
+
   app.set("trust proxy", 1);
-  app.use(getSession());
+
+  // Wrap session middleware so DB errors (ECONNRESET etc.) don't kill the request
+  const sessionMiddleware = getSession();
+  app.use((req: any, res: any, next: any) => {
+    sessionMiddleware(req, res, (err?: any) => {
+      if (err) {
+        console.error('[session] Store error (continuing):', err.message);
+        // Ensure req.session exists so passport doesn't crash
+        if (!req.session) (req as any).session = {};
+      }
+      next();
+    });
+  });
+
   app.use(passport.initialize());
   app.use(passport.session());
 
