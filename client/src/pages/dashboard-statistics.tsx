@@ -56,6 +56,8 @@ const DEFAULT_DATA = {
     menabrak: Array(12).fill(0),
     rebah: Array(12).fill(0),
     mode_ytd_cifr: true,
+    production_target: Array(12).fill(0),
+    production_actual: Array(12).fill(0),
     aiInsights: [] as string[]
 };
 
@@ -64,7 +66,7 @@ export default function DashboardStatistics() {
     const [chartsData, setChartsData] = useState<{ tifr: number[], fatigue: number[], cifr: number[] }>({ tifr: [], fatigue: [], cifr: [] });
     // MH panel toggle state (incidents are now always visible)
     const [mhOpen, setMhOpen] = useState(false);
-    const [selectedMonth, setSelectedMonth] = useState({ mh: 0, tifr: 0, fatigue: 0, cifr: 0 });
+    const [selectedMonth, setSelectedMonth] = useState({ mh: 0, tifr: 0, fatigue: 0, cifr: 0, prod: 0 });
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const dashboardRef = useRef<HTMLDivElement>(null);
@@ -529,6 +531,101 @@ export default function DashboardStatistics() {
                                     { type: 'line' as const, label: 'CIFR', data: chartsData.cifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, tension: 0.3, pointRadius: 4, order: 1, yAxisID: 'y1' }
                                 ]
                             }} options={commonOptions} />
+                        </div>
+                    </Card>
+
+                    {/* Chart 4: Production */}
+                    <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden ring-1 ring-slate-100">
+                        <div className="p-1">
+                            <div className="bg-gradient-to-r from-blue-50 to-white p-4 rounded-t-3xl border-b border-blue-50 flex flex-col xl:flex-row gap-4 justify-between items-center">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black text-lg shadow-sm">4</div>
+                                    <div>
+                                        <h2 className="font-bold text-gray-900 text-lg">PRODUKSI</h2>
+                                        <p className="text-xs text-blue-500 font-bold uppercase tracking-wider">Target vs Realisasi Produksi</p>
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 bg-white/80 p-2 rounded-xl shadow-sm border border-blue-100/50">
+                                    <div className="w-[100px]">
+                                        <Select value={selectedMonth.prod.toString()} onValueChange={(v) => setSelectedMonth({ ...selectedMonth, prod: parseInt(v) })}>
+                                            <SelectTrigger className="h-8 text-xs bg-white border-none shadow-none"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{MONTHS.map((m, i) => <SelectItem key={i} value={i.toString()}>{m}</SelectItem>)}</SelectContent>
+                                        </Select>
+                                    </div>
+                                    <Input className="h-8 w-[100px] text-xs bg-white border-slate-200" type="number" placeholder="Target" value={data.production_target[selectedMonth.prod]} onChange={(e) => {
+                                        const newVal = [...data.production_target];
+                                        newVal[selectedMonth.prod] = parseInt(e.target.value) || 0;
+                                        setData({ ...data, production_target: newVal });
+                                    }} />
+                                    <Input className="h-8 w-[100px] text-xs bg-white border-slate-200" type="number" placeholder="Realisasi" value={data.production_actual[selectedMonth.prod]} onChange={(e) => {
+                                        const newVal = [...data.production_actual];
+                                        newVal[selectedMonth.prod] = parseInt(e.target.value) || 0;
+                                        setData({ ...data, production_actual: newVal });
+                                    }} />
+                                    <Button size="sm" onClick={() => saveData(data)} className="h-8 text-xs rounded-lg bg-blue-600 hover:bg-blue-700">Save</Button>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-6 h-[400px]">
+                            <Chart type='bar' data={{
+                                labels: MONTHS,
+                                datasets: [
+                                    {
+                                        label: 'Target',
+                                        data: data.production_target,
+                                        backgroundColor: '#f3f4f6', // Light gray/beige
+                                        borderColor: '#e5e7eb',
+                                        borderWidth: 1,
+                                        borderRadius: 8,
+                                        barPercentage: 0.9,
+                                        categoryPercentage: 0.8,
+                                        order: 2,
+                                        grouped: false, // Ensure they overlay
+                                        datalabels: {
+                                            align: 'top',
+                                            anchor: 'end',
+                                            color: '#6b7280',
+                                            font: { weight: 'bold' }
+                                        }
+                                    },
+                                    {
+                                        label: 'Realisasi',
+                                        data: data.production_actual,
+                                        backgroundColor: '#ef4444', // Red
+                                        borderRadius: 6,
+                                        barPercentage: 0.6,
+                                        categoryPercentage: 0.8,
+                                        order: 1,
+                                        grouped: false, // Ensure they overlay
+                                        datalabels: {
+                                            align: 'center',
+                                            anchor: 'center',
+                                            color: '#ffffff',
+                                            font: { weight: 'bold' }
+                                        }
+                                    }
+                                ]
+                            }} options={{
+                                ...commonOptions,
+                                scales: {
+                                    ...commonOptions.scales,
+                                    x: {
+                                        ...commonOptions.scales.x,
+                                        stacked: false, // Overlay, don't stack
+                                    },
+                                    y: {
+                                        ...commonOptions.scales.y,
+                                        stacked: false,
+                                    }
+                                },
+                                plugins: {
+                                    ...commonOptions.plugins,
+                                    datalabels: {
+                                        ...commonOptions.plugins.datalabels,
+                                        formatter: (value: number) => value > 0 ? value : ''
+                                    }
+                                }
+                            }} />
                         </div>
                     </Card>
 
