@@ -425,14 +425,8 @@ export default function DashboardStatistics() {
                                     }} />
                                     <Input className="h-8 w-[80px] text-xs bg-white border-slate-200" type="number" step="0.01" placeholder="TR" value={data.tr_value} onChange={(e) => setData({ ...data, tr_value: parseFloat(e.target.value) || 0 })} />
 
-                                    {/* Production Inputs inside TIFR Header */}
                                     <div className="h-4 w-px bg-slate-200 mx-1" />
-                                    <Input className="h-8 w-[80px] text-xs bg-white border-slate-200" type="number" placeholder="Tgt Prod" value={data.production_target[selectedMonth.tifr]} onChange={(e) => {
-                                        const newVal = [...data.production_target];
-                                        newVal[selectedMonth.tifr] = parseInt(e.target.value) || 0;
-                                        setData({ ...data, production_target: newVal });
-                                    }} />
-                                    <Input className="h-8 w-[80px] text-xs bg-white border-slate-200" type="number" placeholder="Act Prod" value={data.production_actual[selectedMonth.tifr]} onChange={(e) => {
+                                    <Input className="h-8 w-[100px] text-xs bg-white border-slate-200" type="number" placeholder="Produksi" value={data.production_actual[selectedMonth.tifr]} onChange={(e) => {
                                         const newVal = [...data.production_actual];
                                         newVal[selectedMonth.tifr] = parseInt(e.target.value) || 0;
                                         setData({ ...data, production_actual: newVal });
@@ -451,26 +445,14 @@ export default function DashboardStatistics() {
                                 labels: MONTHS,
                                 datasets: [
                                     {
-                                        label: 'Target Produksi',
-                                        type: 'bar' as const,
-                                        data: data.production_target,
-                                        backgroundColor: '#f3f4f6', // Light gray/beige
+                                        label: 'Produksi',
+                                        type: 'bar',
+                                        data: data.production_actual,
+                                        backgroundColor: '#f1f5f9',
                                         borderColor: '#e2e8f0',
                                         borderWidth: 1,
                                         borderRadius: 8,
                                         barPercentage: 0.9,
-                                        categoryPercentage: 0.8,
-                                        grouped: false,
-                                        order: 4,
-                                        yAxisID: 'y'
-                                    },
-                                    {
-                                        label: 'Realisasi Produksi',
-                                        type: 'bar' as const,
-                                        data: data.production_actual,
-                                        backgroundColor: '#e2e8f0', // Slightly darker gray
-                                        borderRadius: 6,
-                                        barPercentage: 0.6,
                                         categoryPercentage: 0.8,
                                         grouped: false,
                                         order: 3,
@@ -478,30 +460,35 @@ export default function DashboardStatistics() {
                                     },
                                     {
                                         label: 'Insiden',
-                                        type: 'bar' as const,
+                                        type: 'bar',
                                         data: data.ti_incidents,
-                                        backgroundColor: '#dc2626', // Red
+                                        backgroundColor: '#dc2626',
                                         borderRadius: 4,
-                                        barPercentage: 0.3, // Even thinner for incidents
+                                        barPercentage: 0.5,
                                         categoryPercentage: 0.8,
                                         grouped: false,
                                         order: 2,
                                         yAxisID: 'y'
                                     },
-                                    { label: 'TIFR', type: 'line' as const, data: chartsData.tifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, tension: 0.3, order: 1, yAxisID: 'y1' },
-                                    { label: 'TR', type: 'line' as const, data: Array(12).fill(data.tr_value), borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
+                                    { label: 'TIFR', type: 'line', data: chartsData.tifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, tension: 0.3, order: 1, yAxisID: 'y1' },
+                                    { label: 'TR', type: 'line', data: Array(12).fill(data.tr_value), borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
                                 ]
                             }} options={{
                                 ...commonOptions,
                                 plugins: {
                                     ...commonOptions.plugins,
                                     datalabels: {
-                                        ...commonOptions.plugins.datalabels,
-                                        formatter: (value: number, ctx: any) => {
-                                            if (ctx.dataset.label === 'Insiden' && value > 0) return value;
+                                        display: true,
+                                        color: '#000000',
+                                        font: { family: "'Inter', sans-serif", weight: 'bold', size: 12 },
+                                        formatter: (value: any, ctx: any) => {
+                                            if (value === 0 || value === null) return '';
                                             if (ctx.dataset.type === 'line') return value.toFixed(2).replace('.', ',');
-                                            return ''; // Hide production labels to avoid clutter
-                                        }
+                                            return value.toLocaleString('id-ID');
+                                        },
+                                        anchor: (ctx: any) => ctx.dataset.type === 'line' ? 'end' : (ctx.dataset.label === 'Produksi' ? 'end' : 'center'),
+                                        align: (ctx: any) => ctx.dataset.type === 'line' ? 'top' : (ctx.dataset.label === 'Produksi' ? 'top' : 'center'),
+                                        offset: (ctx: any) => ctx.dataset.type === 'line' ? 8 : 4
                                     }
                                 }
                             }} />
@@ -590,9 +577,9 @@ export default function DashboardStatistics() {
                             <Chart type='bar' data={{
                                 labels: MONTHS,
                                 datasets: [
-                                    { type: 'bar' as const, label: 'Menabrak', data: data.menabrak, backgroundColor: '#dc2626', stack: 'stack1', borderRadius: 4, order: 3, yAxisID: 'y' },
-                                    { type: 'bar' as const, label: 'Rebah', data: data.rebah, backgroundColor: '#64748b', stack: 'stack1', borderRadius: 4, order: 2, yAxisID: 'y' },
-                                    { type: 'line' as const, label: 'CIFR', data: chartsData.cifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, tension: 0.3, pointRadius: 4, order: 1, yAxisID: 'y1' }
+                                    { type: 'bar', label: 'Menabrak', data: data.menabrak, backgroundColor: '#dc2626', stack: 'stack1', borderRadius: 4, order: 3, yAxisID: 'y' },
+                                    { type: 'bar', label: 'Rebah', data: data.rebah, backgroundColor: '#64748b', stack: 'stack1', borderRadius: 4, order: 2, yAxisID: 'y' },
+                                    { type: 'line', label: 'CIFR', data: chartsData.cifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, tension: 0.3, pointRadius: 4, order: 1, yAxisID: 'y1' }
                                 ]
                             }} options={commonOptions} />
                         </div>
