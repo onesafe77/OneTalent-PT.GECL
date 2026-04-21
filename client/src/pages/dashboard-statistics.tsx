@@ -424,6 +424,20 @@ export default function DashboardStatistics() {
                                         setData({ ...data, ti_incidents: newIncidents });
                                     }} />
                                     <Input className="h-8 w-[80px] text-xs bg-white border-slate-200" type="number" step="0.01" placeholder="TR" value={data.tr_value} onChange={(e) => setData({ ...data, tr_value: parseFloat(e.target.value) || 0 })} />
+
+                                    {/* Production Inputs inside TIFR Header */}
+                                    <div className="h-4 w-px bg-slate-200 mx-1" />
+                                    <Input className="h-8 w-[80px] text-xs bg-white border-slate-200" type="number" placeholder="Tgt Prod" value={data.production_target[selectedMonth.tifr]} onChange={(e) => {
+                                        const newVal = [...data.production_target];
+                                        newVal[selectedMonth.tifr] = parseInt(e.target.value) || 0;
+                                        setData({ ...data, production_target: newVal });
+                                    }} />
+                                    <Input className="h-8 w-[80px] text-xs bg-white border-slate-200" type="number" placeholder="Act Prod" value={data.production_actual[selectedMonth.tifr]} onChange={(e) => {
+                                        const newVal = [...data.production_actual];
+                                        newVal[selectedMonth.tifr] = parseInt(e.target.value) || 0;
+                                        setData({ ...data, production_actual: newVal });
+                                    }} />
+
                                     <div className="flex items-center space-x-2 px-2">
                                         <Checkbox id="ytd_tifr" checked={data.mode_ytd_tifr} onCheckedChange={(c) => setData({ ...data, mode_ytd_tifr: !!c })} />
                                         <Label htmlFor="ytd_tifr" className="text-xs font-semibold">YTD</Label>
@@ -436,11 +450,61 @@ export default function DashboardStatistics() {
                             <Chart type='bar' data={{
                                 labels: MONTHS,
                                 datasets: [
-                                    { type: 'bar' as const, label: 'Insiden', data: data.ti_incidents, backgroundColor: '#dc2626', borderRadius: 4, order: 2, yAxisID: 'y' },
-                                    { type: 'line' as const, label: 'TIFR', data: chartsData.tifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, tension: 0.3, order: 1, yAxisID: 'y1' },
-                                    { type: 'line' as const, label: 'TR', data: Array(12).fill(data.tr_value), borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
+                                    {
+                                        label: 'Target Produksi',
+                                        type: 'bar' as const,
+                                        data: data.production_target,
+                                        backgroundColor: '#f3f4f6', // Light gray/beige
+                                        borderColor: '#e2e8f0',
+                                        borderWidth: 1,
+                                        borderRadius: 8,
+                                        barPercentage: 0.9,
+                                        categoryPercentage: 0.8,
+                                        grouped: false,
+                                        order: 4,
+                                        yAxisID: 'y'
+                                    },
+                                    {
+                                        label: 'Realisasi Produksi',
+                                        type: 'bar' as const,
+                                        data: data.production_actual,
+                                        backgroundColor: '#e2e8f0', // Slightly darker gray
+                                        borderRadius: 6,
+                                        barPercentage: 0.6,
+                                        categoryPercentage: 0.8,
+                                        grouped: false,
+                                        order: 3,
+                                        yAxisID: 'y'
+                                    },
+                                    {
+                                        label: 'Insiden',
+                                        type: 'bar' as const,
+                                        data: data.ti_incidents,
+                                        backgroundColor: '#dc2626', // Red
+                                        borderRadius: 4,
+                                        barPercentage: 0.3, // Even thinner for incidents
+                                        categoryPercentage: 0.8,
+                                        grouped: false,
+                                        order: 2,
+                                        yAxisID: 'y'
+                                    },
+                                    { label: 'TIFR', type: 'line' as const, data: chartsData.tifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, tension: 0.3, order: 1, yAxisID: 'y1' },
+                                    { label: 'TR', type: 'line' as const, data: Array(12).fill(data.tr_value), borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
                                 ]
-                            }} options={commonOptions} />
+                            }} options={{
+                                ...commonOptions,
+                                plugins: {
+                                    ...commonOptions.plugins,
+                                    datalabels: {
+                                        ...commonOptions.plugins.datalabels,
+                                        formatter: (value: number, ctx: any) => {
+                                            if (ctx.dataset.label === 'Insiden' && value > 0) return value;
+                                            if (ctx.dataset.type === 'line') return value.toFixed(2).replace('.', ',');
+                                            return ''; // Hide production labels to avoid clutter
+                                        }
+                                    }
+                                }
+                            }} />
                         </div>
                     </Card>
 
@@ -531,101 +595,6 @@ export default function DashboardStatistics() {
                                     { type: 'line' as const, label: 'CIFR', data: chartsData.cifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, tension: 0.3, pointRadius: 4, order: 1, yAxisID: 'y1' }
                                 ]
                             }} options={commonOptions} />
-                        </div>
-                    </Card>
-
-                    {/* Chart 4: Production */}
-                    <Card className="border-none shadow-xl bg-white rounded-3xl overflow-hidden ring-1 ring-slate-100">
-                        <div className="p-1">
-                            <div className="bg-gradient-to-r from-blue-50 to-white p-4 rounded-t-3xl border-b border-blue-50 flex flex-col xl:flex-row gap-4 justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black text-lg shadow-sm">4</div>
-                                    <div>
-                                        <h2 className="font-bold text-gray-900 text-lg">PRODUKSI</h2>
-                                        <p className="text-xs text-blue-500 font-bold uppercase tracking-wider">Target vs Realisasi Produksi</p>
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 bg-white/80 p-2 rounded-xl shadow-sm border border-blue-100/50">
-                                    <div className="w-[100px]">
-                                        <Select value={selectedMonth.prod.toString()} onValueChange={(v) => setSelectedMonth({ ...selectedMonth, prod: parseInt(v) })}>
-                                            <SelectTrigger className="h-8 text-xs bg-white border-none shadow-none"><SelectValue /></SelectTrigger>
-                                            <SelectContent>{MONTHS.map((m, i) => <SelectItem key={i} value={i.toString()}>{m}</SelectItem>)}</SelectContent>
-                                        </Select>
-                                    </div>
-                                    <Input className="h-8 w-[100px] text-xs bg-white border-slate-200" type="number" placeholder="Target" value={data.production_target[selectedMonth.prod]} onChange={(e) => {
-                                        const newVal = [...data.production_target];
-                                        newVal[selectedMonth.prod] = parseInt(e.target.value) || 0;
-                                        setData({ ...data, production_target: newVal });
-                                    }} />
-                                    <Input className="h-8 w-[100px] text-xs bg-white border-slate-200" type="number" placeholder="Realisasi" value={data.production_actual[selectedMonth.prod]} onChange={(e) => {
-                                        const newVal = [...data.production_actual];
-                                        newVal[selectedMonth.prod] = parseInt(e.target.value) || 0;
-                                        setData({ ...data, production_actual: newVal });
-                                    }} />
-                                    <Button size="sm" onClick={() => saveData(data)} className="h-8 text-xs rounded-lg bg-blue-600 hover:bg-blue-700">Save</Button>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-6 h-[400px]">
-                            <Chart type='bar' data={{
-                                labels: MONTHS,
-                                datasets: [
-                                    {
-                                        label: 'Target',
-                                        data: data.production_target,
-                                        backgroundColor: '#f3f4f6', // Light gray/beige
-                                        borderColor: '#e5e7eb',
-                                        borderWidth: 1,
-                                        borderRadius: 8,
-                                        barPercentage: 0.9,
-                                        categoryPercentage: 0.8,
-                                        order: 2,
-                                        grouped: false, // Ensure they overlay
-                                        datalabels: {
-                                            align: 'top',
-                                            anchor: 'end',
-                                            color: '#6b7280',
-                                            font: { weight: 'bold' }
-                                        }
-                                    },
-                                    {
-                                        label: 'Realisasi',
-                                        data: data.production_actual,
-                                        backgroundColor: '#ef4444', // Red
-                                        borderRadius: 6,
-                                        barPercentage: 0.6,
-                                        categoryPercentage: 0.8,
-                                        order: 1,
-                                        grouped: false, // Ensure they overlay
-                                        datalabels: {
-                                            align: 'center',
-                                            anchor: 'center',
-                                            color: '#ffffff',
-                                            font: { weight: 'bold' }
-                                        }
-                                    }
-                                ]
-                            }} options={{
-                                ...commonOptions,
-                                scales: {
-                                    ...commonOptions.scales,
-                                    x: {
-                                        ...commonOptions.scales.x,
-                                        stacked: false, // Overlay, don't stack
-                                    },
-                                    y: {
-                                        ...commonOptions.scales.y,
-                                        stacked: false,
-                                    }
-                                },
-                                plugins: {
-                                    ...commonOptions.plugins,
-                                    datalabels: {
-                                        ...commonOptions.plugins.datalabels,
-                                        formatter: (value: number) => value > 0 ? value : ''
-                                    }
-                                }
-                            }} />
                         </div>
                     </Card>
 
