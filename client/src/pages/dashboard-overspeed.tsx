@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import Papa from "papaparse";
 import {
     BarChart,
@@ -129,9 +131,12 @@ interface OverspeedData {
     _dateObj?: Date;
     _year?: number;
     _monthIndex?: number; // 0-11
+    [key: string]: any;
 }
 
 // --- Utils ---
+const washKey = (s?: string) => s?.toString().replace(/\s+/g, "").toUpperCase() || "";
+
 const parseDate = (dateStr: string) => {
     if (!dateStr) return new Date();
 
@@ -202,6 +207,13 @@ export default function DashboardOverspeed() {
     // Unique options for filters
     const [availableYears, setAvailableYears] = useState<number[]>([]);
     const [availableUnits, setAvailableUnits] = useState<string[]>([]);
+    const { data: unitMitraMap } = useQuery({
+        queryKey: ["unit-mitra-map"],
+        queryFn: async () => {
+            const res = await apiRequest("/api/fms/unit-mitra-map", "GET");
+            return res as Record<string, string>;
+        }
+    });
 
     useEffect(() => {
         const config = getSheetConfig();
@@ -361,6 +373,7 @@ export default function DashboardOverspeed() {
         let closedOntime = 0;
         let closedOverdue = 0;
         let waitingCount = 0;
+        const unitMitraFromCsv: Record<string, string> = {};
 
         filteredData.forEach((row, i) => {
             // Employee
@@ -376,9 +389,15 @@ export default function DashboardOverspeed() {
                 if (row["Jabatan"]) empInfo[name].role = row["Jabatan"];
             }
 
-            // Unit
             const unit = row["Vehicle No"] || "Unknown";
-            if (unit) unitCounts[unit] = (unitCounts[unit] || 0) + 1;
+            if (unit) {
+                unitCounts[unit] = (unitCounts[unit] || 0) + 1;
+                // Capture Mitra from CSV if available
+                const mitraLabel = row["Investor Group"] || row["InvestorGroup"] || row["Company"] || row["Firma"];
+                if (mitraLabel && mitraLabel !== "#N/A" && !unitMitraFromCsv[unit]) {
+                    unitMitraFromCsv[unit] = mitraLabel.toString().trim();
+                }
+            }
 
             // Location
             const loc = row["Location (KM)"] || "Unknown";
@@ -442,7 +461,11 @@ export default function DashboardOverspeed() {
             .slice(0, 10);
 
         const topUnits = Object.entries(unitCounts)
-            .map(([name, count]) => ({ name, count }))
+            .map(([name, count]) => ({
+                name,
+                count,
+                mitra: unitMitraMap?.[washKey(name)] || unitMitraFromCsv[name] || "-"
+            }))
             .sort((a, b) => b.count - a.count)
             .slice(0, 10);
 
@@ -459,7 +482,7 @@ export default function DashboardOverspeed() {
             closedOntime, closedOverdue, waitingCount,
             topLocations, shiftData, speedData // New fields
         };
-    }, [filteredData]);
+    }, [filteredData, unitMitraMap]);
 
     // --- AI Analysis Logic ---
     // --- AI Analysis Logic ---
@@ -879,14 +902,29 @@ export default function DashboardOverspeed() {
                             <CardContent className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart
-                                        data={stats?.topUnits.map(u => ({ name: u.name, count: u.count }))}
+                                        data={stats?.topUnits.map(u => ({
+                                            name: u.name,
+                                            displayName: `${u.name} • ${u.mitra}`,
+                                            count: u.count
+                                        }))}
                                         layout="vertical"
-                                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
                                     >
                                         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
                                         <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <Tooltip cursor={{ fill: '#f8fafc' }} />
+                                        <YAxis
+                                            dataKey="displayName"
+                                            type="category"
+                                            width={140}
+                                            tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip
+                                            cursor={{ fill: '#f8fafc' }}
+                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                            formatter={(value: number, name: string, props: any) => [value, props.payload.displayName]}
+                                        />
                                         <Bar dataKey="count" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20}>
                                             <LabelList dataKey="count" position="right" fill="#f97316" fontSize={10} fontWeight="bold" />
                                         </Bar>
@@ -1021,8 +1059,8 @@ export default function DashboardOverspeed() {
                                             {i + 1}
                                         </div>
                                         <div>
-                                            <p className="text-sm font-bold text-gray-800 group-hover:text-red-700 transition-colors uppercase">{emp.name}</p>
-                                            <p className="text-xs text-gray-400">{emp.unit} • {emp.role}</p>
+                                            <p className="text-sm font-bold text-gray-800 truncate group-hover:text-red-700 transition-colors" title={emp.name}>{emp.name}</p>
+                                            <p className="text-xs text-gray-400">{emp.unit} • {unitMitraMap?.[washKey(emp.unit)] || "-"} • {emp.role}</p>
                                         </div>
                                     </div>
                                     <Badge variant="secondary" className="bg-white group-hover:bg-red-200 text-gray-600 group-hover:text-red-800 transition-colors">

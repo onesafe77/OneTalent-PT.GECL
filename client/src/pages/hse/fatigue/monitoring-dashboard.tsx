@@ -76,7 +76,18 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 export default function FmsFatigueMonitoringDashboard() {
 
     const year = new Date().getFullYear();
-    const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+    const MONTH_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+    const washKey = (s: string) => s ? s.toString().replace(/\s+/g, "").toUpperCase() : "";
+
+    const { data: unitMitraMap } = useQuery<Record<string, string>>({
+        queryKey: ["unit-mitra-map"],
+        queryFn: async () => {
+            const res = await fetch("/api/fms/unit-mitra-map");
+            if (!res.ok) return {};
+            return res.json();
+        }
+    });
 
     const [dateFilter, setDateFilter] = useState<string>("");
     const [monthFilter, setMonthFilter] = useState<string>("all");
@@ -400,13 +411,26 @@ export default function FmsFatigueMonitoringDashboard() {
                                         >
                                             <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                                             <XAxis type="number" />
-                                            <YAxis dataKey="vehicleNo" type="category" width={90} interval={0} tick={{ fontSize: 13 }} />
+                                            <YAxis
+                                                dataKey="vehicleNo"
+                                                type="category"
+                                                width={140}
+                                                interval={0}
+                                                tick={{ fontSize: 11, fontWeight: 'bold' }}
+                                                tickFormatter={(value) => {
+                                                    const mitra = unitMitraMap?.[washKey(value)];
+                                                    return mitra ? `${value} • ${mitra}` : value;
+                                                }}
+                                            />
                                             <RechartsTooltip
                                                 formatter={(value, name, props) => {
                                                     const driverName = props.payload.driverName;
-                                                    // If 'value' is requested, we show it next to driverName
-                                                    if (name === 'totalCount') return [value, `Total Alert (${driverName})`];
-                                                    if (name === 'validCount') return [value, `Alert Valid (${driverName})`];
+                                                    const vehicleNo = props.payload.vehicleNo;
+                                                    const mitra = unitMitraMap?.[washKey(vehicleNo)];
+                                                    const label = mitra ? `${driverName} (${mitra})` : driverName;
+
+                                                    if (name === 'totalCount') return [value, `Total Alert - ${label}`];
+                                                    if (name === 'validCount') return [value, `Alert Valid - ${label}`];
                                                     return [value, name];
                                                 }}
                                             />
@@ -684,6 +708,9 @@ export default function FmsFatigueMonitoringDashboard() {
                                                                 >
                                                                     {driver.vehicleNo}
                                                                 </button>
+                                                                <span className="text-[10px] text-gray-400 font-normal">
+                                                                    {unitMitraMap?.[washKey(driver.vehicleNo)] || ""}
+                                                                </span>
                                                                 {driver.unassignedCount > 0 && (
                                                                     <span className="flex h-2.5 w-2.5 relative">
                                                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>

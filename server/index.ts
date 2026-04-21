@@ -512,7 +512,7 @@ app.get("/api/admin/migrate-sidak-hydraulic-jack", async (req, res) => {
     res.send("<h1>✅ Sidak Hydraulic Jack tables created successfully</h1>");
   } catch (e: any) {
     console.error("SIDAK HYDRAULIC JACK MIGRATION ERROR:", e);
-    res.status(500).send(`<h1>❌ Migration failed < /h1><p>${e.message}</p > `);
+    res.status(500).send(`<h1>❌ Migration failed</h1><p>${e.message}</p>`);
   }
 });
 

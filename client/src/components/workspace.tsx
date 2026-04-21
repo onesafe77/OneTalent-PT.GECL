@@ -130,6 +130,7 @@ import { InstalasiFormPage, InstalasiViewPage } from "@/pages/hse/ko/spip/instal
 import SPIPPeralatanWorkshop from "@/pages/hse/ko/spip/peralatan-workshop-list";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { MysticWidget } from "@/components/mystic/MysticWidget";
+import InvestorEvaluationPage from "@/pages/hse/investor-evaluation";
 
 
 const workspaceRoutes = [
@@ -236,6 +237,7 @@ const workspaceRoutes = [
   { path: "/workspace/hse/ko/spip/prasarana", component: SPIPPrasarana, title: "SPIP - Sarana & Prasarana" },
   { path: "/workspace/hse/ko/spip/instalasi", component: SPIPInstalasi, title: "SPIP - Instalasi" },
   { path: "/workspace/hse/ko/spip/peralatan/bergerak", component: SPIPPeralatanWorkshop, title: "SPIP - Peralatan Bergerak" },
+  { path: "/workspace/hse/investor-evaluation", component: InvestorEvaluationPage, title: "Evaluasi Investor Group" },
 ];
 
 export function Workspace() {
@@ -473,6 +475,7 @@ export function Workspace() {
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/hse/mcu" component={McuPage} />
+              <Route path="/workspace/hse/investor-evaluation" component={InvestorEvaluationPage} />
 
               <Route path="/workspace/hse/ko/spip/peralatan/tambah" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/bergerak" component={SPIPPeralatanWorkshop} />

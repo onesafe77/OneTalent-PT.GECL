@@ -54,6 +54,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 interface SickLeave {
     id: string;
     name: string;
+    nik: string | null;
+    position: string | null;
     date: string;
     reason: string;
     status: string;
@@ -133,13 +135,14 @@ export default function SickLeavePage() {
         }
 
         try {
-            const dataToExport = filteredLeaves.map(leave => ({
-                Nama: leave.name,
-                Tanggal: formatDate(leave.date),
-                Alasan: leave.reason || "-",
-                Status: leave.status,
-                "Lampiran": leave.attachmentUrl ? "Ada" : "Tidak Ada",
-                "Waktu Masuk": formatDate(leave.created_at)
+            const dataToExport = filteredLeaves.map((l) => ({
+                "Tanggal": format(new Date(l.date), "yyyy-MM-dd"),
+                "NIK": l.nik || "-",
+                "Nama Karyawan": l.name,
+                "Jabatan": l.position || "-",
+                "Alasan": l.reason,
+                "Status": l.status,
+                "AI Confidence": l.aiConfidence ? `${(l.aiConfidence).toFixed(0)}%` : "-",
             }));
 
             const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -312,7 +315,9 @@ export default function SickLeavePage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Tanggal</TableHead>
+                                        <TableHead>NIK</TableHead>
                                         <TableHead>Nama Karyawan</TableHead>
+                                        <TableHead>Jabatan</TableHead>
                                         <TableHead>Alasan</TableHead>
                                         <TableHead>Lampiran</TableHead>
                                         <TableHead>AI Confidence</TableHead>
@@ -323,12 +328,14 @@ export default function SickLeavePage() {
                                 <TableBody>
                                     {filteredLeaves.map((leave) => (
                                         <TableRow key={leave.id} className="cursor-pointer hover:bg-gray-50" onClick={() => handleViewDetail(leave)}>
-                                            <TableCell className="font-medium whitespace-nowrap">
-                                                {formatDate(leave.date)}
+                                            <TableCell className="font-medium">
+                                                {format(new Date(leave.date), "dd MMM yyyy", { locale: idLocale })}
                                             </TableCell>
-                                            <TableCell className="font-semibold">{leave.name}</TableCell>
-                                            <TableCell className="max-w-[200px] truncate" title={leave.reason}>
-                                                {leave.reason || "-"}
+                                            <TableCell className="font-mono text-xs">{leave.nik || "-"}</TableCell>
+                                            <TableCell className="font-bold">{leave.name}</TableCell>
+                                            <TableCell className="text-muted-foreground text-xs">{leave.position || "-"}</TableCell>
+                                            <TableCell className="max-w-[300px]">
+                                                <span className="truncate block">{leave.reason}</span>
                                             </TableCell>
                                             <TableCell>
                                                 {leave.attachmentUrl ? (
@@ -400,17 +407,36 @@ export default function SickLeavePage() {
                                         <p className="font-semibold text-lg">{selectedLeave.name}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-500">Tanggal Ijin</p>
-                                        <p className="font-semibold text-lg">{formatDate(selectedLeave.date)}</p>
-                                    </div>
-                                    <div className="col-span-2">
-                                        <p className="text-sm text-gray-500">Alasan</p>
-                                        <p className="text-gray-800">{selectedLeave.reason || "-"}</p>
-                                    </div>
-                                    <div>
                                         <p className="text-sm text-gray-500">Status</p>
                                         <div className="mt-1">{getStatusBadge(selectedLeave.status)}</div>
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                                            <Shield className="h-3 w-3" /> NIK
+                                        </p>
+                                        <p className="font-mono">{selectedLeave.nik || "-"}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                                            <Users className="h-3 w-3" /> Jabatan
+                                        </p>
+                                        <p>{selectedLeave.position || "-"}</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                                        <Calendar className="h-3 w-3" /> Tanggal Sakit
+                                    </p>
+                                    <p>{format(new Date(selectedLeave.date), "EEEE, dd MMMM yyyy", { locale: idLocale })}</p>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium text-muted-foreground">Alasan</p>
+                                    <p className="text-gray-800 bg-gray-50 p-3 rounded border">{selectedLeave.reason || "-"}</p>
                                 </div>
 
                                 {selectedLeave.attachmentUrl && (

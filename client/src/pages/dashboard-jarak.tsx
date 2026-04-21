@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import Papa from "papaparse";
 import {
     BarChart,
@@ -124,6 +126,7 @@ interface OverspeedData {
     _dateObj?: Date;
     _year?: number;
     _monthIndex?: number; // 0-11
+    [key: string]: any; // Allow dynamic property access for CSV/Sheet columns
 }
 
 // --- Utils ---
@@ -140,6 +143,8 @@ const parseDate = (dateStr: string) => {
     }
     return new Date();
 };
+
+const washKey = (s?: string) => s?.toString().replace(/\s+/g, "").toUpperCase() || "";
 
 const getMonthName = (monthIndex: number) => {
     const months = [
@@ -173,6 +178,14 @@ export default function DashboardJarak() {
     const [availableYears, setAvailableYears] = useState<number[]>([]);
     const [availableUnits, setAvailableUnits] = useState<string[]>([]);
 
+    const { data: unitMitraMap } = useQuery({
+        queryKey: ["unit-mitra-map"],
+        queryFn: async () => {
+            const res = await apiRequest("/api/fms/unit-mitra-map", "GET");
+            return res as Record<string, string>;
+        }
+    });
+
     useEffect(() => {
         const config = getSheetConfig();
         setSheetConfig(config);
@@ -205,6 +218,9 @@ export default function DashboardJarak() {
         const iTicketStatus = headersTrimmed.indexOf("Status");
         let iValidationStatus = headersTrimmed.indexOf("Status Pelanggaran");
         if (iValidationStatus === -1) iValidationStatus = headersTrimmed.indexOf("Verifikasi");
+        let iInvestorGroup = headersTrimmed.indexOf("Investor Group");
+        if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("InvestorGroup");
+        if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("Firma");
 
         return rows
             .filter(r => r[iCompany]?.trim().toUpperCase() === COMPANY_FILTER_DEFAULT)
@@ -236,6 +252,7 @@ export default function DashboardJarak() {
                     "Durasi Close": r[iDurasi],
                     "Tanggal Pemenuhan": r[iPemenuhan],
                     StatusClosedNC: r[iStatusClosedNC],
+                    "Investor Group": r[iInvestorGroup] || r[iCompany] || "-",
                     "Masa Berlaku Sanksi": r.find && typeof r.find === 'function' ? (headersTrimmed.indexOf("Masa Berlaku Sanksi") > -1 ? r[headersTrimmed.indexOf("Masa Berlaku Sanksi")] : "-") : "-", // Flexible indexing for API
                     _dateObj: d,
                     _year: d.getFullYear(),
@@ -324,6 +341,9 @@ export default function DashboardJarak() {
                     const iTicketStatus = headersTrimmed.indexOf("Status");
                     let iValidationStatus = headersTrimmed.indexOf("Status Pelanggaran");
                     if (iValidationStatus === -1) iValidationStatus = headersTrimmed.indexOf("Verifikasi");
+                    let iInvestorGroup = headersTrimmed.indexOf("Investor Group");
+                    if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("InvestorGroup");
+                    if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("Firma");
 
                     const processedData = rows.slice(1)
                         .filter(r => r[iCompany]?.trim().toUpperCase() === COMPANY_FILTER_DEFAULT)
@@ -355,6 +375,7 @@ export default function DashboardJarak() {
                                 "Durasi Close": r[iDurasi],
                                 "Tanggal Pemenuhan": r[iPemenuhan],
                                 StatusClosedNC: r[iStatusClosedNC],
+                                "Investor Group": r[iInvestorGroup] || r[iCompany] || "-",
                                 "Masa Berlaku Sanksi": headersTrimmed.indexOf("Masa Berlaku Sanksi") > -1 ? r[headersTrimmed.indexOf("Masa Berlaku Sanksi")] : "-",
                                 // Helpers
                                 _dateObj: d,
@@ -444,90 +465,105 @@ export default function DashboardJarak() {
         });
         const monthData = Object.keys(monthCounts).map(name => ({ name, count: monthCounts[name] }));
 
-        // 2. Trend Per Week
+        // New unified counters
+        const unitMitraFromCsv: Record<string, string> = {};
+        const unitCounts: Record<string, number> = {};
+        const empCounts: Record<string, number> = {};
         const weekCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const w = row.Week ? `Minggu ${row.Week}` : "Unknown";
-            weekCounts[w] = (weekCounts[w] || 0) + 1;
-        });
-        const weekData = Object.keys(weekCounts)
-            .sort((a, b) => parseInt(a.replace(/\D/g, '')) - parseInt(b.replace(/\D/g, '')))
-            .map(name => ({ name, count: weekCounts[name] }));
-
-        // 3. Trend Per Day (unused but kept for future)
-        const dayCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const date = row.Date;
-            dayCounts[date] = (dayCounts[date] || 0) + 1;
-        });
-
-        // 4. Trend Per Hour
         const hourCounts: Record<string, number> = {};
         for (let i = 0; i < 24; i++) hourCounts[i] = 0;
-        filteredData.forEach(row => {
-            if (row.Time) {
-                const hour = parseInt(row.Time.split(":")[0]);
-                if (!isNaN(hour)) hourCounts[hour]++;
-            }
-        });
-        const hourData = Object.keys(hourCounts).map(h => ({ name: h, count: hourCounts[parseInt(h)] }));
 
-        // 5. Top Employees (Using Nama Karyawan)
-        const empCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
-            if (name && name !== "BIB") empCounts[name] = (empCounts[name] || 0) + 1;
-        });
-        const topEmployees = Object.keys(empCounts)
-            .map(name => ({ name, count: empCounts[name], unit: filteredData.find(r => (r["Nama Karyawan"] || r["Nama Eksekutor"])?.toUpperCase() === name)?.["Vehicle No"] || "-" }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
-
-        // 6. Top Units
-        const unitCounts: Record<string, number> = {};
-        filteredData.forEach(row => {
-            const unit = row["Vehicle No"];
-            if (unit) unitCounts[unit] = (unitCounts[unit] || 0) + 1;
-        });
-        const topUnits = Object.keys(unitCounts)
-            .map(name => ({ name, count: unitCounts[name] }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
-
-        // 7. Status & Duration Metrics
-        // 7. Status & Duration Metrics
         let openCount = 0;
         let closedCount = 0;
         let validCount = 0;
         let invalidCount = 0;
         let totalDuration = 0;
         let durationCount = 0;
-
         let closedOntime = 0;
         let closedOverdue = 0;
 
         filteredData.forEach(row => {
-            // Ticket Status (from 'Status' col)
+            // Trend Per Week
+            const w = row.Week ? `Minggu ${row.Week}` : "Unknown";
+            weekCounts[w] = (weekCounts[w] || 0) + 1;
+
+            // Trend Per Hour
+            if (row.Time) {
+                const hour = parseInt(row.Time.split(":")[0]);
+                if (!isNaN(hour)) hourCounts[hour]++;
+            }
+
+            // Top Employees
+            const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
+            if (name && name !== "BIB") empCounts[name] = (empCounts[name] || 0) + 1;
+
+            // Unit & Mitra
+            const unit = row["Vehicle No"];
+            if (unit) {
+                unitCounts[unit] = (unitCounts[unit] || 0) + 1;
+                // Capture Mitra from CSV if available
+                const mitraLabel = row["Investor Group"] || row["InvestorGroup"] || row["Company"] || row["Firma"];
+                if (mitraLabel && mitraLabel !== "#N/A" && !unitMitraFromCsv[unit]) {
+                    unitMitraFromCsv[unit] = mitraLabel.toString().trim();
+                }
+            }
+
+            // Ticket Status
             const ticketStatus = row.TicketStatus?.trim().toLowerCase();
             if (ticketStatus === 'open') openCount++;
             else if (ticketStatus === 'closed') closedCount++;
 
-            // Validation Status (from 'Status Pelanggaran' or second 'Status')
+            // Validation Status
             const valStatus = row.ValidationStatus?.trim().toLowerCase();
             if (valStatus === 'valid' || valStatus === 'approve') validCount++;
             else if (valStatus && (valStatus.includes('invalid') || valStatus.includes('inv'))) invalidCount++;
 
-            // Duration (from 'Durasi Close')
+            // Duration
             const dur = parseInt(row["Durasi Close"] || "0");
             if (!isNaN(dur) && dur > 0) {
                 totalDuration += dur;
                 durationCount++;
             }
-            // Status Closed NC Breakdown
+
+            // Status Closed NC
             const sc = row.StatusClosedNC?.toLowerCase() || "";
             if (sc.includes("ontime")) closedOntime++;
             else if (sc.includes("overdue")) closedOverdue++;
         });
+
+        const weekData = Object.keys(weekCounts)
+            .sort((a, b) => parseInt(a.replace(/\D/g, '')) - parseInt(b.replace(/\D/g, '')))
+            .map(name => ({ name, count: weekCounts[name] }));
+
+        const hourData = Object.keys(hourCounts).map(h => ({ name: h, count: hourCounts[parseInt(h)] }));
+
+        const topEmployees = Object.keys(empCounts)
+            .map(name => {
+                const row = filteredData.find(r => (r["Nama Karyawan"] || r["Nama Eksekutor"])?.toUpperCase() === name);
+                const unit = row?.["Vehicle No"] || "-";
+                const mitra = unit !== "-" ? (unitMitraMap?.[washKey(unit)] || row?.["Investor Group"] || row?.["InvestorGroup"] || row?.["Company"] || "-") : "-";
+                return { name, count: empCounts[name], unit, mitra };
+            })
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const topUnits = Object.keys(unitCounts)
+            .map(name => {
+                const washed = washKey(name);
+                const fromDb = unitMitraMap?.[washed];
+                const fromCsv = unitMitraFromCsv[name];
+                return {
+                    name,
+                    count: unitCounts[name],
+                    mitra: fromDb || fromCsv || "-"
+                };
+            })
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        if (filteredData.length > 0) {
+            console.log("[Dashboard Jarak] CSV Columns sample:", Object.keys(filteredData[0]));
+        }
         console.log("[Dashboard Jarak] Status Closed NC Stats - Ontime:", closedOntime, "Overdue:", closedOverdue);
         console.log("[Dashboard Jarak] Sample StatusClosedNC values:", filteredData.slice(0, 5).map(d => d.StatusClosedNC));
         const avgDuration = durationCount > 0 ? (totalDuration / durationCount).toFixed(1) : "0";
@@ -537,7 +573,7 @@ export default function DashboardJarak() {
             openCount, closedCount, validCount, invalidCount, avgDuration,
             closedOntime, closedOverdue
         };
-    }, [filteredData]);
+    }, [filteredData, unitMitraMap]);
 
     // --- AI Analysis Logic ---
     // --- AI Analysis Logic ---
@@ -771,6 +807,49 @@ export default function DashboardJarak() {
                         </CardContent>
                     </Card>
 
+                    {/* Top 10 Vehicles */}
+                    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
+                        <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-gray-100/50">
+                            <div>
+                                <CardTitle className="text-lg font-bold text-gray-800">Top 10 Vehicles</CardTitle>
+                                <CardDescription>Units with highest violation frequency</CardDescription>
+                            </div>
+                            <Truck className="w-5 h-5 text-gray-400" />
+                        </CardHeader>
+                        <CardContent className="h-[400px] pt-6">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                    data={stats?.topUnits.map(u => ({
+                                        name: u.name,
+                                        displayName: `${u.name} • ${u.mitra}`,
+                                        count: u.count
+                                    }))}
+                                    layout="vertical"
+                                    margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="displayName"
+                                        type="category"
+                                        width={160}
+                                        tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc' }}
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                        formatter={(value: number, name: string, props: any) => [value, props.payload.displayName]}
+                                    />
+                                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
+                                        <LabelList dataKey="count" position="right" fill="#3b82f6" fontSize={10} fontWeight="bold" />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
                     {/* Secondary Charts */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Weekly Analysis */}
@@ -883,7 +962,7 @@ export default function DashboardJarak() {
                                             </div>
                                             <div className="truncate">
                                                 <p className="text-sm font-bold text-gray-800 truncate group-hover:text-red-700 transition-colors" title={emp.name}>{emp.name}</p>
-                                                <p className="text-xs text-gray-400">{emp.unit}</p>
+                                                <p className="text-xs text-gray-400">{emp.unit} • {emp.mitra}</p>
                                             </div>
                                         </div>
                                         <Badge variant="secondary" className="bg-red-100 text-red-700 font-bold flex-shrink-0">
@@ -994,8 +1073,8 @@ export default function DashboardJarak() {
                                             <TableCell className="text-right py-5 px-8">
                                                 <Badge
                                                     className={`font-black uppercase tracking-tighter text-[10px] rounded-md px-2.5 py-1 ${row.TicketStatus?.toLowerCase() === "closed"
-                                                            ? "bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-none"
-                                                            : "bg-orange-50 text-orange-600 border border-orange-100 shadow-none"
+                                                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-none"
+                                                        : "bg-orange-50 text-orange-600 border border-orange-100 shadow-none"
                                                         }`}
                                                 >
                                                     {row.TicketStatus}
@@ -1085,8 +1164,8 @@ export default function DashboardJarak() {
                                                     <TableCell className="text-right">
                                                         <Badge
                                                             className={`font-black uppercase tracking-tighter text-[10px] ${row.TicketStatus?.toLowerCase() === "closed"
-                                                                    ? "bg-emerald-50 text-emerald-600"
-                                                                    : "bg-orange-50 text-orange-600"
+                                                                ? "bg-emerald-50 text-emerald-600"
+                                                                : "bg-orange-50 text-orange-600"
                                                                 }`}
                                                         >
                                                             {row.TicketStatus}

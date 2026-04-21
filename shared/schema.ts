@@ -3312,6 +3312,8 @@ export const sickLeaves = pgTable("sick_leaves", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   employeeId: varchar("employee_id").references(() => employees.id), // Nullable if name match fails
   name: text("name").notNull(),
+  nik: text("nik"),
+  position: text("position"),
   date: text("date").notNull(), // Format: YYYY-MM-DD
   reason: text("reason"),
   status: text("status").notNull().default("Pending"), // Pending, Approved, Rejected
@@ -3331,6 +3333,7 @@ export const sickLeaves = pgTable("sick_leaves", {
   index("IDX_sick_leaves_date").on(table.date),
   index("IDX_sick_leaves_employee").on(table.employeeId),
   index("IDX_sick_leaves_status").on(table.status),
+  index("IDX_sick_leaves_nik").on(table.nik),
 ]);
 
 export const insertSickLeaveSchema = createInsertSchema(sickLeaves).omit({

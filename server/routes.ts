@@ -2846,7 +2846,7 @@ Format sebagai bullet points singkat per insight.`;
 
       // Fetch full-month roster entries (driver pool is always month-based)
       const monthStart = `${month}-01`;
-      const monthEnd   = `${month}-31`;
+      const monthEnd = `${month}-31`;
 
       // Fetch full-month roster + week roster (if applicable) + employees + sessions in parallel
       const [rosterEntries, weekRosterEntries, allEmployees, allSessions] = await Promise.all([
@@ -2893,9 +2893,9 @@ Format sebagai bullet points singkat per insight.`;
       // Week-specific SIDAK sessions (only when week filter active, for "Sudah SIDAK")
       const weekSessions = hasWeekFilter
         ? allSessions.filter(session => {
-            const d = String(session.tanggal).slice(0, 10);
-            return d >= startDate! && d <= endDate!;
-          })
+          const d = String(session.tanggal).slice(0, 10);
+          return d >= startDate! && d <= endDate!;
+        })
         : fullMonthSessions;
 
       // Fetch records for both scopes in parallel
@@ -3001,7 +3001,7 @@ Format sebagai bullet points singkat per insight.`;
 
       const hasWeekFilter = !!(startDate && endDate);
       const monthStart = `${month}-01`;
-      const monthEnd   = `${month}-31`;
+      const monthEnd = `${month}-31`;
 
       // Fetch full-month roster + week roster (if applicable) + employees + sessions in parallel
       const [rosterEntries, weekRosterEntries, allEmployees, allSessions] = await Promise.all([
@@ -3043,9 +3043,9 @@ Format sebagai bullet points singkat per insight.`;
       // Week-specific sessions (for "Sudah SIDAK" when week filter active)
       const weekSessions = hasWeekFilter
         ? allSessions.filter(s => {
-            const d = String(s.tanggal).slice(0, 10);
-            return d >= startDate! && d <= endDate!;
-          })
+          const d = String(s.tanggal).slice(0, 10);
+          return d >= startDate! && d <= endDate!;
+        })
         : fullMonthSessions;
 
       const fullMonthSessionIds = fullMonthSessions.map(s => s.id);
@@ -4209,7 +4209,7 @@ Format sebagai bullet points singkat per insight.`;
       const filePath = files[index];
       if (filePath.startsWith('/api/uploads/')) {
         const fileId = filePath.replace('/api/uploads/', '');
-        try { await dbStorage.deleteFile(fileId); } catch (_) {}
+        try { await dbStorage.deleteFile(fileId); } catch (_) { }
       }
 
       const updatedFiles = files.filter((_, i) => i !== index);
@@ -4268,7 +4268,7 @@ Format sebagai bullet points singkat per insight.`;
       const filePath = files[index];
       if (filePath.startsWith('/api/uploads/')) {
         const fileId = filePath.replace('/api/uploads/', '');
-        try { await dbStorage.deleteFile(fileId); } catch (_) {}
+        try { await dbStorage.deleteFile(fileId); } catch (_) { }
       }
 
       const updatedFiles = files.filter((_, i) => i !== index);
@@ -12402,6 +12402,34 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Seed endpoint for inserting dummy sick leave data
+  app.post("/api/hse/sick-leaves/seed", async (req, res) => {
+    try {
+      const { name, nik, position, employeeId, date, reason, status, attachmentUrl, attachmentType, aiConfidence, originalMessage, aiAnalysis } = req.body;
+      if (!name || !date) {
+        return res.status(400).json({ message: "name and date are required" });
+      }
+      const result = await storage.createSickLeave({
+        name,
+        nik: nik || null,
+        position: position || null,
+        employeeId: employeeId || null,
+        date,
+        reason: reason || null,
+        status: status || "Pending",
+        attachmentUrl: attachmentUrl || null,
+        attachmentType: attachmentType || null,
+        aiConfidence: aiConfidence || null,
+        originalMessage: originalMessage || null,
+        aiAnalysis: aiAnalysis || null,
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Seed sick leave error:", error);
+      res.status(500).json({ message: "Failed to seed sick leave" });
+    }
+  });
+
   // WhatsApp Webhook from notif.my.id
   app.post("/api/webhook/whatsapp", async (req, res) => {
     try {
@@ -15311,6 +15339,39 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // 1.2. Get Investor Group Evaluation
+  app.get("/api/fms/investor-evaluation", async (req, res) => {
+    try {
+      const { startDate, endDate, violationType, company } = req.query;
+
+      const evalData = await storage.getFmsInvestorEvaluation({
+        startDate: typeof startDate === 'string' ? startDate : undefined,
+        endDate: typeof endDate === 'string' ? endDate : undefined,
+        violationType: typeof violationType === 'string' ? violationType : undefined,
+        company: typeof company === 'string' ? company : undefined,
+      });
+
+      res.json(evalData);
+    } catch (error) {
+      console.error("Error fetching FMS investor evaluation:", error);
+      if (error instanceof Error) {
+        console.error(error.stack);
+      }
+      res.status(500).json({ error: "Failed to fetch evaluation", details: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // 1.3. Get Unit-Mitra Map
+  app.get("/api/fms/unit-mitra-map", async (_req, res) => {
+    try {
+      const map = await storage.getFmsUnitMitraMap();
+      res.json(map);
+    } catch (error) {
+      console.error("Error fetching unit-mitra map:", error);
+      res.status(500).json({ error: "Failed to fetch map" });
+    }
+  });
+
   // 1.5. Get Detailed Violations
   app.get("/api/fms/violations", async (req, res) => {
     try {
@@ -15414,7 +15475,7 @@ Format sebagai bullet points singkat per insight.`;
         return null;
       }
 
-      const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+      const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
       const histStart = new Date();
       histStart.setDate(histStart.getDate() - 56);

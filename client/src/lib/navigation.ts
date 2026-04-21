@@ -121,6 +121,7 @@ export const navigationGroups: NavGroup[] = [
                                     { name: "Monitoring Fatigue", href: "/workspace/hse/fatigue-monitoring", icon: Activity, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "FMS Violation", href: "/workspace/hse/fms-dashboard", icon: Car, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "KPI Validasi FMS", href: "/workspace/hse/fms-violation-validation", icon: TrendingUp, requiredPermissions: [Permission.VIEW_SIDAK] },
+                                    { name: "Evaluasi Investor Group", href: "/workspace/hse/investor-evaluation", icon: Users, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Evaluasi Driver Fatigue", href: "/workspace/hse/evaluasi-driver-fatigue", icon: UserCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                                 ]
                             },
@@ -176,7 +177,6 @@ export const navigationGroups: NavGroup[] = [
                                         name: "Ijin Sakit",
                                         icon: ClipboardList,
                                         href: "/workspace/hse/sick-leave",
-                                        requiredPermissions: [Permission.MANAGE_EMPLOYEES]
                                     }
                                 ]
                             },

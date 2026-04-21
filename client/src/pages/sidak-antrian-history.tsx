@@ -157,8 +157,9 @@ export default function SidakAntrianHistory() {
             }
 
             const sessionData = await response.json();
-            const session = sessionData;
-            const records = sessionData.records || [];
+            // Extremely defensive extraction to ensure data flows to PDF
+            const session = sessionData.session || (sessionData.tanggal ? sessionData : null);
+            const records = sessionData.records || (Array.isArray(sessionData) ? [] : []);
             const observers = sessionData.observers || [];
 
             // Import utility
@@ -169,7 +170,7 @@ export default function SidakAntrianHistory() {
                 observers
             });
 
-            const fileName = `Sidak_Antrian_${session.tanggal}_${session.shift.replace(' ', '_')}.pdf`;
+            const fileName = `Sidak_Antrian_${session.tanggal ?? 'tanggal'}_${(session.shift ?? 'shift').replace(/ /g, '_')}.pdf`;
             doc.save(fileName);
 
             toast({
@@ -199,14 +200,15 @@ export default function SidakAntrianHistory() {
             }
 
             const sessionData = await response.json();
-            const session = sessionData;
-            const records = sessionData.records || [];
+            // Extremely defensive extraction
+            const session = sessionData.session || (sessionData.tanggal ? sessionData : null);
+            const records = sessionData.records || (Array.isArray(sessionData) ? [] : []);
             const observers = sessionData.observers || [];
 
             // Import utility
             const { downloadSidakAntrianAsJpg } = await import('@/lib/sidak-antrian-pdf-utils');
 
-            const fileName = `Sidak_Antrian_${session.tanggal}_${session.shift.replace(' ', '_')}_${Date.now()}.jpg`;
+            const fileName = `Sidak_Antrian_${session.tanggal ?? 'tanggal'}_${(session.shift ?? 'shift').replace(/ /g, '_')}_${Date.now()}.jpg`;
             await downloadSidakAntrianAsJpg({
                 session,
                 records,

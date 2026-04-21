@@ -60,24 +60,25 @@ export async function generateSidakAntrianPdf(data: SidakAntrianData): Promise<j
 
     yPosition += 14;
 
+    const s = data.session || {} as any;
     const infoTableData = [
         [
             'Tanggal Pelaksanaan',
-            data.session.tanggal || '',
+            s.tanggal || s.tanggalPelaksanaan || s.tanggal_pelaksanaan || '-',
             'Perusahaan',
-            data.session.perusahaan || ''
+            s.perusahaan || '-'
         ],
         [
             'Jam Pelaksanaan',
-            data.session.waktu || '',
+            s.waktu || s.jam || s.jam_pelaksanaan || s.jamPelaksanaan || '-',
             'Departemen',
-            data.session.departemen || ''
+            s.departemen || '-'
         ],
         [
             'Shift',
-            data.session.shift || '',
+            s.shift || '-',
             'Lokasi',
-            data.session.lokasi || ''
+            s.lokasi || '-'
         ]
     ];
 

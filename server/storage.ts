@@ -1,5 +1,5 @@
 import { format, parse, parseISO } from "date-fns";
-import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns } from "drizzle-orm";
+import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns, isNotNull } from "drizzle-orm";
 import {
   type Employee,
   type InsertEmployee,
@@ -689,6 +689,16 @@ export interface IStorage {
   runMigration(): Promise<void>;
 
   // FMS Violations Methods
+  getFmsInvestorEvaluation(options?: {
+    startDate?: string;
+    endDate?: string;
+    violationType?: string;
+    company?: string;
+  }): Promise<{
+    summary: any;
+    byInvestor: any[];
+    byUnit: any[];
+  }>;
   batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number }>;
   getFmsAnalytics(startDate?: string, endDate?: string, options?: {
     startTime?: string;
@@ -733,6 +743,7 @@ export interface IStorage {
   addDriverInvestigationReport(driverName: string, url: string): Promise<void>;
   removeDriverInvestigationPhoto(driverName: string, url: string): Promise<void>;
   removeDriverInvestigationReport(driverName: string, url: string): Promise<void>;
+  getFmsUnitMitraMap(): Promise<Record<string, string>>;
 
   // Induction Public
   createPublicInductionAttendance(attendance: InsertPublicInductionAttendance): Promise<PublicInductionAttendance>;
@@ -8552,6 +8563,127 @@ export class DrizzleStorage implements IStorage {
     return { count: totalInserted };
   }
 
+  async getFmsInvestorEvaluation(options?: {
+    startDate?: string;
+    endDate?: string;
+    violationType?: string;
+    company?: string;
+  }): Promise<{
+    summary: any;
+    byInvestor: any[];
+    byUnit: any[];
+  }> {
+    const conditions = [
+      or(
+        eq(fmsViolations.validationStatus, 'Valid'),
+        eq(fmsViolations.validationStatus, 'True')
+      )
+    ];
+
+    if (options?.startDate) {
+      conditions.push(sql`${fmsViolations.violationDate} >= ${options.startDate}`);
+    }
+    if (options?.endDate) {
+      conditions.push(sql`${fmsViolations.violationDate} <= ${options.endDate}`);
+    }
+
+    // Filter for requested violation types: Overspeed, Jarak Aman, Monitoring Fatigue
+    // We assume these Map to specific violationType strings in the DB
+    const safetyTypes = ['Over Speed', 'Jarak Aman', 'Mata Tertutup', 'Mengantuk', 'Kelelahan'];
+    conditions.push(inArray(fmsViolations.violationType, safetyTypes));
+
+    if (options?.company) {
+      conditions.push(eq(fmsViolations.company, options.company));
+    }
+
+    const baseWhere = and(...conditions);
+
+    // Get unique mapping of vehicleNo to investorGroup (Mitra) from employees
+    const unitMitraSubquery = db
+      .select({
+        nomorLambung: employees.nomorLambung,
+        investorGroup: sql<string>`MAX(${employees.investorGroup})`.as('investor_group')
+      })
+      .from(employees)
+      .where(isNotNull(employees.nomorLambung))
+      .groupBy(employees.nomorLambung)
+      .as('um');
+
+    // 1. Summary Counts
+    const summaryRows = await db
+      .select({
+        type: fmsViolations.violationType,
+        count: sql<number>`count(*)`
+      })
+      .from(fmsViolations)
+      .where(baseWhere)
+      .groupBy(fmsViolations.violationType);
+
+    const summary = {
+      total: summaryRows.reduce((acc, r) => acc + Number(r.count), 0),
+      overspeed: summaryRows.filter(r => r.type === 'Over Speed').reduce((acc, r) => acc + Number(r.count), 0),
+      jarakAman: summaryRows.filter(r => r.type === 'Jarak Aman').reduce((acc, r) => acc + Number(r.count), 0),
+      fatigue: summaryRows.filter(r => ['Mata Tertutup', 'Mengantuk', 'Kelelahan'].includes(r.type || '')).reduce((acc, r) => acc + Number(r.count), 0),
+    };
+
+    // 2. Aggregate by Investor (Company/Mitra)
+    const byInvestor = await db
+      .select({
+        company: sql<string>`COALESCE(${unitMitraSubquery.investorGroup}, ${fmsViolations.company})`.as('company'),
+        overspeed: sql<number>`SUM(CASE WHEN ${fmsViolations.violationType} = 'Over Speed' THEN 1 ELSE 0 END)`,
+        jarakAman: sql<number>`SUM(CASE WHEN ${fmsViolations.violationType} = 'Jarak Aman' THEN 1 ELSE 0 END)`,
+        fatigue: sql<number>`SUM(CASE WHEN ${fmsViolations.violationType} IN ('Mata Tertutup', 'Mengantuk', 'Kelelahan') THEN 1 ELSE 0 END)`,
+        total: sql<number>`COUNT(*)`
+      })
+      .from(fmsViolations)
+      .leftJoin(unitMitraSubquery, eq(fmsViolations.vehicleNo, unitMitraSubquery.nomorLambung))
+      .where(baseWhere)
+      .groupBy(sql`company`)
+      .orderBy(sql`COUNT(*) DESC`);
+
+    // 3. Aggregate by Unit (Vehicle No)
+    const byUnit = await db
+      .select({
+        vehicleNo: fmsViolations.vehicleNo,
+        company: sql<string>`COALESCE(${unitMitraSubquery.investorGroup}, ${fmsViolations.company})`.as('company'),
+        overspeed: sql<number>`SUM(CASE WHEN ${fmsViolations.violationType} = 'Over Speed' THEN 1 ELSE 0 END)`,
+        jarakAman: sql<number>`SUM(CASE WHEN ${fmsViolations.violationType} = 'Jarak Aman' THEN 1 ELSE 0 END)`,
+        fatigue: sql<number>`SUM(CASE WHEN ${fmsViolations.violationType} IN ('Mata Tertutup', 'Mengantuk', 'Kelelahan') THEN 1 ELSE 0 END)`,
+        total: sql<number>`COUNT(*)`
+      })
+      .from(fmsViolations)
+      .leftJoin(unitMitraSubquery, eq(fmsViolations.vehicleNo, unitMitraSubquery.nomorLambung))
+      .where(baseWhere)
+      .groupBy(fmsViolations.vehicleNo, sql`company`)
+      .orderBy(sql`COUNT(*) DESC`);
+
+    return {
+      summary: summary || { total: 0, overspeed: 0, jarakAman: 0, fatigue: 0 },
+      byInvestor: byInvestor || [],
+      byUnit: byUnit || []
+    };
+  }
+
+  async getFmsUnitMitraMap(): Promise<Record<string, string>> {
+    const units = await db
+      .select({
+        vehicleNo: employees.nomorLambung,
+        investorGroup: employees.investorGroup
+      })
+      .from(employees)
+      .where(isNotNull(employees.nomorLambung));
+
+    const map: Record<string, string> = {};
+    units.forEach(u => {
+      if (u.vehicleNo && u.investorGroup) {
+        // Robust normalization: remove all whitespace and uppercase
+        const washed = u.vehicleNo.toString().replace(/\s+/g, "").toUpperCase();
+        map[washed] = u.investorGroup.trim();
+      }
+    });
+    return map;
+  }
+
   async getFmsAnalytics(
     startDate?: string,
     endDate?: string,
@@ -10267,7 +10399,11 @@ export class DrizzleStorage implements IStorage {
   }
 
   async createSickLeave(data: InsertSickLeave): Promise<SickLeave> {
-    const [result] = await db.insert(sickLeaves).values(data).returning();
+    const [result] = await db.insert(sickLeaves).values({
+      ...data,
+      nik: data.nik || null,
+      position: data.position || null,
+    }).returning();
     return result;
   }
 
