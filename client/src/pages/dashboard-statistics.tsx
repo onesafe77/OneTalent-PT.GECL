@@ -256,7 +256,16 @@ export default function DashboardStatistics() {
                 grace: '30%',
                 position: 'right',
                 grid: { display: false },
-                ticks: { font: { size: 14 }, color: '#94a3b8' }
+                ticks: { font: { size: 14 }, color: '#94a3b8' },
+                title: { display: true, text: 'TIFR Rate', font: { size: 10 } }
+            },
+            yIns: {
+                beginAtZero: true,
+                position: 'right',
+                grid: { display: false },
+                ticks: { display: false }, // Hide ticks to avoid clutter, label will show value
+                suggestedMax: 10,
+                title: { display: true, text: 'Incidents', font: { size: 10 } }
             }
         }
     };
@@ -468,9 +477,9 @@ export default function DashboardStatistics() {
                                         categoryPercentage: 0.8,
                                         grouped: false,
                                         order: 2,
-                                        yAxisID: 'y'
+                                        yAxisID: 'yIns' // Use dedicated incident axis
                                     },
-                                    { label: 'TIFR', type: 'line', data: chartsData.tifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 2, pointRadius: 4, tension: 0.3, order: 1, yAxisID: 'y1' },
+                                    { label: 'TIFR', type: 'line', data: chartsData.tifr, borderColor: '#166534', backgroundColor: '#166534', borderWidth: 3, pointRadius: 5, tension: 0.3, order: 1, yAxisID: 'y1' },
                                     { label: 'TR', type: 'line', data: Array(12).fill(data.tr_value), borderColor: '#ef4444', borderDash: [5, 5], pointRadius: 0, borderWidth: 2, order: 0, yAxisID: 'y1' }
                                 ]
                             }} options={{
