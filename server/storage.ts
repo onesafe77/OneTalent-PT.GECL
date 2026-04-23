@@ -8716,16 +8716,16 @@ export class DrizzleStorage implements IStorage {
 
     // Unified Date & Time Filter using violationTimestamp
     if (startDate && endDate) {
-      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
-      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : (startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : (endDate.includes('T') ? endDate : `${endDate}T23:59:59`);
 
       conditions.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
       conditions.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     } else if (startDate) {
-      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : (startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
       conditions.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
     } else if (endDate) {
-      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : (endDate.includes('T') ? endDate : `${endDate}T23:59:59`);
       conditions.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     }
 
@@ -8800,15 +8800,15 @@ export class DrizzleStorage implements IStorage {
     // Better Strategy: Rebuild the conditions for available types
     const conditionsForAvailableTypes: any[] = [];
     if (startDate && endDate) {
-      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
-      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : (startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : (endDate.includes('T') ? endDate : `${endDate}T23:59:59`);
       conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
       conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     } else if (startDate) {
-      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : (startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
       conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
     } else if (endDate) {
-      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : (endDate.includes('T') ? endDate : `${endDate}T23:59:59`);
       conditionsForAvailableTypes.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     }
 
@@ -8836,15 +8836,15 @@ export class DrizzleStorage implements IStorage {
     // 10. Available Weeks Filter (Similar strategy: include Date but exclude Week filter)
     const conditionsForAvailableWeeks: any[] = [];
     if (startDate && endDate) {
-      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
-      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : (startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : (endDate.includes('T') ? endDate : `${endDate}T23:59:59`);
       conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
       conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     } else if (startDate) {
-      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : `${startDate}T00:00:00`;
+      const startTS = options?.startTime ? `${startDate}T${options.startTime}` : (startDate.includes('T') ? startDate : `${startDate}T00:00:00`);
       conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} >= ${startTS}::timestamp`);
     } else if (endDate) {
-      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : `${endDate}T23:59:59`;
+      const endTS = options?.endTime ? `${endDate}T${options.endTime}` : (endDate.includes('T') ? endDate : `${endDate}T23:59:59`);
       conditionsForAvailableWeeks.push(sql`${fmsViolations.violationTimestamp} <= ${endTS}::timestamp`);
     }
 
@@ -9171,8 +9171,10 @@ export class DrizzleStorage implements IStorage {
     }
 
     if (options?.startDate && options?.endDate) {
-      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${options.startDate + ' 00:00:00'}::timestamp`);
-      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${options.endDate + ' 23:59:59'}::timestamp`);
+      const startDT = options.startDate.includes('T') ? options.startDate.replace('T', ' ') : options.startDate + ' 00:00:00';
+      const endDT = options.endDate.includes('T') ? options.endDate.replace('T', ' ') : options.endDate + ' 23:59:59';
+      conditions.push(sql`${fmsViolations.violationTimestamp} >= ${startDT}::timestamp`);
+      conditions.push(sql`${fmsViolations.violationTimestamp} <= ${endDT}::timestamp`);
     }
 
     console.log(`[DEBUG getFmsViolations] Querying with ${conditions.length} conditions`);

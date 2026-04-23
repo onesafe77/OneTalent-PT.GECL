@@ -1,4 +1,4 @@
-import { getWeek, startOfWeek, endOfWeek, setWeek } from 'date-fns';
+import { getWeek, startOfWeek, endOfWeek, setWeek, addDays } from 'date-fns';
 
 export interface WeekRange {
   weekNumber: number; // calendar week number (e.g. 16)
@@ -7,7 +7,7 @@ export interface WeekRange {
   label: string;      // "Week 16 (12 Apr – 18 Apr)"
 }
 
-const SHORT_MONTHS = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
+const SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
 
 const MONTH_INDEX: Record<string, number> = {
   Januari: 0, Februari: 1, Maret: 2, April: 3, Mei: 4, Juni: 5,
@@ -29,8 +29,12 @@ function shortLabel(d: Date): string {
 export function getWeekDateRange(weekNumber: number, year: number): { startDate: string; endDate: string } {
   const ref = setWeek(new Date(year, 0, 4), weekNumber, { weekStartsOn: 0 });
   const sun = startOfWeek(ref, { weekStartsOn: 0 }); // Sunday
-  const sat = endOfWeek(ref, { weekStartsOn: 0 });   // Saturday
-  return { startDate: toYMD(sun), endDate: toYMD(sat) };
+  const nextSun = addDays(sun, 7); // Next Sunday
+
+  return {
+    startDate: `${toYMD(sun)}T06:00:00`,
+    endDate: `${toYMD(nextSun)}T05:59:59`
+  };
 }
 
 /**
