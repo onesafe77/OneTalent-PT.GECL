@@ -9,7 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { QrCode, Camera, CameraOff, UserCheck, AlertCircle, CheckCircle, User, Calendar, Clock, MapPin, FileText } from "lucide-react";
+import { QrCode, Camera, CameraOff, UserCheck, AlertCircle, CheckCircle, User, Calendar, Clock, MapPin, FileText, PenLine } from "lucide-react";
+import { SignaturePad } from "@/components/sidak/signature-pad";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,30 +23,12 @@ export default function MeetingScanner() {
   const [employeeId, setEmployeeId] = useState("");
   const [lastScanResult, setLastScanResult] = useState<any>(null);
   const [meetingToken, setMeetingToken] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<string>("qr-scan");
+  const [signature, setSignature] = useState<string>("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
-
-  // Manual attendance form schema
-  const manualAttendanceSchema = z.object({
-    namaKaryawan: z.string().min(1, "Nama karyawan wajib diisi"),
-    nik: z.string().optional(),
-    position: z.enum(["Investor", "Korlap"], {
-      required_error: "Position wajib dipilih"
-    }),
-    department: z.string().min(1, "Department wajib dipilih"),
-  });
-
-  const manualForm = useForm<z.infer<typeof manualAttendanceSchema>>({
-    resolver: zodResolver(manualAttendanceSchema),
-    defaultValues: {
-      namaKaryawan: "",
-      nik: "",
-      position: undefined,
-      department: "",
-    },
-  });
 
   // Get token from URL parameters
   useEffect(() => {
@@ -67,6 +50,35 @@ export default function MeetingScanner() {
   const { data: investorGroups } = useQuery({
     queryKey: ['/api/investor-groups'],
     queryFn: () => apiRequest('/api/investor-groups', 'GET'),
+  });
+
+  const isBIBMeeting = (meeting as any)?.meetingType === "bib";
+
+  // Auto-switch to manual-entry tab for BIB meetings once meeting data loads
+  useEffect(() => {
+    if (isBIBMeeting) {
+      setActiveTab("manual-entry");
+    }
+  }, [isBIBMeeting]);
+
+  // Manual attendance form schema (adapts based on meeting type)
+  const manualAttendanceSchema = z.object({
+    namaKaryawan: z.string().min(1, "Nama karyawan wajib diisi"),
+    nik: z.string().optional(),
+    position: isBIBMeeting
+      ? z.string().min(1, "Jabatan wajib diisi")
+      : z.enum(["Investor", "Korlap"], { required_error: "Position wajib dipilih" }),
+    department: z.string().min(1, isBIBMeeting ? "Dept/Perusahaan wajib diisi" : "Department wajib dipilih"),
+  });
+
+  const manualForm = useForm<z.infer<typeof manualAttendanceSchema>>({
+    resolver: zodResolver(manualAttendanceSchema),
+    defaultValues: {
+      namaKaryawan: "",
+      nik: "",
+      position: undefined,
+      department: "",
+    },
   });
 
   const attendanceMutation = useMutation({
@@ -109,7 +121,7 @@ export default function MeetingScanner() {
 
   // Manual attendance mutation
   const manualAttendanceMutation = useMutation({
-    mutationFn: async (data: z.infer<typeof manualAttendanceSchema>) => {
+    mutationFn: async (data: any) => {
       if (!meeting?.id) throw new Error("Meeting not found");
       return await apiRequest(`/api/meetings/${meeting.id}/manual-attendance`, "POST", {
         attendanceType: "manual_entry",
@@ -117,6 +129,7 @@ export default function MeetingScanner() {
         manualNik: data.nik || undefined,
         manualPosition: data.position,
         manualDepartment: data.department,
+        manualSignature: data.manualSignature || undefined,
         scanTime: new Date().toTimeString().split(' ')[0],
         scanDate: new Date().toISOString().split('T')[0],
         deviceInfo: navigator.userAgent || 'Manual Entry'
@@ -128,6 +141,7 @@ export default function MeetingScanner() {
         description: `${data.manualName} (${data.manualPosition}) telah dicatat sebagai hadir`,
       });
       manualForm.reset();
+      setSignature("");
       // Invalidate queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['/api/meetings', meeting?.id, 'attendance'] });
     },
@@ -142,7 +156,7 @@ export default function MeetingScanner() {
 
   // Handle manual form submission
   const onManualSubmit = (data: z.infer<typeof manualAttendanceSchema>) => {
-    manualAttendanceMutation.mutate(data);
+    manualAttendanceMutation.mutate({ ...data, manualSignature: signature || undefined } as any);
   };
 
   // Handle form submission for direct attendance
@@ -324,6 +338,9 @@ export default function MeetingScanner() {
               <CardTitle className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-600" />
                 Informasi Meeting
+                {(meeting as any).meetingType === "bib" && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium ml-1">Meeting Bersama BIB</span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -365,17 +382,19 @@ export default function MeetingScanner() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="qr-scan" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-6">
-                <TabsTrigger value="qr-scan" data-testid="tab-qr-scan">
-                  <QrCode className="w-4 h-4 mr-2" />
-                  Scan QR Code
-                </TabsTrigger>
-                <TabsTrigger value="manual-entry" data-testid="tab-manual-entry" disabled={!meetingToken}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  Entry Manual
-                </TabsTrigger>
-              </TabsList>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              {!isBIBMeeting && (
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsTrigger value="qr-scan" data-testid="tab-qr-scan">
+                    <QrCode className="w-4 h-4 mr-2" />
+                    Scan QR Code
+                  </TabsTrigger>
+                  <TabsTrigger value="manual-entry" data-testid="tab-manual-entry" disabled={!meetingToken && !meeting}>
+                    <FileText className="w-4 h-4 mr-2" />
+                    Entry Manual
+                  </TabsTrigger>
+                </TabsList>
+              )}
 
               {/* QR Code Scan Tab */}
               <TabsContent value="qr-scan" className="space-y-4">
@@ -563,64 +582,99 @@ export default function MeetingScanner() {
                         )}
                       />
 
-                      {/* Position */}
+                      {/* Position / Jabatan */}
                       <FormField
                         control={manualForm.control}
                         name="position"
                         render={({ field }) => (
                           <FormItem className="space-y-3">
-                            <FormLabel>Posisi</FormLabel>
+                            <FormLabel>{isBIBMeeting ? "Jabatan" : "Posisi"}</FormLabel>
                             <FormControl>
-                              <RadioGroup
-                                onValueChange={field.onChange}
-                                value={field.value}
-                                className="flex flex-col space-y-2"
-                                data-testid="radio-manual-position"
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="Investor" id="investor" />
-                                  <Label htmlFor="investor">Investor</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="Korlap" id="korlap" />
-                                  <Label htmlFor="korlap">Korlap</Label>
-                                </div>
-                              </RadioGroup>
+                              {isBIBMeeting ? (
+                                <Input
+                                  placeholder="Masukkan jabatan"
+                                  data-testid="input-manual-position"
+                                  {...field}
+                                />
+                              ) : (
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  value={field.value}
+                                  className="flex flex-col space-y-2"
+                                  data-testid="radio-manual-position"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="Investor" id="investor" />
+                                    <Label htmlFor="investor">Investor</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <RadioGroupItem value="Korlap" id="korlap" />
+                                    <Label htmlFor="korlap">Korlap</Label>
+                                  </div>
+                                </RadioGroup>
+                              )}
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
-                      {/* Department */}
+                      {/* Department / Perusahaan */}
                       <FormField
                         control={manualForm.control}
                         name="department"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Department</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
+                            <FormLabel>{isBIBMeeting ? "Dept / Perusahaan" : "Department"}</FormLabel>
+                            {isBIBMeeting ? (
                               <FormControl>
-                                <SelectTrigger data-testid="select-manual-department">
-                                  <SelectValue placeholder="Pilih department" />
-                                </SelectTrigger>
+                                <Input
+                                  placeholder="Masukkan dept / perusahaan"
+                                  data-testid="input-manual-department"
+                                  {...field}
+                                />
                               </FormControl>
-                              <SelectContent>
-                                {investorGroups?.investorGroups?.map((group: string) => (
-                                  <SelectItem key={group} value={group}>
-                                    {group}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            ) : (
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-manual-department">
+                                    <SelectValue placeholder="Pilih department" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {investorGroups?.investorGroups?.map((group: string) => (
+                                    <SelectItem key={group} value={group}>
+                                      {group}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
                       />
 
+                      {/* Signature Pad for BIB meetings */}
+                      {isBIBMeeting && (
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <PenLine className="w-4 h-4" />
+                            Tanda Tangan
+                            {signature && <span className="text-xs text-green-600 font-medium">(tersimpan)</span>}
+                          </Label>
+                          <SignaturePad
+                            title=""
+                            autoSave={true}
+                            onSave={(dataUrl) => setSignature(dataUrl)}
+                            onClear={() => setSignature("")}
+                          />
+                        </div>
+                      )}
+
                       <Button
                         type="submit"
-                        disabled={manualAttendanceMutation.isPending}
+                        disabled={manualAttendanceMutation.isPending || (isBIBMeeting && !signature)}
                         className="w-full bg-blue-600 hover:bg-blue-700"
                         data-testid="button-submit-manual"
                       >

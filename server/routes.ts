@@ -8998,6 +8998,28 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // MEETING TYPE MIGRATION
+  app.post("/api/admin/migrate-meeting-type", async (req, res) => {
+    try {
+      await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS meeting_type VARCHAR DEFAULT 'internal'`);
+      await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS agenda TEXT`);
+      await db.execute(sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS pemateri VARCHAR`);
+      res.json({ success: true, message: "Meeting type columns added successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // MANUAL SIGNATURE MIGRATION
+  app.post("/api/admin/migrate-manual-signature", async (req, res) => {
+    try {
+      await db.execute(sql`ALTER TABLE meeting_attendance ADD COLUMN IF NOT EXISTS manual_signature TEXT`);
+      res.json({ success: true, message: "manual_signature column added successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // APAR MIGRATION
   app.post("/api/admin/migrate-sidak-apar", async (req, res) => {
     try {

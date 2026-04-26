@@ -8,9 +8,10 @@ interface SignaturePadProps {
   onClear?: () => void;
   disabled?: boolean;
   title?: string;
+  autoSave?: boolean;
 }
 
-export function SignaturePad({ onSave, onClear, disabled = false, title = "Tanda Tangan Digital" }: SignaturePadProps) {
+export function SignaturePad({ onSave, onClear, disabled = false, title = "Tanda Tangan Digital", autoSave = false }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
@@ -67,6 +68,18 @@ export function SignaturePad({ onSave, onClear, disabled = false, title = "Tanda
     if (!context) return;
     setIsDrawing(false);
     context.closePath();
+    if (autoSave) {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        // Use pixel check to confirm something was drawn
+        const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+        const hasDrawing = pixels.some((v, i) => i % 4 === 3 && v > 0);
+        if (hasDrawing) {
+          const dataUrl = canvas.toDataURL('image/png');
+          onSave(dataUrl);
+        }
+      }
+    }
   };
 
   const getPosition = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {

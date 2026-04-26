@@ -330,6 +330,9 @@ export const meetings = pgTable("meetings", {
   meetingPhotos: text("meeting_photos").array(), // Array of photo paths (max 4)
   materiFiles: text("materi_files").array(),     // Array of materi PDF file URLs
   momFiles: text("mom_files").array(),           // Array of MoM PDF file URLs
+  meetingType: varchar("meeting_type").default("internal"), // "internal" | "bib"
+  agenda: text("agenda"), // Agenda meeting (for BIB Daftar Hadir)
+  pemateri: varchar("pemateri"), // Pemateri / speaker
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -346,8 +349,9 @@ export const meetingAttendance = pgTable("meeting_attendance", {
   // Manual entry fields for investor group
   manualName: varchar("manual_name"), // Nama karyawan for manual entry
   manualNik: varchar("manual_nik"), // NIK for manual entry (optional)
-  manualPosition: varchar("manual_position"), // "Investor" | "Korlap"
+  manualPosition: varchar("manual_position"), // "Investor" | "Korlap" | free-text for BIB
   manualDepartment: varchar("manual_department"), // Selected from investorGroup
+  manualSignature: text("manual_signature"), // Base64 PNG signature for BIB meetings
 
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -379,8 +383,9 @@ export const insertManualAttendanceSchema = insertMeetingAttendanceSchema.extend
   attendanceType: z.literal("manual_entry"),
   manualName: z.string().min(1, "Nama karyawan required"),
   manualNik: z.string().optional(), // NIK optional for manual entry
-  manualPosition: z.enum(["Investor", "Korlap"], { required_error: "Position required" }),
+  manualPosition: z.string().min(1, "Position required"),
   manualDepartment: z.string().min(1, "Department required"),
+  manualSignature: z.string().optional(), // Base64 PNG signature (for BIB meetings)
 }).omit({
   employeeId: true, // Not needed for manual entry
   meetingId: true, // Added by backend from route params

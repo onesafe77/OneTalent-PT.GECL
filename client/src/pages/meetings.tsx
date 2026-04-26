@@ -28,7 +28,8 @@ import { Calendar, Clock, MapPin, User, QrCode, Users, Eye, Trash2, Plus, Downlo
 import { apiRequest } from "@/lib/queryClient";
 import type { Meeting, InsertMeeting, MeetingAttendance } from "@shared/schema";
 import QRCode from "qrcode";
-import { generateMeetingAttendancePDF } from "@/lib/meeting-pdf-utils";
+import { generateMeetingAttendancePDF, generateBIBAttendancePDF } from "@/lib/meeting-pdf-utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // QR Code Display Component
 function QRCodeDisplay({ meeting }: { meeting: Meeting }) {
@@ -173,7 +174,7 @@ export default function Meetings() {
   const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<InsertMeeting>({
-    title: "", description: "", date: "", startTime: "", endTime: "", location: "", organizer: "", status: "scheduled"
+    title: "", description: "", date: "", startTime: "", endTime: "", location: "", organizer: "", status: "scheduled", meetingType: "internal", agenda: "", pemateri: "",
   });
   const [uploadedPhotos, setUploadedPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
@@ -198,7 +199,10 @@ export default function Meetings() {
     endTime: "10:00",
     location: "",
     organizer: "",
-    status: "scheduled"
+    status: "scheduled",
+    meetingType: "internal",
+    agenda: "",
+    pemateri: "",
   });
 
   const { data: meetings = [], isLoading } = useQuery<Meeting[]>({
@@ -220,7 +224,10 @@ export default function Meetings() {
         endTime: "10:00",
         location: "",
         organizer: "",
-        status: "scheduled"
+        status: "scheduled",
+        meetingType: "internal",
+        agenda: "",
+        pemateri: "",
       });
       toast({
         title: "Meeting Created",
@@ -430,6 +437,9 @@ export default function Meetings() {
       location: meeting.location,
       organizer: meeting.organizer,
       status: meeting.status,
+      meetingType: (meeting as any).meetingType || "internal",
+      agenda: (meeting as any).agenda || "",
+      pemateri: (meeting as any).pemateri || "",
     });
     setIsEditOpen(true);
   };
@@ -603,7 +613,17 @@ export default function Meetings() {
 
       console.log(`✅ Passing ${pdfData.attendance.length} attendance records to PDF generator`);
       console.log('📋 Attendance data:', pdfData.attendance);
-      await generateMeetingAttendancePDF(pdfData);
+
+      const isBIB = (selectedMeeting as any).meetingType === "bib";
+      if (isBIB) {
+        await generateBIBAttendancePDF({
+          ...pdfData,
+          agenda: (selectedMeeting as any).agenda || "",
+          pemateri: (selectedMeeting as any).pemateri || "",
+        });
+      } else {
+        await generateMeetingAttendancePDF(pdfData);
+      }
 
       toast({
         title: "PDF Berhasil Didownload",
@@ -671,6 +691,27 @@ export default function Meetings() {
             </DialogHeader>
 
             <form onSubmit={handleCreateMeeting} className="space-y-4">
+              {/* Meeting Type */}
+              <div className="space-y-2">
+                <Label>Jenis Meeting *</Label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, meetingType: "internal" })}
+                    className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${formData.meetingType === "internal" ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-400"}`}
+                  >
+                    Meeting Internal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, meetingType: "bib" })}
+                    className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${formData.meetingType === "bib" ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-400"}`}
+                  >
+                    Meeting Bersama BIB
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="title">Judul Meeting *</Label>
@@ -696,6 +737,30 @@ export default function Meetings() {
                   />
                 </div>
               </div>
+
+              {/* Agenda & Pemateri (for BIB) */}
+              {formData.meetingType === "bib" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="agenda">Agenda *</Label>
+                    <Input
+                      id="agenda"
+                      value={formData.agenda || ""}
+                      onChange={(e) => setFormData({ ...formData, agenda: e.target.value })}
+                      placeholder="Agenda meeting"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="pemateri">Pemateri</Label>
+                    <Input
+                      id="pemateri"
+                      value={formData.pemateri || ""}
+                      onChange={(e) => setFormData({ ...formData, pemateri: e.target.value })}
+                      placeholder="Nama pemateri"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="description">Deskripsi</Label>
@@ -827,8 +892,11 @@ export default function Meetings() {
                   <TableRow key={meeting.id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
+                        <div className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                           {meeting.title}
+                          {(meeting as any).meetingType === "bib" && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">BIB</span>
+                          )}
                         </div>
                         {meeting.description && (
                           <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -1257,6 +1325,27 @@ export default function Meetings() {
           </DialogHeader>
 
           <form onSubmit={handleEditMeeting} className="space-y-4">
+            {/* Meeting Type */}
+            <div className="space-y-2">
+              <Label>Jenis Meeting *</Label>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditFormData({ ...editFormData, meetingType: "internal" })}
+                  className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${editFormData.meetingType === "internal" ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-400"}`}
+                >
+                  Meeting Internal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditFormData({ ...editFormData, meetingType: "bib" })}
+                  className={`flex-1 py-2 px-4 rounded-lg border-2 text-sm font-medium transition-colors ${editFormData.meetingType === "bib" ? "border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" : "border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-400"}`}
+                >
+                  Meeting Bersama BIB
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-title">Judul Meeting *</Label>
@@ -1282,6 +1371,30 @@ export default function Meetings() {
                 />
               </div>
             </div>
+
+            {/* Agenda & Pemateri (for BIB) */}
+            {editFormData.meetingType === "bib" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-agenda">Agenda</Label>
+                  <Input
+                    id="edit-agenda"
+                    value={editFormData.agenda || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, agenda: e.target.value })}
+                    placeholder="Agenda meeting"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-pemateri">Pemateri</Label>
+                  <Input
+                    id="edit-pemateri"
+                    value={editFormData.pemateri || ""}
+                    onChange={(e) => setEditFormData({ ...editFormData, pemateri: e.target.value })}
+                    placeholder="Nama pemateri"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="edit-description">Deskripsi</Label>

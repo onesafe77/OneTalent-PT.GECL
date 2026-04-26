@@ -20,6 +20,7 @@ interface MeetingAttendance {
   manualNik?: string | null;
   manualPosition?: string | null;
   manualDepartment?: string | null;
+  manualSignature?: string | null;
   employee?: Employee;
 }
 
@@ -504,6 +505,241 @@ export async function generateMeetingAttendancePDF(data: MeetingAttendanceData):
     console.error('Error in PDF generation:', error);
     throw new Error(`Gagal membuat PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+export async function generateBIBAttendancePDF(data: MeetingAttendanceData & { agenda?: string; pemateri?: string }): Promise<void> {
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+  const W = pdf.internal.pageSize.width;   // 210mm
+  const H = pdf.internal.pageSize.height;  // 297mm
+  const L = 13; // left margin (outer border)
+  const R = 13; // right margin
+  const innerW = W - L - R; // 184mm
+
+  const meetingDate = new Date(data.meeting.date);
+  const dateStr = meetingDate.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const timeStr = `${data.meeting.startTime} - ${data.meeting.endTime} WITA`;
+
+  pdf.setDrawColor(0, 0, 0);
+  pdf.setTextColor(0, 0, 0);
+
+  // ── OUTER BORDER ────────────────────────────────────────────────────────────
+  pdf.setLineWidth(0.8);
+  pdf.rect(L, 13, innerW, H - 26);
+
+  let y = 13; // current Y position (top of outer border)
+
+  // ── HEADER ROW (logo | doc code) ─────────────────────────────────────────────
+  const headerH = 16;
+  const logoW = 60;
+
+  // Vertical divider between logo and doc code
+  pdf.setLineWidth(0.4);
+  pdf.line(L + logoW, y, L + logoW, y + headerH);
+  // Bottom of header
+  pdf.line(L, y + headerH, L + innerW, y + headerH);
+
+  // ── LOGO MARK (drawn geometric BIB mark, left of text) ──────────────────────
+  const lx = L + 3;   // logo mark X
+  const ly = y + 2.5; // logo mark Y
+  const lw = 12;      // logo mark width
+  const lh = 11;      // logo mark height
+
+  // Outer black square
+  pdf.setFillColor(0, 0, 0);
+  pdf.rect(lx, ly, lw, lh, 'F');
+
+  // Inner white stripes to simulate the BIB logo style
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(lx + 1.5, ly + 1.5, 4, 3, 'F');
+  pdf.rect(lx + 1.5, ly + 6.5, 4, 3, 'F');
+  pdf.rect(lx + 6.5, ly + 1.5, 4, 3, 'F');
+  pdf.rect(lx + 6.5, ly + 6.5, 4, 3, 'F');
+
+  // PT BORNEO INDOBARA text beside the logo mark
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(8.5);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('PT BORNEO INDOBARA', lx + lw + 2, ly + 7);
+
+  // Document code (right side)
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8);
+  pdf.text('BIB \u2013 HSE \u2013 ES \u2013 F \u2013 1.04 \u2013 01', L + innerW - 2, y + 5, { align: 'right' });
+  pdf.text('Feb 2018/R1   Page 1 of 1', L + innerW - 2, y + 10.5, { align: 'right' });
+
+  y += headerH;
+
+  // ── TITLE BLOCK ─────────────────────────────────────────────────────────────
+  const titleH = 16;
+  // bottom border
+  pdf.setLineWidth(0.4);
+  pdf.line(L, y + titleH, L + innerW, y + titleH);
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(18);
+  pdf.text('DAFTAR HADIR', W / 2, y + 9, { align: 'center' });
+
+  pdf.setFont('helvetica', 'italic');
+  pdf.setFontSize(6.5);
+  pdf.text(
+    'Isilah form daftar hadir ini dengan lengkap sebagai bukti pelibatan personil dalam penerapan SMKPLH di PT Borneo Indobara',
+    W / 2, y + 14, { align: 'center' }
+  );
+
+  y += titleH;
+
+  // ── CHECKBOX SECTION ─────────────────────────────────────────────────────────
+  // 3 rows × 3 cols, each row height ~7mm, total ~21mm
+  const cbRowH = 7;
+  const cbRows = [
+    ['Komunikasi KP (Safety Talk)', 'Rapat Kordinasi / Komite KP', 'Audit internal / eksternal'],
+    ['Penyelidikan Insiden', 'Sosialisasi Prosedur / Kebijakan', 'Partisipasi & Konsultasi'],
+    ['Pendidikan & Pelatihan', 'Induksi Keselamatan Pertambangan', '. . . . . . . . . . . . . . . . . . . . . .'],
+  ];
+  const colW = innerW / 3;
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(8);
+  pdf.setLineWidth(0.3);
+
+  cbRows.forEach((row, ri) => {
+    const rowY = y + ri * cbRowH;
+    // bottom border per row
+    if (ri < 2) pdf.line(L, rowY + cbRowH, L + innerW, rowY + cbRowH);
+    row.forEach((label, ci) => {
+      const cellX = L + ci * colW;
+      // right border (not last col)
+      if (ci < 2) pdf.line(cellX + colW, rowY, cellX + colW, rowY + cbRowH);
+      // checkbox square
+      const bx = cellX + 4;
+      const by = rowY + 2;
+      pdf.rect(bx, by, 3.5, 3.5);
+      // label
+      pdf.text(label, bx + 5, rowY + 5.5);
+    });
+  });
+
+  y += cbRowH * 3;
+
+  // bottom border after checkboxes (already drawn last row)
+  pdf.setLineWidth(0.4);
+  pdf.line(L, y, L + innerW, y);
+
+  // ── INFO FIELDS TABLE ────────────────────────────────────────────────────────
+  // 4 rows: Agenda, Pemateri, Hari/Tanggal/Waktu, Tempat
+  const infoRows = [
+    ['Agenda', data.agenda || data.meeting.description || ''],
+    ['Pemateri', data.pemateri || data.meeting.organizer || ''],
+    ['Hari / Tanggal / Waktu', `${dateStr} / ${timeStr}`],
+    ['Tempat', data.meeting.location || ''],
+  ];
+  const infoRowH = 7;
+  const labelColW = 40;
+
+  pdf.setLineWidth(0.3);
+  infoRows.forEach(([label, value], ri) => {
+    const rowY = y + ri * infoRowH;
+    // divider between label and value
+    pdf.line(L + labelColW, rowY, L + labelColW, rowY + infoRowH);
+    // bottom border
+    pdf.line(L, rowY + infoRowH, L + innerW, rowY + infoRowH);
+
+    // label bold
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8.5);
+    pdf.text(label, L + 2, rowY + 5);
+
+    // value normal
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    const maxLen = innerW - labelColW - 4;
+    const truncated = pdf.splitTextToSize(value, maxLen)[0] || '';
+    pdf.text(truncated, L + labelColW + 2, rowY + 5);
+  });
+
+  y += infoRowH * 4;
+
+  // ── ATTENDANCE TABLE ─────────────────────────────────────────────────────────
+  const minRows = 20;
+  const attendanceRows = (data.attendance || []).map((att, idx) => [
+    (idx + 1).toString(),
+    att.attendanceType === 'manual_entry' ? (att.manualName || '') : (att.employee?.name || ''),
+    att.attendanceType === 'manual_entry' ? (att.manualPosition || '') : (att.employee?.position || ''),
+    att.attendanceType === 'manual_entry' ? (att.manualDepartment || '') : (att.employee?.department || ''),
+    '',
+  ]);
+  const emptyCount = Math.max(0, minRows - attendanceRows.length);
+  const emptyRows = Array.from({ length: emptyCount }, (_, i) => [
+    (attendanceRows.length + i + 1).toString(), '', '', '', ''
+  ]);
+  const tableData = [...attendanceRows, ...emptyRows];
+
+  // Calculate row height to fill remaining page space
+  const remainingH = H - 13 - y; // from y to bottom border
+  const rowHeight = Math.max(7, Math.floor((remainingH - 8) / (tableData.length + 1))); // +1 for header
+
+  autoTable(pdf, {
+    head: [['No', 'NAMA', 'JABATAN', 'DEPT / PERUSAHAAN', 'TANDA TANGAN']],
+    body: tableData,
+    startY: y,
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: { top: 1, right: 2, bottom: 1, left: 2 },
+      lineColor: [0, 0, 0],
+      lineWidth: 0.3,
+      font: 'helvetica',
+      textColor: [0, 0, 0],
+      minCellHeight: rowHeight,
+      valign: 'middle',
+      overflow: 'ellipsize',
+    },
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      fontSize: 8.5,
+      halign: 'center',
+      valign: 'middle',
+      lineWidth: 0.4,
+      lineColor: [0, 0, 0],
+      minCellHeight: 8,
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 55, halign: 'left' },
+      2: { cellWidth: 38, halign: 'left' },
+      3: { cellWidth: 50, halign: 'left' },
+      4: { cellWidth: 31, halign: 'center' },
+    },
+    margin: { left: L, right: R },
+    tableWidth: innerW,
+    showHead: 'firstPage',
+    didDrawCell: (hookData: any) => {
+      if (hookData.section === 'body' && hookData.column.index === 4) {
+        const att = (data.attendance || [])[hookData.row.index];
+        if (att && att.manualSignature) {
+          try {
+            const { x, y: cy, width, height } = hookData.cell;
+            const pad = 1.5;
+            pdf.addImage(att.manualSignature, 'PNG', x + pad, cy + pad, width - pad * 2, height - pad * 2);
+          } catch (_) { /* skip */ }
+        }
+      }
+    },
+  });
+
+  // ── FOOTER ───────────────────────────────────────────────────────────────────
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(7);
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('Feb 2018/R1', L, H - 8);
+  pdf.text('Page 1 of 1', L + innerW, H - 8, { align: 'right' });
+
+  // Save
+  const titleStr = (data.meeting.title || 'meeting').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+  const dateFile = meetingDate.toISOString().split('T')[0];
+  pdf.save(`Daftar-Hadir-BIB-${titleStr}-${dateFile}.pdf`);
 }
 
 function getMeetingStatusLabel(status: string): string {
