@@ -12375,7 +12375,7 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // Import Gemini parser dynamically
-  const { parseReportWithGemini, analyzeReportContent, parseMCUWithGemini, isLikelyPatrolReport } = await import("./gemini-parser");
+  const { parseReportWithGemini, analyzeReportContent, parseMCUWithGemini, isLikelyPatrolReport, isValidParsedReport } = await import("./gemini-parser");
 
 
   // ==========================================
@@ -12645,6 +12645,14 @@ Format sebagai bullet points singkat per insight.`;
         try {
           // Parse with Gemini AI
           const parsed = await parseReportWithGemini(messageContent);
+
+          // Validate: jika hasil parsing terlalu kosong, ini bukan laporan patrol
+          if (!isValidParsedReport(parsed)) {
+            console.log("⚠️ Parsed result tidak cukup meaningful, pesan dilewati:", messageContent.substring(0, 80));
+            res.status(200).json({ status: "ok", message: "Pesan tidak teridentifikasi sebagai laporan patrol yang valid" });
+            return;
+          }
+
           const aiAnalysis = await analyzeReportContent(messageContent);
 
           // Create report with all extracted fields
@@ -12848,15 +12856,21 @@ Format sebagai bullet points singkat per insight.`;
   // Batch re-parse reports with missing fields
   app.post("/api/safety-patrol/batch-reparse", async (req, res) => {
     try {
-      const limit = parseInt((req.query.limit as string) || "20");
+      const limit = Math.min(500, parseInt((req.query.limit as string) || "50"));
       const reports = await storage.getAllSafetyPatrolReports();
       const missing = reports.filter((r: any) =>
         r.rawMessage && (!r.waktuPelaksanaan || !r.lokasi || !r.shift)
       ).slice(0, limit);
 
+      const totalMissing = reports.filter((r: any) =>
+        r.rawMessage && (!r.waktuPelaksanaan || !r.lokasi || !r.shift)
+      ).length;
+
       if (missing.length === 0) {
-        return res.json({ message: "Tidak ada laporan yang perlu di-parse ulang", processed: 0 });
+        return res.json({ message: "Tidak ada laporan yang perlu di-parse ulang", processed: 0, remaining: 0 });
       }
+
+      console.log(`[batch-reparse] Starting: ${missing.length} laporan akan diproses (total kosong: ${totalMissing})`);
 
       let processed = 0;
       let failed = 0;
@@ -12877,15 +12891,42 @@ Format sebagai bullet points singkat per insight.`;
             parsedData: parsed,
           });
           processed++;
-        } catch {
+        } catch (err) {
+          console.error(`[batch-reparse] Gagal report ${report.id}:`, err);
           failed++;
         }
       }
 
-      res.json({ message: `Selesai: ${processed} berhasil, ${failed} gagal`, processed, failed, remaining: missing.length - processed - failed });
+      const remaining = totalMissing - processed;
+      console.log(`[batch-reparse] Selesai: ${processed} berhasil, ${failed} gagal, ${remaining} tersisa`);
+      res.json({ message: `Selesai: ${processed} berhasil, ${failed} gagal${remaining > 0 ? `, ${remaining} masih tersisa` : ''}`, processed, failed, remaining });
     } catch (error) {
       console.error("Batch reparse error:", error);
       res.status(500).json({ message: "Gagal menjalankan batch re-parse" });
+    }
+  });
+
+  // Hapus laporan "sampah" — laporan dengan semua field utama kosong (kemungkinan bukan laporan patrol)
+  app.post("/api/safety-patrol/cleanup-junk", async (req, res) => {
+    try {
+      const reports = await storage.getAllSafetyPatrolReports();
+      const junk = reports.filter((r: any) => {
+        const keyFields = [r.kegiatan, r.lokasi, r.shift, r.waktuPelaksanaan, r.namaPelaksana, r.temuan];
+        const filledCount = keyFields.filter((f: any) => f && String(f).trim().length > 0).length;
+        return filledCount < 2;
+      });
+
+      let deleted = 0;
+      for (const r of junk) {
+        await storage.deleteSafetyPatrolReport(r.id);
+        deleted++;
+      }
+
+      console.log(`[cleanup-junk] Menghapus ${deleted} laporan sampah dari ${reports.length} total`);
+      res.json({ message: `${deleted} laporan tidak valid dihapus`, deleted, total: reports.length });
+    } catch (error) {
+      console.error("Cleanup junk error:", error);
+      res.status(500).json({ message: "Gagal membersihkan laporan sampah" });
     }
   });
 
@@ -16327,6 +16368,155 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Sinkron Roster H-1: Deteksi driver yang besok masuk kerja setelah cuti & buat jadwal + kirim WA
+  app.post("/api/induction/sync-roster", async (req, res) => {
+    const { sendReminder = false } = req.body;
+    try {
+      const { db } = await import('./db');
+      const { rosterSchedules } = await import('@shared/schema');
+      const { eq, sql: sqlExpr } = await import('drizzle-orm');
+
+      const LEAVE_SHIFTS = ['CUTI'];
+      const WORK_SHIFTS = ['SHIFT 1', 'SHIFT 2'];
+
+      // Besok = H+1 dari hari ini
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+      // Cek 7 hari ke belakang untuk deteksi cuti konsekutif
+      const checkDays: string[] = [];
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date();
+        d.setDate(d.getDate() - i + 1);
+        checkDays.push(d.toISOString().split('T')[0]);
+      }
+      // checkDays[0] = hari ini, checkDays[6] = 7 hari lalu
+
+      // Ambil roster besok (driver yang akan kerja)
+      const tomorrowRoster = await db.select().from(rosterSchedules).where(eq(rosterSchedules.date, tomorrowStr));
+      const workingTomorrow = tomorrowRoster.filter((r: any) => WORK_SHIFTS.includes(r.shift));
+
+      // Ambil roster 7 hari ke belakang
+      const pastRosterMap = new Map<string, Map<string, string>>(); // employeeId -> date -> shift
+      for (const day of checkDays) {
+        const dayRoster = await db.select().from(rosterSchedules).where(eq(rosterSchedules.date, day));
+        for (const r of dayRoster) {
+          if (!pastRosterMap.has(r.employeeId)) pastRosterMap.set(r.employeeId, new Map());
+          pastRosterMap.get(r.employeeId)!.set(day, r.shift);
+        }
+      }
+
+      const drivers: any[] = [];
+      let generatedCount = 0;
+      let sentCount = 0;
+      let failedCount = 0;
+
+      for (const entry of workingTomorrow) {
+        // Cek apakah driver ini sedang dalam cuti konsekutif (minimal hari ini cuti)
+        const empDays = pastRosterMap.get(entry.employeeId);
+        const todayShift = empDays?.get(checkDays[0]) || '';
+        if (!LEAVE_SHIFTS.includes(todayShift)) continue; // Hari ini harus CUTI
+
+        // Hitung berapa hari konsekutif cuti
+        let consecutiveLeaveDays = 0;
+        for (const day of checkDays) {
+          const shift = empDays?.get(day) || '';
+          if (LEAVE_SHIFTS.includes(shift)) consecutiveLeaveDays++;
+          else break;
+        }
+
+        // Cek existing schedule
+        const existingSchedule = await storage.getPendingInductionSchedule(entry.employeeId);
+
+        let scheduleId: string | null = null;
+        if (!existingSchedule) {
+          const newSchedule = await storage.createInductionSchedule({
+            employeeId: entry.employeeId,
+            scheduledDate: tomorrowStr,
+            reason: 'Pasca Cuti',
+            status: 'pending'
+          });
+          generatedCount++;
+          scheduleId = newSchedule.id;
+          drivers.push({ employeeId: entry.employeeId, scheduledDate: tomorrowStr, consecutiveLeaveDays, scheduleId, action: 'created' });
+        } else {
+          scheduleId = existingSchedule.id;
+          drivers.push({ employeeId: entry.employeeId, scheduledDate: tomorrowStr, consecutiveLeaveDays, scheduleId, action: 'existing' });
+        }
+
+        // Kirim WA jika diminta
+        if (sendReminder && scheduleId) {
+          try {
+            const schedule = await storage.getInductionSchedule(scheduleId);
+            if (schedule?.employee?.phone) {
+              const message = `Yth. ${schedule.employee.name},\n\nHarap segera merapat ke kantor untuk melakukan *Refresh Induksi* dan *Pengambilan SIMPER* pada:\n📅 Tanggal: *${new Date(schedule.scheduledDate).toLocaleDateString("id-ID")}*\n🕒 Pukul: *14:00 WITA*\n\nKehadiran Anda wajib tepat waktu.\n\nTerima kasih,\nHSE Team`;
+              const result = await sendWhatsAppMessage({
+                phone: schedule.employee.phone,
+                message,
+                logContext: { module: 'INDUCTION', referenceId: scheduleId, referenceName: schedule.employee.name, recipientType: 'EMPLOYEE', messageType: 'REMINDER' }
+              });
+              if (result.success) {
+                await storage.updateInductionSchedule(scheduleId, { notifiedAt: new Date(), notifiedVia: 'whatsapp' });
+                sentCount++;
+              } else {
+                failedCount++;
+              }
+            }
+          } catch {
+            failedCount++;
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        generated: generatedCount,
+        sent: sentCount,
+        failed: failedCount,
+        drivers,
+        message: `Sinkron selesai: ${generatedCount} jadwal baru${sendReminder ? `, ${sentCount} WA terkirim, ${failedCount} gagal` : ''}`
+      });
+    } catch (error: any) {
+      console.error('❌ Error sync-roster:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Kirim WA ke semua jadwal pending (batch)
+  app.post("/api/induction/send-all-pending", async (req, res) => {
+    try {
+      const schedules = await storage.getInductionSchedules();
+      const pending = schedules.filter((s: any) => !s.notifiedAt);
+      let sent = 0, failed = 0, skipped = 0;
+
+      for (const schedule of pending) {
+        if (!schedule.employee?.phone) { skipped++; continue; }
+        try {
+          const message = `Yth. ${schedule.employee.name},\n\nHarap segera merapat ke kantor untuk melakukan *Refresh Induksi* dan *Pengambilan SIMPER* pada:\n📅 Tanggal: *${new Date(schedule.scheduledDate).toLocaleDateString("id-ID")}*\n🕒 Pukul: *14:00 WITA*\n\nKehadiran Anda wajib tepat waktu.\n\nTerima kasih,\nHSE Team`;
+          const result = await sendWhatsAppMessage({
+            phone: schedule.employee.phone,
+            message,
+            logContext: { module: 'INDUCTION', referenceId: schedule.id, referenceName: schedule.employee.name, recipientType: 'EMPLOYEE', messageType: 'REMINDER' }
+          });
+          if (result.success) {
+            await storage.updateInductionSchedule(schedule.id, { notifiedAt: new Date(), notifiedVia: 'whatsapp' });
+            sent++;
+          } else {
+            failed++;
+          }
+        } catch {
+          failed++;
+        }
+      }
+
+      res.json({ success: true, sent, failed, skipped, message: `${sent} WA terkirim, ${failed} gagal, ${skipped} tidak ada nomor` });
+    } catch (error: any) {
+      console.error('❌ Error send-all-pending:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // WhatsApp Reminder
   app.post("/api/induction/send-reminder", async (req, res) => {
     try {
@@ -16337,7 +16527,7 @@ Format sebagai bullet points singkat per insight.`;
       const phone = schedule.employee.phone;
       if (!phone) return res.status(400).json({ error: "Employee has no phone number" });
 
-      const message = `Yth. ${schedule.employee.name},\n\nAnda dijadwalkan untuk *Induksi K3* pada tanggal *${new Date(schedule.scheduledDate).toLocaleDateString("id-ID")}*.\n\nSilakan buka aplikasi OneTalent dan selesaikan quiz induksi.\n\nTerima kasih,\nHSE Team`;
+      const message = `Yth. ${schedule.employee.name},\n\nHarap segera merapat ke kantor untuk melakukan *Refresh Induksi* dan *Pengambilan SIMPER* pada:\n📅 Tanggal: *${new Date(schedule.scheduledDate).toLocaleDateString("id-ID")}*\n🕒 Pukul: *14:00 WITA*\n\nKehadiran Anda wajib tepat waktu.\n\nTerima kasih,\nHSE Team`;
 
       const result = await sendWhatsAppMessage({
         phone,
@@ -18493,6 +18683,58 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error: any) {
       console.error("Error fetching induction attendance:", error);
       res.status(500).json({ error: error.message || "Gagal mengambil data absensi" });
+    }
+  });
+
+  // Sinkron nomor telepon karyawan dari data absensi induksi
+  app.post("/api/induction-attendance/sync-phones", async (req, res) => {
+    try {
+      const { db } = await import('./db');
+      const { publicInductionAttendance: inductionTable, employees: employeesTable } = await import('@shared/schema');
+      const { eq, isNotNull, ne } = await import('drizzle-orm');
+
+      // Ambil semua absensi induksi yang ada nomorTelepon
+      const attendances = await db.select().from(inductionTable)
+        .where(isNotNull(inductionTable.nomorTelepon));
+
+      // Buat map nik -> nomor telepon (ambil yang terbaru per NIK)
+      const phoneMap = new Map<string, string>();
+      for (const att of attendances) {
+        if (att.nik && att.nomorTelepon && att.nomorTelepon.trim().length >= 8) {
+          phoneMap.set(att.nik, att.nomorTelepon.trim());
+        }
+      }
+
+      let updated = 0;
+      let skipped = 0;
+      const updatedList: { nik: string; name: string; phone: string }[] = [];
+
+      for (const [nik, phone] of phoneMap.entries()) {
+        // Cari employee berdasarkan NIK (id)
+        const [emp] = await db.select().from(employeesTable).where(eq(employeesTable.id, nik));
+        if (!emp) { skipped++; continue; }
+
+        // Update hanya jika phone kosong atau berbeda
+        if (!emp.phone || emp.phone.trim() !== phone) {
+          await storage.updateEmployee(nik, { phone } as any);
+          updatedList.push({ nik, name: emp.name, phone });
+          updated++;
+        } else {
+          skipped++;
+        }
+      }
+
+      console.log(`[sync-phones] Updated ${updated} employees from induction attendance`);
+      res.json({
+        success: true,
+        updated,
+        skipped,
+        list: updatedList,
+        message: `${updated} nomor telepon karyawan diperbarui dari data absensi induksi`
+      });
+    } catch (error: any) {
+      console.error('Error sync-phones:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 

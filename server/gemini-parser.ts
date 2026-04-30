@@ -198,7 +198,18 @@ Fokus pada:
  * Mengembalikan true jika pesan mengandung cukup ciri laporan patrol.
  */
 export function isLikelyPatrolReport(text: string): boolean {
-  const lower = text.toLowerCase();
+  if (!text || text.trim().length < 25) return false;
+
+  const lower = text.toLowerCase().trim();
+
+  // Blacklist — pesan yang pasti bukan laporan
+  const blacklistPatterns = [
+    /^\*?\d+#?$/,              // shortcode seperti *888#
+    /^[\w\s]{1,25}$/,          // hanya nama pendek (< 25 char, hanya huruf/spasi)
+    /^https?:\/\//,            // hanya URL
+    /^\+?\d[\d\s\-]{5,}$/,     // hanya nomor telepon
+  ];
+  if (blacklistPatterns.some(p => p.test(lower))) return false;
 
   // Kata kunci kuat — satu saja cukup
   const strongKeywords = [
@@ -208,13 +219,14 @@ export function isLikelyPatrolReport(text: string): boolean {
     "hadir", "unit dt", "unit ht", "dump truck", "hauling",
     "wake up call", "safety meeting", "pelanggaran",
     "kondisi jalan", "kondisi unit", "km ", "phase ", "pit ",
-    "piket", "patroli"
+    "piket", "patroli", "wita", "pukul", "alat berat",
+    "induction", "induksi", "toolbox", "meeting",
   ];
 
-  // Kata kunci lemah — butuh 2+ untuk lolos
+  // Kata kunci lemah — butuh 3+ untuk lolos
   const weakKeywords = [
-    "lokasi", "waktu", "jam", "shift", "tanggal", "selesai",
-    "wita", "team", "tim", "driver", "operator"
+    "lokasi", "waktu", "jam", "tanggal", "selesai",
+    "team", "tim", "driver", "operator", "pengawas"
   ];
 
   const hasStrong = strongKeywords.some(k => lower.includes(k));
@@ -222,6 +234,23 @@ export function isLikelyPatrolReport(text: string): boolean {
 
   const weakCount = weakKeywords.filter(k => lower.includes(k)).length;
   return weakCount >= 3;
+}
+
+/**
+ * Cek apakah hasil parse AI cukup meaningful untuk disimpan sebagai laporan.
+ * Minimal harus ada 2 dari field utama terisi.
+ */
+export function isValidParsedReport(parsed: ParsedReport): boolean {
+  const keyFields = [
+    parsed.kegiatan,
+    parsed.lokasi,
+    parsed.shift,
+    parsed.waktuPelaksanaan,
+    parsed.namaPelaksana,
+    parsed.temuan,
+  ];
+  const filledCount = keyFields.filter(f => f && f.trim && f.trim().length > 0).length;
+  return filledCount >= 2;
 }
 
 // ==========================================

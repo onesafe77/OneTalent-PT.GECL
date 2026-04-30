@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Download, FileSpreadsheet, FileText, UserCheck, Calendar, Phone, Briefcase, Clock } from "lucide-react";
+import { Search, Download, FileSpreadsheet, FileText, UserCheck, Calendar, Phone, Briefcase, Clock, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { jsPDF } from "jspdf";
@@ -17,6 +17,7 @@ import { generateQRCodeDataURL } from "@/lib/qr-utils";
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InductionStats } from "@/components/hr/induction-stats";
+import { apiRequest } from "@/lib/queryClient";
 
 interface InductionAttendance {
     id: string;
@@ -37,6 +38,21 @@ export default function HrInductionAttendance() {
     const [qrDataUrl, setQrDataUrl] = useState<string>("");
     const [isCopied, setIsCopied] = useState(false);
     const { toast } = useToast();
+    const [syncResult, setSyncResult] = useState<any>(null);
+
+    const syncPhonesMutation = useMutation({
+        mutationFn: async () => apiRequest("/api/induction-attendance/sync-phones", "POST", {}),
+        onSuccess: (data) => {
+            setSyncResult(data);
+            toast({
+                title: "Sinkron Selesai",
+                description: data.message,
+            });
+        },
+        onError: (error: Error) => {
+            toast({ title: "Gagal Sinkron", description: error.message, variant: "destructive" });
+        }
+    });
 
     const publicInductionUrl = `${window.location.origin}/absensi-induksi`;
 
@@ -143,6 +159,20 @@ export default function HrInductionAttendance() {
                         <FileText className="w-4 h-4 mr-2 text-red-600" />
                         Export PDF
                     </Button>
+                    <Button
+                        variant="outline"
+                        className="bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
+                        onClick={() => {
+                            if (confirm("Update nomor telepon karyawan dari data absensi induksi? Hanya nomor yang kosong atau berbeda yang akan diperbarui."))
+                                syncPhonesMutation.mutate();
+                        }}
+                        disabled={syncPhonesMutation.isPending}
+                    >
+                        {syncPhonesMutation.isPending
+                            ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Menyinkron...</>
+                            : <><Phone className="w-4 h-4 mr-2" />Sinkron No. Telepon</>
+                        }
+                    </Button>
 
                     <Dialog onOpenChange={(open) => open && handleShowQr()}>
                         <DialogTrigger asChild>
@@ -189,6 +219,33 @@ export default function HrInductionAttendance() {
                     </Dialog>
                 </div>
             </div>
+
+            {/* Hasil Sinkron Telepon */}
+            {syncResult && (
+                <Card className="border-blue-200 bg-blue-50">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm text-blue-700 flex items-center gap-2">
+                            <Phone className="w-4 h-4" />
+                            Hasil Sinkron Nomor Telepon
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm font-medium text-blue-800 mb-2">{syncResult.message}</p>
+                        <p className="text-xs text-blue-600 mb-2">{syncResult.skipped} karyawan dilewati (sudah sama atau tidak ditemukan)</p>
+                        {syncResult.list?.length > 0 && (
+                            <div className="space-y-1 max-h-40 overflow-y-auto">
+                                {syncResult.list.map((item: any, i: number) => (
+                                    <div key={i} className="text-xs text-blue-700 flex gap-3">
+                                        <span className="font-mono">{item.nik}</span>
+                                        <span className="font-medium">{item.name}</span>
+                                        <span className="text-green-700">→ {item.phone}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             <Tabs defaultValue="list" className="w-full">
                 <div className="flex items-center justify-between mb-4">

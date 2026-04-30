@@ -4,8 +4,6 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import {
   Shield,
-  Calendar,
-  Users,
   FileText,
   RefreshCw,
   Trash2,
@@ -14,10 +12,17 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Phone,
   BookOpen,
   LayoutList,
-  Download
+  Download,
+  AlertTriangle,
+  MapPin,
+  User,
+  Calendar,
+  Activity,
+  ChevronRight,
+  Search,
+  Filter,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import SafetyPatrolTemplates from "@/components/safety-patrol-templates";
@@ -93,6 +98,21 @@ interface StatsData {
   recentReports: SafetyPatrolReport[];
 }
 
+const ACTIVITY_COLORS: Record<string, string> = {
+  "Daily Briefing": "bg-blue-100 text-blue-800 border-blue-200",
+  "Temuan": "bg-orange-100 text-orange-800 border-orange-200",
+  "Pelanggaran": "bg-red-100 text-red-800 border-red-200",
+  "Inspeksi": "bg-purple-100 text-purple-800 border-purple-200",
+  "Sidak Fatigue Driver": "bg-amber-100 text-amber-800 border-amber-200",
+  "Safety Meeting": "bg-teal-100 text-teal-800 border-teal-200",
+  "Safety Meeting Patrol": "bg-teal-100 text-teal-800 border-teal-200",
+  "Koordinasi Bersama Pengawas Area": "bg-indigo-100 text-indigo-800 border-indigo-200",
+};
+
+function getActivityColor(activity: string): string {
+  return ACTIVITY_COLORS[activity] || "bg-gray-100 text-gray-700 border-gray-200";
+}
+
 export default function SafetyPatrol() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
@@ -104,58 +124,58 @@ export default function SafetyPatrol() {
 
   const { data: reports, isLoading, refetch } = useQuery<SafetyPatrolReport[]>({
     queryKey: ['/api/safety-patrol/reports'],
-    refetchInterval: 30000, // Auto-refresh setiap 30 detik
+    refetchInterval: 30000,
   });
 
   const { data: stats } = useQuery<StatsData>({
     queryKey: ['/api/safety-patrol/stats'],
-    refetchInterval: 30000, // Auto-refresh setiap 30 detik
+    refetchInterval: 30000,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest(`/api/safety-patrol/reports/${id}`, "DELETE");
-    },
+    mutationFn: async (id: string) => apiRequest(`/api/safety-patrol/reports/${id}`, "DELETE"),
     onSuccess: () => {
       toast({ title: "Berhasil", description: "Laporan berhasil dihapus" });
       queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/reports'] });
       queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/stats'] });
     },
-    onError: () => {
-      toast({ title: "Gagal", description: "Gagal menghapus laporan", variant: "destructive" });
-    }
   });
 
   const batchReparseMutation = useMutation({
-    mutationFn: async () => {
-      return apiRequest("/api/safety-patrol/batch-reparse?limit=20", "POST");
-    },
+    mutationFn: async () => apiRequest("/api/safety-patrol/batch-reparse?limit=50", "POST"),
     onSuccess: (data) => {
-      toast({ title: "Batch Re-parse Selesai", description: data.message });
+      toast({ title: "Re-parse Selesai", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/reports'] });
+    },
+  });
+
+  const reParseAllMutation = useMutation({
+    mutationFn: async () => apiRequest("/api/safety-patrol/batch-reparse?limit=500", "POST"),
+    onSuccess: (data) => {
+      toast({ title: "Re-parse Semua Selesai", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/reports'] });
+    },
+  });
+
+  const cleanupJunkMutation = useMutation({
+    mutationFn: async () => apiRequest("/api/safety-patrol/cleanup-junk", "POST"),
+    onSuccess: (data) => {
+      toast({ title: "Pembersihan Selesai", description: data.message });
       queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/reports'] });
       queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/stats'] });
     },
-    onError: () => {
-      toast({ title: "Gagal", description: "Batch re-parse gagal", variant: "destructive" });
-    }
   });
 
   const reparseMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest(`/api/safety-patrol/reports/${id}/reparse`, "POST");
-    },
+    mutationFn: async (id: string) => apiRequest(`/api/safety-patrol/reports/${id}/reparse`, "POST"),
     onSuccess: (data) => {
-      toast({ title: "Berhasil", description: "Laporan berhasil diproses ulang dengan AI" });
+      toast({ title: "Berhasil", description: "Laporan diproses ulang" });
       queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/reports'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/safety-patrol/stats'] });
-      if (data) {
-        setSelectedReport(data);
-      }
+      if (data) setSelectedReport(data);
     },
-    onError: () => {
-      toast({ title: "Gagal", description: "Gagal memproses ulang laporan", variant: "destructive" });
-    }
   });
+
+  const emptyCount = reports?.filter(r => r.rawMessage && (!r.waktuPelaksanaan || !r.lokasi || !r.shift)).length ?? 0;
 
   const filteredReports = reports?.filter(report => {
     if (typeFilter !== "all" && report.jenisLaporan !== typeFilter) return false;
@@ -165,15 +185,12 @@ export default function SafetyPatrol() {
     return true;
   }) || [];
 
-  // Mendapatkan daftar kegiatan unik untuk filter
   const uniqueActivities = Array.from(new Set(reports?.map(r => r.kegiatan).filter(Boolean))) as string[];
 
   const formatDate = (dateStr: string) => {
     try {
       return format(new Date(dateStr), "dd MMM yyyy", { locale: idLocale });
-    } catch {
-      return dateStr;
-    }
+    } catch { return dateStr; }
   };
 
   const handleViewDetail = (report: SafetyPatrolReport) => {
@@ -182,542 +199,503 @@ export default function SafetyPatrol() {
   };
 
   const handleExportExcel = () => {
-    if (!filteredReports || filteredReports.length === 0) {
+    if (!filteredReports?.length) {
       toast({ title: "Info", description: "Tidak ada data untuk diekspor" });
       return;
     }
-
-    try {
-      const dataToExport = filteredReports.map(report => ({
-        Tanggal: formatDate(report.tanggal),
-        Bulan: report.bulan || "-",
-        Week: report.week || "-",
-        Waktu: report.waktuPelaksanaan || "-",
-        Shift: report.shift || "-",
-        Lokasi: report.lokasi || "-",
-        Kategori: report.jenisLaporan,
-        Kegiatan: report.kegiatan || "-",
-        Pelaksana: report.namaPelaksana || report.senderName || "-",
-        Temuan: report.temuan || "-",
-        "Bukti Kegiatan": report.buktiKegiatan?.join(", ") || "-",
-        Status: report.status
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(dataToExport);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Safety Patrol");
-      XLSX.writeFile(wb, `Safety_Patrol_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-
-      toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
-    } catch (error) {
-      console.error("Export Error:", error);
-      toast({ title: "Gagal", description: "Gagal mengekspor data", variant: "destructive" });
-    }
+    const ws = XLSX.utils.json_to_sheet(filteredReports.map(r => ({
+      Tanggal: formatDate(r.tanggal),
+      Bulan: r.bulan || "-",
+      Week: r.week ? `W${r.week}` : "-",
+      Waktu: r.waktuPelaksanaan || "-",
+      Shift: r.shift || "-",
+      Lokasi: r.lokasi || "-",
+      Kegiatan: r.kegiatan || r.jenisLaporan,
+      Pelaksana: r.namaPelaksana || r.senderName || "-",
+      Temuan: r.temuan || "-",
+      Status: r.status,
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Safety Patrol");
+    XLSX.writeFile(wb, `Safety_Patrol_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    toast({ title: "Berhasil", description: "File Excel berhasil diunduh" });
   };
 
-  const webhookUrl = `${window.location.origin}/api/webhook/whatsapp`;
+  const briefingCount = stats?.reportsByType?.["Daily Briefing"] || 0;
+  const temuanCount = stats?.reportsByType?.["Temuan"] || 0;
+  const otherCount = Object.entries(stats?.reportsByType || {})
+    .filter(([k]) => !["Daily Briefing", "Temuan"].includes(k))
+    .reduce((s, [, v]) => s + v, 0);
+
+  const isAnyParsing = batchReparseMutation.isPending || reParseAllMutation.isPending;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="h-6 w-6 text-orange-500" />
-            Safety Patrol Dashboard
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Rekap laporan Safety Patrol dari WhatsApp
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={handleExportExcel} variant="outline" size="sm">
-            <Download className="h-4 w-4 mr-2" />
-            Export Excel
-          </Button>
-          <Button onClick={() => refetch()} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+    <div className="min-h-screen bg-gray-50/50">
+      {/* ── PAGE HEADER ─────────────────────────────────────────── */}
+      <div className="bg-white border-b px-6 py-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
+              <Shield className="h-5 w-5 text-orange-600" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Safety Patrol Dashboard</h1>
+              <p className="text-sm text-gray-500">Rekap laporan dari WhatsApp secara real-time</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleExportExcel} variant="outline" size="sm" className="h-9">
+              <Download className="h-4 w-4 mr-1.5" />
+              Export Excel
+            </Button>
+            <Button onClick={() => refetch()} variant="outline" size="sm" className="h-9">
+              <RefreshCw className="h-4 w-4 mr-1.5" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Tabs defaultValue="reports" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="reports" className="flex items-center gap-2" data-testid="tab-reports">
-            <LayoutList className="h-4 w-4" />
-            Laporan
-          </TabsTrigger>
-          <TabsTrigger value="templates" className="flex items-center gap-2" data-testid="tab-templates">
-            <BookOpen className="h-4 w-4" />
-            Knowledge Templates
-          </TabsTrigger>
-        </TabsList>
+      <div className="p-6 space-y-6">
+        <Tabs defaultValue="reports" className="w-full">
+          <TabsList className="h-10 bg-white border">
+            <TabsTrigger value="reports" className="flex items-center gap-2 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+              <LayoutList className="h-4 w-4" />
+              Laporan
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="flex items-center gap-2 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+              <BookOpen className="h-4 w-4" />
+              Knowledge Templates
+            </TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="reports" className="mt-6 space-y-6">
-          {/* Webhook URL Info */}
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="pt-4">
-              <div className="flex items-start gap-3">
-                <MessageSquare className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-medium text-blue-900">Webhook URL untuk notif.my.id</p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    Salin URL berikut dan paste di dashboard notif.my.id:
-                  </p>
-                  <code className="block mt-2 p-2 bg-white rounded border text-sm break-all">
-                    {webhookUrl}
-                  </code>
+          <TabsContent value="reports" className="mt-5 space-y-5">
+
+            {/* ── STAT CARDS ──────────────────────────────────────── */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Total Laporan", value: stats?.totalReports || 0, color: "text-gray-900", bg: "bg-white", icon: <FileText className="h-5 w-5 text-gray-400" />, border: "border" },
+                { label: "Daily Briefing", value: briefingCount, color: "text-blue-700", bg: "bg-blue-50", icon: <MessageSquare className="h-5 w-5 text-blue-500" />, border: "border-blue-100" },
+                { label: "Temuan", value: temuanCount, color: "text-orange-700", bg: "bg-orange-50", icon: <AlertTriangle className="h-5 w-5 text-orange-500" />, border: "border-orange-100" },
+                { label: "Laporan Lain", value: otherCount, color: "text-gray-700", bg: "bg-gray-50", icon: <Activity className="h-5 w-5 text-gray-400" />, border: "border" },
+              ].map((s) => (
+                <Card key={s.label} className={`${s.bg} ${s.border} shadow-none`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{s.label}</span>
+                      {s.icon}
+                    </div>
+                    <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* ── WEBHOOK INFO ─────────────────────────────────────── */}
+            <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+              <MessageSquare className="h-4 w-4 text-blue-600 shrink-0" />
+              <span className="text-blue-700 font-medium">Webhook URL:</span>
+              <code className="text-blue-800 bg-white border border-blue-200 px-2 py-0.5 rounded text-xs break-all flex-1">
+                {window.location.origin}/api/webhook/whatsapp
+              </code>
+            </div>
+
+            {/* ── FILTER BAR ───────────────────────────────────────── */}
+            <Card className="shadow-none border">
+              <CardContent className="p-4">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <Filter className="h-4 w-4" />
+                    Filter
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-500">Dari Tanggal</span>
+                    <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 w-36 text-sm" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-500">Sampai Tanggal</span>
+                    <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 w-36 text-sm" />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-500">Jenis Laporan</span>
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger className="h-8 w-44 text-sm">
+                        <SelectValue placeholder="Semua Jenis" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Jenis</SelectItem>
+                        <SelectItem value="Daily Briefing">Daily Briefing</SelectItem>
+                        <SelectItem value="Temuan">Temuan</SelectItem>
+                        <SelectItem value="Pelanggaran">Pelanggaran</SelectItem>
+                        <SelectItem value="Laporan Umum">Laporan Umum</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-500">Kegiatan</span>
+                    <Select value={activityFilter} onValueChange={setActivityFilter}>
+                      <SelectTrigger className="h-8 w-52 text-sm">
+                        <SelectValue placeholder="Semua Kegiatan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua Kegiatan</SelectItem>
+                        {uniqueActivities.sort().map(a => (
+                          <SelectItem key={a} value={a}>{a}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {(dateFrom || dateTo || typeFilter !== "all" || activityFilter !== "all") && (
+                    <Button variant="ghost" size="sm" className="h-8 text-sm text-gray-500"
+                      onClick={() => { setDateFrom(""); setDateTo(""); setTypeFilter("all"); setActivityFilter("all"); }}>
+                      Reset
+                    </Button>
+                  )}
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Total Laporan</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{stats?.totalReports || 0}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Daily Briefing</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-blue-600">
-                  {stats?.reportsByType?.["Daily Briefing"] || 0}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Temuan</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-orange-600">
-                  {stats?.reportsByType?.["Temuan"] || 0}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">Laporan Lain</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-gray-600">
-                  {Object.entries(stats?.reportsByType || {})
-                    .filter(([key]) => !["Daily Briefing", "Temuan"].includes(key))
-                    .reduce((sum, [, count]) => sum + count, 0)}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Filters */}
-          <div className="flex flex-wrap gap-4 items-end">
-            <div>
-              <label className="text-sm font-medium mb-1 block">Dari Tanggal</label>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-40"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Sampai Tanggal</label>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-40"
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Jenis Laporan</label>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Semua Jenis" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Jenis</SelectItem>
-                  <SelectItem value="Daily Briefing">Daily Briefing</SelectItem>
-                  <SelectItem value="Temuan">Temuan</SelectItem>
-                  <SelectItem value="Pelanggaran">Pelanggaran</SelectItem>
-                  <SelectItem value="Laporan Umum">Laporan Umum</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Kegiatan</label>
-              <Select value={activityFilter} onValueChange={setActivityFilter}>
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Semua Kegiatan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua Kegiatan</SelectItem>
-                  {uniqueActivities.sort().map(activity => (
-                    <SelectItem key={activity} value={activity}>{activity}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button variant="ghost" onClick={() => { setDateFrom(""); setDateTo(""); setTypeFilter("all"); setActivityFilter("all"); }}>
-              Reset Filter
-            </Button>
-          </div>
-
-          {/* Reports Table */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Daftar Laporan ({filteredReports.length})
-                </CardTitle>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => batchReparseMutation.mutate()}
-                  disabled={batchReparseMutation.isPending}
-                  title="Re-parse laporan yang info-nya masih kosong (maks 20 per klik)"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${batchReparseMutation.isPending ? 'animate-spin' : ''}`} />
-                  {batchReparseMutation.isPending ? "Memproses..." : "Re-parse Kosong"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="text-center py-8 text-gray-500">Memuat data...</div>
-              ) : filteredReports.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p>Belum ada laporan masuk</p>
-                  <p className="text-sm mt-2">Kirim pesan ke WhatsApp untuk mulai</p>
+            {/* ── REPORTS TABLE ────────────────────────────────────── */}
+            <Card className="shadow-none border">
+              <CardHeader className="px-5 py-4 border-b bg-gray-50/60">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-semibold text-gray-800">
+                      Daftar Laporan
+                      <span className="ml-2 text-gray-400 font-normal text-sm">({filteredReports.length})</span>
+                    </h2>
+                    {emptyCount > 0 && (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+                        <Clock className="h-3 w-3" />
+                        {emptyCount} belum ter-parse
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Button size="sm" variant="outline" className="h-8 text-xs"
+                      onClick={() => batchReparseMutation.mutate()}
+                      disabled={isAnyParsing || emptyCount === 0}>
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${batchReparseMutation.isPending ? 'animate-spin' : ''}`} />
+                      Re-parse 50
+                    </Button>
+                    <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700"
+                      onClick={() => reParseAllMutation.mutate()}
+                      disabled={isAnyParsing || emptyCount === 0}>
+                      <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${reParseAllMutation.isPending ? 'animate-spin' : ''}`} />
+                      {reParseAllMutation.isPending ? "Memproses..." : `Re-parse Semua (${emptyCount})`}
+                    </Button>
+                    <Button size="sm" variant="destructive" className="h-8 text-xs"
+                      onClick={() => confirm("Hapus semua laporan yang hampir semua fieldnya kosong?") && cleanupJunkMutation.mutate()}
+                      disabled={cleanupJunkMutation.isPending}>
+                      <Trash2 className={`h-3.5 w-3.5 mr-1.5 ${cleanupJunkMutation.isPending ? 'animate-spin' : ''}`} />
+                      Hapus Non-Laporan
+                    </Button>
+                  </div>
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="min-w-[100px]">Tanggal</TableHead>
-                        <TableHead className="min-w-[80px]">Bulan</TableHead>
-                        <TableHead className="min-w-[60px]">Week</TableHead>
-                        <TableHead className="min-w-[100px]">Waktu</TableHead>
-                        <TableHead className="min-w-[60px]">Shift</TableHead>
-                        <TableHead className="min-w-[120px]">Lokasi</TableHead>
-                        <TableHead className="min-w-[140px]">Kegiatan</TableHead>
-                        <TableHead className="min-w-[120px]">Pelaksana</TableHead>
-                        <TableHead className="min-w-[80px]">Bukti</TableHead>
-                        <TableHead className="min-w-[150px]">Temuan</TableHead>
-                        <TableHead className="min-w-[80px]">Status</TableHead>
-                        <TableHead className="min-w-[80px] text-right">Aksi</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredReports.map((report) => (
-                        <TableRow
-                          key={report.id}
-                          className="cursor-pointer hover:bg-gray-50"
-                          onClick={() => handleViewDetail(report)}
-                        >
-                          <TableCell className="font-medium whitespace-nowrap">
-                            {formatDate(report.tanggal)}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {report.bulan || "-"}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {report.week ? `W${report.week}` : "-"}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {report.waktuPelaksanaan || "-"}
-                          </TableCell>
-                          <TableCell>{report.shift || "-"}</TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={report.lokasi || ""}>
-                            {report.lokasi || "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={report.kegiatan ? "default" : "secondary"} className="whitespace-nowrap">
-                              {report.kegiatan || report.jenisLaporan}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {report.namaPelaksana || report.senderName || "-"}
-                          </TableCell>
-                          <TableCell>
-                            {report.buktiKegiatan?.length ? (
-                              <div className="flex items-center gap-1">
-                                {report.buktiKegiatan.slice(0, 2).map((url, idx) => (
-                                  <a
-                                    key={idx}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="block w-10 h-10 rounded border overflow-hidden bg-gray-100 hover:opacity-80"
-                                  >
-                                    <img
-                                      src={url}
-                                      alt={`Foto ${idx + 1}`}
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).src = "";
-                                        (e.target as HTMLImageElement).className = "hidden";
-                                      }}
-                                    />
-                                  </a>
-                                ))}
-                                {report.buktiKegiatan.length > 2 && (
-                                  <span className="text-xs text-gray-500">+{report.buktiKegiatan.length - 2}</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="max-w-[150px] truncate" title={report.temuan || ""}>
-                            {report.temuan || "-"}
-                          </TableCell>
-                          <TableCell>
-                            {report.status === "processed" ? (
-                              <Badge variant="outline" className="bg-green-50 text-green-700">
-                                <CheckCircle className="h-3 w-3 mr-1" />
-                                OK
-                              </Badge>
-                            ) : report.status === "failed" ? (
-                              <Badge variant="outline" className="bg-red-50 text-red-700">
-                                <XCircle className="h-3 w-3 mr-1" />
-                                Gagal
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-                                <Clock className="h-3 w-3 mr-1" />
-                                Pending
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => { e.stopPropagation(); handleViewDetail(report); }}
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-red-500"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (confirm("Hapus laporan ini?")) {
-                                    deleteMutation.mutate(report.id);
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                    <RefreshCw className="h-8 w-8 animate-spin mb-3" />
+                    <p className="text-sm">Memuat data laporan...</p>
+                  </div>
+                ) : filteredReports.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                    <MessageSquare className="h-12 w-12 mb-3 opacity-20" />
+                    <p className="font-medium text-gray-500">Belum ada laporan masuk</p>
+                    <p className="text-sm mt-1">Kirim pesan ke WhatsApp untuk mulai</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50 border-b hover:bg-gray-50">
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[110px] pl-5">Tanggal</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[100px]">Waktu</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[80px]">Shift</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Lokasi</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Kegiatan</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Pelaksana</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[80px]">Foto</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Temuan</TableHead>
+                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[80px] pr-5 text-right">Aksi</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredReports.map((report) => (
+                          <TableRow
+                            key={report.id}
+                            className="cursor-pointer hover:bg-orange-50/40 transition-colors border-b"
+                            onClick={() => handleViewDetail(report)}
+                          >
+                            {/* Tanggal */}
+                            <TableCell className="pl-5 py-3">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-gray-800">{formatDate(report.tanggal)}</span>
+                                <span className="text-xs text-gray-400">{report.bulan} · W{report.week || '-'}</span>
+                              </div>
+                            </TableCell>
 
-          {/* Detail Dialog */}
-          <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-            <DialogContent className="max-w-3xl max-h-[90vh]">
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Detail Laporan - {selectedReport?.jenisLaporan}
-                  </DialogTitle>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => selectedReport && reparseMutation.mutate(selectedReport.id)}
-                    disabled={reparseMutation.isPending}
-                    data-testid="button-reparse"
-                  >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${reparseMutation.isPending ? 'animate-spin' : ''}`} />
-                    {reparseMutation.isPending ? "Memproses..." : "Re-parse AI"}
-                  </Button>
-                </div>
-              </DialogHeader>
+                            {/* Waktu */}
+                            <TableCell className="py-3">
+                              <span className="text-sm text-gray-600">{report.waktuPelaksanaan || <span className="text-gray-300">—</span>}</span>
+                            </TableCell>
 
-              {selectedReport && (
-                <Tabs defaultValue="info" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="info">Info</TabsTrigger>
-                    <TabsTrigger value="attendance">Kehadiran ({selectedReport.attendance?.length || 0})</TabsTrigger>
-                    <TabsTrigger value="raw">Pesan Asli</TabsTrigger>
-                    <TabsTrigger value="ai">Analisis AI</TabsTrigger>
-                  </TabsList>
+                            {/* Shift */}
+                            <TableCell className="py-3">
+                              {report.shift ? (
+                                <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${report.shift === 'Shift 1' || report.shift === 'SHIFT 1' ? 'bg-sky-50 text-sky-700' : 'bg-violet-50 text-violet-700'}`}>
+                                  {report.shift.replace('SHIFT ', 'S')}
+                                </span>
+                              ) : <span className="text-gray-300 text-sm">—</span>}
+                            </TableCell>
 
-                  <TabsContent value="info" className="mt-4 space-y-4">
-                    <ScrollArea className="h-[350px]">
-                      <div className="grid grid-cols-3 gap-4 pr-4">
-                        <div>
-                          <p className="text-sm text-gray-500">Tanggal</p>
-                          <p className="font-medium">{formatDate(selectedReport.tanggal)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Bulan</p>
-                          <p className="font-medium">{selectedReport.bulan || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Week</p>
-                          <p className="font-medium">{selectedReport.week ? `Minggu ke-${selectedReport.week}` : "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Waktu Pelaksanaan</p>
-                          <p className="font-medium">{selectedReport.waktuPelaksanaan || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Shift</p>
-                          <p className="font-medium">{selectedReport.shift || "-"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Lokasi</p>
-                          <p className="font-medium">{selectedReport.lokasi || "-"}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-sm text-gray-500">Kegiatan</p>
-                          <Badge variant="default" className="mt-1">{selectedReport.kegiatan || selectedReport.jenisLaporan}</Badge>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-500">Pelaksana</p>
-                          <p className="font-medium">{selectedReport.namaPelaksana || selectedReport.senderName || "-"}</p>
-                        </div>
-                      </div>
-
-                      {selectedReport.temuan && (
-                        <div className="mt-4 bg-yellow-50 p-3 rounded-lg">
-                          <p className="text-sm text-gray-500 mb-1">Temuan</p>
-                          <p className="font-medium text-yellow-800">{selectedReport.temuan}</p>
-                        </div>
-                      )}
-
-                      {selectedReport.pemateri && selectedReport.pemateri.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-500 mb-2">Pemateri</p>
-                          <div className="flex flex-wrap gap-2">
-                            {selectedReport.pemateri.map((p, idx) => (
-                              <Badge key={idx} variant="outline">{p}</Badge>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedReport.buktiKegiatan?.length ? (
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-500 mb-2">Bukti Kegiatan</p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {selectedReport.buktiKegiatan.map((url, idx) => (
-                              <a
-                                key={idx}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="relative group block overflow-hidden rounded-lg border bg-gray-50 hover:bg-gray-100 transition-colors h-24"
-                              >
-                                <ImageWithFallback
-                                  src={url}
-                                  alt={`Foto ${idx + 1}`}
-                                  className="w-full h-full object-cover"
-                                  fallbackClassName="w-full h-full flex flex-col items-center justify-center text-gray-400 text-xs bg-gray-50"
-                                  index={idx}
-                                  showClickHint={true}
-                                  accentColor="blue"
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                                  <Eye className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 drop-shadow-lg transition-opacity" />
+                            {/* Lokasi */}
+                            <TableCell className="py-3 max-w-[140px]">
+                              {report.lokasi ? (
+                                <div className="flex items-center gap-1.5">
+                                  <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                  <span className="text-sm text-gray-700 truncate" title={report.lokasi}>{report.lokasi}</span>
                                 </div>
-                              </a>
-                            ))}
-                          </div>
+                              ) : <span className="text-gray-300 text-sm">—</span>}
+                            </TableCell>
+
+                            {/* Kegiatan */}
+                            <TableCell className="py-3">
+                              <span className={`inline-flex items-center text-xs font-medium px-2.5 py-1 rounded-full border ${getActivityColor(report.kegiatan || report.jenisLaporan)}`}>
+                                {report.kegiatan || report.jenisLaporan}
+                              </span>
+                            </TableCell>
+
+                            {/* Pelaksana */}
+                            <TableCell className="py-3">
+                              {(report.namaPelaksana || report.senderName) ? (
+                                <div className="flex items-center gap-1.5">
+                                  <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                  <span className="text-sm text-gray-700 truncate max-w-[120px]" title={report.namaPelaksana || report.senderName || ''}>
+                                    {report.namaPelaksana || report.senderName}
+                                  </span>
+                                </div>
+                              ) : <span className="text-gray-300 text-sm">—</span>}
+                            </TableCell>
+
+                            {/* Foto */}
+                            <TableCell className="py-3">
+                              {report.buktiKegiatan?.length ? (
+                                <div className="flex items-center gap-1">
+                                  {report.buktiKegiatan.slice(0, 2).map((url, idx) => (
+                                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      className="w-9 h-9 rounded-lg border overflow-hidden bg-gray-100 hover:opacity-80 shrink-0">
+                                      <img src={url} alt="" className="w-full h-full object-cover"
+                                        onError={e => { (e.target as HTMLImageElement).src = ""; }} />
+                                    </a>
+                                  ))}
+                                  {report.buktiKegiatan.length > 2 && (
+                                    <span className="text-xs text-gray-500 font-medium">+{report.buktiKegiatan.length - 2}</span>
+                                  )}
+                                </div>
+                              ) : <span className="text-gray-300 text-sm">—</span>}
+                            </TableCell>
+
+                            {/* Temuan */}
+                            <TableCell className="py-3 max-w-[160px]">
+                              {report.temuan ? (
+                                <p className="text-sm text-gray-700 truncate" title={report.temuan}>{report.temuan}</p>
+                              ) : <span className="text-gray-300 text-sm">—</span>}
+                            </TableCell>
+
+                            {/* Aksi */}
+                            <TableCell className="py-3 pr-5 text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-orange-100"
+                                  onClick={e => { e.stopPropagation(); handleViewDetail(report); }}>
+                                  <ChevronRight className="h-4 w-4 text-gray-500" />
+                                </Button>
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-red-100"
+                                  onClick={e => { e.stopPropagation(); if (confirm("Hapus laporan ini?")) deleteMutation.mutate(report.id); }}>
+                                  <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* ── DETAIL DIALOG ────────────────────────────────────── */}
+            <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+              <DialogContent className="max-w-2xl max-h-[90vh]">
+                <DialogHeader>
+                  <div className="flex items-center justify-between pr-6">
+                    <DialogTitle className="flex items-center gap-2 text-base">
+                      <FileText className="h-4 w-4 text-orange-500" />
+                      {selectedReport?.kegiatan || selectedReport?.jenisLaporan}
+                      <span className="text-xs font-normal text-gray-400">· {selectedReport && formatDate(selectedReport.tanggal)}</span>
+                    </DialogTitle>
+                    <Button size="sm" variant="outline" className="h-7 text-xs"
+                      onClick={() => selectedReport && reparseMutation.mutate(selectedReport.id)}
+                      disabled={reparseMutation.isPending}>
+                      <RefreshCw className={`h-3 w-3 mr-1 ${reparseMutation.isPending ? 'animate-spin' : ''}`} />
+                      Re-parse AI
+                    </Button>
+                  </div>
+                </DialogHeader>
+
+                {selectedReport && (
+                  <Tabs defaultValue="info" className="w-full">
+                    <TabsList className="grid w-full grid-cols-4 h-9">
+                      <TabsTrigger value="info" className="text-xs">Info</TabsTrigger>
+                      <TabsTrigger value="attendance" className="text-xs">Kehadiran ({selectedReport.attendance?.length || 0})</TabsTrigger>
+                      <TabsTrigger value="raw" className="text-xs">Pesan Asli</TabsTrigger>
+                      <TabsTrigger value="ai" className="text-xs">Analisis AI</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="info" className="mt-4">
+                      <ScrollArea className="h-[420px] pr-1">
+                        {/* Key Info Grid */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                          {[
+                            { label: "Tanggal", value: formatDate(selectedReport.tanggal), icon: <Calendar className="h-3.5 w-3.5" /> },
+                            { label: "Waktu", value: selectedReport.waktuPelaksanaan, icon: <Clock className="h-3.5 w-3.5" /> },
+                            { label: "Shift", value: selectedReport.shift, icon: <Activity className="h-3.5 w-3.5" /> },
+                            { label: "Lokasi", value: selectedReport.lokasi, icon: <MapPin className="h-3.5 w-3.5" /> },
+                            { label: "Pelaksana", value: selectedReport.namaPelaksana || selectedReport.senderName, icon: <User className="h-3.5 w-3.5" /> },
+                            { label: "Pengirim WA", value: selectedReport.senderName || selectedReport.senderPhone, icon: <MessageSquare className="h-3.5 w-3.5" /> },
+                          ].map(item => (
+                            <div key={item.label} className="bg-gray-50 rounded-lg p-3">
+                              <div className="flex items-center gap-1.5 text-gray-500 text-xs mb-1">
+                                {item.icon}
+                                {item.label}
+                              </div>
+                              <p className="text-sm font-medium text-gray-800">{item.value || <span className="text-gray-300 font-normal">—</span>}</p>
+                            </div>
+                          ))}
                         </div>
-                      ) : null}
 
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-sm text-gray-500">Pengirim WhatsApp</p>
-                        <p className="font-medium">{selectedReport.senderName || selectedReport.senderPhone}</p>
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
+                        {/* Kegiatan Badge */}
+                        <div className="mb-4">
+                          <span className={`inline-flex items-center text-sm font-medium px-3 py-1.5 rounded-full border ${getActivityColor(selectedReport.kegiatan || selectedReport.jenisLaporan)}`}>
+                            {selectedReport.kegiatan || selectedReport.jenisLaporan}
+                          </span>
+                        </div>
 
-                  <TabsContent value="attendance" className="mt-4">
-                    <ScrollArea className="h-[300px]">
-                      {selectedReport.attendance && selectedReport.attendance.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Unit</TableHead>
-                              <TableHead>Shift</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Keterangan</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {selectedReport.attendance.map((att) => (
-                              <TableRow key={att.id}>
-                                <TableCell className="font-medium">{att.unitCode}</TableCell>
-                                <TableCell>{att.shift}</TableCell>
-                                <TableCell>
-                                  <Badge variant={att.status === "Hadir" ? "default" : "secondary"}>
-                                    {att.status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>{att.keterangan || "-"}</TableCell>
+                        {/* Temuan */}
+                        {selectedReport.temuan && (
+                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                            <p className="text-xs font-medium text-orange-600 mb-1 flex items-center gap-1">
+                              <AlertTriangle className="h-3.5 w-3.5" /> Temuan
+                            </p>
+                            <p className="text-sm text-orange-900">{selectedReport.temuan}</p>
+                          </div>
+                        )}
+
+                        {/* Pemateri */}
+                        {selectedReport.pemateri && selectedReport.pemateri.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-xs text-gray-500 mb-2">Pemateri</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {selectedReport.pemateri.map((p, i) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full border">{p}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Foto Bukti */}
+                        {selectedReport.buktiKegiatan?.length ? (
+                          <div>
+                            <p className="text-xs text-gray-500 mb-2">Bukti Kegiatan ({selectedReport.buktiKegiatan.length} foto)</p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {selectedReport.buktiKegiatan.map((url, idx) => (
+                                <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
+                                  className="relative group block overflow-hidden rounded-lg border bg-gray-50 h-24">
+                                  <ImageWithFallback src={url} alt={`Foto ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                    fallbackClassName="w-full h-full flex flex-col items-center justify-center text-gray-400 text-xs bg-gray-50"
+                                    index={idx} showClickHint accentColor="blue" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors flex items-center justify-center">
+                                    <Eye className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 drop-shadow-lg transition-opacity" />
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </ScrollArea>
+                    </TabsContent>
+
+                    <TabsContent value="attendance" className="mt-4">
+                      <ScrollArea className="h-[380px]">
+                        {selectedReport.attendance?.length ? (
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-gray-50">
+                                <TableHead className="text-xs">Unit</TableHead>
+                                <TableHead className="text-xs">Shift</TableHead>
+                                <TableHead className="text-xs">Status</TableHead>
+                                <TableHead className="text-xs">Keterangan</TableHead>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      ) : (
-                        <p className="text-center text-gray-500 py-8">Tidak ada data kehadiran</p>
-                      )}
-                    </ScrollArea>
-                  </TabsContent>
+                            </TableHeader>
+                            <TableBody>
+                              {selectedReport.attendance.map(att => (
+                                <TableRow key={att.id}>
+                                  <TableCell className="font-medium text-sm">{att.unitCode}</TableCell>
+                                  <TableCell className="text-sm">{att.shift}</TableCell>
+                                  <TableCell>
+                                    <Badge variant={att.status === "Hadir" ? "default" : "secondary"} className="text-xs">
+                                      {att.status}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm text-gray-500">{att.keterangan || "-"}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        ) : (
+                          <div className="text-center py-12 text-gray-400">
+                            <CheckCircle className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                            <p className="text-sm">Tidak ada data kehadiran unit</p>
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </TabsContent>
 
-                  <TabsContent value="raw" className="mt-4">
-                    <ScrollArea className="h-[300px]">
-                      <pre className="text-sm whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">
-                        {selectedReport.rawMessage}
-                      </pre>
-                    </ScrollArea>
-                  </TabsContent>
+                    <TabsContent value="raw" className="mt-4">
+                      <ScrollArea className="h-[380px]">
+                        <pre className="text-xs whitespace-pre-wrap bg-gray-50 border rounded-lg p-4 text-gray-700 leading-relaxed">
+                          {selectedReport.rawMessage}
+                        </pre>
+                      </ScrollArea>
+                    </TabsContent>
 
-                  <TabsContent value="ai" className="mt-4">
-                    <ScrollArea className="h-[300px]">
-                      <div className="bg-blue-50 p-4 rounded-lg">
-                        <p className="text-sm font-medium text-blue-900 mb-2">Analisis Gemini AI:</p>
-                        <p className="text-sm text-blue-800">
-                          {selectedReport.aiAnalysis || "Tidak ada analisis tersedia"}
-                        </p>
-                      </div>
-                    </ScrollArea>
-                  </TabsContent>
-                </Tabs>
-              )}
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
+                    <TabsContent value="ai" className="mt-4">
+                      <ScrollArea className="h-[380px]">
+                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                          <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">Analisis AI</p>
+                          <p className="text-sm text-blue-900 leading-relaxed">
+                            {selectedReport.aiAnalysis || <span className="text-blue-400 italic">Tidak ada analisis tersedia</span>}
+                          </p>
+                        </div>
+                      </ScrollArea>
+                    </TabsContent>
+                  </Tabs>
+                )}
+              </DialogContent>
+            </Dialog>
 
-        <TabsContent value="templates" className="mt-6">
-          <SafetyPatrolTemplates />
-        </TabsContent>
-      </Tabs>
-    </div >
+          </TabsContent>
+
+          <TabsContent value="templates" className="mt-5">
+            <SafetyPatrolTemplates />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
   );
 }
