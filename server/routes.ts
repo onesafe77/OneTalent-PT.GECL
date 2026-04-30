@@ -12960,6 +12960,90 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // KPI per pelaksana
+  app.get("/api/safety-patrol/kpi", async (req, res) => {
+    try {
+      const { startDate, endDate, pelaksana } = req.query;
+      let reports = startDate && endDate
+        ? await storage.getSafetyPatrolReportsByDateRange(startDate as string, endDate as string)
+        : await storage.getAllSafetyPatrolReports();
+
+      // Filter hanya laporan yang ter-parse (punya kegiatan atau namaPelaksana)
+      reports = reports.filter(r => r.namaPelaksana || r.kegiatan);
+
+      // Normalize name matching: case-insensitive partial match
+      const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const targetNames: string[] = pelaksana
+        ? (pelaksana as string).split(",").map(n => n.trim())
+        : [];
+
+      // Group reports by pelaksana
+      const byPerson: Record<string, typeof reports> = {};
+      for (const r of reports) {
+        if (!r.namaPelaksana) continue;
+        const names = r.namaPelaksana.split(/[,;\/]/).map(n => n.trim()).filter(Boolean);
+        for (const name of names) {
+          if (targetNames.length > 0) {
+            const matched = targetNames.find(t => normName(name).includes(normName(t)) || normName(t).includes(normName(name)));
+            if (!matched) continue;
+            const key = matched;
+            if (!byPerson[key]) byPerson[key] = [];
+            byPerson[key].push(r);
+          } else {
+            if (!byPerson[name]) byPerson[name] = [];
+            byPerson[name].push(r);
+          }
+        }
+      }
+
+      // Build KPI per person
+      const kpiData = Object.entries(byPerson).map(([name, reps]) => {
+        const activityMap: Record<string, number> = {};
+        const shiftMap: Record<string, number> = {};
+        const weeklyMap: Record<string, number> = {};
+        let temuanCount = 0;
+        let shift1 = 0, shift2 = 0;
+
+        for (const r of reps) {
+          const activity = r.kegiatan || r.jenisLaporan || "Lainnya";
+          activityMap[activity] = (activityMap[activity] || 0) + 1;
+          if (r.shift) shiftMap[r.shift] = (shiftMap[r.shift] || 0) + 1;
+          if (r.temuan && r.temuan.trim()) temuanCount++;
+          if (r.shift?.toLowerCase().includes("1")) shift1++;
+          else if (r.shift?.toLowerCase().includes("2")) shift2++;
+          const weekKey = r.tanggal ? `${r.bulan || ""} W${r.week || ""}` : "Unknown";
+          weeklyMap[weekKey] = (weeklyMap[weekKey] || 0) + 1;
+        }
+
+        const activities = Object.entries(activityMap)
+          .sort((a, b) => b[1] - a[1])
+          .map(([kegiatan, count]) => ({ kegiatan, count }));
+
+        const weekly = Object.entries(weeklyMap)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([week, count]) => ({ week, count }));
+
+        return {
+          name,
+          total: reps.length,
+          temuanCount,
+          shift1,
+          shift2,
+          activities,
+          weekly,
+        };
+      });
+
+      // Sort by total descending
+      kpiData.sort((a, b) => b.total - a.total);
+
+      res.json({ kpi: kpiData, totalReports: reports.length });
+    } catch (error) {
+      console.error("Error fetching KPI:", error);
+      res.status(500).json({ message: "Gagal mengambil data KPI" });
+    }
+  });
+
 
 
   // ============================================

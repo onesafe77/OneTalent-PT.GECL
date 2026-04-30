@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Search,
   Filter,
+  BarChart2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import SafetyPatrolTemplates from "@/components/safety-patrol-templates";
@@ -244,6 +245,12 @@ export default function SafetyPatrol() {
             </div>
           </div>
           <div className="flex gap-2">
+            <Button asChild variant="outline" size="sm" className="h-9 bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700">
+              <a href="/workspace/safety-patrol/kpi">
+                <BarChart2 className="h-4 w-4 mr-1.5" />
+                KPI Evaluasi
+              </a>
+            </Button>
             <Button onClick={handleExportExcel} variant="outline" size="sm" className="h-9">
               <Download className="h-4 w-4 mr-1.5" />
               Export Excel

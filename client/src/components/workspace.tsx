@@ -91,6 +91,7 @@ import SupervisorRecordings from "@/pages/hse/supervisor-recordings";
 import HrInductionAttendance from "@/pages/hr-induction-attendance";
 
 import SafetyPatrol from "@/pages/safety-patrol";
+import SafetyPatrolKPI from "@/pages/safety-patrol-kpi";
 import SickLeavePage from "@/pages/hse/sick-leave-page";
 import TrainingMaster from "@/pages/hse/tna/training-master";
 import TnaInput from "@/pages/hse/tna/tna-input";
@@ -196,6 +197,7 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/gerinda-duduk/history", component: SidakGerindaDudukHistory, title: "Riwayat Sidak Gerinda Duduk" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
+  { path: "/workspace/safety-patrol/kpi", component: SafetyPatrolKPI, title: "KPI Evaluasi Safety Patrol" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
   { path: "/workspace/hse/evaluasi-driver-fatigue", component: EvaluasiDriverFatigue, title: "Evaluasi Driver Fatigue" },
@@ -388,6 +390,11 @@ export function Workspace() {
               <Route path="/workspace/sidak/rekap">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_SIDAK]}>
                   <SidakRecap />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/safety-patrol/kpi">
+                <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
+                  <SafetyPatrolKPI />
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/safety-patrol">
