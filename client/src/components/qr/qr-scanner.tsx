@@ -342,10 +342,13 @@ export function QRScanner() {
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      const isExpired = error?.message?.includes("Token QR Code Expired");
       toast({
-        title: "Validasi Gagal",
-        description: "❌ Data karyawan tidak valid atau tidak terdaftar",
+        title: isExpired ? "Token QR Code Expired" : "Validasi Gagal",
+        description: isExpired
+          ? "Tolong segera melakukan perpanjangan kepada Pihak penyedia Token QR Code"
+          : "❌ Data karyawan tidak valid atau tidak terdaftar",
         variant: "destructive",
       });
     } finally {
@@ -413,10 +416,13 @@ export function QRScanner() {
           });
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      const isExpired = error?.message?.includes("Token QR Code Expired");
       toast({
-        title: "Validasi Gagal",
-        description: "❌ QR Code tidak valid atau karyawan tidak terdaftar",
+        title: isExpired ? "Token QR Code Expired" : "Validasi Gagal",
+        description: isExpired
+          ? "Tolong segera melakukan perpanjangan kepada Pihak penyedia Token QR Code"
+          : "❌ QR Code tidak valid atau karyawan tidak terdaftar",
         variant: "destructive",
       });
     } finally {

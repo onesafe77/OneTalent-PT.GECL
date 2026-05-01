@@ -175,13 +175,16 @@ export function SidakObserverScanner({ onScanSuccess, onCancel, autoStart = true
       }
     } catch (error: any) {
       console.error("Observer validation error:", error);
+      const isExpired = error.message?.includes("Token QR Code Expired");
       toast({
-        title: "Validasi Gagal",
-        description: error.message || "QR Code tidak valid atau karyawan tidak terdaftar",
+        title: isExpired ? "Token QR Code Expired" : "Validasi Gagal",
+        description: isExpired
+          ? "Tolong segera melakukan perpanjangan kepada Pihak penyedia Token QR Code"
+          : (error.message || "QR Code tidak valid atau karyawan tidak terdaftar"),
         variant: "destructive",
       });
-      // Resume scanning after error
-      if (!scanningRef.current) {
+      // Only resume scanning if not an expiry error
+      if (!isExpired && !scanningRef.current) {
         startScanning();
       }
     }

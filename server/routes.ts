@@ -316,6 +316,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return false;
   }
 
+  // QR Code Global Expiry Control
+  // Set to true to disable all QR code scanning with "Token Expired" message
+  // Set to false to re-enable QR code scanning
+  const QR_GLOBALLY_EXPIRED = true;
+  const QR_EXPIRED_MESSAGE = "Token QR Code Expired - Tolong segera melakukan perpanjangan kepada Pihak penyedia Token QR Code";
+
   // AGGRESSIVE CACHING STRATEGY for Performance Optimization
   const employeeCache = new Map<string, { data: any; timestamp: number }>();
   const allEmployeesCache = new Map<string, { data: any; timestamp: number }>();
@@ -2476,6 +2482,10 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ message: "Employee ID and token are required" });
       }
 
+      if (QR_GLOBALLY_EXPIRED) {
+        return res.status(403).json({ message: QR_EXPIRED_MESSAGE, expired: true });
+      }
+
       // Check cache first for faster response
       const today = new Date().toISOString().split('T')[0];
       let employee = getCachedEmployee(employeeId);
@@ -2595,6 +2605,10 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ message: "Employee ID is required" });
       }
 
+      if (QR_GLOBALLY_EXPIRED) {
+        return res.status(403).json({ message: QR_EXPIRED_MESSAGE, expired: true });
+      }
+
       console.log(`Driver View QR Scan - Looking for employee ID: "${employeeId}"`);
 
       // Check cache first for faster response
@@ -2691,6 +2705,10 @@ Format sebagai bullet points singkat per insight.`;
       const { employeeId, token } = req.body;
       if (!employeeId || !token) {
         return res.status(400).json({ message: "Employee ID and token are required" });
+      }
+
+      if (QR_GLOBALLY_EXPIRED) {
+        return res.status(403).json({ message: QR_EXPIRED_MESSAGE, expired: true });
       }
 
       // Get employee data

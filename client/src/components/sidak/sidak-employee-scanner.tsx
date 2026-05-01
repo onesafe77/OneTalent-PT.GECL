@@ -100,6 +100,7 @@ export function SidakEmployeeScanner({ isOpen, onClose, onEmployeeScanned }: Sid
 
         try {
           let employeeId: string | null = null;
+          let isDriverViewUrl = false;
 
           // Check if this is a Driver View URL format
           // Format: https://domain.com/driver-view?nik=C-025660
@@ -109,6 +110,7 @@ export function SidakEmployeeScanner({ isOpen, onClose, onEmployeeScanned }: Sid
               const nik = url.searchParams.get('nik');
               if (nik) {
                 employeeId = nik;
+                isDriverViewUrl = true;
               }
             } catch (e) {
               // Not a valid URL, try other format
@@ -116,15 +118,36 @@ export function SidakEmployeeScanner({ isOpen, onClose, onEmployeeScanned }: Sid
           }
 
           // If not Driver View URL, try token-based QR format
-          if (!employeeId) {
-            const qrData = validateQRData(code.data);
-            if (qrData && qrData.id) {
-              employeeId = qrData.id;
-            }
+          const parsedQrData = !isDriverViewUrl ? validateQRData(code.data) : null;
+          if (!employeeId && parsedQrData && parsedQrData.id) {
+            employeeId = parsedQrData.id;
           }
 
           if (!employeeId) {
             throw new Error("QR Code tidak valid - pastikan ini QR Code karyawan");
+          }
+
+          // Validate against backend — checks token expiry for both QR formats
+          if (isDriverViewUrl) {
+            const validateRes = await fetch("/api/attendance/validate-employee", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ employeeId })
+            });
+            if (!validateRes.ok) {
+              const errData = await validateRes.json().catch(() => ({ message: "QR tidak valid" }));
+              throw new Error(errData.message || "QR tidak valid");
+            }
+          } else if (parsedQrData && parsedQrData.token) {
+            const validateRes = await fetch("/api/qr/validate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ employeeId, token: parsedQrData.token })
+            });
+            if (!validateRes.ok) {
+              const errData = await validateRes.json().catch(() => ({ message: "QR tidak valid" }));
+              throw new Error(errData.message || "QR tidak valid");
+            }
           }
 
           // Fetch employee data from backend
