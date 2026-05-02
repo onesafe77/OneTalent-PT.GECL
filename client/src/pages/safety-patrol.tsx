@@ -54,7 +54,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ImageWithFallback } from "@/components/ui/image-with-fallback";
+import { ImageWithFallback, PhotoThumbnail } from "@/components/ui/image-with-fallback";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -492,12 +492,15 @@ export default function SafetyPatrol() {
                               {report.buktiKegiatan?.length ? (
                                 <div className="flex items-center gap-1">
                                   {report.buktiKegiatan.slice(0, 2).map((url, idx) => (
-                                    <a key={idx} href={url} target="_blank" rel="noopener noreferrer"
-                                      onClick={e => e.stopPropagation()}
-                                      className="w-9 h-9 rounded-lg border overflow-hidden bg-gray-100 hover:opacity-80 shrink-0">
-                                      <img src={url} alt="" className="w-full h-full object-cover"
-                                        onError={e => { (e.target as HTMLImageElement).src = ""; }} />
-                                    </a>
+                                    <PhotoThumbnail
+                                      key={idx}
+                                      photo={url}
+                                      index={idx}
+                                      className="w-9 h-9"
+                                      onClick={() => {
+                                        window.open(url, '_blank');
+                                      }}
+                                    />
                                   ))}
                                   {report.buktiKegiatan.length > 2 && (
                                     <span className="text-xs text-gray-500 font-medium">+{report.buktiKegiatan.length - 2}</span>

@@ -48,9 +48,10 @@ export async function parseReportWithGemini(messageText: string): Promise<Parsed
   const templateContext = templateResolver.buildPromptContext(matchResult.template);
 
   const templateNames = await templateResolver.getAllTemplateNames();
+  const defaultTypes = "Daily Briefing, Temuan, Pelanggaran, Observasi Kecepatan Berkendara, Observasi Kecepatan, Sidak Kecepatan, Safety Patrol, Inspeksi, P2H, Wake Up Call, Briefing, Laporan Umum";
   const availableTypes = templateNames.length > 0
-    ? templateNames.join(", ")
-    : "Daily Briefing, Temuan, Pelanggaran, Laporan Umum";
+    ? templateNames.join(", ") + ", Laporan Umum"
+    : defaultTypes;
 
   const prompt = `Kamu adalah AI yang sangat pintar dalam mengekstrak data dari pesan WhatsApp Safety Patrol.
 
@@ -67,10 +68,10 @@ ${availableTypes}
 INSTRUKSI EKSTRAKSI WAJIB - Cari dan ekstrak data ini dari pesan:
 
 1. **tanggal**: Cari format tanggal apapun (22 Des 2025, 22/12/2025, 22-12-2025, Senin 22 Desember 2025, dll). Konversi ke YYYY-MM-DD.
-2. **waktuPelaksanaan**: Cari jam/waktu (08:00, 14.30, 08:00-09:00, 08:00 WITA, Pukul 08.00, dll)
-3. **shift**: Cari kata "Shift 1", "Shift 2", "SHIFT I", "SHIFT II", "Siang", "Malam", atau tentukan dari waktu (06:00-18:00 = Shift 1, 18:00-06:00 = Shift 2)
+2. **waktuPelaksanaan**: Cari jam/waktu (08:00, 14.30, 08:00-09:00, 08:00 WITA, Pukul 08.00, 09:53Wita, 09:53 Wita - Selesai, dll)
+3. **shift**: Cari kata "Shift 1", "Shift 2", "Shift : 1", "Shift : 2", "SHIFT I", "SHIFT II", "1 (Siang)", "2 (Malam)", "Siang", "Malam", atau tentukan dari waktu (06:00-18:00 = Shift 1, 18:00-06:00 = Shift 2)
 4. **lokasi**: Cari nama tempat, area, KM, site, pit, workshop, rest area, unit, dll
-5. **kegiatan**: Identifikasi jenis aktivitas (Wake Up Call, Daily Briefing, Sidak Roster, P2H, Observasi, Safety Meeting, Patrol, Inspeksi, dll)
+5. **kegiatan**: Identifikasi jenis aktivitas. Contoh: Wake Up Call, Daily Briefing, Sidak Roster, P2H, Observasi Kecepatan Berkendara, Sidak Kecepatan, Safety Meeting, Patrol, Inspeksi, dll. Jika pesan diawali "Kegiatan [nama]" atau berisi "Kegiatan Observasi...", gunakan itu sebagai kegiatan
 6. **namaPelaksana**: Cari nama orang yang melakukan/melaporkan kegiatan
 7. **temuan**: Cari hasil observasi, temuan, catatan penting, masalah yang ditemukan
 8. **pemateri**: Cari nama-nama pemateri, pelapor, atau peserta penting
@@ -115,9 +116,6 @@ ATURAN PENTING:
       if (!parsed.tanggal) {
         parsed.tanggal = new Date().toISOString().split('T')[0];
       }
-      if (!parsed.jenisLaporan) {
-        parsed.jenisLaporan = matchResult.template?.name || "Laporan Umum";
-      }
       if (!parsed.pemateri) {
         parsed.pemateri = [];
       }
@@ -139,6 +137,11 @@ ATURAN PENTING:
         parsed.kegiatan = matchResult.template.name;
       }
 
+      // Use extracted kegiatan as jenisLaporan if AI returned "Laporan Umum" or nothing
+      if (!parsed.jenisLaporan || parsed.jenisLaporan === "Laporan Umum") {
+        parsed.jenisLaporan = parsed.kegiatan || matchResult.template?.name || "Laporan Umum";
+      }
+
       parsed.matchedTemplate = matchResult.template?.name;
       parsed.matchScore = matchResult.matchScore;
 
@@ -152,7 +155,7 @@ ATURAN PENTING:
     const errorDate = new Date();
     return {
       jenisLaporan: matchResult.template?.name || "Laporan Umum",
-      kegiatan: matchResult.template?.name,
+      kegiatan: matchResult.template?.name || undefined,
       tanggal: errorDate.toISOString().split('T')[0],
       bulan: getBulanIndonesia(errorDate),
       week: getWeekOfMonth(errorDate),

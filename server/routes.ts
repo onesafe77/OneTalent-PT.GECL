@@ -12504,8 +12504,14 @@ Format sebagai bullet points singkat per insight.`;
         try {
           console.log(`[SafetyPatrol] Downloading media from: ${mediaUrl}`);
 
-          // Download media
-          const response = await fetch(mediaUrl);
+          // Download media with headers to improve success rate
+          const response = await fetch(mediaUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; SafetyPatrol/1.0)',
+              'Accept': 'image/*,*/*;q=0.8',
+            },
+            signal: AbortSignal.timeout(15000),
+          });
           if (response.ok) {
             const buffer = Buffer.from(await response.arrayBuffer());
 
@@ -12563,13 +12569,51 @@ Format sebagai bullet points singkat per insight.`;
       const isImageOnly = (messageType === "image" || messageType === "imageMessage") && mediaUrl && (!messageContent || messageContent.length <= 10);
       const shouldProcessWithAI = (isTextMessage || isImageWithCaption) && messageContent && messageContent.length > 10;
 
-      // Handle image-only messages
-      // Primary: Will be aggregated by WhatsApp timestamp when main message creates report
-      // No fallback - let the aggregation logic handle it to avoid wrong-report attachment
+      // Handle image-only messages — buat laporan foto sederhana
       if (isImageOnly && mediaUrl) {
-        console.log("🖼️ Image-only message detected, stored as raw message (will be aggregated by WhatsApp timestamp)");
-        // Photo will be picked up by aggregation when main message creates report
-        // If no main message arrives, photo remains in raw_messages for manual review
+        console.log("🖼️ Image-only message detected, creating Laporan Foto report...");
+        try {
+          const today = new Date().toISOString().split('T')[0];
+          const reportDate = messageTimestamp
+            ? messageTimestamp.toISOString().split('T')[0]
+            : today;
+
+          const { getBulanIndonesia, getWeekOfMonth } = await (async () => {
+            const d = new Date(reportDate);
+            const bulanNames = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
+            return { getBulanIndonesia: () => bulanNames[d.getMonth()], getWeekOfMonth: () => Math.min(5, Math.floor((d.getDate() - 1) / 7) + 1) };
+          })();
+
+          const imgReport = await storage.createSafetyPatrolReport({
+            tanggal: reportDate,
+            bulan: getBulanIndonesia(),
+            week: getWeekOfMonth(),
+            waktuPelaksanaan: null,
+            jenisLaporan: "Laporan Foto",
+            kegiatan: "Laporan Foto",
+            shift: null,
+            lokasi: null,
+            namaPelaksana: senderName || null,
+            pemateri: [],
+            temuan: null,
+            buktiKegiatan: [mediaUrl],
+            rawMessage: `(image-only dari ${senderName || senderPhone})`,
+            parsedData: null,
+            photos: null,
+            senderPhone,
+            senderName,
+            status: "processed",
+            aiAnalysis: null
+          });
+
+          await storage.markRawMessageProcessed(rawMessage.id, imgReport.id);
+          console.log("✅ Laporan Foto created:", imgReport.id);
+        } catch (err) {
+          console.error("[SafetyPatrol] Error creating Laporan Foto:", err);
+        }
+
+        res.status(200).json({ status: "ok", message: "Image report created" });
+        return;
       }
 
       if (shouldProcessWithAI) {
@@ -15809,17 +15853,7 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   const investigationPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const dir = path.join(process.cwd(), 'uploads', 'fms-investigation', 'photos');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
-      },
-      filename: (req, file, cb) => {
-        const ext = path.extname(file.originalname) || '.jpg';
-        cb(null, `photo-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
     fileFilter: (req, file, cb) => {
       if (!file.mimetype.startsWith('image/')) return cb(new Error('Only images allowed'));
@@ -15828,16 +15862,7 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   const investigationReportUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const dir = path.join(process.cwd(), 'uploads', 'fms-investigation', 'reports');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
-      },
-      filename: (req, file, cb) => {
-        cb(null, `report-${Date.now()}-${Math.round(Math.random() * 1e6)}.pdf`);
-      },
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 }, // 20MB
     fileFilter: (req, file, cb) => {
       if (file.mimetype !== 'application/pdf') return cb(new Error('Only PDF allowed'));
@@ -15849,9 +15874,9 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const { driverName } = req.body;
       if (!driverName || !req.file) return res.status(400).json({ error: "driverName and photo required" });
-      const url = `/uploads/fms-investigation/photos/${req.file.filename}`;
-      await storage.addDriverInvestigationPhoto(driverName, url);
-      res.json({ url });
+      const result = await dbStorage.uploadFile(req.file);
+      await storage.addDriverInvestigationPhoto(driverName, result.url);
+      res.json({ url: result.url });
     } catch (err) {
       console.error("[upload-photo]", err);
       res.status(500).json({ error: "Upload failed" });
@@ -15862,10 +15887,10 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const { driverName, fileName } = req.body;
       if (!driverName || !req.file) return res.status(400).json({ error: "driverName and report required" });
-      const url = `/uploads/fms-investigation/reports/${req.file.filename}`;
+      const result = await dbStorage.uploadFile(req.file);
       const originalName = fileName || req.file.originalname || 'Laporan.pdf';
-      await storage.addDriverInvestigationReport(driverName, `${url}|${originalName}`);
-      res.json({ url, originalName });
+      await storage.addDriverInvestigationReport(driverName, `${result.url}|${originalName}`);
+      res.json({ url: result.url, originalName });
     } catch (err) {
       console.error("[upload-report]", err);
       res.status(500).json({ error: "Upload failed" });
@@ -15877,9 +15902,11 @@ Format sebagai bullet points singkat per insight.`;
       const { driverName, url } = req.body;
       if (!driverName || !url) return res.status(400).json({ error: "driverName and url required" });
       await storage.removeDriverInvestigationPhoto(driverName, url);
-      // Delete file from disk
-      const filePath = path.join(process.cwd(), url.replace(/^\//, ''));
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      // Delete file from database storage if it's a DB-stored file
+      if (url.startsWith('/api/uploads/')) {
+        const fileId = url.replace('/api/uploads/', '');
+        try { await dbStorage.deleteFile(fileId); } catch (_) {}
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error("[delete-photo]", err);
@@ -15892,8 +15919,11 @@ Format sebagai bullet points singkat per insight.`;
       const { driverName, url } = req.body; // url = the file path part (before '|')
       if (!driverName || !url) return res.status(400).json({ error: "driverName and url required" });
       await storage.removeDriverInvestigationReport(driverName, url);
-      const filePath = path.join(process.cwd(), url.replace(/^\//, ''));
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      // Delete file from database storage if it's a DB-stored file
+      if (url.startsWith('/api/uploads/')) {
+        const fileId = url.replace('/api/uploads/', '');
+        try { await dbStorage.deleteFile(fileId); } catch (_) {}
+      }
       res.json({ ok: true });
     } catch (err) {
       console.error("[delete-report]", err);
