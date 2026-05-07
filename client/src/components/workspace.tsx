@@ -31,6 +31,7 @@ import SidakRosterForm from "@/pages/sidak-roster-form";
 import SidakFatigueHistory from "@/pages/sidak-fatigue-history";
 import SidakRosterHistory from "@/pages/sidak-roster-history";
 import SidakRecap from "@/pages/sidak-recap";
+import SidakReminderInspeksi from "@/pages/sidak-reminder-inspeksi";
 import SidakHistoryMenu from "@/pages/sidak-history-menu";
 import SidakSeatbeltForm from "@/pages/sidak-seatbelt-form";
 import SidakSeatbeltHistory from "@/pages/sidak-seatbelt-history";
@@ -196,6 +197,7 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/gerinda-duduk/new", component: SidakGerindaDudukForm, title: "Form Sidak Gerinda Duduk" },
   { path: "/workspace/sidak/gerinda-duduk/history", component: SidakGerindaDudukHistory, title: "Riwayat Sidak Gerinda Duduk" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
+  { path: "/workspace/sidak/reminder-inspeksi", component: SidakReminderInspeksi, title: "Reminder Pelaksanaan Inspeksi" },
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/safety-patrol/kpi", component: SafetyPatrolKPI, title: "KPI Evaluasi Safety Patrol" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
@@ -390,6 +392,11 @@ export function Workspace() {
               <Route path="/workspace/sidak/rekap">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_SIDAK]}>
                   <SidakRecap />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/sidak/reminder-inspeksi">
+                <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
+                  <SidakReminderInspeksi />
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/safety-patrol/kpi">

@@ -319,7 +319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // QR Code Global Expiry Control
   // Set to true to disable all QR code scanning with "Token Expired" message
   // Set to false to re-enable QR code scanning
-  const QR_GLOBALLY_EXPIRED = true;
+  const QR_GLOBALLY_EXPIRED = false;
   const QR_EXPIRED_MESSAGE = "Token QR Code Expired - Tolong segera melakukan perpanjangan kepada Pihak penyedia Token QR Code";
 
   // AGGRESSIVE CACHING STRATEGY for Performance Optimization
@@ -1202,9 +1202,9 @@ Format sebagai bullet points singkat per insight.`;
       const qrToken = Buffer.from(tokenData).toString('base64').slice(0, 16)
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); // Make URL-safe
       // Create URL yang mengarah ke aplikasi untuk QR Code
-      const baseUrl = process.env.REPLIT_DOMAINS
-        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-        : 'http://localhost:5000';
+      const baseUrl = process.env.PUBLIC_BASE_URL
+        || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null)
+        || `${req.protocol}://${req.get('host')}`;
 
       // Create JSON format for internal app QR scanner (original format)
       const qrPayload = {
@@ -2395,9 +2395,9 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       // Create URL yang mengarah ke aplikasi untuk QR Code
-      const baseUrl = process.env.REPLIT_DOMAINS
-        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-        : 'http://localhost:5000';
+      const baseUrl = process.env.PUBLIC_BASE_URL
+        || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null)
+        || `${req.protocol}://${req.get('host')}`;
 
       // Create JSON format for internal app QR scanner (original format)
       const qrPayload = {
@@ -4562,9 +4562,9 @@ Format sebagai bullet points singkat per insight.`;
       const employees = await storage.getAllEmployees();
       console.log(`Found ${employees.length} employees to update`);
 
-      const baseUrl = process.env.REPLIT_DOMAINS
-        ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`
-        : 'http://localhost:5000';
+      const baseUrl = process.env.PUBLIC_BASE_URL
+        || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : null)
+        || `${req.protocol}://${req.get('host')}`;
 
       console.log(`Using base URL: ${baseUrl}`);
 
@@ -4579,13 +4579,21 @@ Format sebagai bullet points singkat per insight.`;
 
         for (const employee of batch) {
           try {
-            // Generate new QR URL format
+            // Generate new QR URL format (URL-safe base64)
             const secretKey = process.env.QR_SECRET_KEY || 'AttendanceQR2024';
             const tokenData = `${employee.id}${secretKey}Attend`;
-            const qrToken = Buffer.from(tokenData).toString('base64').slice(0, 16);
+            const qrToken = Buffer.from(tokenData).toString('base64').slice(0, 16)
+              .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
             const qrUrl = `${baseUrl}/qr-redirect?data=${encodeURIComponent(JSON.stringify({ id: employee.id, token: qrToken }))}`;
 
-            // Update employee with new QR URL
+            // Insert ke qr_tokens (auto-deactivate semua token lama untuk karyawan ini)
+            await storage.createQrToken({
+              employeeId: employee.id,
+              token: qrToken,
+              isActive: true,
+            });
+
+            // Update employee.qrCode dengan URL baru
             await storage.updateEmployee(employee.id, { qrCode: qrUrl });
             updatedCount++;
             console.log(`Updated QR for employee ${employee.id} - ${employee.name}`);
@@ -9415,6 +9423,256 @@ Format sebagai bullet points singkat per insight.`;
         error: String(error),
         stack: (error instanceof Error) ? error.stack : undefined
       });
+    }
+  });
+
+  // GET /api/sidak/monthly-history?months=6 — riwayat N bulan terakhir (fetch sekali, grouping di sini)
+  app.get("/api/sidak/monthly-history", async (req, res) => {
+    try {
+      const numMonths = Math.min(parseInt((req.query.months as string) || '6', 10), 12);
+      const safe = async (p: Promise<any[]>) => { try { return await p; } catch { return []; } };
+
+      const allSessions = await Promise.all([
+        safe(storage.getAllSidakFatigueSessions()),
+        safe(storage.getAllSidakRosterSessions()),
+        safe(storage.getAllSidakSeatbeltSessions()),
+        safe(storage.getAllSidakRambuSessions()),
+        safe(storage.getAllSidakAntrianSessions()),
+        safe(storage.getAllSidakApdSessions()),
+        safe(storage.getAllSidakJarakSessions()),
+        safe(storage.getAllSidakKecepatanSessions()),
+        safe(storage.getAllSidakPencahayaanSessions()),
+        safe(storage.getAllSidakLotoSessions()),
+        safe(storage.getAllSidakDigitalSessions()),
+        safe(storage.getAllSidakWorkshopSessions()),
+        safe(storage.getAllSidakBehaviorSessions()),
+        safe(storage.getSidakP3kHistory()),
+        safe(storage.getAllSidakIntercomSessions()),
+        safe(storage.getAllSidakStandJackSessions()),
+        safe(storage.getAllSidakHydraulicJackSessions()),
+        safe(storage.getAllSidakBottleJackSessions()),
+        safe(storage.getSidakImpactSessions()),
+        safe(storage.getSidakAparSessions()),
+        safe(storage.getSidakMesinLasSessions()),
+        safe(storage.getSidakMesinKompresorSessions()),
+        safe(storage.getSidakGerindaDudukSessions()),
+        safe(storage.getSidakFuelStorageSessions()),
+      ]);
+      const total = allSessions.length; // 24 types
+
+      // endMonth: default ke bulan ini, bisa dioverride via query param
+      const endMonthParam = req.query.endMonth as string | undefined;
+      const endRef = endMonthParam ? new Date(endMonthParam + '-01') : new Date();
+      const months: { key: string; label: string }[] = [];
+      for (let i = numMonths - 1; i >= 0; i--) {
+        const d = new Date(endRef.getFullYear(), endRef.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+        months.push({ key, label });
+      }
+
+      const history = months.map(({ key, label }) => {
+        const doneTypes = allSessions.filter(sessions =>
+          sessions.some((s: any) => ((s.tanggal || s.date) ?? '').startsWith(key))
+        ).length;
+        return {
+          month: key,
+          label,
+          done: doneTypes,
+          notDone: total - doneTypes,
+          total,
+          percentage: Math.round((doneTypes / total) * 100),
+        };
+      });
+
+      res.json({ history, totalTypes: total });
+    } catch (error) {
+      console.error("[SIDAK-MONTHLY-HISTORY]", error);
+      res.status(500).json({ message: "Failed to fetch monthly history" });
+    }
+  });
+
+  // POST /api/sidak/seed-months — insert 1 minimal session per sidak type per bulan
+  app.post("/api/sidak/seed-months", async (req, res) => {
+    try {
+      const { months } = req.body as { months: string[] };
+      if (!months?.length) return res.status(400).json({ message: "months array required" });
+
+      let created = 0;
+      for (const month of months) {
+        const tanggal = `${month}-15`;
+        const baseFields = { tanggal, waktu: "08:00", shift: "Shift 1", lokasi: "Pit Area" };
+
+        await Promise.all([
+          storage.createSidakFatigueSession({ ...baseFields, waktuMulai: "07:00", waktuSelesai: "09:00", area: "Area A", departemen: "HSE" }).then(() => created++).catch(() => {}),
+          storage.createSidakRosterSession({ ...baseFields, perusahaan: "BIB", departemen: "HSE" }).then(() => created++).catch(() => {}),
+          storage.createSidakSeatbeltSession({ ...baseFields }).then(() => created++).catch(() => {}),
+          storage.createSidakRambuSession({ tanggal, shift: "Shift 1", waktuMulai: "07:00", waktuSelesai: "09:00", lokasi: "Pit Area" }).then(() => created++).catch(() => {}),
+          storage.createSidakAntrianSession({ ...baseFields, perusahaan: "BIB", departemen: "HSE", createdBy: "SYSTEM" }).then(() => created++).catch(() => {}),
+          storage.createSidakApdSession({ ...baseFields, perusahaan: "BIB", departemen: "HSE" }).then(() => created++).catch(() => {}),
+          storage.createSidakJarakSession({ tanggal, jam: "08:00", shift: "Shift 1", lokasi: "Pit Area" }).then(() => created++).catch(() => {}),
+          storage.createSidakKecepatanSession({ ...baseFields }).then(() => created++).catch(() => {}),
+          storage.createSidakPencahayaanSession({ tanggalPemeriksaan: tanggal, namaPerusahaan: "BIB", jenisAlatMerk: "Lux Meter", lokasiPengukuran: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakLotoSession({ ...baseFields, lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakDigitalSession({ tanggal, lokasi: "Pit Area" }).then(() => created++).catch(() => {}),
+          storage.createSidakWorkshopSession({ tanggal, namaWorkshop: "Workshop Utama", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakBehaviorSession({ ...baseFields, metodeSidak: "Observasi" }).then(() => created++).catch(() => {}),
+          storage.createSidakP3k({ tanggal, waktu: "08:00", lokasi: "Klinik", inspectorName: "HSE Officer" }, []).then(() => created++).catch(() => {}),
+          storage.createSidakIntercomSession({ tanggal, shift: "Shift 1", waktu: "08:00", lokasi: "Pit Area" }).then(() => created++).catch(() => {}),
+          storage.createSidakStandJackSession({ tanggal, namaWorkshop: "Workshop Utama", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakHydraulicJackSession({ tanggal, namaWorkshop: "Workshop Utama", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakBottleJackSession({ tanggal, namaWorkshop: "Workshop Utama", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakImpactSession({ tanggal, namaWorkshop: "Workshop Utama", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakAparSession({ tanggal, namaWorkshop: "Workshop Utama", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakMesinLasSession({ tanggal, namaObjekInspeksi: "Mesin Las 01", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakMesinKompresorSession({ tanggal, namaObjekInspeksi: "Kompresor 01", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakGerindaDudukSession({ tanggal, namaObjekInspeksi: "Gerinda 01", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+          storage.createSidakFuelStorageSession({ tanggal, namaWorkshop: "Fuel Storage", lokasi: "Workshop" }).then(() => created++).catch(() => {}),
+        ]);
+      }
+
+      res.json({ created, months });
+    } catch (error) {
+      console.error("[SIDAK-SEED-MONTHS]", error);
+      res.status(500).json({ message: "Failed to seed months" });
+    }
+  });
+
+  // GET /api/sidak/monthly-check?month=YYYY-MM
+  app.get("/api/sidak/monthly-check", async (req, res) => {
+    try {
+      const now = new Date();
+      const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const month = (req.query.month as string) || defaultMonth;
+
+      const safe = async (p: Promise<any[]>) => { try { return await p; } catch { return []; } };
+
+      const [
+        fatigue, roster, seatbelt, rambu, antrian, apd, jarak, kecepatan,
+        pencahayaan, loto, digital, workshop, behavior, p3k, intercom,
+        standJack, hydraulicJack, bottleJack, impact, apar,
+        mesinLas, mesinKompresor, gerindaDuduk, fuelStorage
+      ] = await Promise.all([
+        safe(storage.getAllSidakFatigueSessions()),
+        safe(storage.getAllSidakRosterSessions()),
+        safe(storage.getAllSidakSeatbeltSessions()),
+        safe(storage.getAllSidakRambuSessions()),
+        safe(storage.getAllSidakAntrianSessions()),
+        safe(storage.getAllSidakApdSessions()),
+        safe(storage.getAllSidakJarakSessions()),
+        safe(storage.getAllSidakKecepatanSessions()),
+        safe(storage.getAllSidakPencahayaanSessions()),
+        safe(storage.getAllSidakLotoSessions()),
+        safe(storage.getAllSidakDigitalSessions()),
+        safe(storage.getAllSidakWorkshopSessions()),
+        safe(storage.getAllSidakBehaviorSessions()),
+        safe(storage.getSidakP3kHistory()),
+        safe(storage.getAllSidakIntercomSessions()),
+        safe(storage.getAllSidakStandJackSessions()),
+        safe(storage.getAllSidakHydraulicJackSessions()),
+        safe(storage.getAllSidakBottleJackSessions()),
+        safe(storage.getSidakImpactSessions()),
+        safe(storage.getSidakAparSessions()),
+        safe(storage.getSidakMesinLasSessions()),
+        safe(storage.getSidakMesinKompresorSessions()),
+        safe(storage.getSidakGerindaDudukSessions()),
+        safe(storage.getSidakFuelStorageSessions()),
+      ]);
+
+      const checkMonth = (sessions: any[]) => {
+        const inMonth = sessions.filter(s => ((s.tanggal || s.date) ?? '').startsWith(month));
+        const sorted = [...inMonth].sort((a, b) =>
+          ((b.tanggal || b.date) ?? '') > ((a.tanggal || a.date) ?? '') ? 1 : -1
+        );
+        return { count: inMonth.length, lastDate: sorted[0]?.tanggal || sorted[0]?.date || null, done: inMonth.length > 0 };
+      };
+
+      const sidakTypes = [
+        { type: 'Fatigue', label: 'Sidak Fatigue', ...checkMonth(fatigue) },
+        { type: 'Roster', label: 'Sidak Roster', ...checkMonth(roster) },
+        { type: 'Seatbelt', label: 'Sidak Seatbelt', ...checkMonth(seatbelt) },
+        { type: 'Rambu', label: 'Sidak Rambu', ...checkMonth(rambu) },
+        { type: 'Antrian', label: 'Sidak Antrian', ...checkMonth(antrian) },
+        { type: 'APD', label: 'Sidak APD', ...checkMonth(apd) },
+        { type: 'Jarak', label: 'Sidak Jarak', ...checkMonth(jarak) },
+        { type: 'Kecepatan', label: 'Sidak Kecepatan', ...checkMonth(kecepatan) },
+        { type: 'Pencahayaan', label: 'Sidak Pencahayaan', ...checkMonth(pencahayaan) },
+        { type: 'LOTO', label: 'Sidak LOTO', ...checkMonth(loto) },
+        { type: 'Digital', label: 'Sidak Digital', ...checkMonth(digital) },
+        { type: 'Workshop', label: 'Sidak Workshop', ...checkMonth(workshop) },
+        { type: 'Behavior', label: 'Sidak Tingkah Laku', ...checkMonth(behavior) },
+        { type: 'P3K', label: 'Inspeksi P3K', ...checkMonth(p3k) },
+        { type: 'Intercom', label: 'Sidak Intercom', ...checkMonth(intercom) },
+        { type: 'StandJack', label: 'Sidak Stand Jack', ...checkMonth(standJack) },
+        { type: 'HydraulicJack', label: 'Sidak Hydraulic Jack', ...checkMonth(hydraulicJack) },
+        { type: 'BottleJack', label: 'Sidak Bottle Jack', ...checkMonth(bottleJack) },
+        { type: 'Impact', label: 'Sidak Impact', ...checkMonth(impact) },
+        { type: 'Apar', label: 'Inspeksi APAR', ...checkMonth(apar) },
+        { type: 'MesinLas', label: 'Sidak Mesin Las', ...checkMonth(mesinLas) },
+        { type: 'MesinKompresor', label: 'Sidak Mesin Kompresor', ...checkMonth(mesinKompresor) },
+        { type: 'GerindaDuduk', label: 'Sidak Gerinda Duduk', ...checkMonth(gerindaDuduk) },
+        { type: 'FuelStorage', label: 'Sidak Fuel Storage', ...checkMonth(fuelStorage) },
+      ];
+
+      res.json({ month, sidakTypes });
+    } catch (error) {
+      console.error("[SIDAK-MONTHLY-CHECK]", error);
+      res.status(500).json({ message: "Failed to check monthly status" });
+    }
+  });
+
+  // GET /api/sidak/supervisors
+  app.get("/api/sidak/supervisors", async (req, res) => {
+    try {
+      const allEmployees = await storage.getAllEmployees();
+      const supervisorPositions = ['HSE Group Leader', 'Maintenance Group Leader', 'Production Group Leader'];
+      const supervisors = allEmployees
+        .filter(e => e.position && supervisorPositions.some(p => e.position!.toLowerCase().includes(p.toLowerCase())))
+        .map(e => ({ id: e.id, name: e.name, position: e.position, department: e.department, phone: e.phone }));
+      res.json(supervisors);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch supervisors" });
+    }
+  });
+
+  // POST /api/sidak/send-inspection-reminder
+  app.post("/api/sidak/send-inspection-reminder", async (req, res) => {
+    try {
+      const { month, supervisorIds, message } = req.body;
+      if (!supervisorIds?.length || !message) {
+        return res.status(400).json({ message: "supervisorIds and message are required" });
+      }
+      const allEmployees = await storage.getAllEmployees();
+      const targets = allEmployees.filter(e => supervisorIds.includes(e.id));
+
+      const results: { name: string; phone: string; status: string }[] = [];
+      for (const emp of targets) {
+        try {
+          await sendWhatsAppMessage({
+            phone: emp.phone,
+            message,
+            logContext: {
+              module: "SIDAK_INSPECTION_REMINDER",
+              referenceId: month,
+              referenceName: emp.name,
+              recipientType: "EMPLOYEE",
+              messageType: "REMINDER",
+            }
+          });
+          results.push({ name: emp.name, phone: emp.phone, status: 'sent' });
+        } catch {
+          results.push({ name: emp.name, phone: emp.phone, status: 'failed' });
+        }
+      }
+
+      res.json({
+        sent: results.filter(r => r.status === 'sent').length,
+        failed: results.filter(r => r.status === 'failed').length,
+        results,
+      });
+    } catch (error) {
+      console.error("[SIDAK-SEND-REMINDER]", error);
+      res.status(500).json({ message: "Failed to send reminders" });
     }
   });
 

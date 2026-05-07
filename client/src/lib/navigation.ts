@@ -139,6 +139,7 @@ export const navigationGroups: NavGroup[] = [
                                     { name: "Kelola Berita", href: "/workspace/news", icon: Newspaper, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Induksi", href: "/workspace/hse/induction-admin", icon: BookOpen, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Rekaman Pengawas", href: "/workspace/hse/supervisor-recordings", icon: Video, requiredPermissions: [Permission.MANAGE_SIDAK] },
+                                    { name: "Reminder Inspeksi", href: "/workspace/sidak/reminder-inspeksi", icon: Bell, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                 ]
                             },
                             {

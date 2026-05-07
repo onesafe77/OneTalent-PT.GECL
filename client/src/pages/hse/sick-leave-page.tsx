@@ -1,8 +1,13 @@
 
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, subMonths, startOfMonth } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import {
+    PieChart, Pie, Cell, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip,
+    Legend, ResponsiveContainer, LabelList
+} from "recharts";
 import {
     Shield,
     Calendar,
@@ -107,6 +112,56 @@ export default function SickLeavePage() {
             toast({ title: "Gagal", description: "Gagal menghapus data", variant: "destructive" });
         }
     });
+
+    // --- Chart Data ---
+    const statusChartData = [
+        { name: "Menunggu", value: stats?.pending || 0, color: "#f59e0b" },
+        { name: "Disetujui", value: stats?.approved || 0, color: "#22c55e" },
+        { name: "Ditolak", value: stats?.rejected || 0, color: "#ef4444" },
+    ].filter(d => d.value > 0);
+
+    const monthlyChartData = (() => {
+        const months: { label: string; key: string; count: number }[] = [];
+        for (let i = 5; i >= 0; i--) {
+            const d = subMonths(startOfMonth(new Date()), i);
+            months.push({
+                label: format(d, "MMM yy", { locale: idLocale }),
+                key: format(d, "yyyy-MM"),
+                count: 0,
+            });
+        }
+        (leaves || []).forEach(l => {
+            const key = l.date.slice(0, 7);
+            const m = months.find(m => m.key === key);
+            if (m) m.count++;
+        });
+        return months.map(({ label, count }) => ({ bulan: label, jumlah: count }));
+    })();
+
+    const topEmployeesData = (() => {
+        const map: Record<string, number> = {};
+        (leaves || []).forEach(l => { map[l.name] = (map[l.name] || 0) + 1; });
+        return Object.entries(map)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([name, jumlah]) => ({ name: name.length > 16 ? name.slice(0, 15) + "…" : name, jumlah }));
+    })();
+
+    const confidenceChartData = (() => {
+        let tinggi = 0, sedang = 0, rendah = 0, tidakAda = 0;
+        (leaves || []).forEach(l => {
+            if (l.aiConfidence == null) tidakAda++;
+            else if (l.aiConfidence >= 80) tinggi++;
+            else if (l.aiConfidence >= 50) sedang++;
+            else rendah++;
+        });
+        return [
+            { label: "Tinggi (≥80%)", jumlah: tinggi, color: "#22c55e" },
+            { label: "Sedang (50–79%)", jumlah: sedang, color: "#f59e0b" },
+            { label: "Rendah (<50%)", jumlah: rendah, color: "#ef4444" },
+            { label: "Tidak Ada", jumlah: tidakAda, color: "#9ca3af" },
+        ];
+    })();
 
     const filteredLeaves = leaves?.filter(leave => {
         if (statusFilter !== "all" && leave.status !== statusFilter) return false;
@@ -253,6 +308,106 @@ export default function SickLeavePage() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Charts */}
+            {leaves && leaves.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Pie: Distribusi Status */}
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Distribusi Status</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={240}>
+                                <PieChart>
+                                    <Pie
+                                        data={statusChartData}
+                                        dataKey="value"
+                                        nameKey="name"
+                                        cx="50%"
+                                        cy="50%"
+                                        outerRadius={85}
+                                        innerRadius={45}
+                                        label={({ name, value, percent }) =>
+                                            `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                                        }
+                                        labelLine={true}
+                                    >
+                                        {statusChartData.map((entry, i) => (
+                                            <Cell key={i} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(v: number) => [`${v} pengajuan`]} />
+                                    <Legend />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    {/* Bar: Tren Bulanan */}
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Tren 6 Bulan Terakhir</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={monthlyChartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                                    <Tooltip formatter={(v: number) => [`${v} pengajuan`, "Jumlah"]} />
+                                    <Bar dataKey="jumlah" fill="#f97316" radius={[4, 4, 0, 0]}>
+                                        <LabelList dataKey="jumlah" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#374151" }} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    {/* Horizontal Bar: Top 5 Karyawan */}
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Top 5 Karyawan Paling Sering Sakit</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={topEmployeesData} layout="vertical" margin={{ top: 5, right: 40, left: 10, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                                    <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
+                                    <Tooltip formatter={(v: number) => [`${v} pengajuan`, "Jumlah"]} />
+                                    <Bar dataKey="jumlah" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                        <LabelList dataKey="jumlah" position="right" style={{ fontSize: 12, fontWeight: 700, fill: "#1d4ed8" }} />
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    {/* Bar: Distribusi AI Confidence */}
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-medium">Distribusi AI Confidence</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={240}>
+                                <BarChart data={confidenceChartData} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                                    <Tooltip formatter={(v: number) => [`${v} pengajuan`, "Jumlah"]} />
+                                    <Bar dataKey="jumlah" radius={[4, 4, 0, 0]}>
+                                        <LabelList dataKey="jumlah" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#374151" }} />
+                                        {confidenceChartData.map((entry, i) => (
+                                            <Cell key={i} fill={entry.color} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
             {/* Filters */}
             <div className="flex flex-wrap gap-4 items-end bg-white p-4 rounded-lg border">
