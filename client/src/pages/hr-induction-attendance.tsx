@@ -27,6 +27,7 @@ interface InductionAttendance {
     nomorTelepon: string | null;
     pemateri: string;
     tandaTangan: string;
+    fotoSelfie: string | null;
     tanggalRefreshInduksi: string;
     waktu: string | null;
     createdAt: string;
@@ -308,18 +309,19 @@ export default function HrInductionAttendance() {
                                         <TableHead>No. Telepon</TableHead>
                                         <TableHead>Pemateri</TableHead>
                                         <TableHead className="text-center">Tanda Tangan</TableHead>
+                                        <TableHead className="text-center">Foto Selfie</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {isLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="h-24 text-center">
+                                            <TableCell colSpan={9} className="h-24 text-center">
                                                 Memuat data...
                                             </TableCell>
                                         </TableRow>
                                     ) : attendanceData?.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="h-24 text-center text-gray-500">
+                                            <TableCell colSpan={9} className="h-24 text-center text-gray-500">
                                                 Tidak ada data ditemukan.
                                             </TableCell>
                                         </TableRow>
@@ -366,6 +368,19 @@ export default function HrInductionAttendance() {
                                                                 className="h-10 w-20 object-contain border rounded bg-white p-0.5"
                                                             />
                                                         </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {item.fotoSelfie ? (
+                                                        <a href={item.fotoSelfie} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                                            <img
+                                                                src={item.fotoSelfie}
+                                                                alt="Foto Selfie"
+                                                                className="h-12 w-12 object-cover border rounded-full bg-white hover:scale-150 transition-transform"
+                                                            />
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-gray-400 text-xs">-</span>
                                                     )}
                                                 </TableCell>
                                             </TableRow>
