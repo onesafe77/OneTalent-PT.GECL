@@ -449,40 +449,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // !!! HIGH PRIORITY ROUTE: Photo Upload !!!
-  app.post("/api/employees/:id/photo", upload.single('photo'), async (req, res) => {
-    console.log(`[ROUTE MATCH] POST /api/employees/${req.params.id}/photo`);
+  app.post("/api/employees/:id/photo", uploadMemory.single('photo'), async (req, res) => {
     try {
       const { id } = req.params;
       const file = req.file;
       if (!file) {
         return res.status(400).json({ message: "No photo uploaded" });
       }
-
-      // Verify file was actually saved to disk
-      const savedFilePath = path.join(uploadsDir, file.filename);
-      let fileExists = false;
-      try {
-        fileExists = fs.existsSync(savedFilePath);
-      } catch (e) {
-        console.error('DEBUG: Error checking file existence:', e);
-      }
-
-      console.log('DEBUG: Photo uploaded!', {
-        originalName: file.originalname,
-        filename: file.filename,
-        path: file.path,
-        savedFilePath,
-        fileExists,
-        uploadsDir
-      });
-
-      if (!fileExists) {
-        console.error('CRITICAL: File was not saved to disk!', { savedFilePath });
-        return res.status(500).json({ message: "File upload failed - file not saved" });
-      }
-
-      // Store relative path for URL access
-      const photoUrl = `/uploads/${file.filename}`;
+      const { url: photoUrl } = await dbStorage.uploadFile(file);
       await storage.updateEmployee(id, { photoUrl });
       res.json({ photoUrl });
     } catch (error) {
@@ -5762,19 +5736,8 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   const sidakBehaviorPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const dir = path.join(process.cwd(), 'uploads', 'sidak-behavior');
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
-      },
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, `behavior-${uniqueSuffix}${path.extname(file.originalname)}`);
-      }
-    }),
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       if (file.mimetype.startsWith('image/')) {
         cb(null, true);
@@ -5789,7 +5752,7 @@ Format sebagai bullet points singkat per insight.`;
       if (!req.file) {
         return res.status(400).json({ error: "No photo uploaded" });
       }
-      const photoUrl = `/uploads/sidak-behavior/${req.file.filename}`;
+      const { url: photoUrl } = await dbStorage.uploadFile(req.file);
       res.json({ url: photoUrl });
     } catch (error) {
       console.error("Error uploading behavior evidence photo:", error);
@@ -6418,20 +6381,8 @@ Format sebagai bullet points singkat per insight.`;
 
   // Configure Multer for Seatbelt
   const sidakSeatbeltPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-seatbelt-photos');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
         return cb(new Error('Hanya file gambar yang diperbolehkan!'));
@@ -6452,13 +6403,10 @@ Format sebagai bullet points singkat per insight.`;
 
       const session = await storage.getSidakSeatbeltSession(id);
       if (!session) {
-        // Cleanup uploaded files if session missing
-        files.forEach(file => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
         return res.status(404).json({ error: "Sesi Sidak Seatbelt tidak ditemukan" });
       }
 
-      const newPhotoPaths = files.map(file => `/uploads/sidak-seatbelt-photos/${path.basename(file.path)}`);
-
+      const newPhotoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
       const existingPhotos = session.activityPhotos || [];
       const updatedPhotos = [...existingPhotos, ...newPhotoPaths];
 
@@ -6582,20 +6530,8 @@ Format sebagai bullet points singkat per insight.`;
 
   // Configure Multer for Kecepatan
   const sidakKecepatanPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-kecepatan-photos');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
         return cb(new Error('Hanya file gambar yang diperbolehkan!'));
@@ -6616,11 +6552,10 @@ Format sebagai bullet points singkat per insight.`;
 
       const session = await storage.getSidakKecepatanSession(id);
       if (!session) {
-        files.forEach(file => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
         return res.status(404).json({ error: "Sesi Sidak Kecepatan tidak ditemukan" });
       }
 
-      const newPhotoPaths = files.map(file => `/uploads/sidak-kecepatan-photos/${path.basename(file.path)}`);
+      const newPhotoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
       const existingPhotos = session.activityPhotos || [];
       const updatedPhotos = [...existingPhotos, ...newPhotoPaths];
 
@@ -8179,13 +8114,13 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.post("/api/pica/:id/upload-evidence", upload.single('evidence'), async (req, res) => {
+  app.post("/api/pica/:id/upload-evidence", uploadMemory.single('evidence'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No evidence file provided" });
       }
       const recordId = req.params.id;
-      const fileUrl = `/uploads/${req.file.filename}`;
+      const { url: fileUrl } = await dbStorage.uploadFile(req.file);
       const updated = await storage.updatePicaRecord(recordId, { verificationEvidence: fileUrl });
       if (!updated) return res.status(404).json({ message: "PICA record not found" });
       res.json(updated);
@@ -10670,20 +10605,8 @@ Format sebagai bullet points singkat per insight.`;
 
   // Upload activity photos for Sidak Fatigue session (max 6 photos)
   const sidakFatiguePhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-fatigue');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       const allowedTypes = /jpeg|jpg|png/;
       const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -10706,28 +10629,12 @@ Format sebagai bullet points singkat per insight.`;
 
       const session = await storage.getSidakFatigueSession(id);
       if (!session) {
-        // Clean up uploaded files
-        files.forEach(file => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
         return res.status(404).json({ error: "SIDAK Fatigue session not found" });
       }
 
-      // Get relative paths for storage
-      const photoPaths = files.map(file => `/uploads/sidak-fatigue/${path.basename(file.path)}`);
-
-      // Merge with existing photos (max 6 total)
+      const photoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
       const existingPhotos = session.activityPhotos || [];
-      const combinedPhotos = [...existingPhotos, ...photoPaths];
-      const allPhotos = combinedPhotos.slice(0, 6);
-
-      // Delete excess files that exceed the 6-photo limit
-      const excessPhotos = combinedPhotos.slice(6);
-      excessPhotos.forEach(photoPath => {
-        const fileName = path.basename(photoPath);
-        const filePath = path.join(process.cwd(), 'uploads', 'sidak-fatigue', fileName);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      });
+      const allPhotos = [...existingPhotos, ...photoPaths].slice(0, 6);
 
       // Update session with photos
       const updatedSession = await storage.updateSidakFatigueSession(id, {
@@ -11351,20 +11258,8 @@ Format sebagai bullet points singkat per insight.`;
 
   // Upload activity photos for Sidak Roster session (max 6 photos)
   const sidakRosterPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-roster');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       const allowedTypes = /jpeg|jpg|png/;
       const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -11387,28 +11282,12 @@ Format sebagai bullet points singkat per insight.`;
 
       const session = await storage.getSidakRosterSession(id);
       if (!session) {
-        // Clean up uploaded files
-        files.forEach(file => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
         return res.status(404).json({ error: "SIDAK Roster session not found" });
       }
 
-      // Get relative paths for storage
-      const photoPaths = files.map(file => `/uploads/sidak-roster/${path.basename(file.path)}`);
-
-      // Merge with existing photos (max 6 total)
+      const photoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
       const existingPhotos = session.activityPhotos || [];
-      const combinedPhotos = [...existingPhotos, ...photoPaths];
-      const allPhotos = combinedPhotos.slice(0, 6);
-
-      // Delete excess files that exceed the 6-photo limit
-      const excessPhotos = combinedPhotos.slice(6);
-      excessPhotos.forEach(photoPath => {
-        const fileName = path.basename(photoPath);
-        const filePath = path.join(process.cwd(), 'uploads', 'sidak-roster', fileName);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      });
+      const allPhotos = [...existingPhotos, ...photoPaths].slice(0, 6);
 
       // Update session with photos
       const updatedSession = await storage.updateSidakRosterSession(id, {
@@ -11728,27 +11607,13 @@ Format sebagai bullet points singkat per insight.`;
 
   // Upload announcement image
   const announcementImageUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'announcements');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'announcement-' + uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       const allowedTypes = /jpeg|jpg|png|gif/;
       const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedTypes.test(file.mimetype);
-      if (mimetype && extname) {
-        return cb(null, true);
-      }
+      if (mimetype && extname) { return cb(null, true); }
       cb(new Error('Only .png, .jpg, .jpeg and .gif format allowed!'));
     }
   });
@@ -11758,14 +11623,10 @@ Format sebagai bullet points singkat per insight.`;
       if (!req.file) {
         return res.status(400).json({ message: "Tidak ada file yang diupload" });
       }
-
-      const imageUrl = `/uploads/announcements/${path.basename(req.file.path)}`;
-      res.json({ url: imageUrl, fileName: path.basename(req.file.path) });
+      const { url: imageUrl } = await dbStorage.uploadFile(req.file);
+      res.json({ url: imageUrl, fileName: req.file.originalname });
     } catch (error) {
       console.error("Error uploading announcement image:", error);
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       res.status(500).json({ message: "Gagal mengupload gambar" });
     }
   });
@@ -11818,30 +11679,11 @@ Format sebagai bullet points singkat per insight.`;
 
   // Configure multer for PDF document uploads
   const documentUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'documents');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, 'doc-' + uniqueSuffix + ext);
-      }
-    }),
+    storage: multer.memoryStorage(),
     fileFilter: (req, file, cb) => {
-      if (file.mimetype === 'application/pdf') {
-        cb(null, true);
-      } else {
-        cb(null, false);
-      }
+      if (file.mimetype === 'application/pdf') { cb(null, true); } else { cb(null, false); }
     },
-    limits: {
-      fileSize: 50 * 1024 * 1024 // Max 50MB
-    }
+    limits: { fileSize: 50 * 1024 * 1024 }
   });
 
   // Get all documents
@@ -11869,7 +11711,7 @@ Format sebagai bullet points singkat per insight.`;
         title,
         subject,
         ownerId,
-        fileUrl: `/uploads/documents/${req.file.filename}`,
+        fileUrl: (await dbStorage.uploadFile(req.file)).url,
         status: "pending",
         ccEmails: ccEmails ? JSON.parse(ccEmails) : []
       });
@@ -12262,27 +12104,13 @@ Format sebagai bullet points singkat per insight.`;
 
   // Upload news image
   const newsImageUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'news');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'news-' + uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       const allowedTypes = /jpeg|jpg|png|gif/;
       const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedTypes.test(file.mimetype);
-      if (mimetype && extname) {
-        return cb(null, true);
-      }
+      if (mimetype && extname) { return cb(null, true); }
       cb(new Error('Only .png, .jpg, .jpeg and .gif format allowed!'));
     }
   });
@@ -12292,14 +12120,10 @@ Format sebagai bullet points singkat per insight.`;
       if (!req.file) {
         return res.status(400).json({ message: "Tidak ada file yang diupload" });
       }
-
-      const imageUrl = `/uploads/news/${path.basename(req.file.path)}`;
-      res.json({ url: imageUrl, fileName: path.basename(req.file.path) });
+      const { url: imageUrl } = await dbStorage.uploadFile(req.file);
+      res.json({ url: imageUrl, fileName: req.file.originalname });
     } catch (error) {
       console.error("Error uploading news image:", error);
-      if (req.file && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
       res.status(500).json({ message: "Gagal mengupload gambar" });
     }
   });
@@ -12329,40 +12153,21 @@ Format sebagai bullet points singkat per insight.`;
   // Get single news
   // Generic File Upload (for Certificates, etc.)
   const certificateUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'documents');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        // Keep original extension, add unique prefix
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, 'doc-' + uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
-      // Allow common document types
       const allowedTypes = /pdf|jpg|jpeg|png|doc|docx/;
-      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-      const mimetype = allowedTypes.test(file.mimetype) || file.mimetype === 'application/pdf' || file.mimetype.includes('word');
-
-      if (extname) { // Rely mainly on extension as mimetype can vary
-        return cb(null, true);
-      }
+      if (allowedTypes.test(path.extname(file.originalname).toLowerCase())) { return cb(null, true); }
       cb(new Error('Only PDF, Word, and Images are allowed!'));
     }
   });
 
-  app.post("/api/upload", certificateUpload.single('file'), (req, res) => {
+  app.post("/api/upload", certificateUpload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
-      const fileUrl = `/uploads/documents/${path.basename(req.file.path)}`;
+      const { url: fileUrl } = await dbStorage.uploadFile(req.file);
       res.json({ url: fileUrl, fileName: req.file.originalname });
     } catch (error) {
       console.error("Upload error:", error);
@@ -13686,28 +13491,14 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // Multer configurations for each form
-  const createPhotoUpload = (formName: string) => multer({
-    storage: multer.diskStorage({
-      destination: (req, file, cb) => {
-        const uploadDir = path.join(process.cwd(), 'uploads', `sidak-${formName}`);
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
+  const createPhotoUpload = (_formName: string) => multer({
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
       const allowedTypes = /jpeg|jpg|png/;
       const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedTypes.test(file.mimetype);
-      if (mimetype && extname) {
-        return cb(null, true);
-      }
+      if (mimetype && extname) { return cb(null, true); }
       cb(new Error('Only .png, .jpg and .jpeg format allowed!'));
     }
   });
@@ -13728,13 +13519,9 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ error: "No photos provided" });
       }
       const session = await storage.getSidakAntrianSession(req.params.id);
-      if (!session) {
-        files.forEach(file => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
-        return res.status(404).json({ error: "Session not found" });
-      }
-      const photoPaths = files.map(file => `/uploads/sidak-antrian/${path.basename(file.path)}`);
-      const existingPhotos = session.activityPhotos || [];
-      const allPhotos = [...existingPhotos, ...photoPaths].slice(0, 6);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+      const photoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
+      const allPhotos = [...(session.activityPhotos || []), ...photoPaths].slice(0, 6);
       const updatedSession = await storage.updateSidakAntrianSession(req.params.id, { activityPhotos: allPhotos });
       res.json({ message: "Photos uploaded", photos: allPhotos, session: updatedSession });
     } catch (error: any) {
@@ -13766,11 +13553,8 @@ Format sebagai bullet points singkat per insight.`;
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) return res.status(400).json({ error: "No photos" });
       const session = await storage.getSidakJarakSession(req.params.id);
-      if (!session) {
-        files.forEach(f => fs.existsSync(f.path) && fs.unlinkSync(f.path));
-        return res.status(404).json({ error: "Not found" });
-      }
-      const photoPaths = files.map(f => `/uploads/sidak-jarak/${path.basename(f.path)}`);
+      if (!session) return res.status(404).json({ error: "Not found" });
+      const photoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
       const allPhotos = [...(session.activityPhotos || []), ...photoPaths].slice(0, 6);
       await storage.updateSidakJarakSession(req.params.id, { activityPhotos: allPhotos });
       res.json({ photos: allPhotos });
@@ -13811,11 +13595,8 @@ Format sebagai bullet points singkat per insight.`;
         const files = req.files as Express.Multer.File[];
         if (!files?.length) return res.status(400).json({ error: "No photos" });
         const session = await get(req.params.id);
-        if (!session) {
-          files.forEach(f => fs.existsSync(f.path) && fs.unlinkSync(f.path));
-          return res.status(404).json({ error: "Not found" });
-        }
-        const photoPaths = files.map(f => `/uploads/sidak-${name}/${path.basename(f.path)}`);
+        if (!session) return res.status(404).json({ error: "Not found" });
+        const photoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
         const allPhotos = [...(session.activityPhotos || []), ...photoPaths].slice(0, 6);
         await update(req.params.id, { activityPhotos: allPhotos });
         res.json({ photos: allPhotos });
@@ -13823,32 +13604,17 @@ Format sebagai bullet points singkat per insight.`;
         res.status(500).json({ error: error.message });
       }
     });
-
   });
 
   // Configure Multer for Sidak Rambu
   const sidakRambuPhotoUpload = multer({
-    storage: multer.diskStorage({
-      destination: function (req, file, cb) {
-        const uploadDir = path.join(process.cwd(), 'uploads', 'sidak-rambu');
-        if (!fs.existsSync(uploadDir)) {
-          fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
-      },
-      filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-      }
-    }),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: function (req, file, cb) {
       const allowedTypes = /jpeg|jpg|png/;
       const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
       const mimetype = allowedTypes.test(file.mimetype);
-      if (mimetype && extname) {
-        return cb(null, true);
-      }
+      if (mimetype && extname) { return cb(null, true); }
       cb(new Error('Only .png, .jpg and .jpeg format allowed!'));
     }
   });
@@ -13864,40 +13630,15 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       const session = await storage.getSidakRambuSession(id);
-      if (!session) {
-        // Clean up uploaded files
-        files.forEach(file => { if (fs.existsSync(file.path)) fs.unlinkSync(file.path); });
-        return res.status(404).json({ error: "Sidak Rambu session not found" });
-      }
+      if (!session) return res.status(404).json({ error: "Sidak Rambu session not found" });
 
-      // Get relative paths for storage
-      const photoPaths = files.map(file => `/uploads/sidak-rambu/${path.basename(file.path)}`);
-
-      // Merge with existing photos (max 6 total)
+      const photoPaths = await Promise.all(files.map(f => dbStorage.uploadFile(f).then(r => r.url)));
       const existingPhotos = session.activityPhotos || [];
-      const combinedPhotos = [...existingPhotos, ...photoPaths];
-      const allPhotos = combinedPhotos.slice(0, 6);
+      const allPhotos = [...existingPhotos, ...photoPaths].slice(0, 6);
 
-      // Delete excess files that exceed the 6-photo limit
-      const excessPhotos = combinedPhotos.slice(6);
-      excessPhotos.forEach(photoPath => {
-        const fileName = path.basename(photoPath);
-        const filePath = path.join(process.cwd(), 'uploads', 'sidak-rambu', fileName);
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      });
+      const updatedSession = await storage.updateSidakRambuSession(id, { activityPhotos: allPhotos });
 
-      // Update session with photos
-      const updatedSession = await storage.updateSidakRambuSession(id, {
-        activityPhotos: allPhotos
-      });
-
-      res.json({
-        message: "Photos uploaded successfully",
-        photos: allPhotos,
-        session: updatedSession
-      });
+      res.json({ message: "Photos uploaded successfully", photos: allPhotos, session: updatedSession });
     } catch (error: any) {
       console.error("Error uploading Sidak Rambu photos:", error);
       res.status(500).json({ error: "Failed to upload photos", details: error.message });
@@ -14863,7 +14604,7 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   app.post("/api/document-masterlist/:id/versions", (req, res, next) => {
-    upload.single('document')(req, res, (err) => {
+    uploadMemory.single('document')(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         console.error("[UPLOAD] Multer error:", err);
         return res.status(400).json({ error: `Upload error: ${err.message}` });
@@ -14894,7 +14635,7 @@ Format sebagai bullet points singkat per insight.`;
       fs.appendFileSync(logPath, `[${new Date().toISOString()}] UPLOAD File Info: ${req.file.originalname}\n`);
 
       const { uploadedBy, uploadedByName } = req.body;
-      const fileUrl = `/uploads/${req.file.filename}`;
+      const { url: fileUrl } = await dbStorage.uploadFile(req.file);
 
       // Get current document to determine next version
       console.log("[UPLOAD] Fetching current document...");
@@ -16591,11 +16332,11 @@ Format sebagai bullet points singkat per insight.`;
     res.json(material);
   });
 
-  app.post("/api/induction/materials", upload.single("file"), async (req, res) => {
+  app.post("/api/induction/materials", uploadMemory.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-      const fileUrl = `/uploads/${req.file.filename}`; // Assuming local upload for now
+      const { url: fileUrl } = await dbStorage.uploadFile(req.file);
 
       const material = await storage.createInductionMaterial({
         ...req.body,
@@ -19198,16 +18939,14 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // P3K Photo Upload
-  app.post("/api/sidak-p3k/upload", upload.single("photo"), async (req, res) => {
+  app.post("/api/sidak-p3k/upload", uploadMemory.single("photo"), async (req, res) => {
     try {
       const file = req.file;
       if (!file) {
         return res.status(400).json({ message: "No photo uploaded" });
       }
 
-      // Store relative path for URL access
-      const photoUrl = `/uploads/${file.filename}`;
-      console.log(`[P3K] Photo uploaded: ${photoUrl}`);
+      const { url: photoUrl } = await dbStorage.uploadFile(file);
 
       res.json({ url: photoUrl });
     } catch (error) {
