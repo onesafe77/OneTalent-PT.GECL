@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SignaturePad } from "@/components/sidak/signature-pad";
+import { SelfieCamera } from "@/components/selfie-camera";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -26,6 +27,7 @@ const inductionAttendanceSchema = z.object({
     pemateri: z.string().min(1, "Pemateri wajib diisi"),
     tanggalRefreshInduksi: z.string().min(1, "Tanggal wajib diisi"),
     tandaTangan: z.string().min(1, "Tanda tangan wajib diisi"),
+    fotoSelfie: z.string().min(1, "Foto selfie wajib diambil"),
     waktu: z.string().min(1, "Waktu wajib diisi"),
 });
 
@@ -53,6 +55,7 @@ export default function AbsensiInduksiPublic() {
             tanggalRefreshInduksi: format(new Date(), "yyyy-MM-dd"),
             waktu: format(new Date(), "HH:mm:ss"),
             tandaTangan: "",
+            fotoSelfie: "",
         },
     });
 
@@ -106,8 +109,23 @@ export default function AbsensiInduksiPublic() {
         },
     });
 
-    const onSubmit = (values: InductionAttendanceValues) => {
-        mutation.mutate(values);
+    const onSubmit = async (values: InductionAttendanceValues) => {
+        let fotoSelfieUrl = values.fotoSelfie;
+        if (fotoSelfieUrl && fotoSelfieUrl.startsWith("data:")) {
+            try {
+                const blob = await (await fetch(fotoSelfieUrl)).blob();
+                const fd = new FormData();
+                fd.append("file", blob, `selfie-${values.nik}-${Date.now()}.jpg`);
+                const res = await fetch("/api/upload", { method: "POST", body: fd });
+                if (!res.ok) throw new Error("Upload foto gagal");
+                const json = await res.json();
+                fotoSelfieUrl = json.url;
+            } catch (err: any) {
+                toast({ title: "Gagal upload foto", description: err?.message || "Coba lagi", variant: "destructive" });
+                return;
+            }
+        }
+        mutation.mutate({ ...values, fotoSelfie: fotoSelfieUrl });
     };
 
     if (isSuccess) {
@@ -348,6 +366,30 @@ export default function AbsensiInduksiPublic() {
                                                         <SelectItem value="ARIS MUHAMMAD S">ARIS MUHAMMAD S</SelectItem>
                                                     </SelectContent>
                                                 </Select>
+                                                <FormMessage className="text-xs" />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                {/* Section: Foto Selfie (Kamera Depan) */}
+                                <div className="pt-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="fotoSelfie"
+                                        render={({ field }) => (
+                                            <FormItem className="space-y-3">
+                                                <FormLabel className="text-sm font-medium text-gray-700 flex items-center justify-between">
+                                                    <span>Foto Selfie (Kamera Depan)</span>
+                                                    <span className="text-xs text-gray-400 font-normal italic">Wajib diisi</span>
+                                                </FormLabel>
+                                                <FormControl>
+                                                    <SelfieCamera
+                                                        value={field.value}
+                                                        onCapture={(dataUrl) => field.onChange(dataUrl)}
+                                                        onClear={() => field.onChange("")}
+                                                    />
+                                                </FormControl>
                                                 <FormMessage className="text-xs" />
                                             </FormItem>
                                         )}
