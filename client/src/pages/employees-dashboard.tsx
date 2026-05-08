@@ -140,6 +140,8 @@ export default function EmployeesDashboard() {
 
         const departmentData = getDistribution("department", 5);
         const investorData = getDistribution("investorGroup", 5);
+        const investorDataDetail = getDistribution("investorGroup", 999);
+        const noInvestorGroupCount = filteredEmployees.filter(e => !e.investorGroup?.trim()).length;
 
         const positionCounts = filteredEmployees.reduce((acc, emp) => {
             const val = (emp.position as string) || "Unknown";
@@ -248,7 +250,7 @@ export default function EmployeesDashboard() {
         const priorityOrder = { 'EXPIRED': 0, 'NEAR EXPIRED': 1 };
         expiringEmployees.sort((a, b) => (priorityOrder[a.status as keyof typeof priorityOrder] ?? 3) - (priorityOrder[b.status as keyof typeof priorityOrder] ?? 3));
 
-        return { total, active, inactive, spare, departmentData, investorData, positionData, recentEmployees, simpolStats, bibStats, tiaStats, expiringEmployees, domicileData, kotaKabData, provinsiData, noKotaKabCount };
+        return { total, active, inactive, spare, departmentData, investorData, investorDataDetail, noInvestorGroupCount, positionData, recentEmployees, simpolStats, bibStats, tiaStats, expiringEmployees, domicileData, kotaKabData, provinsiData, noKotaKabCount };
     }, [filteredEmployees]);
 
     const uniqueDepts = useMemo(() => Array.from(new Set(employees.map(e => e.department).filter(Boolean))).sort(), [employees]);
@@ -509,6 +511,37 @@ export default function EmployeesDashboard() {
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Detail Investor Group — All */}
+                        <Card className="md:col-span-2 border-none shadow-lg shadow-slate-200/50 bg-white/80 backdrop-blur-xl rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <PieChartIcon className="w-4 h-4 text-amber-500" /> Detail Investor Group — Semua
+                                </CardTitle>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {dashboardStats.noInvestorGroupCount > 0 && `${dashboardStats.noInvestorGroupCount} karyawan belum punya Investor Group`}
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                {dashboardStats.investorDataDetail.length === 0 ? (
+                                    <div className="flex items-center justify-center h-[280px] text-sm text-slate-400">
+                                        Belum ada data Investor Group.
+                                    </div>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height={Math.max(280, dashboardStats.investorDataDetail.length * 36)}>
+                                        <BarChart data={dashboardStats.investorDataDetail} layout="vertical" margin={{ left: 20, right: 40 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                            <XAxis type="number" tick={{ fontSize: 11 }} />
+                                            <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                                            <Tooltip contentStyle={{ borderRadius: '8px' }} />
+                                            <Bar dataKey="value" fill="#f59e0b" radius={[0, 6, 6, 0]}>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 600 }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
                             </CardContent>
                         </Card>
 
