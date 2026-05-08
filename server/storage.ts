@@ -2588,7 +2588,9 @@ export class DrizzleStorage implements IStorage {
   }
 
   async deleteAllEmployees(): Promise<boolean> {
-    await this.db.delete(employees);
+    // TRUNCATE CASCADE menghapus semua tabel yang punya FK ke employees secara otomatis
+    // (attendance_records, roster_schedules, leave_requests, qr_tokens, mcu_records, dll.)
+    await this.db.execute(sql`TRUNCATE TABLE employees CASCADE`);
     return true;
   }
 
