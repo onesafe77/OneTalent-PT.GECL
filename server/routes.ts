@@ -1309,12 +1309,19 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // Delete all employees
+  // Delete all employees, optionally filtered by positions (?positions=Driver,Mechanic)
   app.delete("/api/employees", async (req, res) => {
     try {
-      const deleted = await storage.deleteAllEmployees();
+      const positionsParam = req.query.positions as string | undefined;
+      const positions = positionsParam
+        ? positionsParam.split(",").map(p => p.trim()).filter(Boolean)
+        : undefined;
+      const deleted = await storage.deleteAllEmployees(positions);
       if (deleted) {
-        res.json({ message: "Semua data karyawan berhasil dihapus" });
+        const msg = positions && positions.length > 0
+          ? `Semua karyawan dengan posisi ${positions.join(", ")} berhasil dihapus`
+          : "Semua data karyawan berhasil dihapus";
+        res.json({ message: msg });
       } else {
         res.status(500).json({ message: "Gagal menghapus data karyawan" });
       }

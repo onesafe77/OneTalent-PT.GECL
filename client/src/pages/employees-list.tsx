@@ -153,15 +153,20 @@ export default function EmployeesList() {
         onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal menghapus karyawan" }),
     });
 
-    const deleteAllMutation = useMutation<{ message: string }, Error, void>({
-        mutationFn: () => apiRequest("/api/employees", "DELETE"),
-        onSuccess: () => {
+    const deleteAllMutation = useMutation<{ message: string }, Error, string[] | undefined>({
+        mutationFn: (positions) => {
+            const url = positions && positions.length > 0
+                ? `/api/employees?positions=${encodeURIComponent(positions.join(","))}`
+                : "/api/employees";
+            return apiRequest(url, "DELETE");
+        },
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
             setIsDeleteAllOpen(false);
             setDeleteConfirmText("");
-            toast({ title: "Berhasil", description: "Semua data karyawan berhasil dihapus" });
+            toast({ title: "Berhasil", description: data.message || "Data berhasil dihapus" });
         },
-        onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal menghapus semua data" }),
+        onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal menghapus data" }),
     });
 
     const handleEdit = (employee: Employee) => {
@@ -347,20 +352,21 @@ export default function EmployeesList() {
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" size="sm">
                                 <Trash2 className="w-4 h-4 mr-2" />
-                                Hapus Semua
+                                Hapus Driver & Mechanic
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-red-600">⚠️ Hapus Semua Data Karyawan?</AlertDialogTitle>
+                                <AlertDialogTitle className="text-red-600">⚠️ Hapus Data Driver & Mechanic?</AlertDialogTitle>
                                 <AlertDialogDescription asChild>
                                     <div className="space-y-3">
-                                        <p>Aksi ini akan menghapus <strong>SEMUA {total} karyawan</strong> dari database secara permanen. Data yang dihapus tidak bisa dikembalikan.</p>
-                                        <p>Untuk konfirmasi, ketik <code className="bg-red-100 px-2 py-0.5 rounded text-red-700 font-mono">HAPUS SEMUA</code> di bawah ini:</p>
+                                        <p>Aksi ini akan menghapus <strong>SEMUA karyawan dengan posisi Driver dan Mechanic</strong> beserta data terkait (attendance, roster, cuti, MCU, sertifikat, dll).</p>
+                                        <p className="text-sm text-muted-foreground">Karyawan dengan posisi lain (HSE, Production, Maintenance, dll) tidak akan terpengaruh.</p>
+                                        <p>Untuk konfirmasi, ketik <code className="bg-red-100 px-2 py-0.5 rounded text-red-700 font-mono">HAPUS</code> di bawah ini:</p>
                                         <Input
                                             value={deleteConfirmText}
                                             onChange={(e) => setDeleteConfirmText(e.target.value)}
-                                            placeholder="Ketik HAPUS SEMUA"
+                                            placeholder="Ketik HAPUS"
                                             autoComplete="off"
                                         />
                                     </div>
@@ -369,11 +375,11 @@ export default function EmployeesList() {
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Batal</AlertDialogCancel>
                                 <AlertDialogAction
-                                    disabled={deleteConfirmText !== "HAPUS SEMUA" || deleteAllMutation.isPending}
-                                    onClick={(e) => { e.preventDefault(); deleteAllMutation.mutate(); }}
+                                    disabled={deleteConfirmText !== "HAPUS" || deleteAllMutation.isPending}
+                                    onClick={(e) => { e.preventDefault(); deleteAllMutation.mutate(["Driver", "Mechanic"]); }}
                                     className="bg-red-600 hover:bg-red-700"
                                 >
-                                    {deleteAllMutation.isPending ? "Menghapus..." : "Hapus Semua"}
+                                    {deleteAllMutation.isPending ? "Menghapus..." : "Hapus Driver & Mechanic"}
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>

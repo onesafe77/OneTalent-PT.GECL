@@ -398,7 +398,7 @@ export interface IStorage {
   createEmployee(employee: InsertEmployee): Promise<Employee>;
   updateEmployee(id: string, employee: Partial<InsertEmployee>): Promise<Employee | undefined>;
   deleteEmployee(id: string): Promise<boolean>;
-  deleteAllEmployees(): Promise<boolean>;
+  deleteAllEmployees(positions?: string[]): Promise<boolean>;
 
   // Attendance methods
   getAttendanceRecord(id: string): Promise<AttendanceRecord | undefined>;
@@ -2587,10 +2587,38 @@ export class DrizzleStorage implements IStorage {
     }
   }
 
-  async deleteAllEmployees(): Promise<boolean> {
-    // TRUNCATE CASCADE menghapus semua tabel yang punya FK ke employees secara otomatis
-    // (attendance_records, roster_schedules, leave_requests, qr_tokens, mcu_records, dll.)
-    await this.db.execute(sql`TRUNCATE TABLE employees CASCADE`);
+  async deleteAllEmployees(positions?: string[]): Promise<boolean> {
+    if (!positions || positions.length === 0) {
+      // Hapus SEMUA — TRUNCATE CASCADE
+      await this.db.execute(sql`TRUNCATE TABLE employees CASCADE`);
+      return true;
+    }
+
+    // Hapus hanya posisi tertentu — manual cascade ke semua child tables
+    const targets = await this.db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(inArray(employees.position, positions));
+    const ids = targets.map(t => t.id);
+    if (ids.length === 0) return true;
+
+    // Delete child records dari semua tabel yang punya FK ke employees.id
+    await this.db.execute(sql`DELETE FROM attendance_records WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM roster_schedules WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM leave_requests WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM leave_balances WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM leave_history WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM qr_tokens WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM push_subscriptions WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM tna_summaries WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM kompetensi_sertifikat_monitoring WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM induction_schedules WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM mcu_records WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM sick_leaves WHERE employee_id = ANY(${ids})`);
+    await this.db.execute(sql`DELETE FROM auth_users WHERE nik = ANY(${ids})`);
+
+    // Finally delete the employees themselves
+    await this.db.delete(employees).where(inArray(employees.id, ids));
     return true;
   }
 
