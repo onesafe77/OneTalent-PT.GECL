@@ -1325,9 +1325,10 @@ Format sebagai bullet points singkat per insight.`;
       } else {
         res.status(500).json({ message: "Gagal menghapus data karyawan" });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting all employees:", error);
-      res.status(500).json({ message: "Failed to delete all employees" });
+      const detail = error?.message || error?.detail || String(error);
+      res.status(500).json({ message: `Failed to delete: ${detail}` });
     }
   });
 
