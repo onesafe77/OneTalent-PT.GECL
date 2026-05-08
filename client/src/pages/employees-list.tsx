@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -90,6 +91,9 @@ export default function EmployeesList() {
     const [currentPage, setCurrentPage] = useState(1);
     const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
     const [expiryFilter, setExpiryFilter] = useState<string>("all"); // all, expired, kritis, warning
+    const [positionFilter, setPositionFilter] = useState<string>("all");
+    const [isDeleteAllOpen, setIsDeleteAllOpen] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState("");
     const { toast } = useToast();
     const perPage = 20;
 
@@ -102,13 +106,19 @@ export default function EmployeesList() {
         return () => clearTimeout(timer);
     }, [searchTerm]);
 
+    // Reset to page 1 when position filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [positionFilter]);
+
     const { data: response, isLoading } = useQuery<PaginatedResponse>({
-        queryKey: ["/api/employees", currentPage, debouncedSearch],
+        queryKey: ["/api/employees", currentPage, debouncedSearch, positionFilter],
         queryFn: async () => {
             const params = new URLSearchParams({
                 page: String(currentPage),
                 per_page: String(perPage),
-                ...(debouncedSearch && { search: debouncedSearch })
+                ...(debouncedSearch && { search: debouncedSearch }),
+                ...(positionFilter !== "all" && { position: positionFilter })
             });
             const res = await fetch(`/api/employees?${params}`);
             if (!res.ok) throw new Error("Failed to fetch");
@@ -116,9 +126,23 @@ export default function EmployeesList() {
         }
     });
 
+    const { data: allEmployeesResponse } = useQuery<{ data: Employee[]; total: number }>({
+        queryKey: ["/api/employees", "all-positions"],
+        queryFn: async () => {
+            const res = await fetch(`/api/employees`);
+            if (!res.ok) throw new Error("Failed to fetch");
+            return res.json();
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+
     const employees = response?.data || [];
     const total = response?.total || 0;
     const totalPages = response?.totalPages || 1;
+
+    const uniquePositions = Array.from(
+        new Set((allEmployeesResponse?.data ?? []).map(e => e.position).filter((p): p is string => Boolean(p)))
+    ).sort();
 
     const deleteMutation = useMutation<void, Error, string>({
         mutationFn: (id: string) => apiRequest(`/api/employees/${id}`, "DELETE"),
@@ -127,6 +151,17 @@ export default function EmployeesList() {
             toast({ title: "Berhasil", description: "Karyawan berhasil dihapus" });
         },
         onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal menghapus karyawan" }),
+    });
+
+    const deleteAllMutation = useMutation<{ message: string }, Error, void>({
+        mutationFn: () => apiRequest("/api/employees", "DELETE"),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+            setIsDeleteAllOpen(false);
+            setDeleteConfirmText("");
+            toast({ title: "Berhasil", description: "Semua data karyawan berhasil dihapus" });
+        },
+        onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal menghapus semua data" }),
     });
 
     const handleEdit = (employee: Employee) => {
@@ -151,6 +186,43 @@ export default function EmployeesList() {
         },
         onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal mengupload data karyawan" }),
     });
+
+    const handleExportExcel = async () => {
+        try {
+            const params = new URLSearchParams();
+            if (debouncedSearch) params.set("search", debouncedSearch);
+            if (positionFilter !== "all") params.set("position", positionFilter);
+            const url = params.toString() ? `/api/employees?${params}` : `/api/employees`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error("Failed to fetch");
+            const json = await res.json();
+            const list: Employee[] = json.data ?? [];
+
+            const rows = list.map(e => ({
+                NIK: e.id,
+                Nama: e.name,
+                Posisi: e.position ?? "",
+                Departemen: e.department ?? "",
+                "Investor Group": e.investorGroup ?? "",
+                "No. WhatsApp": e.phone ?? "",
+                Status: e.status === "active" ? "Aktif" : "Non-Aktif",
+                "Expired SIM POL": e.expiredSimpol ?? "",
+                "Expired SIMPER BIB": e.expiredSimperBib ?? "",
+                "Expired SIMPER TIA": e.expiredSimperTia ?? "",
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Karyawan");
+            const today = new Date().toISOString().slice(0, 10);
+            const suffix = positionFilter !== "all" ? `_${positionFilter.replace(/\s+/g, "_")}` : "";
+            XLSX.writeFile(workbook, `List_Karyawan${suffix}_${today}.xlsx`);
+
+            toast({ title: "Export berhasil", description: `${rows.length} karyawan diexport` });
+        } catch (err) {
+            toast({ title: "Export gagal", description: "Gagal mengekspor data", variant: "destructive" });
+        }
+    };
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -247,6 +319,10 @@ export default function EmployeesList() {
                         <QrCode className="w-4 h-4 mr-2" />
                         Update QR URL
                     </Button>
+                    <Button variant="outline" size="sm" onClick={handleExportExcel}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export Excel
+                    </Button>
                     <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" size="sm">
@@ -267,6 +343,41 @@ export default function EmployeesList() {
                         <Plus className="w-4 h-4 mr-2" />
                         Tambah
                     </Button>
+                    <AlertDialog open={isDeleteAllOpen} onOpenChange={(open) => { setIsDeleteAllOpen(open); if (!open) setDeleteConfirmText(""); }}>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Hapus Semua
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle className="text-red-600">⚠️ Hapus Semua Data Karyawan?</AlertDialogTitle>
+                                <AlertDialogDescription asChild>
+                                    <div className="space-y-3">
+                                        <p>Aksi ini akan menghapus <strong>SEMUA {total} karyawan</strong> dari database secara permanen. Data yang dihapus tidak bisa dikembalikan.</p>
+                                        <p>Untuk konfirmasi, ketik <code className="bg-red-100 px-2 py-0.5 rounded text-red-700 font-mono">HAPUS SEMUA</code> di bawah ini:</p>
+                                        <Input
+                                            value={deleteConfirmText}
+                                            onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                            placeholder="Ketik HAPUS SEMUA"
+                                            autoComplete="off"
+                                        />
+                                    </div>
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction
+                                    disabled={deleteConfirmText !== "HAPUS SEMUA" || deleteAllMutation.isPending}
+                                    onClick={(e) => { e.preventDefault(); deleteAllMutation.mutate(); }}
+                                    className="bg-red-600 hover:bg-red-700"
+                                >
+                                    {deleteAllMutation.isPending ? "Menghapus..." : "Hapus Semua"}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </div>
             </div>
 
@@ -288,6 +399,21 @@ export default function EmployeesList() {
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
+                                </div>
+                                {/* Position Filter */}
+                                <div className="flex items-center gap-2">
+                                    <Filter className="w-4 h-4 text-muted-foreground" />
+                                    <Select value={positionFilter} onValueChange={setPositionFilter}>
+                                        <SelectTrigger className="w-[200px]">
+                                            <SelectValue placeholder="Filter Posisi" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Semua Posisi</SelectItem>
+                                            {uniquePositions.map(pos => (
+                                                <SelectItem key={pos} value={pos}>{pos}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 {/* Expiry Status Filter */}
                                 <div className="flex items-center gap-2">

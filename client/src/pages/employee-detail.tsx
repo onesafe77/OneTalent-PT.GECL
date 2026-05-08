@@ -14,7 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Employee, InsertEmployee } from "@shared/schema";
-import { ArrowLeft, Save, Trash2, User, Building2, Briefcase, MapPin, Car, GraduationCap, Heart, Upload, Calendar } from "lucide-react";
+import { ArrowLeft, Save, Trash2, User, Building2, Briefcase, MapPin, Car, Upload, Calendar } from "lucide-react";
 import { z } from "zod";
 import { Separator } from "@/components/ui/separator";
 import { LoadingScreen } from "@/components/ui/loading-screen";
@@ -47,14 +47,9 @@ const formSchema = z.object({
     statusSimperTia: z.string().optional(),
     address: z.string().optional(),
     provinsi: z.string().optional(),
+    kotaKab: z.string().optional(),
     addressGroup: z.string().optional(),
     domisiliKaryawan: z.string().optional(),
-    tglIkutPelatihanOs: z.string().optional(),
-    merekUnitDigunakanOs: z.string().optional(),
-    tglRefreshmentOs: z.string().optional(),
-    refreshmentOs: z.string().optional(),
-    keteranganOs: z.string().optional(),
-    bpjsKesehatan: z.string().optional(),
 }).superRefine((data, ctx) => {
     if (data.statusKaryawan === "Resign" && !data.tanggalResign) {
         ctx.addIssue({
@@ -86,9 +81,7 @@ export default function EmployeeDetail() {
             isafeNumber: "", idItws: "", tempatLahir: "", dob: "", ktpNo: "", doh: "", statusKaryawan: "",
             tanggalResign: "", catatanResign: "", typeSim: "", simNo: "", expiredSimpol: "",
             expiredSimperBib: "", statusSimperBib: "", expiredSimperTia: "", statusSimperTia: "",
-            address: "", provinsi: "", addressGroup: "", domisiliKaryawan: "",
-            tglIkutPelatihanOs: "", merekUnitDigunakanOs: "", tglRefreshmentOs: "", refreshmentOs: "", keteranganOs: "",
-            bpjsKesehatan: "",
+            address: "", provinsi: "", kotaKab: "", addressGroup: "", domisiliKaryawan: "",
         },
     });
 
@@ -202,14 +195,9 @@ export default function EmployeeDetail() {
                 statusSimperTia: employee.statusSimperTia || "",
                 address: employee.address || "",
                 provinsi: employee.provinsi || "",
+                kotaKab: (employee as any).kotaKab || "",
                 addressGroup: employee.addressGroup || "",
                 domisiliKaryawan: employee.domisiliKaryawan || "",
-                tglIkutPelatihanOs: employee.tglIkutPelatihanOs || "",
-                merekUnitDigunakanOs: employee.merekUnitDigunakanOs || "",
-                tglRefreshmentOs: employee.tglRefreshmentOs || "",
-                refreshmentOs: employee.refreshmentOs || "",
-                keteranganOs: employee.keteranganOs || "",
-                bpjsKesehatan: employee.bpjsKesehatan || "",
             });
             if (employee.photoUrl) {
                 setPhotoPreview(employee.photoUrl);
@@ -550,6 +538,9 @@ export default function EmployeeDetail() {
                             <FormField control={form.control} name="provinsi" render={({ field }) => (
                                 <FormItem><FormLabel>Provinsi</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
+                            <FormField control={form.control} name="kotaKab" render={({ field }) => (
+                                <FormItem><FormLabel>Kota/Kab</FormLabel><FormControl><Input {...field} placeholder="Contoh: Tanah Bumbu" /></FormControl><FormMessage /></FormItem>
+                            )} />
                             <FormField control={form.control} name="addressGroup" render={({ field }) => (
                                 <FormItem><FormLabel>Address Group</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
@@ -559,94 +550,6 @@ export default function EmployeeDetail() {
                         </CardContent>
                     </Card>
 
-                    {/* OS Training */}
-                    <Card>
-                        <CardHeader><CardTitle className="flex items-center gap-2"><GraduationCap className="w-5 h-5" /> OS Training</CardTitle></CardHeader>
-                        <CardContent className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                <FormField control={form.control} name="tglIkutPelatihanOs" render={({ field }) => (
-                                    <FormItem><FormLabel>Tgl Ikut Pelatihan OS</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="merekUnitDigunakanOs" render={({ field }) => (
-                                    <FormItem><FormLabel>Merek Unit Digunakan OS</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="tglRefreshmentOs" render={({ field }) => (
-                                    <FormItem><FormLabel>Tgl Refreshment OS</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="refreshmentOs" render={({ field }) => (
-                                    <FormItem><FormLabel>Refreshment OS</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                                )} />
-                                <FormField control={form.control} name="keteranganOs" render={({ field }) => (
-                                    <FormItem className="md:col-span-2"><FormLabel>Keterangan OS</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
-                                )} />
-                            </div>
-
-                            {/* Certificate Upload */}
-                            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 border">
-                                <h4 className="font-medium text-sm mb-3">Sertifikat OS (PDF)</h4>
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                                    {/* Current file display */}
-                                    {employee?.sertifikatOsUrl && (
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <Badge variant="outline" className="text-emerald-600 border-emerald-300">
-                                                <a href={employee.sertifikatOsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
-                                                    📄 Lihat Sertifikat
-                                                </a>
-                                            </Badge>
-                                        </div>
-                                    )}
-
-                                    {/* Upload new file */}
-                                    {!isNew && (
-                                        <label className="cursor-pointer">
-                                            <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors text-sm">
-                                                <Upload className="w-4 h-4" />
-                                                {employee?.sertifikatOsUrl ? "Ganti Sertifikat" : "Upload Sertifikat"}
-                                            </div>
-                                            <input
-                                                type="file"
-                                                accept=".pdf"
-                                                className="hidden"
-                                                onChange={async (e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (!file) return;
-                                                    if (file.type !== "application/pdf") {
-                                                        toast({ title: "Error", description: "File harus berformat PDF", variant: "destructive" });
-                                                        return;
-                                                    }
-                                                    try {
-                                                        const formData = new FormData();
-                                                        formData.append("certificate", file);
-                                                        const res = await fetch(`/api/employees/${employee?.id}/os-certificate`, {
-                                                            method: "POST",
-                                                            body: formData
-                                                        });
-                                                        if (!res.ok) throw new Error("Upload failed");
-                                                        const data = await res.json();
-                                                        toast({ title: "Berhasil", description: "Sertifikat OS berhasil diupload" });
-                                                        queryClient.invalidateQueries({ queryKey: [`/api/employees/${employee?.id}`] });
-                                                    } catch (error) {
-                                                        toast({ title: "Error", description: "Gagal upload sertifikat", variant: "destructive" });
-                                                    }
-                                                    e.target.value = "";
-                                                }}
-                                            />
-                                        </label>
-                                    )}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* BPJS */}
-                    <Card>
-                        <CardHeader><CardTitle className="flex items-center gap-2"><Heart className="w-5 h-5" /> BPJS</CardTitle></CardHeader>
-                        <CardContent>
-                            <FormField control={form.control} name="bpjsKesehatan" render={({ field }) => (
-                                <FormItem className="max-w-md"><FormLabel>No. BPJS Kesehatan</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-                            )} />
-                        </CardContent>
-                    </Card>
                 </form>
             </Form>
         </div>

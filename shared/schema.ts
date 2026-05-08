@@ -79,6 +79,7 @@ export const employees = pgTable("employees", {
   // Alamat
   address: text("address"),
   provinsi: varchar("provinsi", { length: 80 }),
+  kotaKab: varchar("kota_kab", { length: 120 }),
   addressGroup: varchar("address_group", { length: 80 }),
   domisiliKaryawan: varchar("domisili_karyawan", { length: 120 }),
 
@@ -247,6 +248,7 @@ export const insertEmployeeSchema = createInsertSchema(employees).omit({
   simNo: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
   address: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
   provinsi: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  kotaKab: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
   addressGroup: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
   domisiliKaryawan: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
   merekUnitDigunakanOs: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),

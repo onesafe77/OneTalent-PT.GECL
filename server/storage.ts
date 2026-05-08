@@ -394,7 +394,7 @@ export interface IStorage {
   getEmployeeByNik(nik: string): Promise<Employee | undefined>;
   getAllEmployees(): Promise<Employee[]>;
   getEmployees(): Promise<Employee[]>; // Alias for compatibility
-  getEmployeesPaginated(page: number, perPage: number, search?: string): Promise<{ data: Employee[]; total: number; totalPages: number }>;
+  getEmployeesPaginated(page: number, perPage: number, search?: string, position?: string): Promise<{ data: Employee[]; total: number; totalPages: number }>;
   createEmployee(employee: InsertEmployee): Promise<Employee>;
   updateEmployee(id: string, employee: Partial<InsertEmployee>): Promise<Employee | undefined>;
   deleteEmployee(id: string): Promise<boolean>;
@@ -2452,22 +2452,29 @@ export class DrizzleStorage implements IStorage {
     return this.getAllEmployees();
   }
 
-  async getEmployeesPaginated(page: number, perPage: number, search?: string): Promise<{ data: Employee[]; total: number; totalPages: number }> {
+  async getEmployeesPaginated(page: number, perPage: number, search?: string, position?: string): Promise<{ data: Employee[]; total: number; totalPages: number }> {
     const offset = (page - 1) * perPage;
 
     let baseQuery = this.db.select().from(employees);
     let countQuery = this.db.select({ count: sql<number>`count(*)` }).from(employees);
 
+    const conditions: any[] = [];
     if (search && search.trim()) {
       const searchPattern = `%${search.trim().toLowerCase()}%`;
-      const searchCondition = or(
+      conditions.push(or(
         ilike(employees.id, searchPattern),
         ilike(employees.name, searchPattern),
         ilike(employees.department, searchPattern),
         ilike(employees.position, searchPattern)
-      );
-      baseQuery = baseQuery.where(searchCondition) as any;
-      countQuery = countQuery.where(searchCondition) as any;
+      ));
+    }
+    if (position && position.trim()) {
+      conditions.push(eq(employees.position, position));
+    }
+    if (conditions.length > 0) {
+      const combined = conditions.length === 1 ? conditions[0] : and(...conditions);
+      baseQuery = baseQuery.where(combined) as any;
+      countQuery = countQuery.where(combined) as any;
     }
 
     const [data, countResult] = await Promise.all([

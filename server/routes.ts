@@ -1112,10 +1112,11 @@ Format sebagai bullet points singkat per insight.`;
       const page = req.query.page ? parseInt(req.query.page as string) : undefined;
       const perPage = req.query.per_page ? parseInt(req.query.per_page as string) : 20;
       const search = req.query.search as string;
+      const position = req.query.position as string;
 
       if (page) {
         // Use database pagination when page is specified
-        const result = await storage.getEmployeesPaginated(page, perPage, search);
+        const result = await storage.getEmployeesPaginated(page, perPage, search, position);
         return res.json(result);
       }
 
@@ -1132,6 +1133,10 @@ Format sebagai bullet points singkat per insight.`;
           employees = await storage.getAllEmployees();
         }
         setCachedAllEmployees(employees);
+      }
+
+      if (position && position.trim()) {
+        employees = employees.filter(e => e.position === position);
       }
 
       // Return as object for backward compatibility with some frontend parts
