@@ -189,6 +189,32 @@ export default function EmployeesDashboard() {
             { name: "Non-Lokal", value: domicileStats.nonLocal, color: "#ef4444" }, // Red
         ];
 
+        // Breakdown by Kota/Kab (top 10)
+        const kotaKabCounts = filteredEmployees.reduce((acc, emp) => {
+            const kota = (emp.kotaKab || "").trim();
+            if (!kota) return acc;
+            acc[kota] = (acc[kota] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        const kotaKabData = Object.entries(kotaKabCounts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 10);
+
+        // Breakdown by Provinsi
+        const provinsiCounts = filteredEmployees.reduce((acc, emp) => {
+            const prov = (emp.provinsi || "").trim();
+            if (!prov) return acc;
+            acc[prov] = (acc[prov] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        const provinsiData = Object.entries(provinsiCounts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        // Karyawan tanpa data domisili
+        const noKotaKabCount = filteredEmployees.filter(e => !e.kotaKab?.trim()).length;
+
         const calculateSimperStats = (field: keyof Employee) => {
             const counts = { expired: 0, near_expired: 0, aktif: 0, nodata: 0 };
             filteredEmployees.forEach(emp => {
@@ -222,7 +248,7 @@ export default function EmployeesDashboard() {
         const priorityOrder = { 'EXPIRED': 0, 'NEAR EXPIRED': 1 };
         expiringEmployees.sort((a, b) => (priorityOrder[a.status as keyof typeof priorityOrder] ?? 3) - (priorityOrder[b.status as keyof typeof priorityOrder] ?? 3));
 
-        return { total, active, inactive, spare, departmentData, investorData, positionData, recentEmployees, simpolStats, bibStats, tiaStats, expiringEmployees, domicileData };
+        return { total, active, inactive, spare, departmentData, investorData, positionData, recentEmployees, simpolStats, bibStats, tiaStats, expiringEmployees, domicileData, kotaKabData, provinsiData, noKotaKabCount };
     }, [filteredEmployees]);
 
     const uniqueDepts = useMemo(() => Array.from(new Set(employees.map(e => e.department).filter(Boolean))).sort(), [employees]);
@@ -485,6 +511,61 @@ export default function EmployeesDashboard() {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Detail Domisili — Top Kota/Kab */}
+                        <Card className="md:col-span-2 border-none shadow-lg shadow-slate-200/50 bg-white/80 backdrop-blur-xl rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                    <MapPin className="w-4 h-4 text-cyan-500" /> Detail Domisili — Top 10 Kota/Kabupaten
+                                </CardTitle>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    {dashboardStats.noKotaKabCount > 0 && `${dashboardStats.noKotaKabCount} karyawan belum mengisi Kota/Kab`}
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                {dashboardStats.kotaKabData.length === 0 ? (
+                                    <div className="flex items-center justify-center h-[280px] text-sm text-slate-400">
+                                        Belum ada data Kota/Kab. Lengkapi field "Kota/Kab" di detail karyawan.
+                                    </div>
+                                ) : (
+                                    <ResponsiveContainer width="100%" height={Math.max(280, dashboardStats.kotaKabData.length * 32)}>
+                                        <BarChart data={dashboardStats.kotaKabData} layout="vertical" margin={{ left: 20, right: 40 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                            <XAxis type="number" tick={{ fontSize: 11 }} />
+                                            <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                                            <Tooltip contentStyle={{ borderRadius: '8px' }} />
+                                            <Bar dataKey="value" fill="#06b6d4" radius={[0, 6, 6, 0]}>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 600 }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Detail Domisili — Per Provinsi */}
+                        {dashboardStats.provinsiData.length > 0 && (
+                            <Card className="md:col-span-2 border-none shadow-lg shadow-slate-200/50 bg-white/80 backdrop-blur-xl rounded-2xl">
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                                        <MapPin className="w-4 h-4 text-purple-500" /> Detail Domisili — Per Provinsi
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <ResponsiveContainer width="100%" height={Math.max(220, dashboardStats.provinsiData.length * 36)}>
+                                        <BarChart data={dashboardStats.provinsiData} layout="vertical" margin={{ left: 20, right: 40 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                            <XAxis type="number" tick={{ fontSize: 11 }} />
+                                            <YAxis type="category" dataKey="name" width={140} tick={{ fontSize: 11 }} />
+                                            <Tooltip contentStyle={{ borderRadius: '8px' }} />
+                                            <Bar dataKey="value" fill="#a855f7" radius={[0, 6, 6, 0]}>
+                                                <LabelList dataKey="value" position="right" style={{ fontSize: 11, fontWeight: 600 }} />
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+                        )}
 
                         {/* Domicile Stats (NEW) */}
                         <Card className="md:col-span-2 border-none shadow-lg shadow-slate-200/50 bg-white/80 backdrop-blur-xl rounded-2xl">
