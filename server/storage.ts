@@ -2600,51 +2600,55 @@ export class DrizzleStorage implements IStorage {
     const ids = targets.map(t => t.id);
     if (ids.length === 0) return true;
 
-    // Helper: try execute, log but don't throw (untuk tabel yang mungkin tidak ada)
+    // Helper: build raw SQL dengan IN clause (terbukti reliable untuk varchar arrays di Postgres)
+    const idList = sql.join(ids.map(id => sql`${id}`), sql`, `);
+
     const tryExec = async (label: string, query: any) => {
       try {
-        await this.db.execute(query);
+        const result = await this.db.execute(query);
+        console.log(`[deleteAllEmployees] ${label}: OK`);
+        return result;
       } catch (err: any) {
         console.warn(`[deleteAllEmployees] skip ${label}: ${err?.message || err}`);
       }
     };
 
-    // SET NULL untuk tabel historis — preserve data rekap (nama/nik plain text tetap utuh)
-    await tryExec("sidak_fatigue_records", sql`UPDATE sidak_fatigue_records SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("sidak_roster_records", sql`UPDATE sidak_roster_records SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("sidak_seatbelt_records", sql`UPDATE sidak_seatbelt_records SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("mcu_records", sql`UPDATE mcu_records SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("sick_leaves", sql`UPDATE sick_leaves SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("kompetensi_sertifikat_monitoring", sql`UPDATE kompetensi_sertifikat_monitoring SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("whatsapp_blast_recipients", sql`UPDATE whatsapp_blast_recipients SET employee_id = NULL WHERE employee_id = ANY(${ids})`);
-    await tryExec("change_requests reviewed_by", sql`UPDATE change_requests SET reviewed_by = NULL WHERE reviewed_by = ANY(${ids})`);
-    await tryExec("document_disposal_records", sql`UPDATE document_disposal_records SET disposed_by = NULL WHERE disposed_by = ANY(${ids})`);
-    await tryExec("induction_materials", sql`UPDATE induction_materials SET uploaded_by = NULL WHERE uploaded_by = ANY(${ids})`);
+    // SET NULL untuk tabel historis — preserve data rekap
+    await tryExec("sidak_fatigue_records", sql`UPDATE sidak_fatigue_records SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("sidak_roster_records", sql`UPDATE sidak_roster_records SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("sidak_seatbelt_records", sql`UPDATE sidak_seatbelt_records SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("mcu_records", sql`UPDATE mcu_records SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("sick_leaves", sql`UPDATE sick_leaves SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("kompetensi_sertifikat_monitoring", sql`UPDATE kompetensi_sertifikat_monitoring SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("whatsapp_blast_recipients", sql`UPDATE whatsapp_blast_recipients SET employee_id = NULL WHERE employee_id IN (${idList})`);
+    await tryExec("change_requests reviewed_by", sql`UPDATE change_requests SET reviewed_by = NULL WHERE reviewed_by IN (${idList})`);
+    await tryExec("document_disposal_records", sql`UPDATE document_disposal_records SET disposed_by = NULL WHERE disposed_by IN (${idList})`);
+    await tryExec("induction_materials", sql`UPDATE induction_materials SET uploaded_by = NULL WHERE uploaded_by IN (${idList})`);
 
-    // DELETE tabel operational
-    await tryExec("attendance_records", sql`DELETE FROM attendance_records WHERE employee_id = ANY(${ids})`);
-    await tryExec("roster_schedules", sql`DELETE FROM roster_schedules WHERE employee_id = ANY(${ids})`);
-    await tryExec("leave_requests", sql`DELETE FROM leave_requests WHERE employee_id = ANY(${ids})`);
-    await tryExec("leave_balances", sql`DELETE FROM leave_balances WHERE employee_id = ANY(${ids})`);
-    await tryExec("leave_history", sql`DELETE FROM leave_history WHERE employee_id = ANY(${ids})`);
-    await tryExec("leave_reminders", sql`DELETE FROM leave_reminders WHERE employee_id = ANY(${ids})`);
-    await tryExec("qr_tokens", sql`DELETE FROM qr_tokens WHERE employee_id = ANY(${ids})`);
-    await tryExec("push_subscriptions", sql`DELETE FROM push_subscriptions WHERE employee_id = ANY(${ids})`);
-    await tryExec("tna_summaries", sql`DELETE FROM tna_summaries WHERE employee_id = ANY(${ids})`);
-    await tryExec("induction_schedules", sql`DELETE FROM induction_schedules WHERE employee_id = ANY(${ids})`);
-    await tryExec("announcement_reads", sql`DELETE FROM announcement_reads WHERE employee_id = ANY(${ids})`);
+    // DELETE tabel operational pakai Drizzle inArray (lebih reliable)
+    await tryExec("attendance_records", sql`DELETE FROM attendance_records WHERE employee_id IN (${idList})`);
+    await tryExec("roster_schedules", sql`DELETE FROM roster_schedules WHERE employee_id IN (${idList})`);
+    await tryExec("leave_requests", sql`DELETE FROM leave_requests WHERE employee_id IN (${idList})`);
+    await tryExec("leave_balances", sql`DELETE FROM leave_balances WHERE employee_id IN (${idList})`);
+    await tryExec("leave_history", sql`DELETE FROM leave_history WHERE employee_id IN (${idList})`);
+    await tryExec("leave_reminders", sql`DELETE FROM leave_reminders WHERE employee_id IN (${idList})`);
+    await tryExec("qr_tokens", sql`DELETE FROM qr_tokens WHERE employee_id IN (${idList})`);
+    await tryExec("push_subscriptions", sql`DELETE FROM push_subscriptions WHERE employee_id IN (${idList})`);
+    await tryExec("tna_summaries", sql`DELETE FROM tna_summaries WHERE employee_id IN (${idList})`);
+    await tryExec("induction_schedules", sql`DELETE FROM induction_schedules WHERE employee_id IN (${idList})`);
+    await tryExec("announcement_reads", sql`DELETE FROM announcement_reads WHERE employee_id IN (${idList})`);
 
-    // DELETE tabel usign/document yang FK-nya notNull (driver/mechanic biasanya tidak ada di sini, tapi just in case)
-    await tryExec("usign_approval_steps", sql`DELETE FROM usign_approval_steps WHERE approver_id = ANY(${ids})`);
-    await tryExec("usign_notifications", sql`DELETE FROM usign_notifications WHERE recipient_id = ANY(${ids})`);
-    await tryExec("usign_documents", sql`DELETE FROM usign_documents WHERE owner_id = ANY(${ids})`);
-    await tryExec("document_step_assignees", sql`DELETE FROM document_step_assignees WHERE assignee_id = ANY(${ids})`);
-    await tryExec("document_export_logs", sql`DELETE FROM document_export_logs WHERE exported_by = ANY(${ids})`);
-    await tryExec("esign_requests", sql`DELETE FROM esign_requests WHERE signer_id = ANY(${ids})`);
-    await tryExec("change_requests requested_by", sql`DELETE FROM change_requests WHERE requested_by = ANY(${ids})`);
+    // DELETE tabel usign/document
+    await tryExec("usign_approval_steps", sql`DELETE FROM usign_approval_steps WHERE approver_id IN (${idList})`);
+    await tryExec("usign_notifications", sql`DELETE FROM usign_notifications WHERE recipient_id IN (${idList})`);
+    await tryExec("usign_documents", sql`DELETE FROM usign_documents WHERE owner_id IN (${idList})`);
+    await tryExec("document_step_assignees", sql`DELETE FROM document_step_assignees WHERE assignee_id IN (${idList})`);
+    await tryExec("document_export_logs", sql`DELETE FROM document_export_logs WHERE exported_by IN (${idList})`);
+    await tryExec("esign_requests", sql`DELETE FROM esign_requests WHERE signer_id IN (${idList})`);
+    await tryExec("change_requests requested_by", sql`DELETE FROM change_requests WHERE requested_by IN (${idList})`);
 
-    // Auth users by NIK
-    await tryExec("auth_users", sql`DELETE FROM auth_users WHERE nik = ANY(${ids})`);
+    // Auth users — pakai Drizzle typed delete biar reliable
+    await this.db.delete(authUsers).where(inArray(authUsers.nik, ids));
 
     // Finally delete the employees
     await this.db.delete(employees).where(inArray(employees.id, ids));
