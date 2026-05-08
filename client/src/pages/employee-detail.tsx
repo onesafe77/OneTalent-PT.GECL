@@ -13,8 +13,10 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { Employee, InsertEmployee } from "@shared/schema";
-import { ArrowLeft, Save, Trash2, User, Building2, Briefcase, MapPin, Car, Upload, Calendar } from "lucide-react";
+import type { Employee, InsertEmployee, EmployeeFamilyMember, InsertEmployeeFamilyMember } from "@shared/schema";
+import { ArrowLeft, Save, Trash2, User, Building2, Briefcase, MapPin, Car, Upload, Calendar, Users, Plus } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { z } from "zod";
 import { Separator } from "@/components/ui/separator";
 import { LoadingScreen } from "@/components/ui/loading-screen";
@@ -89,6 +91,61 @@ export default function EmployeeDetail() {
     const [photoPreview, setPhotoPreview] = useState<string>("");
     const [photoLoadError, setPhotoLoadError] = useState<boolean>(false);
     const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+    // Family members state
+    const [isFamilyDialogOpen, setIsFamilyDialogOpen] = useState(false);
+    const [editingFamilyId, setEditingFamilyId] = useState<string | null>(null);
+    const [familyForm, setFamilyForm] = useState<Partial<InsertEmployeeFamilyMember>>({
+        hubungan: "", nama: "", jenisKelamin: "", tempatLahir: "", tanggalLahir: "", kontakDarurat: "",
+    });
+
+    const { data: familyMembers = [] } = useQuery<EmployeeFamilyMember[]>({
+        queryKey: [`/api/employees/${employeeId}/family-members`],
+        enabled: !!employeeId && !isNew,
+    });
+
+    const saveFamilyMutation = useMutation({
+        mutationFn: async () => {
+            if (editingFamilyId) {
+                return await apiRequest(`/api/family-members/${editingFamilyId}`, "PUT", familyForm);
+            }
+            return await apiRequest(`/api/employees/${employeeId}/family-members`, "POST", familyForm);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [`/api/employees/${employeeId}/family-members`] });
+            setIsFamilyDialogOpen(false);
+            setEditingFamilyId(null);
+            setFamilyForm({ hubungan: "", nama: "", jenisKelamin: "", tempatLahir: "", tanggalLahir: "", kontakDarurat: "" });
+            toast({ title: "Berhasil", description: "Data keluarga tersimpan" });
+        },
+        onError: (e: any) => toast({ title: "Error", description: e?.message || "Gagal menyimpan", variant: "destructive" }),
+    });
+
+    const deleteFamilyMutation = useMutation({
+        mutationFn: (id: string) => apiRequest(`/api/family-members/${id}`, "DELETE"),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: [`/api/employees/${employeeId}/family-members`] });
+            toast({ title: "Berhasil", description: "Data keluarga dihapus" });
+        },
+    });
+
+    const openFamilyDialog = (member?: EmployeeFamilyMember) => {
+        if (member) {
+            setEditingFamilyId(member.id);
+            setFamilyForm({
+                hubungan: member.hubungan,
+                nama: member.nama,
+                jenisKelamin: member.jenisKelamin || "",
+                tempatLahir: member.tempatLahir || "",
+                tanggalLahir: member.tanggalLahir || "",
+                kontakDarurat: member.kontakDarurat || "",
+            });
+        } else {
+            setEditingFamilyId(null);
+            setFamilyForm({ hubungan: "", nama: "", jenisKelamin: "", tempatLahir: "", tanggalLahir: "", kontakDarurat: "" });
+        }
+        setIsFamilyDialogOpen(true);
+    };
     const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
     const draftKey = `employee_draft_${employeeId || 'new'}`;
 
@@ -550,8 +607,116 @@ export default function EmployeeDetail() {
                         </CardContent>
                     </Card>
 
+                    {!isNew && (
+                        <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5" /> Keluarga</CardTitle>
+                                <Button type="button" size="sm" onClick={() => openFamilyDialog()}>
+                                    <Plus className="w-4 h-4 mr-1" /> Tambah
+                                </Button>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="rounded-md border overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Hubungan</TableHead>
+                                                <TableHead>Nama</TableHead>
+                                                <TableHead>Jenis Kelamin</TableHead>
+                                                <TableHead>Tempat Lahir</TableHead>
+                                                <TableHead>Tanggal Lahir</TableHead>
+                                                <TableHead>Kontak Darurat</TableHead>
+                                                <TableHead className="text-right">Aksi</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {familyMembers.length === 0 ? (
+                                                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Belum ada data keluarga. Klik "Tambah" untuk menambahkan.</TableCell></TableRow>
+                                            ) : familyMembers.map(m => (
+                                                <TableRow key={m.id}>
+                                                    <TableCell className="font-medium">{m.hubungan}</TableCell>
+                                                    <TableCell>{m.nama}</TableCell>
+                                                    <TableCell>{m.jenisKelamin || "-"}</TableCell>
+                                                    <TableCell>{m.tempatLahir || "-"}</TableCell>
+                                                    <TableCell>{m.tanggalLahir || "-"}</TableCell>
+                                                    <TableCell>{m.kontakDarurat || "-"}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button type="button" variant="ghost" size="icon" onClick={() => openFamilyDialog(m)}><Save className="w-4 h-4" /></Button>
+                                                        <Button type="button" variant="ghost" size="icon" className="text-red-600" onClick={() => { if (confirm(`Hapus data ${m.nama}?`)) deleteFamilyMutation.mutate(m.id); }}><Trash2 className="w-4 h-4" /></Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
                 </form>
             </Form>
+
+            <Dialog open={isFamilyDialogOpen} onOpenChange={setIsFamilyDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{editingFamilyId ? "Edit Keluarga" : "Tambah Keluarga"}</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Hubungan *</label>
+                            <Select value={familyForm.hubungan || ""} onValueChange={(v) => setFamilyForm(f => ({ ...f, hubungan: v }))}>
+                                <SelectTrigger><SelectValue placeholder="Pilih hubungan" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="AYAH">AYAH</SelectItem>
+                                    <SelectItem value="IBU">IBU</SelectItem>
+                                    <SelectItem value="SUAMI">SUAMI</SelectItem>
+                                    <SelectItem value="ISTRI">ISTRI</SelectItem>
+                                    <SelectItem value="ANAK">ANAK</SelectItem>
+                                    <SelectItem value="KAKAK">KAKAK</SelectItem>
+                                    <SelectItem value="ADIK">ADIK</SelectItem>
+                                    <SelectItem value="LAINNYA">LAINNYA</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium">Nama *</label>
+                            <Input value={familyForm.nama || ""} onChange={(e) => setFamilyForm(f => ({ ...f, nama: e.target.value }))} placeholder="Nama lengkap" />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Jenis Kelamin</label>
+                            <Select value={familyForm.jenisKelamin || ""} onValueChange={(v) => setFamilyForm(f => ({ ...f, jenisKelamin: v }))}>
+                                <SelectTrigger><SelectValue placeholder="Pilih" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="LAKI-LAKI">LAKI-LAKI</SelectItem>
+                                    <SelectItem value="PEREMPUAN">PEREMPUAN</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Tempat Lahir</label>
+                            <Input value={familyForm.tempatLahir || ""} onChange={(e) => setFamilyForm(f => ({ ...f, tempatLahir: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Tanggal Lahir</label>
+                            <Input type="date" value={familyForm.tanggalLahir || ""} onChange={(e) => setFamilyForm(f => ({ ...f, tanggalLahir: e.target.value }))} />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium">Kontak Darurat</label>
+                            <Input value={familyForm.kontakDarurat || ""} onChange={(e) => setFamilyForm(f => ({ ...f, kontakDarurat: e.target.value }))} placeholder="08xxxxxxxxxx" />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsFamilyDialogOpen(false)}>Batal</Button>
+                        <Button
+                            type="button"
+                            disabled={!familyForm.hubungan || !familyForm.nama || saveFamilyMutation.isPending}
+                            onClick={() => saveFamilyMutation.mutate()}
+                        >
+                            {saveFamilyMutation.isPending ? "Menyimpan..." : "Simpan"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

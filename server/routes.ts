@@ -39,6 +39,7 @@ import { usignNotificationService } from "./services/usignNotificationService";
 import { setupAuth } from "./replitAuth";
 import {
   insertEmployeeSchema,
+  insertEmployeeFamilyMemberSchema,
   insertAttendanceSchema,
   insertRosterSchema,
   insertLeaveRequestSchema,
@@ -1388,6 +1389,50 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error bulk uploading employees:", error);
       res.status(500).json({ message: "Failed to upload employees" });
+    }
+  });
+
+  // === Employee Family Members ===
+  app.get("/api/employees/:id/family-members", async (req, res) => {
+    try {
+      const list = await storage.getEmployeeFamilyMembers(req.params.id);
+      res.json(list);
+    } catch (error) {
+      console.error("Error fetching family members:", error);
+      res.status(500).json({ message: "Failed to fetch family members" });
+    }
+  });
+
+  app.post("/api/employees/:id/family-members", async (req, res) => {
+    try {
+      const data = insertEmployeeFamilyMemberSchema.parse({ ...req.body, employeeId: req.params.id });
+      const created = await storage.createEmployeeFamilyMember(data);
+      res.status(201).json(created);
+    } catch (error: any) {
+      console.error("Error creating family member:", error);
+      res.status(400).json({ message: error?.message || "Failed to create family member" });
+    }
+  });
+
+  app.put("/api/family-members/:id", async (req, res) => {
+    try {
+      const data = insertEmployeeFamilyMemberSchema.partial().parse(req.body);
+      const updated = await storage.updateEmployeeFamilyMember(req.params.id, data);
+      if (!updated) return res.status(404).json({ message: "Family member not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating family member:", error);
+      res.status(400).json({ message: error?.message || "Failed to update family member" });
+    }
+  });
+
+  app.delete("/api/family-members/:id", async (req, res) => {
+    try {
+      await storage.deleteEmployeeFamilyMember(req.params.id);
+      res.json({ ok: true });
+    } catch (error) {
+      console.error("Error deleting family member:", error);
+      res.status(500).json({ message: "Failed to delete family member" });
     }
   });
 

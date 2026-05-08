@@ -102,6 +102,9 @@ import {
   rosterSchedules,
   leaveRequests,
   employees,
+  employeeFamilyMembers,
+  type EmployeeFamilyMember,
+  type InsertEmployeeFamilyMember,
   qrTokens,
   leaveReminders,
   leaveBalances,
@@ -399,6 +402,12 @@ export interface IStorage {
   updateEmployee(id: string, employee: Partial<InsertEmployee>): Promise<Employee | undefined>;
   deleteEmployee(id: string): Promise<boolean>;
   deleteAllEmployees(positions?: string[]): Promise<boolean>;
+
+  // Employee Family Members
+  getEmployeeFamilyMembers(employeeId: string): Promise<EmployeeFamilyMember[]>;
+  createEmployeeFamilyMember(data: InsertEmployeeFamilyMember): Promise<EmployeeFamilyMember>;
+  updateEmployeeFamilyMember(id: string, data: Partial<InsertEmployeeFamilyMember>): Promise<EmployeeFamilyMember | undefined>;
+  deleteEmployeeFamilyMember(id: string): Promise<boolean>;
 
   // Attendance methods
   getAttendanceRecord(id: string): Promise<AttendanceRecord | undefined>;
@@ -2653,6 +2662,32 @@ export class DrizzleStorage implements IStorage {
     // Finally delete the employees
     await this.db.delete(employees).where(inArray(employees.id, ids));
     return true;
+  }
+
+  // === Employee Family Members ===
+  async getEmployeeFamilyMembers(employeeId: string): Promise<EmployeeFamilyMember[]> {
+    return await this.db.select().from(employeeFamilyMembers)
+      .where(eq(employeeFamilyMembers.employeeId, employeeId))
+      .orderBy(asc(employeeFamilyMembers.createdAt));
+  }
+
+  async createEmployeeFamilyMember(data: InsertEmployeeFamilyMember): Promise<EmployeeFamilyMember> {
+    const [created] = await this.db.insert(employeeFamilyMembers).values(data).returning();
+    return created;
+  }
+
+  async updateEmployeeFamilyMember(id: string, data: Partial<InsertEmployeeFamilyMember>): Promise<EmployeeFamilyMember | undefined> {
+    const [updated] = await this.db.update(employeeFamilyMembers).set(data)
+      .where(eq(employeeFamilyMembers.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteEmployeeFamilyMember(id: string): Promise<boolean> {
+    const [deleted] = await this.db.delete(employeeFamilyMembers)
+      .where(eq(employeeFamilyMembers.id, id))
+      .returning();
+    return !!deleted;
   }
 
   // Attendance methods

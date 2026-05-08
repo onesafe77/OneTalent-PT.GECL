@@ -99,6 +99,20 @@ export const employees = pgTable("employees", {
   index("IDX_employees_department").on(table.department),
 ]);
 
+export const employeeFamilyMembers = pgTable("employee_family_members", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  hubungan: varchar("hubungan", { length: 40 }).notNull(),
+  nama: varchar("nama", { length: 200 }).notNull(),
+  jenisKelamin: varchar("jenis_kelamin", { length: 20 }),
+  tempatLahir: varchar("tempat_lahir", { length: 120 }),
+  tanggalLahir: text("tanggal_lahir"),
+  kontakDarurat: varchar("kontak_darurat", { length: 30 }),
+  createdAt: timestamp("created_at").default(sql`now()`),
+}, (table) => [
+  index("IDX_family_employee").on(table.employeeId),
+]);
+
 export const attendanceRecords = pgTable("attendance_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   employeeId: varchar("employee_id").notNull().references(() => employees.id),
@@ -261,6 +275,16 @@ export const insertAttendanceSchema = createInsertSchema(attendanceRecords).omit
   createdAt: true,
 });
 
+export const insertEmployeeFamilyMemberSchema = createInsertSchema(employeeFamilyMembers).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  jenisKelamin: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  tempatLahir: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  tanggalLahir: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+  kontakDarurat: z.preprocess((val) => val === "" ? null : val, z.string().nullable().optional()),
+});
+
 export const insertRosterSchema = createInsertSchema(rosterSchedules).omit({
   id: true,
 });
@@ -299,6 +323,8 @@ export const insertLeaveRosterMonitoringSchema = createInsertSchema(leaveRosterM
 // Types
 export type Employee = typeof employees.$inferSelect;
 export type InsertEmployee = z.infer<typeof insertEmployeeSchema>;
+export type EmployeeFamilyMember = typeof employeeFamilyMembers.$inferSelect;
+export type InsertEmployeeFamilyMember = z.infer<typeof insertEmployeeFamilyMemberSchema>;
 export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 export type InsertAttendanceRecord = z.infer<typeof insertAttendanceSchema>;
 export type RosterSchedule = typeof rosterSchedules.$inferSelect;
