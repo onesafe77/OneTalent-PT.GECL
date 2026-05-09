@@ -181,13 +181,29 @@ export default function EmployeesList() {
         setLocation("/workspace/employees/new");
     };
 
-    const uploadExcelMutation = useMutation<void, Error, InsertEmployee[]>({
+    interface BulkResult {
+        message: string;
+        successCount: number;
+        failureCount: number;
+        failures: { row: number; nik: string; reason: string }[];
+    }
+    const uploadExcelMutation = useMutation<BulkResult, Error, InsertEmployee[]>({
         mutationFn: (employeeData: InsertEmployee[]) =>
-            apiRequest("/api/employees/bulk", "POST", { employees: employeeData }).then(() => { }),
-        onSuccess: () => {
+            apiRequest("/api/employees/bulk", "POST", { employees: employeeData }),
+        onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
             setIsUploadDialogOpen(false);
-            toast({ title: "Berhasil", description: "Data karyawan berhasil diupload" });
+            if (result.failureCount > 0) {
+                const sample = result.failures.slice(0, 3).map(f => `Baris ${f.row} (${f.nik}): ${f.reason}`).join('\n');
+                toast({
+                    title: `Berhasil ${result.successCount}, Gagal ${result.failureCount}`,
+                    description: sample + (result.failures.length > 3 ? `\n...dan ${result.failures.length - 3} lainnya. Cek console.` : ''),
+                    variant: result.successCount > 0 ? "default" : "destructive",
+                });
+                console.error("Bulk import failures:", result.failures);
+            } else {
+                toast({ title: "Berhasil", description: `${result.successCount} karyawan berhasil diupload` });
+            }
         },
         onError: (error: Error) => toast({ title: "Error", variant: "destructive", description: error.message || "Gagal mengupload data karyawan" }),
     });

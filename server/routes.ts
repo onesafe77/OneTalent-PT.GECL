@@ -1342,53 +1342,73 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ message: "Invalid employee data format" });
       }
 
-      const results = [];
+      const { db } = await import('./db');
+      const { employees: employeesTable } = await import('@shared/schema');
+
+      const successes: any[] = [];
+      const failures: { row: number; nik: string; reason: string }[] = [];
       const secretKey = process.env.QR_SECRET_KEY || 'AttendanceQR2024';
 
-      for (const emp of employeeData) {
+      for (let i = 0; i < employeeData.length; i++) {
+        const emp = employeeData[i];
         try {
-          // Trim ID to prevent duplicates from trailing/leading spaces in import data
           if (emp?.id) emp.id = emp.id.trim();
-          // Validate each employee data
           const validatedEmployee = insertEmployeeSchema.parse(emp);
 
-          // Generate QR Code token for each employee
           const tokenData = `${validatedEmployee.id || ''}${secretKey}Attend`;
           const qrToken = Buffer.from(tokenData).toString('base64').slice(0, 16);
           const qrData = JSON.stringify({ id: validatedEmployee.id, token: qrToken });
 
-          // Add QR Code to employee data (as JSON for consistency)  
-          const employeeWithQR = {
-            ...validatedEmployee,
-            qrCode: qrData
-          };
+          const employeeWithQR = { ...validatedEmployee, qrCode: qrData };
 
-          const employee = await storage.createEmployee(employeeWithQR);
+          // UPSERT: kalau NIK sudah ada, update data-nya
+          const [employee] = await db
+            .insert(employeesTable)
+            .values(employeeWithQR as any)
+            .onConflictDoUpdate({
+              target: employeesTable.id,
+              set: {
+                name: employeeWithQR.name,
+                position: employeeWithQR.position,
+                department: employeeWithQR.department,
+                investorGroup: employeeWithQR.investorGroup,
+                phone: employeeWithQR.phone,
+                status: employeeWithQR.status,
+                qrCode: qrData,
+              },
+            })
+            .returning();
 
-          // Also create QR token record
-          await storage.createQrToken({
-            employeeId: employee.id,
-            token: qrToken,
-            isActive: true
+          // Pastikan ada QR token aktif (delete lama, insert baru biar pasti)
+          try {
+            await db.execute(sql`DELETE FROM qr_tokens WHERE employee_id = ${employee.id}`);
+            await storage.createQrToken({ employeeId: employee.id, token: qrToken, isActive: true });
+          } catch (_) {}
+
+          successes.push(employee);
+        } catch (err: any) {
+          const reason = err?.message || err?.detail || String(err);
+          console.error(`Bulk import row ${i + 2} (NIK: ${emp?.id}):`, reason);
+          failures.push({
+            row: i + 2, // +2 karena baris 1 = header, dan index 0-based
+            nik: emp?.id || '(kosong)',
+            reason: reason.slice(0, 200),
           });
-
-          results.push(employee);
-        } catch (validationError) {
-          console.error("Validation error for employee:", emp, validationError);
-          // Skip invalid entries but continue processing
         }
       }
 
-      // Clear employee caches since we've added new data
       clearAllCaches();
 
       res.json({
-        message: `Successfully uploaded ${results.length} employees with QR codes`,
-        employees: results
+        message: `Berhasil ${successes.length} dari ${employeeData.length} karyawan${failures.length > 0 ? `, ${failures.length} gagal` : ''}`,
+        successCount: successes.length,
+        failureCount: failures.length,
+        failures,
+        employees: successes,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error bulk uploading employees:", error);
-      res.status(500).json({ message: "Failed to upload employees" });
+      res.status(500).json({ message: error?.message || "Failed to upload employees" });
     }
   });
 
