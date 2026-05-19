@@ -23,11 +23,9 @@ export function SelfieCamera({ onCapture, value, onClear }: SelfieCameraProps) {
                 video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
                 audio: false,
             });
+            // Only set state; the <video> element belum di-render saat ini (conditional on `stream`).
+            // useEffect below will attach srcObject saat element sudah mount.
             setStream(mediaStream);
-            if (videoRef.current) {
-                videoRef.current.srcObject = mediaStream;
-                await videoRef.current.play();
-            }
         } catch (err: any) {
             console.error("Camera error:", err);
             setError(err?.message || "Tidak bisa mengakses kamera. Pastikan izin kamera diberikan.");
@@ -37,26 +35,59 @@ export function SelfieCamera({ onCapture, value, onClear }: SelfieCameraProps) {
     };
 
     const stopCamera = () => {
-        if (stream) {
-            stream.getTracks().forEach(t => t.stop());
-            setStream(null);
-        }
+        setStream((prev) => {
+            prev?.getTracks().forEach((t) => t.stop());
+            return null;
+        });
     };
 
+    // Attach stream to <video> setelah element ter-mount (saat `stream` jadi truthy & komponen re-render).
     useEffect(() => {
-        return () => stopCamera();
+        const video = videoRef.current;
+        if (!stream || !video) return;
+        video.srcObject = stream;
+        const playPromise = video.play();
+        if (playPromise && typeof playPromise.catch === "function") {
+            playPromise.catch((err) => {
+                console.error("Video play() error:", err);
+                setError("Gagal memulai preview kamera: " + (err?.message || ""));
+            });
+        }
+        return () => {
+            video.srcObject = null;
+        };
+    }, [stream]);
+
+    // Stop tracks on unmount
+    useEffect(() => {
+        return () => {
+            setStream((prev) => {
+                prev?.getTracks().forEach((t) => t.stop());
+                return null;
+            });
+        };
     }, []);
 
     const capture = () => {
         if (!videoRef.current || !canvasRef.current) return;
         const video = videoRef.current;
+        // Reject kalau video belum streaming — capture akan hasilkan canvas kosong
+        if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+            setError("Kamera belum siap. Tunggu video muncul lalu coba lagi.");
+            return;
+        }
         const canvas = canvasRef.current;
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        // Validasi hasil capture — data URL minimum harus punya konten
+        if (!dataUrl || dataUrl.length < 1000) {
+            setError("Hasil foto kosong. Pastikan kamera aktif & coba lagi.");
+            return;
+        }
         onCapture(dataUrl);
         stopCamera();
     };

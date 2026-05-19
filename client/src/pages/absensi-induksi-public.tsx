@@ -109,23 +109,36 @@ export default function AbsensiInduksiPublic() {
         },
     });
 
+    const uploadDataUrl = async (dataUrl: string, fileName: string): Promise<string> => {
+        const blob = await (await fetch(dataUrl)).blob();
+        const fd = new FormData();
+        fd.append("file", blob, fileName);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("Upload gagal");
+        const json = await res.json();
+        return json.url as string;
+    };
+
     const onSubmit = async (values: InductionAttendanceValues) => {
+        const ts = Date.now();
         let fotoSelfieUrl = values.fotoSelfie;
-        if (fotoSelfieUrl && fotoSelfieUrl.startsWith("data:")) {
-            try {
-                const blob = await (await fetch(fotoSelfieUrl)).blob();
-                const fd = new FormData();
-                fd.append("file", blob, `selfie-${values.nik}-${Date.now()}.jpg`);
-                const res = await fetch("/api/upload", { method: "POST", body: fd });
-                if (!res.ok) throw new Error("Upload foto gagal");
-                const json = await res.json();
-                fotoSelfieUrl = json.url;
-            } catch (err: any) {
-                toast({ title: "Gagal upload foto", description: err?.message || "Coba lagi", variant: "destructive" });
-                return;
+        let tandaTanganUrl = values.tandaTangan;
+        try {
+            if (fotoSelfieUrl?.startsWith("data:")) {
+                fotoSelfieUrl = await uploadDataUrl(fotoSelfieUrl, `selfie-${values.nik}-${ts}.jpg`);
             }
+            if (tandaTanganUrl?.startsWith("data:")) {
+                tandaTanganUrl = await uploadDataUrl(tandaTanganUrl, `signature-${values.nik}-${ts}.png`);
+            }
+        } catch (err: any) {
+            toast({
+                title: "Gagal upload",
+                description: err?.message || "Coba lagi",
+                variant: "destructive",
+            });
+            return;
         }
-        mutation.mutate({ ...values, fotoSelfie: fotoSelfieUrl });
+        mutation.mutate({ ...values, fotoSelfie: fotoSelfieUrl, tandaTangan: tandaTanganUrl });
     };
 
     if (isSuccess) {

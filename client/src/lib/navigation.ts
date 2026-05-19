@@ -21,7 +21,6 @@ import {
     HardHat,
     Settings,
     Activity,
-    Clock,
     Lock,
     Bot,
     MessageSquare,
@@ -32,10 +31,13 @@ import {
     Zap,
     PenTool,
     Plus,
-    User,
     UserCheck,
     LayoutGrid,
-    Building2
+    Building2,
+    LayoutDashboard,
+    GitCompare,
+    ListChecks,
+    Inbox
 } from "lucide-react";
 
 export interface NavItem {
@@ -157,12 +159,9 @@ export const navigationGroups: NavGroup[] = [
                                 name: "Dokumen",
                                 icon: FolderOpen,
                                 children: [
-                                    { name: "Masterlist", href: "/workspace/hse/k3/document-control", icon: FileText, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "Document Control", href: "/workspace/hse/k3/document-control?tab=control", icon: Shield, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "Approval Inbox", href: "/workspace/hse/k3/document-control?tab=inbox", icon: Clock, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "Dokumen Saya", href: "/workspace/hse/k3/document-control?tab=distribution", icon: User, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "External Register", href: "/workspace/hse/k3/document-control?tab=external", icon: FolderOpen, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "Record Control", href: "/workspace/hse/k3/document-control?tab=records", icon: ClipboardList, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                                    { name: "Dashboard & Masterlist", href: "/workspace/hse/k3/documents", icon: LayoutDashboard, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                                    { name: "Mapping SMKP", href: "/workspace/hse/k3/documents/smkp-mapping", icon: GitCompare, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                                    { name: "Checklist Arsip", href: "/workspace/hse/k3/documents/checklist", icon: ListChecks, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
                                 ]
                             },
                             {
@@ -213,6 +212,18 @@ export const navigationGroups: NavGroup[] = [
                         requiredPermissions: [Permission.VIEW_SIDAK]
                     }
                 ]
+            },
+            {
+                name: "Approval",
+                icon: Inbox,
+                href: "/workspace/approvals",
+                requiredPermissions: [Permission.VIEW_DOCUMENTS]
+            },
+            {
+                name: "Register Eksternal",
+                icon: BookOpen,
+                href: "/workspace/external-register",
+                requiredPermissions: [Permission.VIEW_DOCUMENTS]
             }
         ]
     },

@@ -1,5 +1,5 @@
 import { format, parse, parseISO } from "date-fns";
-import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns, isNotNull } from "drizzle-orm";
+import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns, isNotNull, not } from "drizzle-orm";
 import {
   type Employee,
   type InsertEmployee,
@@ -7695,14 +7695,15 @@ export class DrizzleStorage implements IStorage {
         owner_id, owner_name,
         lifecycle_status, control_type,
         effective_date, next_review_date, expiry_date,
-        sign_required, description, created_by
+        sign_required, smkp_clause, retention_period, description, created_by
       ) VALUES (
         ${data.documentCode}, ${data.title}, ${data.category}, ${data.department},
         ${data.currentVersion || 1}, ${data.currentRevision || 0},
         ${data.ownerId}, ${data.ownerName},
         ${data.lifecycleStatus || 'DRAFT'}, ${data.controlType || 'CONTROLLED'},
         ${data.effectiveDate || null}, ${data.nextReviewDate || null}, ${data.expiryDate || null},
-        ${data.signRequired !== false}, ${data.description || null}, ${data.createdBy}
+        ${data.signRequired !== false}, ${data.smkpClause || null}, ${data.retentionPeriod || null},
+        ${data.description || null}, ${data.createdBy}
       ) RETURNING *
     `);
     return result.rows?.[0];
@@ -7922,8 +7923,39 @@ export class DrizzleStorage implements IStorage {
         } else {
           // All steps completed - Final Approval
           await db.update(documentApprovals).set({ status: "APPROVED", completedAt: new Date(), finalDecision: "APPROVED" }).where(eq(documentApprovals.id, approvalId));
-          await db.update(documentMasterlist).set({ lifecycleStatus: "APPROVED" }).where(eq(documentMasterlist.id, approval.documentId)); // Ready for signing
-          await db.update(documentVersions).set({ status: "APPROVED" }).where(eq(documentVersions.id, approval.versionId));
+
+          // Fetch doc to decide whether to auto-publish or wait for eSign
+          const docRow = (await db.select().from(documentMasterlist).where(eq(documentMasterlist.id, approval.documentId)))[0];
+
+          // Auto-publish if signing not required; otherwise route to ESIGN_PENDING
+          const nextDocStatus = docRow?.signRequired === false ? "PUBLISHED" : "APPROVED";
+          const nextVersionStatus = docRow?.signRequired === false ? "ACTIVE" : "APPROVED";
+
+          // Compute nextReviewDate = +1 year from today (YYYY-MM-DD)
+          const today = new Date();
+          const reviewDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
+          const reviewIso = reviewDate.toISOString().slice(0, 10);
+          const effectiveIso = today.toISOString().slice(0, 10);
+
+          const docUpdate: any = { lifecycleStatus: nextDocStatus, updatedAt: new Date() };
+          if (nextDocStatus === "PUBLISHED") {
+            docUpdate.nextReviewDate = reviewIso;
+            if (!docRow?.effectiveDate) docUpdate.effectiveDate = effectiveIso;
+          }
+          await db.update(documentMasterlist).set(docUpdate).where(eq(documentMasterlist.id, approval.documentId));
+          await db.update(documentVersions).set({ status: nextVersionStatus }).where(eq(documentVersions.id, approval.versionId));
+
+          // If published, supersede older versions
+          if (nextDocStatus === "PUBLISHED") {
+            await db.update(documentVersions)
+              .set({ status: "SUPERSEDED" })
+              .where(and(
+                eq(documentVersions.documentId, approval.documentId),
+                not(eq(documentVersions.id, approval.versionId)),
+                not(eq(documentVersions.status, "SUPERSEDED")),
+              ));
+          }
+
           return { status: "APPROVED" };
         }
       }

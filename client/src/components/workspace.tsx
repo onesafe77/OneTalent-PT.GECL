@@ -102,6 +102,12 @@ import CompetencyDashboard from "@/pages/hse/tna/competency-dashboard";
 import MonitoringKompetensi from "@/pages/hse/tna/monitoring-kompetensi";
 import DocumentControl from "@/pages/hse/k3/document-control";
 import DocumentDetail from "@/pages/hse/k3/document-detail";
+import DocumentsDashboard from "@/pages/hse/k3/documents/index";
+import SmkpMappingPage from "@/pages/hse/k3/documents/smkp-mapping";
+import ChecklistArsipPage from "@/pages/hse/k3/documents/checklist";
+import K3DocumentDetail from "@/pages/hse/k3/documents/detail";
+import ApprovalsPage from "@/pages/approvals";
+import ExternalRegisterPage from "@/pages/external-register";
 import SiAsefChatPage from "@/pages/si-asef-chat";
 import SiAsefAdminPage from "@/pages/si-asef-admin";
 import SiAsefProjectsPage from "@/pages/si-asef-projects";
@@ -242,6 +248,13 @@ const workspaceRoutes = [
   { path: "/workspace/hse/ko/spip/instalasi", component: SPIPInstalasi, title: "SPIP - Instalasi" },
   { path: "/workspace/hse/ko/spip/peralatan/bergerak", component: SPIPPeralatanWorkshop, title: "SPIP - Peralatan Bergerak" },
   { path: "/workspace/hse/investor-evaluation", component: InvestorEvaluationPage, title: "Evaluasi Investor Group" },
+
+  // Restrukturisasi Document Control K3
+  { path: "/workspace/hse/k3/documents", component: DocumentsDashboard, title: "Dokumen K3 — Dashboard & Masterlist" },
+  { path: "/workspace/hse/k3/documents/smkp-mapping", component: SmkpMappingPage, title: "Mapping SMKP" },
+  { path: "/workspace/hse/k3/documents/checklist", component: ChecklistArsipPage, title: "Checklist Arsip Bulanan" },
+  { path: "/workspace/approvals", component: ApprovalsPage, title: "Approval Inbox" },
+  { path: "/workspace/external-register", component: ExternalRegisterPage, title: "Register Eksternal" },
 ];
 
 export function Workspace() {
@@ -463,7 +476,17 @@ export function Workspace() {
               <Route path="/workspace/si-asef/projects" component={SiAsefProjectsPage} />
               <Route path="/workspace/si-asef/artifacts" component={SiAsefArtifactsPage} />
 
-              {/* Document Control Routes */}
+              {/* Document Control Routes — Halaman baru (restrukturisasi) */}
+              <Route path="/workspace/hse/k3/documents" component={DocumentsDashboard} />
+              <Route path="/workspace/hse/k3/documents/smkp-mapping" component={SmkpMappingPage} />
+              <Route path="/workspace/hse/k3/documents/checklist" component={ChecklistArsipPage} />
+              <Route path="/workspace/hse/k3/documents/:id" component={K3DocumentDetail} />
+
+              {/* Approval & External Register dipindah ke level atas sidebar */}
+              <Route path="/workspace/approvals" component={ApprovalsPage} />
+              <Route path="/workspace/external-register" component={ExternalRegisterPage} />
+
+              {/* Legacy routes — tetap aktif untuk backward-compat & deep links */}
               <Route path="/workspace/hse/k3/document-control" component={DocumentControl} />
               <Route path="/workspace/hse/k3/document/:id" component={DocumentDetail} />
 

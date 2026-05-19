@@ -142,3 +142,8 @@ Loaded 2 rows. Columns: ['Date', 'Time', 'Vehicle No', 'Company', 'Violation', '
 Inserting 2 clean rows to DB...
 Ingestion successful! SLA calculated.
 
+[2026-05-12T07:58:02.782Z] CREATE-DOC Attempt: {"documentCode":"GECL-HSE-PPO-II.b","title":"GECL - HSE - PPO - 4.1.1 - R03 Prosedur Manajemen Risiko","category":"Prosedur - Dept HSE","department":"HSE","smkpClause":"II.b","retentionPeriod":"5_tahun","ownerId":"C-024972","ownerName":"DANU AMPARIAN","createdBy":"C-024972","lifecycleStatus":"DRAFT","controlType":"CONTROLLED","currentVersion":1,"currentRevision":0,"signRequired":true}
+[2026-05-12T07:58:02.990Z] CREATE-DOC Success
+[2026-05-12T07:58:05.172Z] UPLOAD Version Attempt for 3e1e978f-eacb-4f68-b9a5-71b53666dc50
+[2026-05-12T07:58:05.173Z] UPLOAD File Info: GECL - HSE - PPO - 4.1.1 - R03 Prosedur Manajemen Risiko.pdf
+[2026-05-12T07:58:07.631Z] UPLOAD Success

@@ -144,6 +144,13 @@ import {
   insertSidakGerindaDudukObserverSchema,
   spipPeralatanWorkshop,
   insertSpipPeralatanWorkshopSchema,
+  smkpClauses,
+  checklistTemplates,
+  monthlyChecklists,
+  insertSmkpClauseSchema,
+  insertChecklistTemplateSchema,
+  documentMasterlist,
+  documentVersions,
 } from "@shared/schema";
 import { eq, ilike, and, or, not, lt, lte, gt, gte, isNull, isNotNull, desc, sql, asc, inArray } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
@@ -12245,6 +12252,11 @@ Format sebagai bullet points singkat per insight.`;
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
+      // Reject empty / suspiciously tiny payloads (e.g. selfie capture sebelum
+      // video stream ready). 100 bytes adalah ambang aman untuk image apapun.
+      if (!req.file.buffer || req.file.buffer.length < 100) {
+        return res.status(400).json({ message: "File kosong atau terlalu kecil (kemungkinan capture gagal)" });
+      }
       const { url: fileUrl } = await dbStorage.uploadFile(req.file);
       res.json({ url: fileUrl, fileName: req.file.originalname });
     } catch (error) {
@@ -14257,8 +14269,23 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   // Update document metadata
+  // Enforcement: transisi ke PUBLISHED hanya boleh setelah approval APPROVED/SIGNED.
   app.patch("/api/document-masterlist/:id", async (req, res) => {
     try {
+      const targetStatus = req.body?.lifecycleStatus as string | undefined;
+      const restrictedStatuses = new Set(["PUBLISHED", "SIGNED"]);
+      if (targetStatus && restrictedStatuses.has(targetStatus)) {
+        const existing = await storage.getDocumentById(req.params.id);
+        if (!existing) return res.status(404).json({ error: "Not found" });
+        // Allow if currently APPROVED, SIGNED, or PUBLISHED (idempotent transitions)
+        const okFromStatuses = new Set(["APPROVED", "ESIGN_PENDING", "SIGNED", "PUBLISHED"]);
+        if (!okFromStatuses.has(existing.lifecycleStatus)) {
+          return res.status(403).json({
+            error: "Mandatory approval — dokumen harus di-approve dulu sebelum bisa di-PUBLISH.",
+            currentStatus: existing.lifecycleStatus,
+          });
+        }
+      }
       const data = await storage.updateDocumentMasterlist(req.params.id, req.body);
       if (!data) return res.status(404).json({ error: "Not found" });
       res.json(data);
@@ -14419,6 +14446,225 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error fetching approval inbox:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // SMKP CLAUSES (master data + mapping)
+  // ============================================
+  app.get("/api/smkp-clauses", async (_req, res) => {
+    try {
+      const rows = await db.select().from(smkpClauses)
+        .where(eq(smkpClauses.isActive, true))
+        .orderBy(asc(smkpClauses.sortOrder), asc(smkpClauses.clauseNo));
+      res.json(rows);
+    } catch (error) {
+      console.error("Error fetching smkp clauses:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/smkp-clauses", async (req, res) => {
+    try {
+      const parsed = insertSmkpClauseSchema.parse(req.body);
+      const [row] = await db.insert(smkpClauses).values(parsed).returning();
+      res.status(201).json(row);
+    } catch (error: any) {
+      console.error("Error creating smkp clause:", error);
+      if (error?.message?.includes("unique")) {
+        return res.status(400).json({ error: "Nomor klausul sudah ada" });
+      }
+      res.status(400).json({ error: error.message || "Bad request" });
+    }
+  });
+
+  // Mapping: each clause + dokumen yang terkait + status mapping
+  app.get("/api/smkp-mapping", async (_req, res) => {
+    try {
+      const clauses = await db.select().from(smkpClauses)
+        .where(eq(smkpClauses.isActive, true))
+        .orderBy(asc(smkpClauses.sortOrder), asc(smkpClauses.clauseNo));
+      const docs = await db.select({
+        id: documentMasterlist.id,
+        documentCode: documentMasterlist.documentCode,
+        title: documentMasterlist.title,
+        category: documentMasterlist.category,
+        department: documentMasterlist.department,
+        lifecycleStatus: documentMasterlist.lifecycleStatus,
+        smkpClause: documentMasterlist.smkpClause,
+      }).from(documentMasterlist);
+
+      const mapping = clauses.map((c) => {
+        const related = docs.filter((d) => d.smkpClause === c.clauseNo);
+        const hasPublished = related.some((d) => d.lifecycleStatus === "PUBLISHED" || d.lifecycleStatus === "SIGNED");
+        const hasInProgress = related.some((d) => ["DRAFT", "IN_REVIEW", "APPROVED", "ESIGN_PENDING"].includes(d.lifecycleStatus));
+        let status: "COVERED" | "PARTIAL" | "GAP" = "GAP";
+        if (hasPublished) status = "COVERED";
+        else if (hasInProgress) status = "PARTIAL";
+        return { ...c, documents: related, status };
+      });
+
+      const summary = {
+        covered: mapping.filter((m) => m.status === "COVERED").length,
+        partial: mapping.filter((m) => m.status === "PARTIAL").length,
+        gap: mapping.filter((m) => m.status === "GAP").length,
+        total: mapping.length,
+      };
+
+      res.json({ mapping, summary });
+    } catch (error) {
+      console.error("Error fetching smkp mapping:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // CHECKLIST TEMPLATES (master rekaman wajib)
+  // ============================================
+  app.get("/api/checklist-templates", async (_req, res) => {
+    try {
+      const rows = await db.select().from(checklistTemplates)
+        .where(eq(checklistTemplates.isActive, true))
+        .orderBy(asc(checklistTemplates.sortOrder), asc(checklistTemplates.itemName));
+      res.json(rows);
+    } catch (error) {
+      console.error("Error fetching checklist templates:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/checklist-templates", async (req, res) => {
+    try {
+      const parsed = insertChecklistTemplateSchema.parse(req.body);
+      const [row] = await db.insert(checklistTemplates).values(parsed).returning();
+      res.status(201).json(row);
+    } catch (error: any) {
+      console.error("Error creating checklist template:", error);
+      res.status(400).json({ error: error.message || "Bad request" });
+    }
+  });
+
+  app.patch("/api/checklist-templates/:id", async (req, res) => {
+    try {
+      const [row] = await db.update(checklistTemplates)
+        .set({ ...req.body, updatedAt: new Date() })
+        .where(eq(checklistTemplates.id, req.params.id))
+        .returning();
+      if (!row) return res.status(404).json({ error: "Not found" });
+      res.json(row);
+    } catch (error) {
+      console.error("Error updating checklist template:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.delete("/api/checklist-templates/:id", async (req, res) => {
+    try {
+      await db.update(checklistTemplates)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(eq(checklistTemplates.id, req.params.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting checklist template:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================
+  // MONTHLY CHECKLIST (auto-generate on-read)
+  // ============================================
+  app.get("/api/monthly-checklist", async (req, res) => {
+    try {
+      const year = parseInt(req.query.year as string, 10);
+      const month = parseInt(req.query.month as string, 10);
+      if (!year || !month || month < 1 || month > 12) {
+        return res.status(400).json({ error: "year & month required (month 1-12)" });
+      }
+
+      const templates = await db.select().from(checklistTemplates)
+        .where(eq(checklistTemplates.isActive, true))
+        .orderBy(asc(checklistTemplates.sortOrder), asc(checklistTemplates.itemName));
+
+      const existing = await db.select().from(monthlyChecklists)
+        .where(and(eq(monthlyChecklists.year, year), eq(monthlyChecklists.month, month)));
+
+      const existingByTemplate = new Map(existing.map((e) => [e.templateId, e]));
+
+      // Auto-generate missing rows for active templates
+      const toInsert = templates
+        .filter((t) => !existingByTemplate.has(t.id))
+        .map((t) => ({
+          year,
+          month,
+          templateId: t.id,
+          itemName: t.itemName,
+          category: t.category ?? null,
+        }));
+
+      let inserted: any[] = [];
+      if (toInsert.length > 0) {
+        inserted = await db.insert(monthlyChecklists).values(toInsert).returning();
+      }
+
+      const all = [...existing, ...inserted];
+      // Filter only rows whose template still active
+      const activeIds = new Set(templates.map((t) => t.id));
+      const filtered = all.filter((r) => activeIds.has(r.templateId));
+      const completed = filtered.filter((r) => r.isCompleted).length;
+
+      res.json({
+        items: filtered,
+        summary: {
+          total: filtered.length,
+          completed,
+          pending: filtered.length - completed,
+          progressPercent: filtered.length === 0 ? 0 : Math.round((completed / filtered.length) * 100),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching monthly checklist:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.patch("/api/monthly-checklist/:id", async (req, res) => {
+    try {
+      const body = req.body ?? {};
+      const patch: any = {};
+      if (typeof body.isCompleted === "boolean") {
+        patch.isCompleted = body.isCompleted;
+        patch.completedAt = body.isCompleted ? new Date() : null;
+        if (body.completedBy) patch.completedBy = body.completedBy;
+      }
+      if (body.fileUrl !== undefined) patch.fileUrl = body.fileUrl;
+      if (body.fileName !== undefined) patch.fileName = body.fileName;
+      if (body.notes !== undefined) patch.notes = body.notes;
+      if (body.picId !== undefined) patch.picId = body.picId;
+      const [row] = await db.update(monthlyChecklists)
+        .set(patch)
+        .where(eq(monthlyChecklists.id, req.params.id))
+        .returning();
+      if (!row) return res.status(404).json({ error: "Not found" });
+      res.json(row);
+    } catch (error) {
+      console.error("Error updating monthly checklist:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Cheap count for sidebar badge (polled every 60s)
+  app.get("/api/approval-inbox/count", async (req, res) => {
+    try {
+      const userId = req.query.userId as string;
+      if (!userId) return res.json({ count: 0 });
+      const [pendingApprovals, pendingChangeRequests] = await Promise.all([
+        storage.getPendingApprovals(userId),
+        storage.getPendingChangeRequests(),
+      ]);
+      res.json({ count: pendingApprovals.length + pendingChangeRequests.length });
+    } catch (error) {
+      console.error("Error fetching approval inbox count:", error);
+      res.status(500).json({ count: 0 });
     }
   });
 
@@ -14677,6 +14923,74 @@ Format sebagai bullet points singkat per insight.`;
       });
     } catch (error) {
       console.error("Error fetching document versions:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Save version from rich content (TipTap) — no file upload
+  app.post("/api/document-masterlist/:id/versions/from-content", async (req, res) => {
+    try {
+      const documentId = req.params.id;
+      const { contentHtml, contentJson, changesNote, fileName } = req.body ?? {};
+      const userId = (req as any).user?.id || req.body?.userId;
+      const userName = (req as any).user?.username || req.body?.userName || "Unknown";
+
+      if (!contentHtml) return res.status(400).json({ error: "contentHtml required" });
+
+      const doc = await storage.getDocumentById(documentId);
+      if (!doc) return res.status(404).json({ error: "Document not found" });
+
+      // Determine next revision number for current version
+      const existing = await db.select().from(documentVersions)
+        .where(eq(documentVersions.documentId, documentId));
+      const sameVersion = existing.filter((v: any) => v.versionNumber === doc.currentVersion);
+      const nextRev = sameVersion.length > 0
+        ? Math.max(...sameVersion.map((v: any) => v.revisionNumber ?? 0)) + 1
+        : 0;
+
+      const [newVersion] = await db.insert(documentVersions).values({
+        documentId,
+        versionNumber: doc.currentVersion,
+        revisionNumber: nextRev,
+        fileName: fileName || `${doc.documentCode}-v${doc.currentVersion}.${nextRev}.html`,
+        filePath: "(rich-content)",
+        mimeType: "text/html",
+        status: "DRAFT",
+        contentHtml,
+        contentJson: contentJson ?? null,
+        changesNote: changesNote ?? null,
+        uploadedBy: userId || "system",
+        uploadedByName: userName,
+      }).returning();
+
+      await db.update(documentMasterlist)
+        .set({ currentRevision: nextRev, updatedAt: new Date() })
+        .where(eq(documentMasterlist.id, documentId));
+
+      res.status(201).json(newVersion);
+    } catch (error: any) {
+      console.error("Error saving rich content version:", error);
+      res.status(500).json({ error: error?.message || "Internal server error" });
+    }
+  });
+
+  // Get latest rich content for document (for editor load)
+  app.get("/api/document-masterlist/:id/content", async (req, res) => {
+    try {
+      const documentId = req.params.id;
+      const rows = await db.select().from(documentVersions)
+        .where(eq(documentVersions.documentId, documentId))
+        .orderBy(desc(documentVersions.createdAt))
+        .limit(1);
+      const latest = rows[0];
+      res.json({
+        contentHtml: latest?.contentHtml ?? null,
+        contentJson: latest?.contentJson ?? null,
+        versionNumber: latest?.versionNumber ?? 0,
+        revisionNumber: latest?.revisionNumber ?? 0,
+      });
+    } catch (error) {
+      console.error("Error fetching document content:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
@@ -18872,13 +19186,48 @@ Format sebagai bullet points singkat per insight.`;
         return res.status(400).json({ error: "Invalid data", details: parsed.error });
       }
 
-      const result = await storage.createPublicInductionAttendance(parsed.data);
+      // Safety-net: kalau frontend (atau client lama) mengirim base64 data URL
+      // untuk fotoSelfie/tandaTangan, otomatis convert ke uploaded_files dan
+      // simpan URL — supaya semua record konsisten pakai /api/uploads/{id}.
+      const data: any = { ...parsed.data };
+      const ts = Date.now();
+      for (const field of ["fotoSelfie", "tandaTangan"] as const) {
+        const val = data[field];
+        if (typeof val === "string" && val.startsWith("data:")) {
+          const url = await uploadDataUrlToStorage(val, `${field}-${data.nik}-${ts}`);
+          if (url) data[field] = url;
+        }
+      }
+
+      const result = await storage.createPublicInductionAttendance(data);
       res.json({ message: "Absensi berhasil dicatat", data: result });
     } catch (error: any) {
       console.error("Error submitting induction attendance:", error);
       res.status(500).json({ error: error.message || "Gagal mencatat absensi" });
     }
   });
+
+  // Helper: decode base64 data URL & save via dbStorage → return /api/uploads/{id} URL
+  async function uploadDataUrlToStorage(dataUrl: string, baseName: string): Promise<string | null> {
+    try {
+      const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!m) return null;
+      const mimeType = m[1];
+      const buffer = Buffer.from(m[2], "base64");
+      const ext = mimeType.split("/")[1]?.split("+")[0] || "bin";
+      const fakeFile = {
+        buffer,
+        originalname: `${baseName}.${ext}`,
+        mimetype: mimeType,
+        size: buffer.length,
+      } as Express.Multer.File;
+      const { url } = await dbStorage.uploadFile(fakeFile);
+      return url;
+    } catch (err) {
+      console.error("[uploadDataUrlToStorage] failed:", err);
+      return null;
+    }
+  }
 
   app.get("/api/induction-attendance/all", async (req, res) => {
     try {

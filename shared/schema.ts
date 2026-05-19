@@ -2341,6 +2341,10 @@ export const documentMasterlist = pgTable("document_masterlist", {
   // Approval config
   signRequired: boolean("sign_required").notNull().default(true),
 
+  // SMKP compliance (nullable for legacy docs)
+  smkpClause: varchar("smkp_clause"), // e.g. "4.1.9" — references smkpClauses.clauseNo
+  retentionPeriod: varchar("retention_period"), // e.g. "3_tahun", "5_tahun", "permanent"
+
   // Metadata
   description: text("description"),
   keywords: text("keywords").array(),
@@ -2354,6 +2358,7 @@ export const documentMasterlist = pgTable("document_masterlist", {
   index("IDX_doc_masterlist_department").on(table.department),
   index("IDX_doc_masterlist_status").on(table.lifecycleStatus),
   index("IDX_doc_masterlist_owner").on(table.ownerId),
+  index("IDX_doc_masterlist_smkp_clause").on(table.smkpClause),
 ]);
 
 // Document Versions - Revision history
@@ -2379,6 +2384,10 @@ export const documentVersions = pgTable("document_versions", {
 
   // Change tracking
   changesNote: text("changes_note"),
+
+  // Rich content (TipTap editor) — nullable for legacy uploads
+  contentHtml: text("content_html"),
+  contentJson: jsonb("content_json"),
 
   uploadedBy: varchar("uploaded_by").notNull(),
   uploadedByName: text("uploaded_by_name").notNull(),
@@ -2669,6 +2678,71 @@ export const documentDisposalRecords = pgTable("document_disposal_records", {
 });
 
 // ============================================
+// SMKP CLAUSES — Master data klausul SMKP untuk mapping ke prosedur K3
+// ============================================
+export const smkpClauses = pgTable("smkp_clauses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clauseNo: varchar("clause_no").notNull().unique(), // "4.1.1", "4.1.9", dst
+  title: text("title").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_smkp_clauses_no").on(table.clauseNo),
+  index("IDX_smkp_clauses_active").on(table.isActive),
+]);
+
+// ============================================
+// CHECKLIST TEMPLATES — Master daftar rekaman wajib bulanan
+// ============================================
+export const checklistTemplates = pgTable("checklist_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemName: text("item_name").notNull(),
+  category: text("category"), // e.g. "Inspeksi", "Pelatihan", "Audit"
+  picRole: text("pic_role"), // role/jabatan PIC default
+  departmentScope: text("department_scope"), // dept yang relevan, null = all
+  isActive: boolean("is_active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_checklist_templates_active").on(table.isActive),
+]);
+
+// ============================================
+// MONTHLY CHECKLISTS — Instance per bulan (auto-generated dari templates)
+// ============================================
+export const monthlyChecklists = pgTable("monthly_checklists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(), // 1-12
+  templateId: varchar("template_id").notNull().references(() => checklistTemplates.id, { onDelete: "cascade" }),
+
+  // Snapshot dari template saat generate (supaya tetap valid kalau template diubah)
+  itemName: text("item_name").notNull(),
+  category: text("category"),
+
+  // Eksekusi
+  picId: varchar("pic_id").references(() => employees.id),
+  isCompleted: boolean("is_completed").notNull().default(false),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by"),
+
+  // File rekaman (opsional)
+  fileUrl: text("file_url"),
+  fileName: text("file_name"),
+  notes: text("notes"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("UQ_monthly_checklist_year_month_template").on(table.year, table.month, table.templateId),
+  index("IDX_monthly_checklist_year_month").on(table.year, table.month),
+  index("IDX_monthly_checklist_completed").on(table.isCompleted),
+]);
+
+// ============================================
 // INSERT SCHEMAS & TYPES - DOCUMENT CONTROL
 // ============================================
 
@@ -2726,6 +2800,23 @@ export const insertDocumentDisposalRecordSchema = createInsertSchema(documentDis
   disposedAt: true,
 });
 
+export const insertSmkpClauseSchema = createInsertSchema(smkpClauses).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertChecklistTemplateSchema = createInsertSchema(checklistTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertMonthlyChecklistSchema = createInsertSchema(monthlyChecklists).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+});
+
 // Types
 export type DocumentMasterlist = typeof documentMasterlist.$inferSelect;
 export type InsertDocumentMasterlist = z.infer<typeof insertDocumentMasterlistSchema>;
@@ -2756,6 +2847,15 @@ export type InsertChangeRequest = z.infer<typeof insertChangeRequestSchema>;
 
 export type DocumentDisposalRecord = typeof documentDisposalRecords.$inferSelect;
 export type InsertDocumentDisposalRecord = z.infer<typeof insertDocumentDisposalRecordSchema>;
+
+export type SmkpClause = typeof smkpClauses.$inferSelect;
+export type InsertSmkpClause = z.infer<typeof insertSmkpClauseSchema>;
+
+export type ChecklistTemplate = typeof checklistTemplates.$inferSelect;
+export type InsertChecklistTemplate = z.infer<typeof insertChecklistTemplateSchema>;
+
+export type MonthlyChecklist = typeof monthlyChecklists.$inferSelect;
+export type InsertMonthlyChecklist = z.infer<typeof insertMonthlyChecklistSchema>;
 
 // ============================================
 // SI ASEF CHATBOT (Knowledge Base & Chat)

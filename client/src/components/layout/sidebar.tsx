@@ -66,6 +66,13 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     refetchInterval: 30000, // Refresh every 30s
   });
 
+  // Fetch K3 document approval pending count for sidebar badge
+  const { data: approvalInboxCount } = useQuery<{ count: number }>({
+    queryKey: [`/api/approval-inbox/count?userId=${user?.nik}`],
+    enabled: !!user?.nik,
+    refetchInterval: 60000,
+  });
+
   // Sync search state on navigation
   useEffect(() => {
     const handlePopState = () => setSearch(window.location.search);
@@ -148,6 +155,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     }
     if (item.name === "Dashboard" && item.href?.includes("/workspace/usign") && usignStats?.pendingCount) {
       badgeValue = usignStats.pendingCount;
+    }
+    if (item.name === "Approval" && approvalInboxCount?.count) {
+      badgeValue = approvalInboxCount.count;
     }
 
     // Active check logic
