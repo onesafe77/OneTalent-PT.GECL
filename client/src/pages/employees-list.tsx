@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Employee, InsertEmployee } from "@shared/schema";
-import { Plus, Search, Edit, Trash2, Upload, Download, Eye, QrCode, ChevronLeft, ChevronRight, Filter } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Upload, Download, Eye, ChevronLeft, ChevronRight, Filter } from "lucide-react";
 import * as XLSX from "xlsx";
 import QRCode from "qrcode";
 import { DriverQRGenerator } from "@/components/qr/driver-qr-generator";
@@ -316,30 +316,6 @@ export default function EmployeesList() {
                 </div>
 
                 <div className="flex gap-2">
-                    <Button
-                        onClick={async () => {
-                            try {
-                                const response = await apiRequest("/api/qr/update-all", "POST", {});
-                                toast({
-                                    title: "QR Code Update",
-                                    description: response.message || "Semua QR Code berhasil diupdate ke format URL",
-                                });
-                                queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-                            } catch (error) {
-                                toast({
-                                    title: "Error",
-                                    description: "Gagal mengupdate QR Code",
-                                    variant: "destructive",
-                                });
-                            }
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="hidden md:flex"
-                    >
-                        <QrCode className="w-4 h-4 mr-2" />
-                        Update QR URL
-                    </Button>
                     <Button variant="outline" size="sm" onClick={handleExportExcel}>
                         <Download className="w-4 h-4 mr-2" />
                         Export Excel

@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FileText, Plus, Search, MoreVertical, Eye, Send, AlertCircle, Upload,
-  CheckCircle, Clock, FileCheck, ClipboardList, User as UserIcon, Download, FileX, Edit,
+  CheckCircle, Clock, FileCheck, ClipboardList, User as UserIcon, Download, FileX, Edit, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,13 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { CreateDocumentDialog } from "./_components/CreateDocumentDialog";
@@ -102,16 +108,31 @@ function normalizeDoc(r: RawDocumentRow): DocumentRow {
 export default function DocumentsDashboard() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DocumentRow | null>(null);
 
   const { data: rawDocs = [], isLoading } = useQuery<RawDocumentRow[]>({
     queryKey: ["/api/document-masterlist"],
   });
   const documents = useMemo(() => rawDocs.map(normalizeDoc), [rawDocs]);
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => apiRequest(`/api/document-masterlist/${id}`, "DELETE"),
+    onSuccess: () => {
+      toast({ title: "Dokumen dihapus" });
+      qc.invalidateQueries({ queryKey: ["/api/document-masterlist"] });
+      setDeleteTarget(null);
+    },
+    onError: (e: any) => {
+      toast({ title: "Gagal menghapus", description: e?.message || "", variant: "destructive" });
+    },
+  });
 
   // Stats
   const stats = useMemo(() => {
@@ -331,6 +352,9 @@ export default function DocumentsDashboard() {
                             <FileX className="w-4 h-4 mr-2" /> Tandai Obsolete
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => setDeleteTarget(d)} className="text-red-600">
+                          <Trash2 className="w-4 h-4 mr-2" /> Hapus Dokumen
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </td>
@@ -375,6 +399,36 @@ export default function DocumentsDashboard() {
         open={createOpen}
         onOpenChange={setCreateOpen}
       />
+
+      {/* Konfirmasi hapus dokumen */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus dokumen ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget && (
+                <>
+                  Dokumen <strong>{deleteTarget.documentCode}</strong> — {deleteTarget.title} akan
+                  dihapus permanen beserta seluruh versi & file PDF-nya. Tindakan ini tidak bisa dibatalkan.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending ? "Menghapus..." : "Ya, Hapus"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -13,6 +13,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRosterSchema } from "@shared/schema";
 import type { Employee, RosterSchedule, AttendanceRecord, InsertRosterSchedule } from "@shared/schema";
+
+// Row hasil parse Excel upload — mengizinkan field extra `nomorLambung` yang
+// dipakai backend (/api/roster/bulk) untuk meng-update employees.nomorLambung.
+type RosterUploadRow = InsertRosterSchedule & { nomorLambung?: string };
+
 import { Plus, Upload, Download, Filter, Calendar, CheckCircle, Clock, Users, Edit, Trash2, AlertCircle, Save, X, CalendarDays, List, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
 import { Progress } from "@/components/ui/progress";
@@ -272,7 +277,7 @@ export default function Roster() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: (data: InsertRosterSchedule[]) => apiRequest("/api/roster/bulk", "POST", { rosters: data }),
+    mutationFn: (data: RosterUploadRow[]) => apiRequest("/api/roster/bulk", "POST", { rosters: data }),
     onSuccess: () => {
       // Force invalidate all roster related queries
       queryClient.invalidateQueries({ queryKey: ["/api/roster"] });
@@ -474,7 +479,7 @@ export default function Roster() {
       setUploadProgress(20);
       setTotalCount(jsonData.length);
 
-      const rosterData: InsertRosterSchedule[] = [];
+      const rosterData: RosterUploadRow[] = [];
       const chunkSize = 100; // Smaller chunk for matrix since each row has 31 entries
 
       // Use selected month/year as the target if no month is provided in the upload
@@ -484,7 +489,7 @@ export default function Roster() {
       for (let i = 0; i < jsonData.length; i += chunkSize) {
         const chunk = jsonData.slice(i, i + chunkSize);
 
-        const processedChunk: InsertRosterSchedule[] = [];
+        const processedChunk: RosterUploadRow[] = [];
 
         chunk.forEach((row: any) => {
           // Identify if this is a header or instruction row by checking if NIK exists
@@ -545,6 +550,11 @@ export default function Roster() {
                     jamTidur: '',
                     fitToWork: 'Fit To Work',
                     hariKerja: hariKerjaNum,
+                    // Kirim nomor lambung (kolom "DRIVER" di Excel) — backend
+                    // /api/roster/bulk akan meng-update employees.nomorLambung
+                    // & bulkCreateRosterSchedules auto-isi plannedNomorLambung.
+                    nomorLambung: nomorLambung || undefined,
+                    plannedNomorLambung: nomorLambung || null,
                     status: 'scheduled'
                   });
                 }

@@ -202,7 +202,7 @@ export function RosterMatrixView({ year, month, rosterData, onOpenUploadForPerso
                             <th className="border border-gray-400 p-1 w-12">NO</th>
                             <th className="border border-gray-400 p-1 min-w-[150px]">NAMA DRIVER</th>
                             <th className="border border-gray-400 p-1 min-w-[100px]">NIK</th>
-                            <th className="border border-gray-400 p-1 min-w-[100px]">DRIVER</th>
+                            <th className="border border-gray-400 p-1 min-w-[100px]">Nomor Lambung</th>
                             <th className="border border-gray-400 p-1 min-w-[100px]">MITRA</th>
                             <th className="border border-gray-400 p-1 min-w-[80px]">AKSI</th>
 

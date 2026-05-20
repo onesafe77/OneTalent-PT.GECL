@@ -36,6 +36,7 @@ const formSchema = z.object({
     tempatLahir: z.string().optional(),
     dob: z.string().optional(),
     ktpNo: z.string().optional(),
+    kkNo: z.string().optional(),
     doh: z.string().optional(),
     statusKaryawan: z.string().optional(),
     tanggalResign: z.string().optional(),
@@ -80,7 +81,7 @@ export default function EmployeeDetail() {
         resolver: zodResolver(formSchema),
         defaultValues: {
             id: "", name: "", phone: "", position: "", department: "", investorGroup: "", status: "active",
-            isafeNumber: "", idItws: "", tempatLahir: "", dob: "", ktpNo: "", doh: "", statusKaryawan: "",
+            isafeNumber: "", idItws: "", tempatLahir: "", dob: "", ktpNo: "", kkNo: "", doh: "", statusKaryawan: "",
             tanggalResign: "", catatanResign: "", typeSim: "", simNo: "", expiredSimpol: "",
             expiredSimperBib: "", statusSimperBib: "", expiredSimperTia: "", statusSimperTia: "",
             address: "", provinsi: "", kotaKab: "", addressGroup: "", domisiliKaryawan: "",
@@ -239,6 +240,7 @@ export default function EmployeeDetail() {
                 tempatLahir: employee.tempatLahir || "",
                 dob: employee.dob || "",
                 ktpNo: employee.ktpNo || "",
+                kkNo: employee.kkNo || "",
                 doh: employee.doh || "",
                 statusKaryawan: employee.statusKaryawan || "",
                 tanggalResign: employee.tanggalResign || "",
@@ -434,6 +436,9 @@ export default function EmployeeDetail() {
                                     </FormItem>
                                     <FormField control={form.control} name="ktpNo" render={({ field }) => (
                                         <FormItem><FormLabel>No. KTP</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="kkNo" render={({ field }) => (
+                                        <FormItem><FormLabel>No. KK</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
                                 </div>
                             </div>

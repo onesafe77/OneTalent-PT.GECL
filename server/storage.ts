@@ -724,6 +724,7 @@ export interface IStorage {
     byHour: any[];
     byWeek: any[];
     byMonth: any[];
+    byLocation: any[];
     topDrivers: any[];
     allDrivers: any[];
     summary: any;
@@ -8839,7 +8840,10 @@ export class DrizzleStorage implements IStorage {
     byDate: any[];
     byHour: any[];
     byWeek: any[];
+    byMonth: any[];
+    byLocation: any[];
     topDrivers: any[];
+    allDrivers: any[];
     summary: any;
     validationStats: any[];
     availableViolationTypes: any[];
@@ -9119,6 +9123,23 @@ export class DrizzleStorage implements IStorage {
       console.error("[getFmsAnalytics] byMonth query failed:", e);
     }
 
+    // 7.6 By Location - alert fatigue per lokasi
+    let byLocation: any[] = [];
+    try {
+      byLocation = await db
+        .select({
+          location: fmsViolations.location,
+          count: sql<number>`count(*)::integer`,
+        })
+        .from(fmsViolations)
+        .where(dateFilter)
+        .groupBy(fmsViolations.location)
+        .orderBy(desc(sql`count(*)`))
+        .limit(15);
+    } catch (e) {
+      console.error("[getFmsAnalytics] byLocation query failed:", e);
+    }
+
 
     // 8. Vehicle-Centric Aggregation (Per Nomor Lambung)
     let allDrivers: any[] = [];
@@ -9225,6 +9246,9 @@ export class DrizzleStorage implements IStorage {
         valid: Number(m.valid || 0),
         invalid: Number(m.invalid || 0),
       })),
+      byLocation: byLocation
+        .filter(l => l.location && String(l.location).trim() !== "")
+        .map(l => ({ location: String(l.location), count: Number(l.count || 0) })),
       topDrivers,
       allDrivers,
       validationStats: validationStats.map(v => ({

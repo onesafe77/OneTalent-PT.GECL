@@ -156,15 +156,6 @@ export const navigationGroups: NavGroup[] = [
                                 ]
                             },
                             {
-                                name: "Dokumen",
-                                icon: FolderOpen,
-                                children: [
-                                    { name: "Dashboard & Masterlist", href: "/workspace/hse/k3/documents", icon: LayoutDashboard, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "Mapping SMKP", href: "/workspace/hse/k3/documents/smkp-mapping", icon: GitCompare, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                    { name: "Checklist Arsip", href: "/workspace/hse/k3/documents/checklist", icon: ListChecks, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
-                                ]
-                            },
-                            {
                                 name: "Kesehatan",
                                 icon: Activity,
                                 children: [
@@ -214,16 +205,15 @@ export const navigationGroups: NavGroup[] = [
                 ]
             },
             {
-                name: "Approval",
-                icon: Inbox,
-                href: "/workspace/approvals",
-                requiredPermissions: [Permission.VIEW_DOCUMENTS]
-            },
-            {
-                name: "Register Eksternal",
-                icon: BookOpen,
-                href: "/workspace/external-register",
-                requiredPermissions: [Permission.VIEW_DOCUMENTS]
+                name: "Dokumen",
+                icon: FolderOpen,
+                children: [
+                    { name: "Dashboard & Masterlist", href: "/workspace/hse/k3/documents", icon: LayoutDashboard, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                    { name: "Mapping SMKP", href: "/workspace/hse/k3/documents/smkp-mapping", icon: GitCompare, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                    { name: "Checklist Arsip", href: "/workspace/hse/k3/documents/checklist", icon: ListChecks, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                    { name: "Approval", href: "/workspace/approvals", icon: Inbox, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                    { name: "Register Eksternal", href: "/workspace/external-register", icon: BookOpen, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                ]
             }
         ]
     },

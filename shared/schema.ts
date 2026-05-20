@@ -58,6 +58,7 @@ export const employees = pgTable("employees", {
   tempatLahir: varchar("tempat_lahir", { length: 100 }),
   dob: date("dob"),
   ktpNo: varchar("ktp_no", { length: 32 }),
+  kkNo: varchar("kk_no", { length: 32 }), // Nomor Kartu Keluarga
 
   // Kepegawaian
   doh: date("doh"),

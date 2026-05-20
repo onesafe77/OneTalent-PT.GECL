@@ -38,6 +38,7 @@ type FmsAnalyticsData = {
     byHour: { hour: string; count: number }[];
     byWeek: { week: number; total: number; valid: number; invalid: number }[];
     byMonth: { month: string; total: number; valid: number; invalid: number }[];
+    byLocation: { location: string; count: number }[];
     topDrivers: { rank: number; vehicleNo: string; driverName: string; driverNik: string; validCount: number; totalCount: number }[];
     allDrivers: {
         rank: number;
@@ -601,6 +602,51 @@ export default function FmsFatigueMonitoringDashboard() {
                                             <Area type="monotone" dataKey="total" name="Total Alert" stroke="#ef4444" fillOpacity={1} fill="url(#colorTotal)" />
                                         </AreaChart>
                                     </ResponsiveContainer>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Trend Per Lokasi */}
+                        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200 border border-gray-100 rounded-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-base font-semibold text-gray-900">Trend Per Lokasi</CardTitle>
+                                <CardDescription>Lokasi dengan alert fatigue terbanyak</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-[300px]">
+                                    {(!data.byLocation || data.byLocation.length === 0) ? (
+                                        <div className="h-full flex items-center justify-center text-sm text-gray-400">
+                                            Tidak ada data lokasi
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart
+                                                data={data.byLocation}
+                                                layout="vertical"
+                                                margin={{ top: 5, right: 35, left: 10, bottom: 5 }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                <XAxis type="number" tick={{ fontSize: 11, fill: '#6B7280' }} allowDecimals={false} />
+                                                <YAxis
+                                                    type="category"
+                                                    dataKey="location"
+                                                    width={130}
+                                                    tick={{ fontSize: 11, fill: '#6B7280' }}
+                                                    interval={0}
+                                                />
+                                                <RechartsTooltip formatter={(val) => [val, 'Jumlah Alert']} />
+                                                <Bar dataKey="count" name="Jumlah Alert" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                                    {data.byLocation.map((entry, index) => (
+                                                        <Cell
+                                                            key={`loc-cell-${index}`}
+                                                            fill={entry.count > 10 ? '#ef4444' : (entry.count > 5 ? '#f59e0b' : '#3b82f6')}
+                                                        />
+                                                    ))}
+                                                    <LabelList dataKey="count" position="right" fill="#6b7280" fontSize={11} />
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
