@@ -4,6 +4,7 @@ import { ClipboardList, Download, Calendar, Clock, MapPin, Building2, ArrowLeft,
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyStateCreateButton } from "@/components/sidak/empty-state-create-button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -284,12 +285,7 @@ export default function SidakRosterHistory() {
               <p className="text-gray-600 dark:text-gray-400">
                 Belum ada riwayat Sidak Roster
               </p>
-              <Link href="/workspace/sidak/roster/new">
-                <Button className="mt-4 bg-red-600 hover:bg-red-700 text-white" size="sm" data-testid="button-create-new">
-                  <ClipboardList className="h-4 w-4 mr-2" />
-                  Buat Sidak Baru
-                </Button>
-              </Link>
+              <EmptyStateCreateButton href="/workspace/sidak/roster/new" label="Buat Sidak Baru" icon={ClipboardList} className="mt-4 bg-red-600 hover:bg-red-700 text-white" size="sm" />
             </CardContent>
           </Card>
         ) : (

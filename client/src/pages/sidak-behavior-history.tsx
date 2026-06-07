@@ -4,6 +4,7 @@ import { Activity, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Fi
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyStateCreateButton } from "@/components/sidak/empty-state-create-button";
 import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
@@ -265,12 +266,7 @@ export default function SidakBehaviorHistory() {
                             <p className="text-gray-600 dark:text-gray-400">
                                 Belum ada riwayat Sidak Tingkah Laku
                             </p>
-                            <Link href="/workspace/sidak/behavior/new">
-                                <Button className="mt-4 bg-blue-600 hover:bg-blue-700" size="sm" data-testid="button-create-new">
-                                    <Eye className="h-4 w-4 mr-2" />
-                                    Buat Sidak Baru
-                                </Button>
-                            </Link>
+                            <EmptyStateCreateButton href="/workspace/sidak/behavior/new" label="Buat Sidak Baru" icon={Eye} className="mt-4 bg-blue-600 hover:bg-blue-700" size="sm" />
                         </CardContent>
                     </Card>
                 ) : (

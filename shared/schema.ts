@@ -1189,6 +1189,30 @@ export const safetyPatrolRawMessages = pgTable("safety_patrol_raw_messages", {
 ]);
 
 // ============================================
+// TELEGRAM SAFETY PATROL USERS (pemetaan chat_id -> pelaksana)
+// ============================================
+
+export const telegramSafetyPatrolUsers = pgTable("telegram_safety_patrol_users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  chatId: text("chat_id").notNull().unique(), // Telegram chat id (private chat)
+  telegramUsername: text("telegram_username"), // @username (bisa null)
+  firstName: text("first_name"), // Nama profil Telegram
+  namaPelaksana: text("nama_pelaksana"), // Nama yang dipakai sebagai pelaksana laporan
+  registeredAt: timestamp("registered_at").defaultNow(),
+  lastActiveAt: timestamp("last_active_at").defaultNow(),
+}, (table) => [
+  index("IDX_tg_sp_users_chat").on(table.chatId),
+]);
+
+export const insertTelegramSafetyPatrolUserSchema = createInsertSchema(telegramSafetyPatrolUsers).omit({
+  id: true,
+  registeredAt: true,
+  lastActiveAt: true,
+});
+export type TelegramSafetyPatrolUser = typeof telegramSafetyPatrolUsers.$inferSelect;
+export type InsertTelegramSafetyPatrolUser = typeof telegramSafetyPatrolUsers.$inferInsert;
+
+// ============================================
 // SAFETY PATROL TEMPLATES (Knowledge Base)
 // ============================================
 
@@ -3755,6 +3779,177 @@ export type SidakBehaviorRecord = typeof sidakBehaviorRecords.$inferSelect;
 export type InsertSidakBehaviorRecord = z.infer<typeof insertSidakBehaviorRecordSchema>;
 export type SidakBehaviorObserver = typeof sidakBehaviorObservers.$inferSelect;
 export type InsertSidakBehaviorObserver = z.infer<typeof insertSidakBehaviorObserverSchema>;
+
+// ============================================
+// SIDAK CHARGING STATION (Observasi Kepatuhan Driver di Area Charging Station)
+// ============================================
+
+export const sidakChargingStationSessions = pgTable("sidak_charging_station_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(), // Format: YYYY-MM-DD
+  shift: text("shift").notNull(), // "Shift 1" or "Shift 2"
+  lokasi: text("lokasi").notNull(),
+  waktuMulai: text("waktu_mulai").notNull(),
+  waktuSelesai: text("waktu_selesai").notNull(),
+  totalSampel: integer("total_sampel").notNull().default(0),
+  createdBy: varchar("created_by"), // NIK of supervisor
+  activityPhotos: text("activity_photos").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_charging_station_sessions_created_by").on(table.createdBy),
+]);
+
+export const sidakChargingStationRecords = pgTable("sidak_charging_station_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakChargingStationSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  namaDriver: text("nama_driver").notNull(),
+  nomorLambung: text("nomor_lambung").notNull(),
+
+  // Compliance checklist (true = patuh / "Ya")
+  posisiAman: boolean("posisi_aman").notNull().default(false), // Posisi DT aman, tidak mengganggu akses & membahayakan yang lain
+  kabelSesuai: boolean("kabel_sesuai").notNull().default(false), // Charging sesuai peruntukan tipe/warna kabel
+  apdLengkap: boolean("apd_lengkap").notNull().default(false), // Memakai APD lengkap (sarung tangan, helm, sepatu safety)
+  tetapDiKabin: boolean("tetap_di_kabin").notNull().default(false), // Tetap di dalam kabin selama proses charging
+  tidakMerokok: boolean("tidak_merokok").notNull().default(false), // Tidak merokok di area charging station
+  merapikanKabel: boolean("merapikan_kabel").notNull().default(false), // Merapikan kembali kabel/konektor ke dudukannya
+
+  keterangan: text("keterangan"), // Catatan/temuan ketidakpatuhan
+  evidenceUrl: text("evidence_url"), // Path to the uploaded evidence photo
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_charging_station_records_session").on(table.sessionId),
+  uniqueIndex("sidak_charging_station_session_ordinal_unique").on(table.sessionId, table.ordinal),
+]);
+
+export const sidakChargingStationObservers = pgTable("sidak_charging_station_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakChargingStationSessions.id, { onDelete: "cascade" }),
+  nama: text("nama").notNull(),
+  nik: text("nik").notNull(),
+  perusahaan: text("perusahaan").notNull(),
+  jabatan: text("jabatan").notNull(),
+  signatureDataUrl: text("signature_data_url").notNull(), // Base64 signature
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_charging_station_observers_session").on(table.sessionId),
+]);
+
+export const insertSidakChargingStationSessionSchema = createInsertSchema(sidakChargingStationSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  totalSampel: true
+});
+export const insertSidakChargingStationRecordSchema = createInsertSchema(sidakChargingStationRecords).omit({
+  id: true,
+  createdAt: true,
+  ordinal: true,
+  sessionId: true
+});
+export const insertSidakChargingStationObserverSchema = createInsertSchema(sidakChargingStationObservers).omit({
+  id: true,
+  createdAt: true,
+  sessionId: true
+});
+
+export type SidakChargingStationSession = typeof sidakChargingStationSessions.$inferSelect;
+export type InsertSidakChargingStationSession = z.infer<typeof insertSidakChargingStationSessionSchema>;
+export type SidakChargingStationRecord = typeof sidakChargingStationRecords.$inferSelect;
+export type InsertSidakChargingStationRecord = z.infer<typeof insertSidakChargingStationRecordSchema>;
+export type SidakChargingStationObserver = typeof sidakChargingStationObservers.$inferSelect;
+export type InsertSidakChargingStationObserver = z.infer<typeof insertSidakChargingStationObserverSchema>;
+
+// ============================================
+// SIDAK OBSERVASI SOP KRITIS (Ringkasan Pengendalian dan SOP Kritikal / CCC)
+// ============================================
+
+export const sidakSopKritisSessions = pgTable("sidak_sop_kritis_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  judulSop: text("judul_sop").notNull(),
+  tanggalPublikasi: text("tanggal_publikasi"),
+  perusahaan: text("perusahaan"),
+  risiko: text("risiko"),
+  departemen: text("departemen"),
+  nilaiRisikoMurni: text("nilai_risiko_murni"),
+  tingkatRisiko: text("tingkat_risiko"), // Rendah/Sedang/Tinggi/Ekstrem -> warna kotak NR0
+  kartuCccId: text("kartu_ccc_id"), // id Kartu CCC terpilih (auto-isi Pengendalian + gambar di laporan)
+  tanggal: text("tanggal").notNull(), // Tanggal observasi (utk sorting/rekap)
+  createdBy: varchar("created_by"),
+  activityPhotos: text("activity_photos").array(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_sop_kritis_sessions_created_by").on(table.createdBy),
+]);
+
+export const sidakSopKritisPengendalian = pgTable("sidak_sop_kritis_pengendalian", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakSopKritisSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  uraian: text("uraian").notNull(),
+  status: text("status").notNull().default("Ya"), // "Ya" | "Tidak" | "N/A"
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_sop_kritis_pengendalian_session").on(table.sessionId),
+  uniqueIndex("sidak_sop_kritis_pengendalian_ordinal_unique").on(table.sessionId, table.ordinal),
+]);
+
+export const sidakSopKritisLangkah = pgTable("sidak_sop_kritis_langkah", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakSopKritisSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  uraian: text("uraian").notNull(),
+  status: text("status").notNull().default("Ya"), // "Ya" | "Tidak"
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_sop_kritis_langkah_session").on(table.sessionId),
+  uniqueIndex("sidak_sop_kritis_langkah_ordinal_unique").on(table.sessionId, table.ordinal),
+]);
+
+export const sidakSopKritisObservers = pgTable("sidak_sop_kritis_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakSopKritisSessions.id, { onDelete: "cascade" }),
+  nama: text("nama").notNull(),
+  departemenPerusahaan: text("departemen_perusahaan"),
+  signatureDataUrl: text("signature_data_url").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_sop_kritis_observers_session").on(table.sessionId),
+]);
+
+export const insertSidakSopKritisSessionSchema = createInsertSchema(sidakSopKritisSessions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export const insertSidakSopKritisPengendalianSchema = createInsertSchema(sidakSopKritisPengendalian).omit({
+  id: true,
+  createdAt: true,
+  ordinal: true,
+  sessionId: true,
+});
+export const insertSidakSopKritisLangkahSchema = createInsertSchema(sidakSopKritisLangkah).omit({
+  id: true,
+  createdAt: true,
+  ordinal: true,
+  sessionId: true,
+});
+export const insertSidakSopKritisObserverSchema = createInsertSchema(sidakSopKritisObservers).omit({
+  id: true,
+  createdAt: true,
+  sessionId: true,
+});
+
+export type SidakSopKritisSession = typeof sidakSopKritisSessions.$inferSelect;
+export type InsertSidakSopKritisSession = z.infer<typeof insertSidakSopKritisSessionSchema>;
+export type SidakSopKritisPengendalian = typeof sidakSopKritisPengendalian.$inferSelect;
+export type InsertSidakSopKritisPengendalian = z.infer<typeof insertSidakSopKritisPengendalianSchema>;
+export type SidakSopKritisLangkah = typeof sidakSopKritisLangkah.$inferSelect;
+export type InsertSidakSopKritisLangkah = z.infer<typeof insertSidakSopKritisLangkahSchema>;
+export type SidakSopKritisObserver = typeof sidakSopKritisObservers.$inferSelect;
+export type InsertSidakSopKritisObserver = z.infer<typeof insertSidakSopKritisObserverSchema>;
 
 // ============================================
 // USIGN DIGITAL SIGNATURE SYSTEM

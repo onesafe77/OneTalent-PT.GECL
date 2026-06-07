@@ -10,6 +10,8 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { SignaturePad } from "@/components/sidak/signature-pad";
 import { MobileSidakLayout } from "@/components/sidak/mobile-sidak-layout";
+import { useSidakDraft } from "@/hooks/use-sidak-draft";
+import { DraftRecoveryDialog } from "@/components/sidak/draft-recovery-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -87,6 +89,32 @@ export default function SidakP3kForm() {
     const [step, setStep] = useState(1);
     const [form, setForm] = useState<FormState>(initialFormState);
 
+    // Autosave draft (localStorage) — bertahan walau app ditutup, bisa dilanjutkan lagi.
+    const {
+        saveDraft,
+        clearDraft,
+        restoreDraft,
+        ignoreDraft,
+        showRecoveryDialog,
+        draftTimestamp,
+    } = useSidakDraft<{ step: number; form: FormState }>({
+        key: "p3k",
+        initialData: { step: 1, form: initialFormState },
+        debounceMs: 1500,
+    });
+
+    useEffect(() => {
+        saveDraft({ step, form });
+    }, [step, form, saveDraft]);
+
+    const handleRestoreDraft = () => {
+        const restored = restoreDraft();
+        if (restored) {
+            setStep(restored.step);
+            setForm(restored.form);
+        }
+    };
+
     const submitMutation = useMutation({
         mutationFn: async (data: FormState) => {
             const payload = {
@@ -114,6 +142,7 @@ export default function SidakP3kForm() {
             return res;
         },
         onSuccess: () => {
+            clearDraft();
             queryClient.invalidateQueries({ queryKey: ["/api/sidak-p3k"] });
             toast({ title: "Berhasil", description: "Laporan Inspeksi P3K berhasil disimpan." });
             navigate("/workspace/sidak/p3k/history");
@@ -493,6 +522,14 @@ export default function SidakP3kForm() {
                     </div>
                 )}
             </div>
+
+            <DraftRecoveryDialog
+                open={showRecoveryDialog}
+                onRestore={handleRestoreDraft}
+                onDiscard={ignoreDraft}
+                timestamp={draftTimestamp}
+                formType="p3k"
+            />
         </MobileSidakLayout>
     );
 }

@@ -1122,6 +1122,9 @@ app.post("/api/whatsapp/send-reminder", async (req, res) => {
   const { startReminderScheduler } = await import("./services/reminder-scheduler");
   startReminderScheduler();
 
+  // Start Telegram Safety Patrol bot (long-polling; guard token di dalam)
+  import("./services/telegram-bot").then((m) => m.startTelegramBot()).catch((e) => console.error("Telegram bot init error:", e?.message || e));
+
   // Serve static files from uploads folder (for meeting photos, P5M photos, etc.)
   // Use absolute path to ensure reliability in production
   const uploadsDir = path.join(process.cwd(), "uploads");

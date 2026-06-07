@@ -27,6 +27,10 @@ export const AI_MODELS = {
     // Use for reasoning / extraction where GPT-4 series was previously used
     SMART_EXTRACTION: "openai/gpt-4o-mini",
 
+    // Conversational / "AI bot" reasoning (Telegram Safety Patrol bot).
+    // Nous Hermes 4 70B via OpenRouter — pintar untuk percakapan, hemat biaya.
+    SMART_CHAT: "nousresearch/hermes-4-70b",
+
     // Embedding
     EMBEDDING: "openai/text-embedding-3-small"
 };

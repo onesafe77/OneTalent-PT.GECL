@@ -5,6 +5,7 @@ import { ClipboardCheck, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDo
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyStateCreateButton } from "@/components/sidak/empty-state-create-button";
 import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
@@ -224,12 +225,7 @@ export default function SidakLotoHistory() {
                         <CardContent className="pt-0">
                             <Lock className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                             <p className="text-gray-600">Belum ada riwayat Sidak LOTO</p>
-                            <Link href="/workspace/sidak/loto/new">
-                                <Button className="mt-4 bg-red-600 hover:bg-red-700 text-white" size="sm">
-                                    <ClipboardCheck className="h-4 w-4 mr-2" />
-                                    Buat Sidak Baru
-                                </Button>
-                            </Link>
+                            <EmptyStateCreateButton href="/workspace/sidak/loto/new" label="Buat Sidak Baru" icon={ClipboardCheck} className="mt-4 bg-red-600 hover:bg-red-700 text-white" size="sm" />
                         </CardContent>
                     </Card>
                 ) : (

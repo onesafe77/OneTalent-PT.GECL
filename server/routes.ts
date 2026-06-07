@@ -62,6 +62,13 @@ import {
   insertSidakBehaviorSessionSchema,
   insertSidakBehaviorRecordSchema,
   insertSidakBehaviorObserverSchema,
+  insertSidakChargingStationSessionSchema,
+  insertSidakChargingStationRecordSchema,
+  insertSidakChargingStationObserverSchema,
+  insertSidakSopKritisSessionSchema,
+  insertSidakSopKritisPengendalianSchema,
+  insertSidakSopKritisLangkahSchema,
+  insertSidakSopKritisObserverSchema,
   insertAnnouncementSchema,
   insertNewsSchema,
   insertPushSubscriptionSchema,
@@ -5967,6 +5974,309 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // ============================================
+  // SIDAK CHARGING STATION (Observasi Kepatuhan Driver di Area Charging Station)
+  // ============================================
+
+  const sidakChargingStationPhotoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only images are allowed'));
+      }
+    }
+  });
+
+  app.post("/api/sidak-charging-station/upload", sidakChargingStationPhotoUpload.single("photo"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No photo uploaded" });
+      }
+      const { url: photoUrl } = await dbStorage.uploadFile(req.file);
+      res.json({ url: photoUrl });
+    } catch (error) {
+      console.error("Error uploading charging station evidence photo:", error);
+      res.status(500).json({ error: "Failed to upload photo" });
+    }
+  });
+
+  app.post("/api/sidak-charging-station", async (req, res) => {
+    try {
+      const validatedData = insertSidakChargingStationSessionSchema.parse(req.body);
+
+      const sessionUser = (req.session as any).user;
+      const createdBy = sessionUser?.nik || null;
+
+      const session = await storage.createSidakChargingStationSession({
+        ...validatedData,
+        createdBy
+      });
+      res.json(session);
+    } catch (error: any) {
+      console.error("Error creating Sidak Charging Station session:", error);
+      if (error?.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal membuat sesi Sidak Charging Station: " + (error?.message || 'Unknown error') });
+    }
+  });
+
+  app.get("/api/sidak-charging-station", async (req, res) => {
+    try {
+      let sessions = await storage.getAllSidakChargingStationSessions();
+
+      const sessionUser = (req.session as any)?.user;
+      if (sessionUser && sessionUser.role !== 'ADMIN') {
+        sessions = sessions.filter(s => s.createdBy === sessionUser.nik);
+      }
+
+      const sessionsWithDetails = await Promise.all(
+        sessions.map(async (session) => {
+          const [records, observers] = await Promise.all([
+            storage.getSidakChargingStationRecords(session.id),
+            storage.getSidakChargingStationObservers(session.id)
+          ]);
+          return {
+            ...session,
+            totalSampel: records.length,
+            records,
+            observers
+          };
+        })
+      );
+
+      res.json(sessionsWithDetails);
+    } catch (error) {
+      console.error("Error fetching Sidak Charging Station sessions:", error);
+      res.status(500).json({ message: "Gagal mengambil data Sidak Charging Station" });
+    }
+  });
+
+  app.get("/api/sidak-charging-station/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [session, records, observers] = await Promise.all([
+        storage.getSidakChargingStationSession(id),
+        storage.getSidakChargingStationRecords(id),
+        storage.getSidakChargingStationObservers(id)
+      ]);
+
+      if (!session) {
+        return res.status(404).json({ message: "Sesi Sidak Charging Station tidak ditemukan" });
+      }
+
+      res.json({ ...session, records, observers });
+    } catch (error) {
+      console.error("Error fetching Sidak Charging Station detail:", error);
+      res.status(500).json({ message: "Gagal mengambil detail Sidak Charging Station" });
+    }
+  });
+
+  app.post("/api/sidak-charging-station/:id/records", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakChargingStationRecordSchema.parse(req.body);
+
+      const record = await storage.createSidakChargingStationRecord({
+        ...validatedData,
+        sessionId: id
+      });
+
+      res.json(record);
+    } catch (error: any) {
+      console.error("Error adding Sidak Charging Station record:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal menambahkan data driver" });
+    }
+  });
+
+  app.post("/api/sidak-charging-station/:id/observers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakChargingStationObserverSchema.parse(req.body);
+
+      const observer = await storage.createSidakChargingStationObserver({
+        ...validatedData,
+        sessionId: id
+      });
+      res.json(observer);
+    } catch (error: any) {
+      console.error("Error adding Sidak Charging Station observer:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      }
+      res.status(500).json({ message: "Gagal menambahkan observer" });
+    }
+  });
+
+  // ============================================
+  // SIDAK OBSERVASI SOP KRITIS (Ringkasan Pengendalian dan SOP Kritikal)
+  // ============================================
+
+  const sidakSopKritisPhotoUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) cb(null, true);
+      else cb(new Error('Only images are allowed'));
+    }
+  });
+
+  app.post("/api/sidak-sop-kritis/upload", sidakSopKritisPhotoUpload.single("photo"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No photo uploaded" });
+      const { url: photoUrl } = await dbStorage.uploadFile(req.file);
+      res.json({ url: photoUrl });
+    } catch (error) {
+      console.error("Error uploading SOP Kritis evidence photo:", error);
+      res.status(500).json({ error: "Failed to upload photo" });
+    }
+  });
+
+  app.post("/api/sidak-sop-kritis", async (req, res) => {
+    try {
+      const validatedData = insertSidakSopKritisSessionSchema.parse(req.body);
+      const sessionUser = (req.session as any).user;
+      const session = await storage.createSopKritisSession({ ...validatedData, createdBy: sessionUser?.nik || null });
+      res.json(session);
+    } catch (error: any) {
+      console.error("Error creating Sidak SOP Kritis session:", error);
+      if (error?.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal membuat sesi SOP Kritis: " + (error?.message || 'Unknown error') });
+    }
+  });
+
+  app.get("/api/sidak-sop-kritis", async (req, res) => {
+    try {
+      let sessions = await storage.getAllSopKritisSessions();
+      const sessionUser = (req.session as any)?.user;
+      if (sessionUser && sessionUser.role !== 'ADMIN') {
+        sessions = sessions.filter(s => s.createdBy === sessionUser.nik);
+      }
+      const sessionsWithDetails = await Promise.all(
+        sessions.map(async (session) => {
+          const [pengendalian, langkah, observers] = await Promise.all([
+            storage.getSopKritisPengendalian(session.id),
+            storage.getSopKritisLangkah(session.id),
+            storage.getSopKritisObservers(session.id),
+          ]);
+          return { ...session, totalSampel: langkah.length, pengendalian, langkah, observers };
+        })
+      );
+      res.json(sessionsWithDetails);
+    } catch (error) {
+      console.error("Error fetching Sidak SOP Kritis sessions:", error);
+      res.status(500).json({ message: "Gagal mengambil data SOP Kritis" });
+    }
+  });
+
+  app.get("/api/sidak-sop-kritis/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const [session, pengendalian, langkah, observers] = await Promise.all([
+        storage.getSopKritisSession(id),
+        storage.getSopKritisPengendalian(id),
+        storage.getSopKritisLangkah(id),
+        storage.getSopKritisObservers(id),
+      ]);
+      if (!session) return res.status(404).json({ message: "Sesi SOP Kritis tidak ditemukan" });
+      res.json({ ...session, pengendalian, langkah, observers });
+    } catch (error) {
+      console.error("Error fetching Sidak SOP Kritis detail:", error);
+      res.status(500).json({ message: "Gagal mengambil detail SOP Kritis" });
+    }
+  });
+
+  app.post("/api/sidak-sop-kritis/:id/pengendalian", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakSopKritisPengendalianSchema.parse(req.body);
+      const item = await storage.createSopKritisPengendalian({ ...validatedData, sessionId: id });
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error adding SOP Kritis pengendalian:", error);
+      if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal menambahkan pengendalian kritikal" });
+    }
+  });
+
+  app.post("/api/sidak-sop-kritis/:id/langkah", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakSopKritisLangkahSchema.parse(req.body);
+      const item = await storage.createSopKritisLangkah({ ...validatedData, sessionId: id });
+      res.json(item);
+    } catch (error: any) {
+      console.error("Error adding SOP Kritis langkah:", error);
+      if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal menambahkan item/langkah kritikal" });
+    }
+  });
+
+  app.post("/api/sidak-sop-kritis/:id/observers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakSopKritisObserverSchema.parse(req.body);
+      const observer = await storage.createSopKritisObserver({ ...validatedData, sessionId: id });
+      res.json(observer);
+    } catch (error: any) {
+      console.error("Error adding SOP Kritis observer:", error);
+      if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal menambahkan pemantau" });
+    }
+  });
+
+  // Edit (update) sesi SOP Kritis: update header + replace-all child (pengendalian/langkah/observers)
+  app.put("/api/sidak-sop-kritis/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const existing = await storage.getSopKritisSession(id);
+      if (!existing) return res.status(404).json({ message: "Sesi SOP Kritis tidak ditemukan" });
+
+      const { pengendalian = [], langkah = [], observers = [], ...sessionBody } = req.body || {};
+
+      // Validasi & update field header (partial agar field non-header diabaikan)
+      const validatedHeader = insertSidakSopKritisSessionSchema.partial().parse(sessionBody);
+      await storage.updateSopKritisSession(id, { ...validatedHeader, updatedAt: new Date() } as any);
+
+      // Replace-all child rows
+      await Promise.all([
+        storage.deleteSopKritisPengendalianBySession(id),
+        storage.deleteSopKritisLangkahBySession(id),
+        storage.deleteSopKritisObserversBySession(id),
+      ]);
+      for (const item of pengendalian) {
+        const v = insertSidakSopKritisPengendalianSchema.parse(item);
+        await storage.createSopKritisPengendalian({ ...v, sessionId: id });
+      }
+      for (const item of langkah) {
+        const v = insertSidakSopKritisLangkahSchema.parse(item);
+        await storage.createSopKritisLangkah({ ...v, sessionId: id });
+      }
+      for (const obs of observers) {
+        const v = insertSidakSopKritisObserverSchema.parse(obs);
+        await storage.createSopKritisObserver({ ...v, sessionId: id });
+      }
+
+      const [session, peng, lang, obs] = await Promise.all([
+        storage.getSopKritisSession(id),
+        storage.getSopKritisPengendalian(id),
+        storage.getSopKritisLangkah(id),
+        storage.getSopKritisObservers(id),
+      ]);
+      res.json({ ...session, pengendalian: peng, langkah: lang, observers: obs });
+    } catch (error: any) {
+      console.error("Error updating Sidak SOP Kritis:", error);
+      if (error?.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal memperbarui SOP Kritis: " + (error?.message || 'Unknown error') });
+    }
+  });
+
   // Delete photo
   app.delete("/api/sidak-fatigue/:id/photos/:index", async (req, res) => {
     try {
@@ -6164,6 +6474,8 @@ Format sebagai bullet points singkat per insight.`;
   createSidakPhotoEndpoints('antrian', (id) => storage.getSidakAntrianSession(id), (id, data) => storage.updateSidakAntrianSession(id, data));
   createSidakPhotoEndpoints('workshop', (id) => storage.getSidakWorkshopSession(id), (id, data) => storage.updateSidakWorkshopSession(id, data));
   createSidakPhotoEndpoints('behavior', (id) => storage.getSidakBehaviorSession(id), (id, data) => storage.updateSidakBehaviorSession(id, data));
+  createSidakPhotoEndpoints('charging-station', (id) => storage.getSidakChargingStationSession(id), (id, data) => storage.updateSidakChargingStationSession(id, data));
+  createSidakPhotoEndpoints('sop-kritis', (id) => storage.getSopKritisSession(id), (id, data) => storage.updateSopKritisSession(id, data));
 
 
 
@@ -9166,6 +9478,8 @@ Format sebagai bullet points singkat per insight.`;
           fetchSession('MesinKompresor', storage.getSidakMesinKompresorSessions()),
           fetchSession('GerindaDuduk', storage.getSidakGerindaDudukSessions()),
           fetchSession('FuelStorage', storage.getSidakFuelStorageSessions()),
+          fetchSession('ChargingStation', storage.getAllSidakChargingStationSessions()),
+          fetchSession('SopKritis', storage.getAllSopKritisSessions()),
         ]);
 
         const [results1, results2, results3] = await Promise.all([batch1, batch2, batch3]);
@@ -9177,7 +9491,7 @@ Format sebagai bullet points singkat per insight.`;
         antrianFull, jarakFull, kecepatanFull, pencahayaanFull,
         lotoFull, digitalFull, workshopFull, behaviorFull,
         standJackFull, hydraulicJackFull, bottleJackFull, impactFull,
-        aparFull, mesinLasFull, mesinKompresorFull, gerindaDudukFull, fuelStorageFull
+        aparFull, mesinLasFull, mesinKompresorFull, gerindaDudukFull, fuelStorageFull, chargingStationFull, sopKritisFull
       ] = await fetchAllInBatches();
 
       // Omit large fields like activityPhotos for the recap list to save bandwidth and speed up JSON serialization
@@ -9207,11 +9521,13 @@ Format sebagai bullet points singkat per insight.`;
       const mesinKompresor = omitLargeFields(mesinKompresorFull || []);
       const gerindaDuduk = omitLargeFields(gerindaDudukFull || []);
       const fuelStorage = omitLargeFields(fuelStorageFull || []);
+      const chargingStation = omitLargeFields(chargingStationFull || []);
+      const sopKritis = omitLargeFields(sopKritisFull || []);
 
       const allSessionsCount = fatigue.length + roster.length + seatbelt.length + rambu.length +
         antrian.length + jarak.length + kecepatan.length + pencahayaan.length +
         loto.length + digital.length + workshop.length + behavior.length + standJack.length +
-        hydraulicJack.length + bottleJack.length + impact.length + apar.length + mesinLas.length + mesinKompresor.length + gerindaDuduk.length + fuelStorage.length;
+        hydraulicJack.length + bottleJack.length + impact.length + apar.length + mesinLas.length + mesinKompresor.length + gerindaDuduk.length + fuelStorage.length + chargingStation.length + sopKritis.length;
 
       // Extract all session IDs for targeted observer fetch
       const fatigueIds = fatigue.map(s => s.id).filter(id => !!id);
@@ -9290,7 +9606,9 @@ Format sebagai bullet points singkat per insight.`;
         ...mesinLas.map((s: any) => mapSession(s, 'MesinLas')),
         ...mesinKompresor.map((s: any) => mapSession(s, 'MesinKompresor')),
         ...gerindaDuduk.map((s: any) => mapSession(s, 'GerindaDuduk')),
-        ...fuelStorage.map((s: any) => mapSession(s, 'FuelStorage'))
+        ...fuelStorage.map((s: any) => mapSession(s, 'FuelStorage')),
+        ...chargingStation.map((s: any) => mapSession(s, 'ChargingStation')),
+        ...sopKritis.map((s: any) => mapSession(s, 'SopKritis'))
       ];
 
       // Optimization: Fetch only used employee names to avoid fetching thousands of unrelated records
@@ -9358,6 +9676,10 @@ Format sebagai bullet points singkat per insight.`;
               return (await storage.getSidakBottleJackRecords(session.id)).length;
             case 'Impact':
               return (await storage.getSidakImpactRecords(session.id)).length;
+            case 'ChargingStation':
+              return (await storage.getSidakChargingStationRecords(session.id)).length;
+            case 'SopKritis':
+              return (await storage.getSopKritisLangkah(session.id)).length;
             default:
               return 0;
           }
@@ -9571,7 +9893,7 @@ Format sebagai bullet points singkat per insight.`;
         fatigue, roster, seatbelt, rambu, antrian, apd, jarak, kecepatan,
         pencahayaan, loto, digital, workshop, behavior, p3k, intercom,
         standJack, hydraulicJack, bottleJack, impact, apar,
-        mesinLas, mesinKompresor, gerindaDuduk, fuelStorage
+        mesinLas, mesinKompresor, gerindaDuduk, fuelStorage, chargingStation, sopKritis
       ] = await Promise.all([
         safe(storage.getAllSidakFatigueSessions()),
         safe(storage.getAllSidakRosterSessions()),
@@ -9597,6 +9919,8 @@ Format sebagai bullet points singkat per insight.`;
         safe(storage.getSidakMesinKompresorSessions()),
         safe(storage.getSidakGerindaDudukSessions()),
         safe(storage.getSidakFuelStorageSessions()),
+        safe(storage.getAllSidakChargingStationSessions()),
+        safe(storage.getAllSopKritisSessions()),
       ]);
 
       const checkMonth = (sessions: any[]) => {
@@ -9632,6 +9956,8 @@ Format sebagai bullet points singkat per insight.`;
         { type: 'MesinKompresor', label: 'Sidak Mesin Kompresor', ...checkMonth(mesinKompresor) },
         { type: 'GerindaDuduk', label: 'Sidak Gerinda Duduk', ...checkMonth(gerindaDuduk) },
         { type: 'FuelStorage', label: 'Sidak Fuel Storage', ...checkMonth(fuelStorage) },
+        { type: 'ChargingStation', label: 'Sidak Charging Station', ...checkMonth(chargingStation) },
+        { type: 'SopKritis', label: 'Observasi SOP Kritis', ...checkMonth(sopKritis) },
       ];
 
       res.json({ month, sidakTypes });
@@ -10193,6 +10519,50 @@ Format sebagai bullet points singkat per insight.`;
             photos: session.activityPhotos
           },
           records,
+          observers
+        });
+      }
+      if (type === 'ChargingStation') {
+        const session = await storage.getSidakChargingStationSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const records = await storage.getSidakChargingStationRecords(sessionId as string);
+        const observers = await storage.getSidakChargingStationObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'ChargingStation',
+            tanggal: session.tanggal,
+            waktu: (session.waktuMulai && session.waktuSelesai) ? `${session.waktuMulai} - ${session.waktuSelesai}` : '',
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records,
+          observers
+        });
+      }
+      if (type === 'SopKritis') {
+        const session = await storage.getSopKritisSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const pengendalian = await storage.getSopKritisPengendalian(sessionId as string);
+        const langkah = await storage.getSopKritisLangkah(sessionId as string);
+        const observers = await storage.getSopKritisObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'SopKritis',
+            tanggal: session.tanggal,
+            waktu: '',
+            departemen: session.departemen || '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          pengendalian,
+          langkah,
           observers
         });
       }

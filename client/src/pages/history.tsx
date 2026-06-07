@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, FileText, History, BriefcaseMedical, Eye, Radio, ChevronRight } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, FileText, History, BriefcaseMedical, Eye, Radio, ChevronRight, Zap, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth-context";
@@ -96,6 +96,20 @@ const historyItems = [
         href: "/workspace/sidak/behavior/history",
         icon: Eye,
         color: "indigo"
+    },
+    {
+        title: "Riwayat Charging Station",
+        subtitle: "Data Logs & PDF",
+        href: "/workspace/sidak/charging-station/history",
+        icon: Zap,
+        color: "amber"
+    },
+    {
+        title: "Riwayat SOP Kritis",
+        subtitle: "Data Logs & PDF",
+        href: "/workspace/sidak/sop-kritis/history",
+        icon: ShieldAlert,
+        color: "rose"
     },
     {
         title: "Riwayat Intercom",

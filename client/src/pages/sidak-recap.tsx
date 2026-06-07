@@ -67,7 +67,7 @@ import { toast } from "@/hooks/use-toast";
 
 interface SidakSession {
   id: string;
-  type: 'Fatigue' | 'Roster' | 'Seatbelt' | 'Rambu' | 'Antrian' | 'APD' | 'Jarak' | 'Kecepatan' | 'Pencahayaan' | 'LOTO' | 'Digital' | 'Workshop' | 'Behavior' | 'Intercom';
+  type: 'Fatigue' | 'Roster' | 'Seatbelt' | 'Rambu' | 'Antrian' | 'APD' | 'Jarak' | 'Kecepatan' | 'Pencahayaan' | 'LOTO' | 'Digital' | 'Workshop' | 'Behavior' | 'Intercom' | 'ChargingStation' | 'SopKritis';
   tanggal: string;
   waktu: string;
   shift: string;
@@ -1443,6 +1443,166 @@ function BehaviorFormPreview({ session, records, observers }: {
   );
 }
 
+function ChargingStationFormPreview({ session, records, observers }: {
+  session: SessionDetail['session'];
+  records: any[];
+  observers: Observer[]
+}) {
+  const QUESTIONS = [
+    { key: "posisiAman", label: "Posisi DT Aman" },
+    { key: "kabelSesuai", label: "Kabel Sesuai" },
+    { key: "apdLengkap", label: "APD Lengkap" },
+    { key: "tetapDiKabin", label: "Di Dalam Kabin" },
+    { key: "tidakMerokok", label: "Tidak Merokok" },
+    { key: "merapikanKabel", label: "Rapikan Kabel" },
+  ];
+  const mark = (val: boolean) => val
+    ? <span className="text-green-600 font-bold">V</span>
+    : <span className="text-red-600 font-bold">X</span>;
+
+  return (
+    <div className="space-y-4 p-4 bg-white text-black text-sm">
+      <div className="text-center border-b pb-3">
+        <h2 className="text-lg font-bold">OBSERVASI KEPATUHAN DRIVER DI AREA CHARGING STATION</h2>
+        <p className="text-gray-600">PT Borneo Indobara</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 text-sm border p-3 rounded bg-gray-50">
+        <div><span className="font-semibold">Tanggal:</span> {session.tanggal}</div>
+        <div><span className="font-semibold">Waktu:</span> {session.waktuMulai} - {session.waktuSelesai}</div>
+        <div><span className="font-semibold">Lokasi:</span> {session.lokasi}</div>
+        <div><span className="font-semibold">Shift:</span> {session.shift}</div>
+        <div className="col-span-2"><span className="font-semibold">Supervisor:</span> {session.supervisorName}</div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse border text-[10px]">
+          <thead>
+            <tr className="bg-amber-500 text-white leading-tight">
+              <th className="border p-1">No</th>
+              <th className="border p-1">Nama</th>
+              <th className="border p-1">No Lambung</th>
+              {QUESTIONS.map((q, i) => (
+                <th key={q.key} className="border p-1" title={q.label}>{i + 1}</th>
+              ))}
+              <th className="border p-1">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records?.map((r, idx) => (
+              <tr key={r.id || idx}>
+                <td className="border p-1 text-center">{idx + 1}</td>
+                <td className="border p-1">{r.namaDriver}</td>
+                <td className="border p-1">{r.nomorLambung}</td>
+                {QUESTIONS.map((q) => (
+                  <td key={q.key} className="border p-1 text-center">{mark(!!r[q.key])}</td>
+                ))}
+                <td className="border p-1">{r.keterangan || ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="border rounded p-3 bg-gray-50 text-[9px]">
+        <p className="font-semibold text-amber-700 mb-1">Keterangan kolom (V = Ya/Patuh, X = Tidak):</p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-2 gap-y-0.5">
+          {QUESTIONS.map((q, i) => (
+            <p key={q.key}><strong>{i + 1}.</strong> {q.label}</p>
+          ))}
+        </div>
+      </div>
+
+      <div className="border rounded p-3 bg-gray-50">
+        <h3 className="font-semibold mb-2 flex items-center gap-2">
+          <Signature className="h-4 w-4 text-primary" />
+          Pemantau:
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {observers.map((obs) => (
+            <div key={obs.id} className="flex flex-col gap-1 border p-2 rounded bg-white">
+              <div>
+                <p className="font-bold text-[10px]">{obs.nama}</p>
+                <p className="text-[9px] text-gray-500">{(obs as any).perusahaan || '-'}</p>
+              </div>
+              {((obs as any).signatureDataUrl || obs.tandaTangan) && (
+                <img src={(obs as any).signatureDataUrl || obs.tandaTangan} alt="TTD" className="h-8 object-contain mt-1" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SopKritisFormPreview({ session, pengendalian, langkah, observers }: {
+  session: any;
+  pengendalian: any[];
+  langkah: any[];
+  observers: Observer[];
+}) {
+  const statusBadge = (s: string) => (
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s === 'Ya' ? 'bg-green-100 text-green-700' : s === 'Tidak' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>{s}</span>
+  );
+  return (
+    <div className="space-y-4 p-4 bg-white text-black text-sm">
+      <div className="text-center border-b pb-3">
+        <h2 className="text-lg font-bold">RINGKASAN PENGENDALIAN DAN SOP KRITIKAL</h2>
+        <p className="text-gray-600">PT Borneo Indobara</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-sm border p-3 rounded bg-gray-50">
+        <div className="col-span-2"><span className="font-semibold">Judul SOP:</span> {session.judulSop}</div>
+        <div><span className="font-semibold">Departemen:</span> {session.departemen || '-'}</div>
+        <div><span className="font-semibold">Risiko:</span> {session.risiko || '-'}</div>
+        <div><span className="font-semibold">NR0:</span> {session.nilaiRisikoMurni || '-'} ({session.tingkatRisiko || '-'})</div>
+        <div><span className="font-semibold">Supervisor:</span> {session.supervisorName}</div>
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-amber-700 mb-1">Pengendalian Kritikal</h3>
+        <div className="space-y-1">
+          {(pengendalian || []).map((it, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs border-b py-1">
+              <span className="text-gray-400 font-bold">{i + 1}.</span>
+              <span className="flex-1">{it.uraian}</span>{statusBadge(it.status)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="font-semibold text-amber-700 mb-1">Item / Langkah Kritikal</h3>
+        <div className="space-y-1">
+          {(langkah || []).map((it, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs border-b py-1">
+              <span className="text-gray-400 font-bold">{i + 1}.</span>
+              <span className="flex-1">{it.uraian}</span>{statusBadge(it.status)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border rounded p-3 bg-gray-50">
+        <h3 className="font-semibold mb-2 flex items-center gap-2"><Signature className="h-4 w-4 text-primary" /> Pemantau:</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {observers.map((obs) => (
+            <div key={obs.id} className="flex flex-col gap-1 border p-2 rounded bg-white">
+              <div>
+                <p className="font-bold text-[10px]">{obs.nama}</p>
+                <p className="text-[9px] text-gray-500">{(obs as any).departemenPerusahaan || '-'}</p>
+              </div>
+              {((obs as any).signatureDataUrl || obs.tandaTangan) && (
+                <img src={(obs as any).signatureDataUrl || obs.tandaTangan} alt="TTD" className="h-8 object-contain mt-1" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EquipmentFormPreview({ session, records, observers }: {
   session: SessionDetail['session'];
   records: any[];
@@ -2269,6 +2429,8 @@ export default function SidakRecap() {
                   <SelectItem value="Workshop">Workshop</SelectItem>
                   <SelectItem value="Behavior">Driver Behavior</SelectItem>
                   <SelectItem value="Intercom">Intercom FMS</SelectItem>
+                  <SelectItem value="ChargingStation">Charging Station</SelectItem>
+                  <SelectItem value="SopKritis">Observasi SOP Kritis</SelectItem>
 
                 </SelectContent>
               </Select>
@@ -2565,13 +2727,26 @@ export default function SidakRecap() {
                         records={detailData.records as BehaviorRecord[]}
                         observers={detailData.observers}
                       />
+                    ) : selectedSession?.type === 'ChargingStation' ? (
+                      <ChargingStationFormPreview
+                        session={detailData.session}
+                        records={detailData.records as any[]}
+                        observers={detailData.observers}
+                      />
+                    ) : selectedSession?.type === 'SopKritis' ? (
+                      <SopKritisFormPreview
+                        session={detailData.session}
+                        pengendalian={(detailData as any).pengendalian as any[]}
+                        langkah={(detailData as any).langkah as any[]}
+                        observers={detailData.observers}
+                      />
                     ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' ? (
                       <EquipmentFormPreview
                         session={detailData.session}
                         records={detailData.records as any[]}
                         observers={detailData.observers}
                       />
-                    
+
                     ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' ? (
                       <Table>
                         <TableHeader>

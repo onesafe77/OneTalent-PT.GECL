@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, History, TrafficCone, Truck, Maximize2, Gauge, Sun, Lock, Shield, Tablet, PenTool, Radio, ShieldCheck } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, History, TrafficCone, Truck, Maximize2, Gauge, Sun, Lock, Shield, Tablet, PenTool, Radio, ShieldCheck, Zap, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function SidakHistoryMenu() {
@@ -278,6 +278,36 @@ export default function SidakHistoryMenu() {
                                         <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
                                     </div>
                                     <div className="text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/charging-station/history" data-testid="link-charging-station-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-amber-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Zap className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-amber-700">Riwayat Charging Station</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
+                        <Link href="/workspace/sidak/sop-kritis/history" data-testid="link-sop-kritis-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <ShieldAlert className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-rose-700">Riwayat SOP Kritis</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
                                 </div>
                             </Button>
                         </Link>

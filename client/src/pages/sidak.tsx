@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, User, ChevronRight, BriefcaseMedical, Users, Radio } from "lucide-react";
+import { ClipboardCheck, Activity, ClipboardList, ArrowLeft, TrafficCone, Truck, Shield, Maximize2, Gauge, Sun, Lock, Tablet, PenTool, Search, Bell, User, ChevronRight, BriefcaseMedical, Users, Radio, Zap, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -304,6 +304,46 @@ export default function SidakDashboard() {
                   </span>
                 </div>
                 <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "sidak charging station observasi kepatuhan driver charging".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/charging-station/new" data-testid="link-sidak-charging-station">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center text-amber-600 dark:text-amber-400 mr-4 flex-shrink-0">
+                  <Zap className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-amber-600 transition-colors">Sidak Charging Station</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Observasi Kepatuhan Driver</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                    Max 10 Sampel
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-amber-100 group-hover:text-amber-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
+          {(searchQuery === "" || "observasi sop kritis ccc ringkasan pengendalian kritikal".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/sop-kritis/new" data-testid="link-sidak-sop-kritis">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-400 mr-4 flex-shrink-0">
+                  <ShieldAlert className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-rose-600 transition-colors">Observasi SOP Kritis</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Ringkasan Pengendalian & SOP Kritikal</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                    CCC
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Camera, File
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyStateCreateButton } from "@/components/sidak/empty-state-create-button";
 import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
@@ -171,11 +172,7 @@ export default function SidakFuelStorageHistory() {
                         <CardContent>
                             <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                             <p className="text-gray-500 font-medium">Belum ada riwayat inspeksi fuel storage</p>
-                            <Link href="/workspace/sidak/fuel-storage/new">
-                                <Button className="mt-6 bg-blue-600 hover:bg-blue-700">
-                                    Mulai Inspeksi Baru
-                                </Button>
-                            </Link>
+                            <EmptyStateCreateButton href="/workspace/sidak/fuel-storage/new" label="Mulai Inspeksi Baru" className="mt-6 bg-blue-600 hover:bg-blue-700" />
                         </CardContent>
                     </Card>
                 ) : (

@@ -204,18 +204,51 @@ export default function SafetyPatrol() {
       toast({ title: "Info", description: "Tidak ada data untuk diekspor" });
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(filteredReports.map(r => ({
-      Tanggal: formatDate(r.tanggal),
-      Bulan: r.bulan || "-",
-      Week: r.week ? `W${r.week}` : "-",
-      Waktu: r.waktuPelaksanaan || "-",
-      Shift: r.shift || "-",
-      Lokasi: r.lokasi || "-",
-      Kegiatan: r.kegiatan || r.jenisLaporan,
-      Pelaksana: r.namaPelaksana || r.senderName || "-",
-      Temuan: r.temuan || "-",
-      Status: r.status,
-    })));
+    // Jadikan URL foto absolut agar bisa diklik dari Excel.
+    const toAbsUrl = (u: string) =>
+      /^https?:\/\//i.test(u) ? u : `${window.location.origin}${u.startsWith("/") ? "" : "/"}${u}`;
+
+    // Banyak foto per laporan -> kolom terpisah "Foto 1..N" (dibatasi 10 agar tidak terlalu lebar).
+    const fotosOf = (r: SafetyPatrolReport) => (r.buktiKegiatan || r.photos || []) as string[];
+    const maxFotos = Math.min(10, filteredReports.reduce((m, r) => Math.max(m, fotosOf(r).length), 0));
+
+    const rows = filteredReports.map(r => {
+      const base: Record<string, string> = {
+        Tanggal: formatDate(r.tanggal),
+        Bulan: r.bulan || "-",
+        Week: r.week ? `W${r.week}` : "-",
+        Waktu: r.waktuPelaksanaan || "-",
+        Shift: r.shift || "-",
+        Lokasi: r.lokasi || "-",
+        Kegiatan: r.kegiatan || r.jenisLaporan,
+        Pelaksana: r.namaPelaksana || r.senderName || "-",
+        Temuan: r.temuan || "-",
+        Status: r.status,
+      };
+      const fotos = fotosOf(r);
+      for (let i = 0; i < maxFotos; i++) {
+        base[`Foto ${i + 1}`] = fotos[i] ? `Foto ${i + 1}` : "";
+      }
+      return base;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Pasang hyperlink (cell.l) pada sel kolom Foto yang ada isinya.
+    const headerKeys = Object.keys(rows[0] || {});
+    filteredReports.forEach((r, ri) => {
+      const fotos = fotosOf(r);
+      for (let i = 0; i < maxFotos; i++) {
+        if (!fotos[i]) continue;
+        const colIdx = headerKeys.indexOf(`Foto ${i + 1}`);
+        if (colIdx < 0) continue;
+        const cellRef = XLSX.utils.encode_cell({ r: ri + 1, c: colIdx }); // +1: baris header
+        if (ws[cellRef]) {
+          ws[cellRef].l = { Target: toAbsUrl(fotos[i]), Tooltip: "Buka foto kegiatan" };
+        }
+      }
+    });
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Safety Patrol");
     XLSX.writeFile(wb, `Safety_Patrol_${format(new Date(), "yyyy-MM-dd")}.xlsx`);

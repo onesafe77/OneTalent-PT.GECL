@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ClipboardCheck, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, FileText, Image, Camera, Upload, Trash2, User } from "lucide-react";
+import { Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, FileText, Image, Camera, Upload, User, Eye, Loader2, Zap } from "lucide-react";
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,80 +19,164 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { SidakSeatbeltSession, SidakSeatbeltRecord, SidakSeatbeltObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { useState, useRef } from "react";
+import { downloadSidakChargingStationAsPdf, downloadSidakChargingStationAsJpg } from "@/lib/sidak-charging-station-pdf-utils";
 
-interface SessionWithDetails extends SidakSeatbeltSession {
-    records?: SidakSeatbeltRecord[];
-    observers?: SidakSeatbeltObserver[];
+interface ChargingSession {
+    id: string;
+    tanggal: string;
+    shift: string;
+    lokasi: string;
+    waktuMulai: string;
+    waktuSelesai: string;
+    totalSampel: number;
+    createdBy: string | null;
+    activityPhotos: string[] | null;
+    createdAt: string;
+    updatedAt: string;
+    records?: any[];
+    observers?: any[];
 }
 
-export default function SidakSeatbeltHistory() {
+const waktuRange = (s: ChargingSession) =>
+    s.waktuMulai && s.waktuSelesai ? `${s.waktuMulai} - ${s.waktuSelesai}` : (s.waktuMulai || "-");
+
+export default function SidakChargingStationHistory() {
     const { toast } = useToast();
     const queryClient = useQueryClient();
-    const [downloadingId, setDownloadingId] = useState<string | null>(null);
-    const [downloadingJpgId, setDownloadingJpgId] = useState<string | null>(null);
     const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
-    const [selectedSession, setSelectedSession] = useState<SessionWithDetails | null>(null);
+    const [selectedSession, setSelectedSession] = useState<ChargingSession | null>(null);
     const [uploadingPhotos, setUploadingPhotos] = useState(false);
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const { data: sessions, isLoading } = useQuery<SessionWithDetails[]>({
-        queryKey: ['/api/sidak-seatbelt'],
+    const fetchSessionDetail = async (sessionId: string) => {
+        const res = await fetch(`/api/sidak-charging-station/${sessionId}`);
+        if (!res.ok) throw new Error('Failed to fetch session detail');
+        return res.json();
+    };
+
+    const handleDownloadPdf = async (session: ChargingSession) => {
+        try {
+            setDownloadingId(session.id);
+            const detail = await fetchSessionDetail(session.id);
+            const filename = `Sidak_ChargingStation_${session.shift}_${format(new Date(session.tanggal), 'dd-MM-yyyy')}.pdf`;
+            await downloadSidakChargingStationAsPdf({
+                session: detail,
+                records: detail.records || [],
+                observers: detail.observers || [],
+            }, filename);
+            toast({ title: "PDF berhasil didownload", description: filename });
+        } catch (error: any) {
+            console.error('PDF download error:', error);
+            toast({ title: "Gagal download PDF", description: error.message, variant: "destructive" });
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
+    const handleDownloadJpg = async (session: ChargingSession) => {
+        try {
+            setDownloadingId(session.id);
+            const detail = await fetchSessionDetail(session.id);
+            const filename = `Sidak_ChargingStation_${session.shift}_${format(new Date(session.tanggal), 'dd-MM-yyyy')}.jpg`;
+            await downloadSidakChargingStationAsJpg({
+                session: detail,
+                records: detail.records || [],
+                observers: detail.observers || [],
+            }, filename);
+            toast({ title: "JPG berhasil didownload", description: filename });
+        } catch (error: any) {
+            console.error('JPG download error:', error);
+            toast({ title: "Gagal download JPG", description: error.message, variant: "destructive" });
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
+    const { data: sessions, isLoading } = useQuery<ChargingSession[]>({
+        queryKey: ['/api/sidak-charging-station'],
     });
+
+    const sortedSessions = sessions?.sort((a, b) =>
+        new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime()
+    );
 
     const uploadPhotosMutation = useMutation({
         mutationFn: async ({ sessionId, files }: { sessionId: string; files: File[] }) => {
-            setUploadingPhotos(true);
-            try {
-                let finalPhotos: string[] = [];
-                for (const file of files) {
-                    const urlResponse = await fetch(`/api/sidak-seatbelt/${sessionId}/request-upload-url`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: file.name, contentType: file.type || 'application/octet-stream' })
-                    });
-                    if (!urlResponse.ok) throw new Error((await urlResponse.json()).error || 'Gagal mendapatkan URL upload');
-                    const { uploadURL } = await urlResponse.json();
+            let finalPhotos: string[] = [];
 
-                    const uploadResponse = await fetch(uploadURL, {
-                        method: 'PUT', body: file,
-                        headers: { 'Content-Type': file.type || 'application/octet-stream' }
-                    });
-                    if (!uploadResponse.ok) throw new Error('Gagal mengupload file ke storage');
+            for (const file of files) {
+                const urlResponse = await fetch(`/api/sidak-charging-station/${sessionId}/request-upload-url`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: file.name,
+                        contentType: file.type || 'application/octet-stream'
+                    })
+                });
 
-                    // Get the uploaded file URL from response
-                    const uploadResult = await uploadResponse.json();
-                    if (!uploadResult.url) throw new Error('Upload succeeded but no URL returned');
-
-                    const confirmResponse = await fetch(`/api/sidak-seatbelt/${sessionId}/confirm-upload`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ url: uploadResult.url }) // Use 'url' instead of 'objectPath'
-                    });
-                    if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).error || 'Gagal konfirmasi upload');
-                    finalPhotos = (await confirmResponse.json()).photos;
+                if (!urlResponse.ok) {
+                    const error = await urlResponse.json();
+                    throw new Error(error.error || 'Failed to get upload URL');
                 }
-                return { photos: finalPhotos };
-            } finally {
-                setUploadingPhotos(false);
+
+                const { uploadURL } = await urlResponse.json();
+
+                const uploadResponse = await fetch(uploadURL, {
+                    method: 'PUT',
+                    body: file,
+                    headers: { 'Content-Type': file.type || 'application/octet-stream' }
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Failed to upload file to storage');
+                }
+
+                const uploadResult = await uploadResponse.json();
+                if (!uploadResult.url) {
+                    throw new Error('Upload succeeded but no URL returned');
+                }
+
+                const confirmResponse = await fetch(`/api/sidak-charging-station/${sessionId}/confirm-upload`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: uploadResult.url })
+                });
+
+                if (!confirmResponse.ok) {
+                    const error = await confirmResponse.json();
+                    throw new Error(error.error || 'Failed to confirm upload');
+                }
+
+                const result = await confirmResponse.json();
+                finalPhotos = result.photos;
             }
+
+            return { photos: finalPhotos };
         },
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['/api/sidak-seatbelt'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/sidak-charging-station'] });
             setSelectedSession(prev => prev ? { ...prev, activityPhotos: data.photos } : null);
-            toast({ title: "Foto berhasil diupload", description: `${data.photos.length} foto kegiatan tersimpan` });
+            toast({
+                title: "Foto berhasil diupload",
+                description: `${data.photos.length} foto kegiatan tersimpan`,
+            });
         },
         onError: (error: any) => {
-            toast({ title: "Gagal upload foto", description: error.message, variant: "destructive" });
+            toast({
+                title: "Gagal upload foto",
+                description: error.message,
+                variant: "destructive",
+            });
         },
     });
 
     const deletePhotoMutation = useMutation({
         mutationFn: async ({ sessionId, photoIndex }: { sessionId: string; photoIndex: number }) => {
-            const response = await fetch(`/api/sidak-seatbelt/${sessionId}/photos/${photoIndex}`, {
+            const response = await fetch(`/api/sidak-charging-station/${sessionId}/photos/${photoIndex}`, {
                 method: 'DELETE',
             });
 
@@ -104,22 +188,23 @@ export default function SidakSeatbeltHistory() {
             return response.json();
         },
         onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['/api/sidak-seatbelt'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/sidak-charging-station'] });
             setSelectedSession(prev => prev ? { ...prev, activityPhotos: data.photos } : null);
             toast({
-                title: "Foto berhasil dihapus",
+                title: "Foto dihapus",
+                description: "Foto berhasil dihapus",
             });
         },
         onError: (error: any) => {
             toast({
-                title: "Gagal hapus foto",
+                title: "Gagal menghapus foto",
                 description: error.message,
                 variant: "destructive",
             });
         },
     });
 
-    const handleOpenPhotoDialog = (session: SessionWithDetails) => {
+    const handleOpenPhotoDialog = (session: ChargingSession) => {
         setSelectedSession(session);
         setPhotoDialogOpen(true);
     };
@@ -148,171 +233,98 @@ export default function SidakSeatbeltHistory() {
         }
     };
 
-    const handleDownloadPDF = async (sessionId: string) => {
-        try {
-            setDownloadingId(sessionId);
-
-            // Fetch full session data with records and observers
-            const response = await fetch(`/api/sidak-seatbelt/${sessionId}`);
-            if (!response.ok) {
-                throw new Error('Gagal mengambil data session');
-            }
-
-            const sessionData = await response.json();
-
-            // Dynamically import PDF generation to avoid increasing main bundle size
-            const { generateSidakSeatbeltPdf } = await import('@/lib/sidak-seatbelt-pdf-utils');
-
-            // Generate PDF
-            const pdf = await generateSidakSeatbeltPdf({
-                session: sessionData,
-                records: sessionData.records || [],
-                observers: sessionData.observers || [],
-            });
-
-            // Download PDF
-            const fileName = `Sidak_Seatbelt_${sessionData.tanggal}_${sessionData.shift.replace(' ', '_')}.pdf`;
-            pdf.save(fileName);
-
-            toast({
-                title: "PDF berhasil diunduh",
-                description: `File ${fileName} telah tersimpan`,
-            });
-        } catch (error: any) {
-            toast({
-                title: "Gagal mengunduh PDF",
-                description: error.message || "Terjadi kesalahan saat membuat PDF",
-                variant: "destructive",
-            });
-        } finally {
-            setDownloadingId(null);
-        }
-    };
-
-    const handleDownloadJPG = async (sessionId: string) => {
-        try {
-            setDownloadingJpgId(sessionId);
-
-            // Fetch full session data with records and observers
-            const response = await fetch(`/api/sidak-seatbelt/${sessionId}`);
-            if (!response.ok) {
-                throw new Error('Gagal mengambil data session');
-            }
-
-            const sessionData = await response.json();
-
-            // Dynamically import JPG generation
-            const { downloadSidakSeatbeltAsJpg } = await import('@/lib/sidak-seatbelt-pdf-utils');
-
-            // Generate and download JPG
-            const fileName = `Sidak_Seatbelt_${sessionData.tanggal}_${sessionData.shift.replace(' ', '_')}_${Date.now()}.jpg`;
-            await downloadSidakSeatbeltAsJpg({
-                session: sessionData,
-                records: sessionData.records || [],
-                observers: sessionData.observers || [],
-            }, fileName);
-
-            toast({
-                title: "JPG berhasil diunduh",
-                description: `File ${fileName} telah tersimpan`,
-            });
-        } catch (error: any) {
-            toast({
-                title: "Gagal mengunduh JPG",
-                description: error.message || "Terjadi kesalahan saat membuat JPG",
-                variant: "destructive",
-            });
-        } finally {
-            setDownloadingJpgId(null);
-        }
-    };
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
             <div className="container max-w-2xl mx-auto p-3 md:p-4 space-y-4">
+                {/* Header */}
                 <div className="flex items-center gap-3 pt-2">
                     <Link href="/workspace/sidak">
-                        <Button variant="outline" size="icon" className="h-9 w-9">
+                        <Button variant="outline" size="icon" className="h-9 w-9" data-testid="button-back-sidak">
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
                     </Link>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                            <ClipboardCheck className="h-6 w-6 text-red-600 flex-shrink-0" />
+                            <Zap className="h-6 w-6 text-amber-500 flex-shrink-0" />
                             <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate">
-                                Riwayat Sidak Seatbelt
+                                Riwayat Sidak Charging Station
                             </h1>
                         </div>
                         <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">
-                            Form BIB-HSE-ES-F-3.02-86 - Pemeriksaan Seatbelt
+                            Observasi Kepatuhan Driver di Area Charging Station
                         </p>
                     </div>
                 </div>
 
                 {isLoading ? (
                     <div className="text-center py-12">
-                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600 mx-auto"></div>
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
                         <p className="text-gray-600 dark:text-gray-400 mt-3 text-sm">Memuat data...</p>
                     </div>
-                ) : !sessions || sessions.length === 0 ? (
+                ) : !sortedSessions || sortedSessions.length === 0 ? (
                     <Card className="text-center py-10">
                         <CardContent className="pt-0">
-                            <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                            <Eye className="h-12 w-12 text-gray-400 mx-auto mb-3" />
                             <p className="text-gray-600 dark:text-gray-400">
-                                Belum ada riwayat Sidak Seatbelt
+                                Belum ada riwayat Sidak Charging Station
                             </p>
-                            <EmptyStateCreateButton href="/workspace/sidak/seatbelt/new" label="Buat Sidak Baru" icon={ClipboardCheck} className="mt-4 bg-red-600 hover:bg-red-700" size="sm" />
+                            <EmptyStateCreateButton href="/workspace/sidak/charging-station/new" label="Buat Sidak Baru" icon={Zap} className="mt-4 bg-blue-600 hover:bg-blue-700" size="sm" />
                         </CardContent>
                     </Card>
                 ) : (
                     <div className="space-y-3">
-                        {sessions.map((session) => (
+                        {sortedSessions.map((session) => (
                             <Card
                                 key={session.id}
                                 className="overflow-hidden border-none shadow-lg rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700"
                                 data-testid={`card-session-${session.id}`}
                             >
-                                <div className="h-1.5 w-full bg-gradient-to-r from-red-500 to-rose-500" />
+                                <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500" />
                                 <CardContent className="p-5">
+                                    {/* Header row with title and badge */}
                                     <div className="flex items-center justify-between gap-2 mb-4">
                                         <div>
                                             <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                                                {session.shift}
+                                                Charging Station - {session.shift}
                                             </h3>
                                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
                                                 <Calendar className="h-3.5 w-3.5" />
-                                                <span>{format(new Date(session.tanggal), 'dd MMM yyyy', { locale: id })}</span>
+                                                <span>{format(new Date(session.tanggal), 'eeee, dd MMM yyyy', { locale: id })}</span>
                                                 <span className="text-gray-300">•</span>
                                                 <Clock className="h-3.5 w-3.5" />
-                                                <span>{session.waktu}</span>
+                                                <span>{waktuRange(session)}</span>
                                             </div>
                                         </div>
-                                        <Badge variant="secondary" className="bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 rounded-full px-3 py-0.5 text-xs font-semibold whitespace-nowrap border-0">
-                                            {session.totalSampel} Unit
+                                        <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-full px-3 py-0.5 text-xs font-semibold whitespace-nowrap border-0">
+                                            {session.totalSampel} Driver
                                         </Badge>
                                     </div>
 
-                                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 mb-4 grid grid-cols-2 gap-3">
+                                    {/* Location info */}
+                                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-3 mb-4">
                                         <div className="space-y-1">
-                                            <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                                                 <MapPin className="h-3.5 w-3.5" />
                                                 <span className="text-[10px] uppercase font-bold tracking-wider">Lokasi</span>
                                             </div>
                                             <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{session.lokasi}</p>
                                         </div>
-                                        {session.observers && session.observers.length > 0 && (
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
-                                                    <User className="h-3.5 w-3.5" />
-                                                    <span className="text-[10px] uppercase font-bold tracking-wider">Observer</span>
-                                                </div>
-                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
-                                                    {session.observers.map(o => o.nama).join(', ')}
-                                                </p>
-                                            </div>
-                                        )}
                                     </div>
 
+                                    {/* Observer info */}
+                                    {session.observers && session.observers.length > 0 && (
+                                        <div className="flex items-start gap-2 mb-4 text-xs">
+                                            <User className="h-4 w-4 text-gray-400 mt-0.5" />
+                                            <div>
+                                                <span className="text-gray-500 font-medium mr-1">Pemantau:</span>
+                                                <span className="text-gray-700 dark:text-gray-300">
+                                                    {session.observers.map((o: any) => o.nama).join(', ')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Photo gallery preview if photos exist */}
                                     {session.activityPhotos && session.activityPhotos.length > 0 && (
                                         <div className="mb-4">
                                             <div className="flex items-center justify-between mb-2">
@@ -344,61 +356,59 @@ export default function SidakSeatbeltHistory() {
                                         </div>
                                     )}
 
+                                    {/* Download & Actions */}
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button
-                                                disabled={downloadingId === session.id || downloadingJpgId === session.id}
-                                                className="w-full bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white shadow-md shadow-red-500/20 rounded-lg h-10 font-medium transition-all active:scale-[0.98]"
+                                                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 rounded-lg h-10 font-medium transition-all active:scale-[0.98]"
                                                 data-testid={`button-download-${session.id}`}
                                             >
                                                 <Download className="h-4 w-4 mr-2" />
-                                                {(downloadingId === session.id || downloadingJpgId === session.id) ? 'Mengunduh...' : 'Pilihan Aksi'}
+                                                Download Data
                                                 <ChevronDown className="h-4 w-4 ml-auto opacity-70" />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-xl p-1 shadow-xl border-gray-200 dark:border-gray-700">
-                                            {(!session.activityPhotos || session.activityPhotos.length === 0) && (
-                                                <div className="px-2 py-1.5 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400 border-b mb-1 rounded-t-lg">
-                                                    <Camera className="h-3 w-3 inline mr-1" />
-                                                    Upload foto dulu untuk download
-                                                </div>
-                                            )}
                                             <DropdownMenuItem
-                                                onClick={() => handleDownloadPDF(session.id)}
-                                                disabled={!session.activityPhotos || session.activityPhotos.length === 0}
-                                                className={`rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                disabled={downloadingId === session.id}
+                                                onClick={() => handleDownloadPdf(session)}
+                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer`}
                                                 data-testid={`button-download-pdf-${session.id}`}
                                             >
-                                                <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center mr-3">
-                                                    <FileText className="h-4 w-4" />
+                                                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                                                    {downloadingId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="font-medium">Download PDF</span>
-                                                    <span className="text-xs text-muted-foreground">Laporan lengkap</span>
+                                                    <span className="text-xs text-muted-foreground">Laporan lengkap dengan foto</span>
                                                 </div>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() => handleDownloadJPG(session.id)}
-                                                disabled={!session.activityPhotos || session.activityPhotos.length === 0}
-                                                className={`rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                                                disabled={downloadingId === session.id}
+                                                onClick={() => handleDownloadJpg(session)}
+                                                className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer`}
                                                 data-testid={`button-download-jpg-${session.id}`}
                                             >
-                                                <div className="h-8 w-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mr-3">
-                                                    <Image className="h-4 w-4" />
+                                                <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
+                                                    {downloadingId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="font-medium">Download JPG</span>
-                                                    <span className="text-xs text-muted-foreground">Format gambar</span>
+                                                    <span className="text-xs text-muted-foreground">Format gambar untuk sharing</span>
                                                 </div>
                                             </DropdownMenuItem>
                                             <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
-                                            <DropdownMenuItem onClick={() => handleOpenPhotoDialog(session)} data-testid={`button-upload-photo-${session.id}`} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
+                                            <DropdownMenuItem
+                                                onClick={() => handleOpenPhotoDialog(session)}
+                                                data-testid={`button-upload-photo-${session.id}`}
+                                                className="rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer"
+                                            >
                                                 <div className="h-8 w-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center mr-3">
                                                     <Camera className="h-4 w-4" />
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="font-medium">Kelola Foto</span>
-                                                    <span className="text-xs text-muted-foreground">Upload/Hapus</span>
+                                                    <span className="text-xs text-muted-foreground">Upload atau hapus dokumentasi</span>
                                                 </div>
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
@@ -410,22 +420,26 @@ export default function SidakSeatbeltHistory() {
                 )}
             </div>
 
+            {/* Photo Upload/View Dialog */}
             <Dialog open={photoDialogOpen} onOpenChange={setPhotoDialogOpen}>
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Camera className="h-5 w-5 text-red-600" />
-                            Foto Kegiatan SIDAK
+                            <Camera className="h-5 w-5 text-blue-600" />
+                            Foto Kegiatan SIDAK Charging Station
                         </DialogTitle>
                     </DialogHeader>
+
                     {selectedSession && (
                         <div className="space-y-4">
+                            {/* Session info */}
                             <div className="text-sm text-gray-600 dark:text-gray-400">
                                 <p><strong>Tanggal:</strong> {format(new Date(selectedSession.tanggal), 'dd MMMM yyyy', { locale: id })}</p>
                                 <p><strong>Shift:</strong> {selectedSession.shift}</p>
                                 <p><strong>Lokasi:</strong> {selectedSession.lokasi}</p>
                             </div>
 
+                            {/* Upload button */}
                             <div>
                                 <input
                                     ref={fileInputRef}
@@ -438,7 +452,7 @@ export default function SidakSeatbeltHistory() {
                                 <Button
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={uploadingPhotos || (selectedSession.activityPhotos?.length || 0) >= 6}
-                                    className="w-full bg-red-600 hover:bg-red-700"
+                                    className="w-full bg-blue-600 hover:bg-blue-700"
                                     data-testid="button-upload-photos"
                                 >
                                     <Upload className="h-4 w-4 mr-2" />
@@ -449,6 +463,7 @@ export default function SidakSeatbeltHistory() {
                                 </p>
                             </div>
 
+                            {/* Photo gallery */}
                             {selectedSession.activityPhotos && selectedSession.activityPhotos.length > 0 ? (
                                 <div className="grid grid-cols-2 gap-3">
                                     {selectedSession.activityPhotos.map((photo, idx) => (
@@ -458,7 +473,7 @@ export default function SidakSeatbeltHistory() {
                                             index={idx}
                                             onDelete={() => handleDeletePhoto(idx)}
                                             isDeleting={deletePhotoMutation.isPending}
-                                            accentColor="red"
+                                            accentColor="blue"
                                         />
                                     ))}
                                 </div>
@@ -469,6 +484,7 @@ export default function SidakSeatbeltHistory() {
                                 </div>
                             )}
 
+                            {/* Close button */}
                             <Button
                                 variant="outline"
                                 onClick={() => setPhotoDialogOpen(false)}
@@ -481,6 +497,6 @@ export default function SidakSeatbeltHistory() {
                     )}
                 </DialogContent>
             </Dialog>
-        </div >
+        </div>
     );
 }

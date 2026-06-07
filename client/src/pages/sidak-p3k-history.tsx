@@ -4,6 +4,7 @@ import { id } from "date-fns/locale";
 import { SidakP3kSession, SidakP3kItem } from "@shared/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyStateCreateButton } from "@/components/sidak/empty-state-create-button";
 import { Badge } from "@/components/ui/badge";
 import {
     Eye, Printer, Loader2, ArrowLeft, History, FileText,
@@ -75,13 +76,7 @@ export default function SidakP3kHistory() {
                             <p className="text-gray-500 dark:text-gray-400 mt-1 mb-6 max-w-xs mx-auto">
                                 Belum ada data pemeriksaan kotak P3K yang tercatat. Mulai inspeksi baru sekarang.
                             </p>
-                            <Button
-                                variant="outline"
-                                onClick={() => navigate("/workspace/sidak/p3k/new")}
-                                className="border-blue-200 text-blue-600 hover:bg-blue-50"
-                            >
-                                Mulai Inspeksi
-                            </Button>
+                            <EmptyStateCreateButton href="/workspace/sidak/p3k/new" label="Mulai Inspeksi" variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50" />
                         </CardContent>
                     </Card>
                 ) : (

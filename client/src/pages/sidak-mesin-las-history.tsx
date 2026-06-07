@@ -4,6 +4,7 @@ import { Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Camera, File
 import { PhotoThumbnail } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { EmptyStateCreateButton } from "@/components/sidak/empty-state-create-button";
 import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
@@ -158,11 +159,7 @@ export default function SidakMesinLasHistory() {
                         <CardContent>
                             <Shield className="h-16 w-16 text-gray-200 mx-auto mb-4" />
                             <p className="text-gray-500 font-medium font-bold">Belum ada riwayat inspeksi mesin las</p>
-                            <Link href="/workspace/sidak/mesin-las/new">
-                                <Button className="mt-6 bg-orange-600 hover:bg-orange-700 rounded-xl font-bold px-8 shadow-lg shadow-orange-100 dark:shadow-none">
-                                    Mulai Inspeksi Baru Sekarang
-                                </Button>
-                            </Link>
+                            <EmptyStateCreateButton href="/workspace/sidak/mesin-las/new" label="Mulai Inspeksi Baru Sekarang" className="mt-6 bg-orange-600 hover:bg-orange-700 rounded-xl font-bold px-8 shadow-lg shadow-orange-100 dark:shadow-none" />
                         </CardContent>
                     </Card>
                 ) : (

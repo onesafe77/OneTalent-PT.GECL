@@ -56,8 +56,10 @@ export function SignaturePad({ onSave, onClear, disabled = false, title = "Tanda
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !context) return;
-    
-    e.preventDefault();
+
+    // Hanya untuk mouse: preventDefault di listener touch React bersifat pasif (memicu warning).
+    // Scroll/zoom saat menggambar sudah dicegah oleh CSS `touch-none` (touch-action:none) pada canvas.
+    if (!('touches' in e)) e.preventDefault();
     const pos = getPosition(e);
     context.lineTo(pos.x, pos.y);
     context.stroke();

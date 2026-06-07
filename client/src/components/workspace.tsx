@@ -55,6 +55,10 @@ import SidakP3kForm from "@/pages/sidak-p3k-form";
 import SidakP3kHistory from "@/pages/sidak-p3k-history";
 import SidakBehaviorForm from "@/pages/sidak-behavior-form";
 import SidakBehaviorHistory from "@/pages/sidak-behavior-history";
+import SidakChargingStationForm from "@/pages/sidak-charging-station-form";
+import SidakChargingStationHistory from "@/pages/sidak-charging-station-history";
+import SidakSopKritisForm from "@/pages/sidak-sop-kritis-form";
+import SidakSopKritisHistory from "@/pages/sidak-sop-kritis-history";
 import SidakIntercomForm from "@/pages/sidak-intercom-form";
 import SidakIntercomHistory from "@/pages/sidak-intercom-history";
 import EvaluasiDriver from "@/pages/evaluasi-driver";
@@ -377,6 +381,11 @@ export function Workspace() {
               <Route path="/workspace/sidak/p3k/history" component={SidakP3kHistory} />
               <Route path="/workspace/sidak/behavior/new" component={SidakBehaviorForm} />
               <Route path="/workspace/sidak/behavior/history" component={SidakBehaviorHistory} />
+              <Route path="/workspace/sidak/charging-station/new" component={SidakChargingStationForm} />
+              <Route path="/workspace/sidak/charging-station/history" component={SidakChargingStationHistory} />
+              <Route path="/workspace/sidak/sop-kritis/new" component={SidakSopKritisForm} />
+              <Route path="/workspace/sidak/sop-kritis/:id/edit" component={SidakSopKritisForm} />
+              <Route path="/workspace/sidak/sop-kritis/history" component={SidakSopKritisHistory} />
               <Route path="/workspace/sidak/intercom/new" component={SidakIntercomForm} />
               <Route path="/workspace/sidak/intercom/history" component={SidakIntercomHistory} />
               <Route path="/workspace/sidak/stand-jack/new" component={SidakStandJackForm} />
