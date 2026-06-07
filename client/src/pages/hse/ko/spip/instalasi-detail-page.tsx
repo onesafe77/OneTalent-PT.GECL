@@ -103,8 +103,13 @@ export function InstalasiFormPage({ id }: { id?: string }) {
 
             await apiRequest(url, method, payload);
             queryClient.invalidateQueries({ queryKey: ["/api/spip/instalasi"] });
-            toast({ title: isEdit ? "Data diperbarui" : "Data ditambahkan" });
-            navigate("/workspace/hse/ko/spip/instalasi");
+            if (isEdit) {
+                // Tetap di halaman edit setelah update (tidak balik ke daftar)
+                toast({ title: "Data diperbarui" });
+            } else {
+                toast({ title: "Data ditambahkan" });
+                navigate("/workspace/hse/ko/spip/instalasi");
+            }
         } catch (e: any) {
             toast({ title: "Gagal menyimpan", description: e.message, variant: "destructive" });
         }

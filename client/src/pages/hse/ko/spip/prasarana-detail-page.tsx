@@ -164,8 +164,13 @@ export function PrasaranaFormPage({ id }: { id?: string }) {
 
             await apiRequest(url, method, payload);
             queryClient.invalidateQueries({ queryKey: ["/api/spip/prasarana"] });
-            toast({ title: isEdit ? "Data diperbarui" : "Data ditambahkan" });
-            navigate("/workspace/hse/ko/spip/prasarana");
+            if (isEdit) {
+                // Tetap di halaman edit setelah update (tidak balik ke daftar)
+                toast({ title: "Data diperbarui" });
+            } else {
+                toast({ title: "Data ditambahkan" });
+                navigate("/workspace/hse/ko/spip/prasarana");
+            }
         } catch (e: any) {
             toast({ title: "Gagal menyimpan", description: e.message, variant: "destructive" });
         }

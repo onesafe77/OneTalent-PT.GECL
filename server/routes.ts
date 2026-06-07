@@ -20057,8 +20057,8 @@ Format sebagai bullet points singkat per insight.`;
     if (req.params.id === "workshop") return next();
     try {
       const { id } = req.params;
-      // partial validation
-      const data = req.body;
+      // Validasi + koersi tanggal (string -> Date) via schema, agar Drizzle timestamp tidak error
+      const data = insertSpipPeralatanSchema.partial().parse(req.body);
 
       const updated = await db.update(spipPeralatan).set({
         ...data,
@@ -20337,7 +20337,8 @@ Format sebagai bullet points singkat per insight.`;
   app.put("/api/spip/prasarana/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const [updated] = await db.update(spipPrasarana).set({ ...req.body, updatedAt: new Date() }).where(eq(spipPrasarana.id, id)).returning();
+      const data = insertSpipPrasaranaSchema.partial().parse(req.body);
+      const [updated] = await db.update(spipPrasarana).set({ ...data, updatedAt: new Date() }).where(eq(spipPrasarana.id, id)).returning();
       if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
       res.json(updated);
     } catch (error: any) {
@@ -20601,7 +20602,8 @@ Format sebagai bullet points singkat per insight.`;
   app.put("/api/spip/instalasi/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const [updated] = await db.update(spipInstalasi).set({ ...req.body, updatedAt: new Date() }).where(eq(spipInstalasi.id, id)).returning();
+      const data = insertSpipInstalasiSchema.partial().parse(req.body);
+      const [updated] = await db.update(spipInstalasi).set({ ...data, updatedAt: new Date() }).where(eq(spipInstalasi.id, id)).returning();
       if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
       res.json(updated);
     } catch (error: any) {
@@ -20879,8 +20881,9 @@ Format sebagai bullet points singkat per insight.`;
 
   app.put("/api/spip/peralatan/workshop/:id", async (req, res) => {
     try {
+      const data = insertSpipPeralatanWorkshopSchema.partial().parse(req.body);
       const [updated] = await db.update(spipPeralatanWorkshop).set({
-        ...req.body,
+        ...data,
         updatedAt: new Date()
       }).where(eq(spipPeralatanWorkshop.id, req.params.id)).returning();
       if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });

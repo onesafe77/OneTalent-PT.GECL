@@ -125,6 +125,8 @@ const ADMIN_POSITIONS = [
   "hse section head",
   "production section head",
   "maintenance section head",
+  "plant section head",
+  "section head plant",
   "project manager",
 ];
 

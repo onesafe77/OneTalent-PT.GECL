@@ -200,8 +200,13 @@ export function PeralatanFormPage() {
             await apiRequest(url, method, payload);
             queryClient.invalidateQueries({ queryKey: ["/api/spip/peralatan"] });
             queryClient.invalidateQueries({ queryKey: ["/api/spip/peralatan/all"] });
-            toast({ title: isEdit ? "Data diperbarui" : "Data ditambahkan" });
-            navigate("/workspace/hse/ko/spip/peralatan");
+            if (isEdit) {
+                // Tetap di halaman edit setelah update (tidak balik ke daftar)
+                toast({ title: "Data diperbarui" });
+            } else {
+                toast({ title: "Data ditambahkan" });
+                navigate("/workspace/hse/ko/spip/peralatan");
+            }
         } catch (e: any) {
             toast({ title: "Gagal menyimpan", description: e.message, variant: "destructive" });
         }

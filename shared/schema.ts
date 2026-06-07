@@ -4178,7 +4178,14 @@ export const spipPeralatan = pgTable("spip_peralatan", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertSpipPeralatanSchema = createInsertSchema(spipPeralatan).omit({
+// Koersi tanggal SPIP: "" -> null, string "YYYY-MM-DD" -> Date (kolom timestamp butuh Date).
+const spipOptionalDate = z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional());
+
+export const insertSpipPeralatanSchema = createInsertSchema(spipPeralatan, {
+  tglPengajuanBib: spipOptionalDate,
+  expiredBib: spipOptionalDate,
+  expiredTia: spipOptionalDate,
+}).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
@@ -4225,10 +4232,10 @@ export const spipPrasarana = pgTable("spip_prasarana", {
 });
 
 export const insertSpipPrasaranaSchema = createInsertSchema(spipPrasarana, {
-  tglSertifikat: z.coerce.date().nullable().optional(),
-  expSertifikat: z.coerce.date().nullable().optional(),
-  jadwalPerawatanS1: z.coerce.date().nullable().optional(),
-  jadwalPerawatanS2: z.coerce.date().nullable().optional(),
+  tglSertifikat: spipOptionalDate,
+  expSertifikat: spipOptionalDate,
+  jadwalPerawatanS1: spipOptionalDate,
+  jadwalPerawatanS2: spipOptionalDate,
 }).omit({
   id: true,
   createdAt: true,
@@ -4269,8 +4276,8 @@ export const spipInstalasi = pgTable("spip_instalasi", {
 });
 
 export const insertSpipInstalasiSchema = createInsertSchema(spipInstalasi, {
-  tglSertifikat: z.coerce.date().nullable().optional(),
-  expSertifikat: z.coerce.date().nullable().optional(),
+  tglSertifikat: spipOptionalDate,
+  expSertifikat: spipOptionalDate,
 }).omit({
   id: true,
   createdAt: true,
@@ -4319,8 +4326,8 @@ export const spipPeralatanWorkshop = pgTable("spip_peralatan_workshop", {
 });
 
 export const insertSpipPeralatanWorkshopSchema = createInsertSchema(spipPeralatanWorkshop, {
-  tglSertifikat: z.coerce.date().nullable().optional(),
-  expSertifikat: z.coerce.date().nullable().optional(),
+  tglSertifikat: spipOptionalDate,
+  expSertifikat: spipOptionalDate,
 }).omit({
   id: true,
   createdAt: true,
