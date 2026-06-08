@@ -27,6 +27,7 @@ import { apiRequest } from "@/lib/queryClient";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 
 export default function SidakP3kHistory() {
@@ -261,11 +262,11 @@ function HistoryCard({ session }: { session: SidakP3kSession }) {
                                 <Eye className="mr-2 h-4 w-4" />
                                 Lihat Detail
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { handleOpen(); setTimeout(handlePrint, 500); }} className="cursor-pointer">
+                            <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleOpen(); setTimeout(handlePrint, 500); }} className="cursor-pointer">
                                 <Printer className="mr-2 h-4 w-4" />
                                 Cetak PDF
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => { handleOpen(); setTimeout(handleDownloadJPG, 1000); }} className="cursor-pointer">
+                            <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleOpen(); setTimeout(handleDownloadJPG, 1000); }} className="cursor-pointer">
                                 <ImageIcon className="mr-2 h-4 w-4" />
                                 Download JPG
                             </DropdownMenuItem>
@@ -337,7 +338,7 @@ function HistoryCard({ session }: { session: SidakP3kSession }) {
                             <DialogTitle className="flex items-center justify-between">
                                 <span>Laporan Inspeksi P3K</span>
                                 <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => handleDownloadJPG()} variant="outline" className="h-8 text-xs gap-2" disabled={!details}>
+                                    <Button size="sm" onClick={() => { if (!fotoKegiatanGuard(details, toast)) return; handleDownloadJPG(); }} variant="outline" className="h-8 text-xs gap-2" disabled={!details}>
                                         <ImageIcon className="h-3.5 w-3.5" /> JPG
                                     </Button>
                                     <Button size="sm" onClick={() => handlePrint()} variant="outline" className="h-8 text-xs gap-2" disabled={!details}>

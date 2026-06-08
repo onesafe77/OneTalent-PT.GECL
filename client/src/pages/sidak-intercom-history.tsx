@@ -19,6 +19,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import type { SidakIntercomSession, SidakIntercomRecord, SidakIntercomObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id as localeId } from "date-fns/locale";
@@ -301,7 +302,7 @@ export default function SidakIntercomHistory() {
                                                 </div>
                                             )}
                                             <DropdownMenuItem
-                                                onClick={() => handleDownloadPdf(session)}
+                                                onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPdf(session); }}
                                                 disabled={!session.activityPhotos || session.activityPhotos.length === 0}
                                                 className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                                             >
@@ -315,7 +316,7 @@ export default function SidakIntercomHistory() {
                                             </DropdownMenuItem>
 
                                             <DropdownMenuItem
-                                                onClick={() => handleDownloadJpg(session)}
+                                                onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadJpg(session); }}
                                                 disabled={!session.activityPhotos || session.activityPhotos.length === 0}
                                                 className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                                             >

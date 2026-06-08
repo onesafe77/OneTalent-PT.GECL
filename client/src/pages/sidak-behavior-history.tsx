@@ -19,6 +19,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { useState, useRef } from "react";
@@ -376,7 +377,7 @@ export default function SidakBehaviorHistory() {
                                         <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-xl p-1 shadow-xl border-gray-200 dark:border-gray-700">
                                             <DropdownMenuItem
                                                 disabled={downloadingId === session.id}
-                                                onClick={() => handleDownloadPdf(session)}
+                                                onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPdf(session); }}
                                                 className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer`}
                                                 data-testid={`button-download-pdf-${session.id}`}
                                             >
@@ -390,7 +391,7 @@ export default function SidakBehaviorHistory() {
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 disabled={downloadingId === session.id}
-                                                onClick={() => handleDownloadJpg(session)}
+                                                onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadJpg(session); }}
                                                 className={`rounded-lg py-2.5 px-3 focus:bg-blue-50 dark:focus:bg-blue-900/20 cursor-pointer`}
                                                 data-testid={`button-download-jpg-${session.id}`}
                                             >

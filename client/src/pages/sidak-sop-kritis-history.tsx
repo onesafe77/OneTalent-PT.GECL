@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { useState, useRef } from "react";
@@ -218,13 +219,13 @@ export default function SidakSopKritisHistory() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-xl p-1 shadow-xl">
-                                            <DropdownMenuItem disabled={downloadingId === session.id} onClick={() => handleDownloadPdf(session)} className="rounded-lg py-2.5 px-3 cursor-pointer">
+                                            <DropdownMenuItem disabled={downloadingId === session.id} onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPdf(session); }} className="rounded-lg py-2.5 px-3 cursor-pointer">
                                                 <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                                                     {downloadingId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                                                 </div>
                                                 <div className="flex flex-col"><span className="font-medium">Download PDF</span><span className="text-xs text-muted-foreground">Laporan lengkap</span></div>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem disabled={downloadingId === session.id} onClick={() => handleDownloadJpg(session)} className="rounded-lg py-2.5 px-3 cursor-pointer">
+                                            <DropdownMenuItem disabled={downloadingId === session.id} onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadJpg(session); }} className="rounded-lg py-2.5 px-3 cursor-pointer">
                                                 <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-3">
                                                     {downloadingId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
                                                 </div>

@@ -19,6 +19,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import type { SidakMesinLasSession, SidakMesinLasRecord, SidakMesinLasObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -226,7 +227,7 @@ export default function SidakMesinLasHistory() {
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-3xl p-3 shadow-2xl border-none">
-                                                <DropdownMenuItem onClick={() => handleDownloadPDF(session.id)} disabled={downloadingId === session.id} className="rounded-2xl py-4 cursor-pointer hover:bg-red-50 focus:bg-red-50 transition-all group">
+                                                <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPDF(session.id); }} disabled={downloadingId === session.id} className="rounded-2xl py-4 cursor-pointer hover:bg-red-50 focus:bg-red-50 transition-all group">
                                                     <div className="h-10 w-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
                                                         <FileText className="h-5 w-5" />
                                                     </div>

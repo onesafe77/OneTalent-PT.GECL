@@ -143,9 +143,11 @@ export function UsignDashboard({ userId, nik }: { userId?: string, nik: string }
                             </PopoverContent>
                         </Popover>
                     )}
-                    <Button className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
-                        <Plus className="w-4 h-4 mr-2" /> Buat Permintaan
-                    </Button>
+                    <Link href="/workspace/usign/request">
+                        <Button className="bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+                            <Plus className="w-4 h-4 mr-2" /> Buat Permintaan
+                        </Button>
+                    </Link>
                 </div>
             </div>
 

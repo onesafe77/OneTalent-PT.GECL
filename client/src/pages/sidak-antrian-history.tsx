@@ -20,6 +20,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import type { SidakAntrianSession, SidakAntrianRecord, SidakAntrianObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -365,7 +366,7 @@ export default function SidakAntrianHistory() {
                                                 </div>
                                             ) : (
                                                 <>
-                                                    <DropdownMenuItem onClick={() => handleDownloadPDF(session.id)} disabled={downloadingId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
+                                                    <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPDF(session.id); }} disabled={downloadingId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
                                                         <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center mr-3">
                                                             <FileText className="h-4 w-4" />
                                                         </div>
@@ -374,7 +375,7 @@ export default function SidakAntrianHistory() {
                                                             <span className="text-xs text-muted-foreground">Laporan lengkap</span>
                                                         </div>
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleDownloadJPG(session.id)} disabled={downloadingJpgId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
+                                                    <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadJPG(session.id); }} disabled={downloadingJpgId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
                                                         <div className="h-8 w-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mr-3">
                                                             <Image className="h-4 w-4" />
                                                         </div>

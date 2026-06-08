@@ -154,6 +154,10 @@ export default function UsignRequestPage() {
     };
 
     const addApprover = (approverId: string) => {
+        if (approverId === user?.nik) {
+            toast({ title: "Tidak diizinkan", description: "Anda tidak bisa menambahkan diri sendiri sebagai approver (self-approval).", variant: "destructive" });
+            return;
+        }
         const emp = employees.find((e: any) => e.id === approverId);
         if (emp && !selectedApprovers.find(a => a.id === approverId)) {
             setSelectedApprovers([...selectedApprovers, { id: emp.id, name: emp.name }]);
@@ -208,7 +212,7 @@ export default function UsignRequestPage() {
                                     <p className="mt-4 text-lg font-bold text-slate-700">
                                         {file ? file.name : "Seret PDF atau klik untuk mencari"}
                                     </p>
-                                    <p className="text-sm text-slate-500 mt-2">Ukuran maksimal file: 20MB</p>
+                                    <p className="text-sm text-slate-500 mt-2">Ukuran maksimal file: 50MB</p>
                                     <input id="pdf-upload" type="file" accept="application/pdf" className="hidden" onChange={handleFileUpload} />
                                 </div>
 

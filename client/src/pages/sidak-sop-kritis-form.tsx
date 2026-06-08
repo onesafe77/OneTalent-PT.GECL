@@ -83,8 +83,8 @@ export default function SidakSopKritisForm() {
     const [langkah, setLangkah] = useState<ItemRow[]>([]);
     const [observers, setObservers] = useState<Observer[]>([]);
 
-    const [curPengendalian, setCurPengendalian] = useState<ItemRow>({ uraian: "", status: "Ya" });
-    const [curLangkah, setCurLangkah] = useState<ItemRow>({ uraian: "", status: "Ya" });
+    const [curPengendalian, setCurPengendalian] = useState<ItemRow>({ uraian: "", status: "" });
+    const [curLangkah, setCurLangkah] = useState<ItemRow>({ uraian: "", status: "" });
     const [curObserver, setCurObserver] = useState<Observer>({ nama: "", departemenPerusahaan: "", signatureDataUrl: "" });
 
     useEffect(() => {
@@ -152,8 +152,8 @@ export default function SidakSopKritisForm() {
             tingkatRisiko: sop.tingkatRisiko,
             tanggalPublikasi: sop.tanggalPublikasi || h.tanggalPublikasi,
         }));
-        setPengendalian(sop.controls.map((c) => ({ uraian: c, status: "Ya" })));
-        setLangkah(sop.langkah.map((l) => ({ uraian: l, status: "Ya" })));
+        setPengendalian(sop.controls.map((c) => ({ uraian: c, status: "" })));
+        setLangkah(sop.langkah.map((l) => ({ uraian: l, status: "" })));
         toast({
             title: "SOP dipilih",
             description: `${sop.controls.length} Pengendalian & ${sop.langkah.length} Langkah Kritikal terisi otomatis.`,
@@ -166,7 +166,7 @@ export default function SidakSopKritisForm() {
             return;
         }
         setPengendalian([...pengendalian, curPengendalian]);
-        setCurPengendalian({ uraian: "", status: "Ya" });
+        setCurPengendalian({ uraian: "", status: "" });
     };
 
     const addLangkah = () => {
@@ -175,7 +175,7 @@ export default function SidakSopKritisForm() {
             return;
         }
         setLangkah([...langkah, curLangkah]);
-        setCurLangkah({ uraian: "", status: "Ya" });
+        setCurLangkah({ uraian: "", status: "" });
     };
 
     const addObserver = () => {
@@ -198,6 +198,10 @@ export default function SidakSopKritisForm() {
     // Submit-at-end: edit -> PUT (replace-all 1 request); create -> POST sesi + batch child
     const finishMutation = useMutation({
         mutationFn: async () => {
+            // Wajib: semua Pengendalian & Langkah harus punya status terpilih
+            if (pengendalian.some((p) => !p.status) || langkah.some((l) => !l.status)) {
+                throw new Error("Pilih status (Ya/Tidak/N/A) untuk semua Pengendalian & Langkah Kritikal dulu.");
+            }
             if (isEdit) {
                 return apiRequest(`/api/sidak-sop-kritis/${editId}`, "PUT", { ...headerData, pengendalian, langkah, observers });
             }
@@ -219,7 +223,7 @@ export default function SidakSopKritisForm() {
             toast({ title: "Tersimpan", description: isEdit ? "Perubahan berhasil disimpan." : "Observasi SOP Kritis berhasil disimpan." });
             navigate("/workspace/sidak/sop-kritis/history");
         },
-        onError: () => toast({ title: "Gagal", description: isEdit ? "Gagal menyimpan perubahan." : "Gagal menyimpan observasi.", variant: "destructive" }),
+        onError: (error: any) => toast({ title: "Gagal", description: error?.message || (isEdit ? "Gagal menyimpan perubahan." : "Gagal menyimpan observasi."), variant: "destructive" }),
     });
 
     const StatusButtons = ({ value, onChange, withNA, size = "md" }: { value: string; onChange: (v: string) => void; withNA?: boolean; size?: "sm" | "md" }) => {
@@ -245,12 +249,24 @@ export default function SidakSopKritisForm() {
             </Button>
         );
         if (step === 2) return (
-            <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={() => setStep(3)} disabled={pengendalian.length === 0}>
+            <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={() => {
+                if (pengendalian.some((p) => !p.status)) {
+                    toast({ title: "Pilih status dulu", description: "Pilih Ya / Tidak / N/A untuk semua Pengendalian Kritikal.", variant: "destructive" });
+                    return;
+                }
+                setStep(3);
+            }} disabled={pengendalian.length === 0}>
                 Lanjut ke Item/Langkah Kritikal <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
         );
         if (step === 3) return (
-            <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={() => setStep(4)} disabled={langkah.length === 0}>
+            <Button className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold" onClick={() => {
+                if (langkah.some((l) => !l.status)) {
+                    toast({ title: "Pilih status dulu", description: "Pilih Ya / Tidak untuk semua Item/Langkah Kritikal.", variant: "destructive" });
+                    return;
+                }
+                setStep(4);
+            }} disabled={langkah.length === 0}>
                 Lanjut ke Pemantau <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
         );

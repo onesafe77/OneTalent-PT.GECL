@@ -11123,6 +11123,11 @@ export class DrizzleStorage implements IStorage {
     }));
   }
 
+  async getUsignApprovalStepById(id: string): Promise<UsignApprovalStep | undefined> {
+    const [row] = await this.db.select().from(usignApprovalSteps).where(eq(usignApprovalSteps.id, id));
+    return row;
+  }
+
   async updateUsignApprovalStepStatus(id: string, status: string, remarks?: string): Promise<UsignApprovalStep | undefined> {
     const updateData: Record<string, any> = { status, remarks };
     if (status === "completed" || status === "rejected") {

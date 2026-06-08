@@ -12184,16 +12184,21 @@ Format sebagai bullet points singkat per insight.`;
   // Upload USign Document
   app.post("/api/usign/upload", documentUpload.single('file'), async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       if (!req.file) return res.status(400).json({ message: "File PDF diperlukan" });
-      const { title, subject, ownerId, ccEmails } = req.body;
+      const { title, subject, ccEmails } = req.body;
+
+      let parsedCc: string[] = [];
+      try { parsedCc = ccEmails ? JSON.parse(ccEmails) : []; } catch { parsedCc = []; }
 
       const doc = await storage.createUsignDocument({
         title,
         subject,
-        ownerId,
+        ownerId: u.nik, // selalu dari session, abaikan body
         fileUrl: (await dbStorage.uploadFile(req.file)).url,
         status: "pending",
-        ccEmails: ccEmails ? JSON.parse(ccEmails) : []
+        ccEmails: parsedCc
       });
 
       console.log("📄 USign Document Created:", JSON.stringify(doc));
@@ -12207,8 +12212,18 @@ Format sebagai bullet points singkat per insight.`;
   // Add Approval Steps
   app.post("/api/usign/documents/:id/steps", async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       const { id } = req.params;
       const steps = req.body; // Array of steps
+
+      const ownerDoc = await storage.getUsignDocument(id);
+      if (!ownerDoc) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+      if (ownerDoc.ownerId !== u.nik) return res.status(403).json({ message: "Bukan dokumen Anda" });
+      // Anti self-approval: pemilik tidak boleh jadi approver
+      if (steps.some((s: any) => s.approverId === ownerDoc.ownerId)) {
+        return res.status(400).json({ message: "Pemilik dokumen tidak boleh menjadi approver (self-approval)." });
+      }
 
       for (const step of steps) {
         await storage.addUsignApprovalStep({
@@ -12264,8 +12279,15 @@ Format sebagai bullet points singkat per insight.`;
   // Approve / Sign Document
   app.post("/api/usign/steps/:id/approve", async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       const { id } = req.params;
       const { signatureImageUrl, remarks } = req.body;
+
+      const step = await storage.getUsignApprovalStepById(id);
+      if (!step) return res.status(404).json({ message: "Tahapan tidak ditemukan" });
+      if (step.approverId !== u.nik) return res.status(403).json({ message: "Anda bukan approver untuk tahapan ini" });
+      if (step.status !== "current") return res.status(400).json({ message: "Bukan giliran Anda atau tahapan sudah diproses" });
 
       if (signatureImageUrl) {
         await storage.createUsignSignature({
@@ -12306,8 +12328,16 @@ Format sebagai bullet points singkat per insight.`;
   // Reject Document
   app.post("/api/usign/steps/:id/reject", async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       const { id } = req.params;
       const { remarks } = req.body;
+
+      const step = await storage.getUsignApprovalStepById(id);
+      if (!step) return res.status(404).json({ message: "Tahapan tidak ditemukan" });
+      if (step.approverId !== u.nik) return res.status(403).json({ message: "Anda bukan approver untuk tahapan ini" });
+      if (step.status !== "current") return res.status(400).json({ message: "Bukan giliran Anda atau tahapan sudah diproses" });
+
       const updatedStep = await storage.updateUsignApprovalStepStatus(id, "rejected", remarks);
 
       if (updatedStep) {
@@ -12327,8 +12357,15 @@ Format sebagai bullet points singkat per insight.`;
   // Void Document (by owner)
   app.post("/api/usign/documents/:id/void", async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       const { id } = req.params;
       const { reason } = req.body;
+
+      const target = await storage.getUsignDocument(id);
+      if (!target) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+      if (target.ownerId !== u.nik) return res.status(403).json({ message: "Hanya pemilik yang dapat membatalkan dokumen" });
+
       const doc = await storage.voidUsignDocument(id, reason);
 
       if (doc) {
@@ -12345,8 +12382,9 @@ Format sebagai bullet points singkat per insight.`;
   // Get My Documents (Owned)
   app.get("/api/usign/my-requests", async (req, res) => {
     try {
-      const { ownerId } = req.query;
-      const docs = await storage.getUsignDocumentsByOwner(ownerId as string);
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const docs = await storage.getUsignDocumentsByOwner(u.nik); // dari session, abaikan query
       res.json(docs);
     } catch (error) {
       console.error("USign my-requests error:", error);
@@ -12357,8 +12395,9 @@ Format sebagai bullet points singkat per insight.`;
   // Get My Approvals (Pending/Signed)
   app.get("/api/usign/my-approvals", async (req, res) => {
     try {
-      const { approverId } = req.query;
-      const approvals = await storage.getUsignApprovalsByUser(approverId as string);
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const approvals = await storage.getUsignApprovalsByUser(u.nik);
       res.json(approvals);
     } catch (error) {
       console.error("USign my-approvals error:", error);
@@ -12369,15 +12408,21 @@ Format sebagai bullet points singkat per insight.`;
   // USign Stats
   app.get("/api/usign/stats", async (req, res) => {
     try {
-      const { userId } = req.query;
-      const myApprovals = await storage.getUsignApprovalsByUser(userId as string);
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const myApprovals = await storage.getUsignApprovalsByUser(u.nik);
       const pendingCount = myApprovals.filter(a => a.status === "current").length;
 
-      const myRequests = await storage.getUsignDocumentsByOwner(userId as string);
+      const myRequests = await storage.getUsignDocumentsByOwner(u.nik);
       const approvedCount = myRequests.filter(d => d.status === "completed").length;
 
-      // Calculate avg response time (placeholder logic)
-      const avgResponseTime = 0;
+      // Rata-rata waktu approval (jam) dari step yang sudah direspon
+      const responded = myApprovals.filter((a: any) => a.respondedAt && a.createdAt);
+      const avgResponseTime = responded.length > 0
+        ? Math.round((responded.reduce((sum: number, a: any) =>
+            sum + (new Date(a.respondedAt).getTime() - new Date(a.createdAt).getTime()), 0)
+            / responded.length / 3600000) * 10) / 10
+        : 0;
 
       res.json({
         pendingCount,
@@ -12404,9 +12449,14 @@ Format sebagai bullet points singkat per insight.`;
   // Get Document by ID
   app.get("/api/usign/documents/:id", async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       const { id } = req.params;
       const doc = await storage.getUsignDocument(id);
       if (!doc) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
+      const dSteps = await storage.getUsignApprovalSteps(id);
+      const canView = doc.ownerId === u.nik || dSteps.some((s: any) => s.approverId === u.nik);
+      if (!canView) return res.status(403).json({ message: "Tidak punya akses ke dokumen ini" });
       res.json(doc);
     } catch (error) {
       console.error("USign get document error:", error);
@@ -12429,12 +12479,17 @@ Format sebagai bullet points singkat per insight.`;
   // Download Signed USign Document
   app.get("/api/usign/documents/:id/download", async (req, res) => {
     try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
       const { id } = req.params;
       console.log(`[USign Download] Triggered for ID: ${id}`);
       const document = await storage.getUsignDocument(id);
       if (!document) return res.status(404).json({ message: "Dokumen tidak ditemukan" });
 
       const steps = await storage.getUsignApprovalSteps(id);
+      const canView = document.ownerId === u.nik || steps.some((s: any) => s.approverId === u.nik);
+      if (!canView) return res.status(403).json({ message: "Tidak punya akses ke dokumen ini" });
+
       const signatureData: any[] = [];
 
       for (const step of steps) {
@@ -12454,14 +12509,15 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       const { usignPdfService } = await import('./services/usign-pdf-service');
-      const originalPath = path.join(process.cwd(), document.fileUrl);
-
-      if (!fs.existsSync(originalPath)) {
-        return res.status(404).json({ message: "File asli tidak ditemukan di server" });
+      // File asli tersimpan di DB (fileUrl = /api/uploads/<id>), bukan filesystem
+      const fileId = (document.fileUrl || "").split('/').pop() || "";
+      const original = fileId ? await dbStorage.getFile(fileId) : null;
+      if (!original) {
+        return res.status(404).json({ message: "File asli tidak ditemukan" });
       }
 
       console.log(`[USign Download] Starting PDF merge for ${signatureData.length} signatures`);
-      const mergedPdfBytes = await usignPdfService.mergeSignaturesToPdf(originalPath, signatureData);
+      const mergedPdfBytes = await usignPdfService.mergeSignaturesToPdf(original.data, signatureData);
       console.log(`[USign Download] Merge finished. Bytes: ${mergedPdfBytes?.length}`);
 
       res.setHeader('Content-Type', 'application/pdf');

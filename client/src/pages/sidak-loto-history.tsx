@@ -20,6 +20,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import type { SidakLotoSession, SidakLotoRecord, SidakLotoObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -307,7 +308,7 @@ export default function SidakLotoHistory() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end" className="w-[calc(100vw-3rem)] sm:w-64 rounded-xl p-1 shadow-xl border-gray-200 dark:border-gray-700">
-                                            <DropdownMenuItem onClick={() => handleDownloadPDF(session.id)} disabled={downloadingId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
+                                            <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPDF(session.id); }} disabled={downloadingId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
                                                 {downloadingId === session.id ? (
                                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
                                                 ) : (
@@ -320,7 +321,7 @@ export default function SidakLotoHistory() {
                                                     <span className="text-xs text-muted-foreground">Laporan lengkap</span>
                                                 </div>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => handleDownloadJPG(session.id)} disabled={downloadingJpgId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
+                                            <DropdownMenuItem onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadJPG(session.id); }} disabled={downloadingJpgId === session.id} className="rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer">
                                                 {downloadingJpgId === session.id ? (
                                                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
                                                 ) : (

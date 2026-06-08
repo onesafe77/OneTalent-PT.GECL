@@ -19,6 +19,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
 import type { SidakRambuSession, SidakRambuObservation, SidakRambuObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -365,7 +366,7 @@ export default function SidakRambuHistory() {
                                                 </div>
                                             )}
                                             <DropdownMenuItem
-                                                onClick={() => handleDownloadPDF(session.id)}
+                                                onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadPDF(session.id); }}
                                                 disabled={!session.activityPhotos || session.activityPhotos.length === 0}
                                                 className={`rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                                                 data-testid={`button-download-pdf-${session.id}`}
@@ -379,7 +380,7 @@ export default function SidakRambuHistory() {
                                                 </div>
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
-                                                onClick={() => handleDownloadJPG(session.id)}
+                                                onClick={() => { if (!fotoKegiatanGuard(session, toast)) return; handleDownloadJPG(session.id); }}
                                                 disabled={!session.activityPhotos || session.activityPhotos.length === 0}
                                                 className={`rounded-lg py-2.5 px-3 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer ${!session.activityPhotos || session.activityPhotos.length === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                                                 data-testid={`button-download-jpg-${session.id}`}

@@ -13,12 +13,14 @@ export interface SignatureData {
 
 class UsignPdfService {
     async mergeSignaturesToPdf(
-        originalPdfPath: string,
+        originalPdf: string | Buffer | Uint8Array,
         signatures: SignatureData[]
     ): Promise<Uint8Array> {
         try {
-            console.log(`[UsignPdfService] Loading PDF from: ${originalPdfPath}`);
-            const existingPdfBytes = await fs.readFile(originalPdfPath);
+            // Sumber PDF asli bisa berupa path filesystem ATAU bytes (file tersimpan di DB)
+            const existingPdfBytes = typeof originalPdf === "string"
+                ? await fs.readFile(originalPdf)
+                : originalPdf;
             const pdfDoc = await PDFDocument.load(existingPdfBytes);
 
             for (const sig of signatures) {
