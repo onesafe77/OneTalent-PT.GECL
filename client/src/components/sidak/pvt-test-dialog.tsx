@@ -7,7 +7,7 @@ import { Play, RotateCcw, CheckCircle, AlertTriangle, XCircle, Timer } from "luc
 interface PVTTestDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onComplete: (data: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }) => void;
+    onComplete: (data: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }, videoBlob?: Blob) => void;
 }
 
 type TestState = "idle" | "waiting" | "ready" | "early" | "result" | "score";
@@ -22,15 +22,61 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
     const startTimeRef = useRef<number>(0);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Rekaman kamera depan + audio selama tes PVT
+    const recorderRef = useRef<MediaRecorder | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
+    const chunksRef = useRef<Blob[]>([]);
+
     // Constants
     const TOTAL_ROUNDS = 3;
     const MIN_DELAY = 2000;
     const MAX_DELAY = 5000;
 
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } },
+                audio: true,
+            });
+            streamRef.current = stream;
+            chunksRef.current = [];
+            const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+                ? "video/webm;codecs=vp9,opus"
+                : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+            const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+            recorderRef.current = recorder;
+            recorder.start();
+        } catch (_) { /* kamera/mic tidak tersedia — diam-diam */ }
+    };
+
+    // Hentikan rekaman; kembalikan blob (atau undefined). Selalu lepas kamera.
+    const stopRecording = (): Promise<Blob | undefined> => {
+        return new Promise((resolve) => {
+            const recorder = recorderRef.current;
+            const cleanup = () => {
+                streamRef.current?.getTracks().forEach((t) => t.stop());
+                streamRef.current = null;
+                recorderRef.current = null;
+            };
+            if (!recorder || recorder.state === "inactive") { cleanup(); resolve(undefined); return; }
+            recorder.onstop = () => {
+                const blob = chunksRef.current.length ? new Blob(chunksRef.current, { type: chunksRef.current[0].type || "video/webm" }) : undefined;
+                cleanup();
+                resolve(blob);
+            };
+            try { recorder.stop(); } catch { cleanup(); resolve(undefined); }
+        });
+    };
+
     useEffect(() => {
-        if (!open) {
+        if (open) {
+            startRecording();
+        } else {
+            stopRecording();
             resetGame();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     const resetGame = () => {
@@ -103,7 +149,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
         setGameState("score");
     };
 
-    const handleFinalAction = () => {
+    const handleFinalAction = async () => {
         let status: 'green' | 'yellow' | 'red' = 'green';
         let passed = true;
 
@@ -118,7 +164,8 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
             passed = false;
         }
 
-        onComplete({ passed, meanRT, status });
+        const videoBlob = await stopRecording();
+        onComplete({ passed, meanRT, status }, videoBlob);
         onOpenChange(false);
     };
 

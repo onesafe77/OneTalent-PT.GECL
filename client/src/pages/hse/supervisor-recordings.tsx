@@ -29,6 +29,7 @@ interface ScanRecord {
     nomorLambung: string | null;
     karyawanSiapBekerja: boolean;
     scanVideoUrl: string | null;
+    pvtVideoUrl: string | null;
     createdAt: string;
 }
 
@@ -51,6 +52,7 @@ export default function SupervisorRecordings() {
     const [detailSession, setDetailSession] = useState<RecordingEntry | null>(null);
     // Per-scan video to play inside detail dialog
     const [playingScan, setPlayingScan] = useState<ScanRecord | null>(null);
+    const [playMode, setPlayMode] = useState<"scan" | "pvt">("scan");
 
     const monthParam = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}`;
 
@@ -291,13 +293,13 @@ export default function SupervisorRecordings() {
                             {playingScan && (
                                 <div className="bg-black rounded-lg overflow-hidden">
                                     <div className="flex items-center justify-between px-3 py-2 bg-gray-900">
-                                        <span className="text-white text-sm font-medium">{playingScan.nama}</span>
+                                        <span className="text-white text-sm font-medium">{playingScan.nama} — {playMode === "pvt" ? "PVT (depan)" : "Scan (belakang)"}</span>
                                         <Button size="sm" variant="ghost" className="text-gray-400 hover:text-white h-6 text-xs"
                                             onClick={() => setPlayingScan(null)}>Tutup</Button>
                                     </div>
                                     <video
-                                        key={playingScan.scanVideoUrl!}
-                                        src={playingScan.scanVideoUrl!}
+                                        key={(playMode === "pvt" ? playingScan.pvtVideoUrl : playingScan.scanVideoUrl) || ""}
+                                        src={(playMode === "pvt" ? playingScan.pvtVideoUrl : playingScan.scanVideoUrl) || ""}
                                         controls autoPlay
                                         className="w-full"
                                         style={{ maxHeight: 280 }}
@@ -332,16 +334,27 @@ export default function SupervisorRecordings() {
                                                 </Badge>
                                             </td>
                                             <td className="py-2 px-2 text-center">
-                                                {rec.scanVideoUrl ? (
-                                                    <Button size="sm" variant="outline"
-                                                        className={`h-7 text-xs gap-1 ${playingScan?.id === rec.id ? 'border-blue-500 text-blue-600' : ''}`}
-                                                        onClick={() => setPlayingScan(playingScan?.id === rec.id ? null : rec)}>
-                                                        <Play className="w-3 h-3" />
-                                                        {playingScan?.id === rec.id ? "Stop" : "Putar"}
-                                                    </Button>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400">—</span>
-                                                )}
+                                                <div className="flex items-center justify-center gap-1">
+                                                    {rec.scanVideoUrl ? (
+                                                        <Button size="sm" variant="outline"
+                                                            className={`h-7 text-xs gap-1 ${playingScan?.id === rec.id && playMode === 'scan' ? 'border-blue-500 text-blue-600' : ''}`}
+                                                            onClick={() => { setPlayMode("scan"); setPlayingScan(playingScan?.id === rec.id && playMode === 'scan' ? null : rec); }}>
+                                                            <Play className="w-3 h-3" />
+                                                            {playingScan?.id === rec.id && playMode === 'scan' ? "Stop" : "Putar"}
+                                                        </Button>
+                                                    ) : null}
+                                                    {rec.pvtVideoUrl ? (
+                                                        <Button size="sm" variant="outline"
+                                                            className={`h-7 text-xs gap-1 ${playingScan?.id === rec.id && playMode === 'pvt' ? 'border-amber-500 text-amber-600' : ''}`}
+                                                            onClick={() => { setPlayMode("pvt"); setPlayingScan(playingScan?.id === rec.id && playMode === 'pvt' ? null : rec); }}>
+                                                            <Play className="w-3 h-3" />
+                                                            {playingScan?.id === rec.id && playMode === 'pvt' ? "Stop" : "PVT"}
+                                                        </Button>
+                                                    ) : null}
+                                                    {!rec.scanVideoUrl && !rec.pvtVideoUrl ? (
+                                                        <span className="text-xs text-gray-400">—</span>
+                                                    ) : null}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

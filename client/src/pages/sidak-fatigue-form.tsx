@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { MobileSidakLayout } from "@/components/sidak/mobile-sidak-layout";
 import { cn } from "@/lib/utils";
@@ -196,8 +196,14 @@ export default function SidakFatigueForm() {
   };
 
   // Override handlePVTComplete to handle re-test context
-  const handlePVTComplete = async (result: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }) => {
+  const handlePVTComplete = async (result: { passed: boolean; meanRT: number; status: 'green' | 'yellow' | 'red' }, videoBlob?: Blob) => {
     const isRetest = !!interventionEmployeeId;
+    // Simpan blob video PVT: bila record sudah ada (retest) upload langsung, jika belum tunggu record dibuat.
+    if (videoBlob) {
+      const existingId = isRetest ? employees.find(e => e.nik === interventionEmployeeId)?.backendRecordId : null;
+      if (existingId) uploadPvtRecording(existingId, videoBlob);
+      else pendingPvtBlobRef.current = videoBlob;
+    }
 
     if (result.status === 'green' || result.status === 'yellow') {
       const updatedData = {
@@ -467,11 +473,11 @@ export default function SidakFatigueForm() {
   const startScanRecording = async (recordId: string, driverName: string) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 } },
-        audio: false,
+        video: { facingMode: "environment", width: { ideal: 320 }, height: { ideal: 240 } },
+        audio: true,
       });
-      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
+      const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")
+        ? "video/webm;codecs=vp9,opus"
         : MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       const chunks: Blob[] = [];
@@ -489,6 +495,18 @@ export default function SidakFatigueForm() {
       };
       recorder.start();
       setTimeout(() => { if (recorder.state !== "inactive") recorder.stop(); }, 5000);
+    } catch (_) {}
+  };
+
+  // Blob video PVT (kamera depan) yang menunggu record dibuat untuk diupload
+  const pendingPvtBlobRef = useRef<Blob | null>(null);
+  const uploadPvtRecording = async (recordId: string, blob: Blob) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, `pvt-${recordId}-${Date.now()}.webm`);
+      await fetch(`/api/sidak-fatigue/records/${recordId}/pvt-recording`, {
+        method: "POST", body: formData, credentials: "include",
+      });
     } catch (_) {}
   };
 
@@ -546,8 +564,13 @@ export default function SidakFatigueForm() {
     onSuccess: (data: any) => {
       // Store backend record ID so we can PATCH it later during retest
       const savedEmployee = { ...currentEmployee, backendRecordId: data?.id };
-      // Record a short video for this specific driver scan
+      // Record a short video for this specific driver scan (kamera belakang)
       if (data?.id) startScanRecording(data.id, savedEmployee.nama);
+      // Upload video PVT (kamera depan) yang sudah terekam saat tes
+      if (data?.id && pendingPvtBlobRef.current) {
+        uploadPvtRecording(data.id, pendingPvtBlobRef.current);
+        pendingPvtBlobRef.current = null;
+      }
       setEmployees(prev => {
         const updatedEmployees = [...prev, savedEmployee];
         toast({

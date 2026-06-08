@@ -5588,6 +5588,30 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Rekaman PVT (kamera depan saat tes PVT)
+  app.post("/api/sidak-fatigue/records/:recordId/pvt-recording", uploadPdf.single('file'), async (req, res) => {
+    try {
+      const { recordId } = req.params;
+      const file = req.file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ error: "No file uploaded" });
+
+      const { url } = await dbStorage.uploadFile(file);
+
+      const { db: dbClient } = await import("./db");
+      const { sidakFatigueRecords: recTable } = await import("@shared/schema");
+      const { eq: eqFn } = await import("drizzle-orm");
+      await dbClient.update(recTable)
+        .set({ pvtVideoUrl: url } as any)
+        .where(eqFn(recTable.id, recordId));
+
+      res.json({ url });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("Error uploading PVT recording:", msg);
+      res.status(500).json({ error: msg });
+    }
+  });
+
   // ── Get session scan recordings (MUST be before /:id) ───────────────────
   app.get("/api/sidak-fatigue/:sessionId/scan-recordings", async (req, res) => {
     try {
@@ -5605,6 +5629,7 @@ Format sebagai bullet points singkat per insight.`;
         nomorLambung: r.nomorLambung,
         karyawanSiapBekerja: r.karyawanSiapBekerja,
         scanVideoUrl: (r as any).scanVideoUrl || null,
+        pvtVideoUrl: (r as any).pvtVideoUrl || null,
         createdAt: r.createdAt,
       }));
       res.json(result);
@@ -12994,6 +13019,20 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   // WhatsApp Webhook from notif.my.id
+  // Webhook Telegram (produksi) — terima update lalu proses async (reuse pemroses bot)
+  app.post("/api/webhook/telegram", (req, res) => {
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (secret && req.header("x-telegram-bot-api-secret-token") !== secret) {
+      return res.sendStatus(401);
+    }
+    // Balas cepat agar Telegram tidak timeout; proses di belakang.
+    res.sendStatus(200);
+    const update = req.body;
+    import("./services/telegram-bot")
+      .then((m) => m.processTelegramUpdate(update))
+      .catch((e) => console.error("[TelegramWebhook] process error:", e?.message || e));
+  });
+
   app.post("/api/webhook/whatsapp", async (req, res) => {
     try {
       console.log("📱 WhatsApp webhook received:", JSON.stringify(req.body, null, 2));
@@ -13546,6 +13585,104 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   // KPI per pelaksana
+  // Petakan kegiatan (teks bebas) -> kegiatan kanonik sesuai jadwal mingguan OHS Hauling.
+  // Urut spesifik -> umum; "jalan" terakhir (paling umum).
+  const canonicalSafetyActivity = (raw: string | null | undefined): string | null => {
+    const s = (raw || "").toLowerCase();
+    if (!s) return null;
+    if (s.includes("charging")) return "Monitoring Area Charging Station";
+    if (s.includes("roster")) return "Sidak kesesuaian roster";
+    if (s.includes("lajur")) return "Observasi kepatuhan Lajur";
+    if (s.includes("workshop")) return "Inspeksi Workshop";
+    if (s.includes("rom")) return "Inspeksi ROM";
+    if (s.includes("fatigue") || s.includes("kelelahan")) return "Fatigue check";
+    if (s.includes("wake")) return "Wake up call";
+    if (s.includes("kecepatan")) return "Sidak kecepatan";
+    if (s.includes("rambu")) return "Observasi rambu";
+    if (s.includes("kelengkapan")) return "Sidak kelengkapan";
+    if (s.includes("jarak")) return "Jarak aman beriringan";
+    if (s.includes("asses") || s.includes("assess")) return "Assesment (Conditional)";
+    if (s.includes("jalan")) return "Inspeksi Jalan";
+    return null;
+  };
+
+  // Acuan jadwal mingguan OHS Hauling (target per shift/minggu per orang)
+  const SP_WEEKLY_PLAN: { name: string; s1: number; s2: number }[] = [
+    { name: "Jarak aman beriringan", s1: 7, s2: 0 },
+    { name: "Sidak kecepatan", s1: 7, s2: 0 },
+    { name: "Observasi rambu", s1: 7, s2: 0 },
+    { name: "Sidak kelengkapan", s1: 4, s2: 0 },
+    { name: "Fatigue check", s1: 7, s2: 7 },
+    { name: "Wake up call", s1: 7, s2: 7 },
+    { name: "Inspeksi Jalan", s1: 7, s2: 7 },
+    { name: "Inspeksi ROM", s1: 2, s2: 0 },
+    { name: "Inspeksi Workshop", s1: 2, s2: 0 },
+    { name: "Observasi kepatuhan Lajur", s1: 6, s2: 0 },
+    { name: "Assesment (Conditional)", s1: 1, s2: 0 },
+    { name: "Sidak kesesuaian roster", s1: 4, s2: 0 },
+    { name: "Monitoring Area Charging Station", s1: 2, s2: 0 },
+  ];
+
+  // Minggu ISO-8601 dari sebuah tanggal -> { year, week }
+  const isoWeek = (d: Date): { year: number; week: number } => {
+    const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const dayNum = (date.getUTCDay() + 6) % 7; // Senin=0
+    date.setUTCDate(date.getUTCDate() - dayNum + 3); // Kamis minggu ini
+    const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+    const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+    firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+    const week = 1 + Math.round((date.getTime() - firstThursday.getTime()) / (7 * 24 * 3600 * 1000));
+    return { year: date.getUTCFullYear(), week };
+  };
+
+  // Daftar minggu ISO unik dalam rentang [start, end]
+  const weeksInRangeList = (startStr: string, endStr: string): { year: number; week: number }[] => {
+    const out: { year: number; week: number }[] = [];
+    const seen = new Set<string>();
+    const start = new Date(startStr + "T00:00:00Z");
+    const end = new Date(endStr + "T00:00:00Z");
+    for (let t = start.getTime(); t <= end.getTime(); t += 24 * 3600 * 1000) {
+      const w = isoWeek(new Date(t));
+      const key = `${w.year}-${w.week}`;
+      if (!seen.has(key)) { seen.add(key); out.push(w); }
+    }
+    return out;
+  };
+
+  // GET plan kehadiran per tahun
+  app.get("/api/safety-patrol/attendance-plan", async (req, res) => {
+    try {
+      const year = parseInt((req.query.year as string) || "0", 10) || new Date().getFullYear();
+      const rows = await storage.getAttendancePlan(year);
+      res.json({ year, plan: rows });
+    } catch (error) {
+      console.error("Error fetching attendance plan:", error);
+      res.status(500).json({ message: "Gagal mengambil plan kehadiran" });
+    }
+  });
+
+  // POST bulk upsert plan kehadiran
+  app.post("/api/safety-patrol/attendance-plan", async (req, res) => {
+    try {
+      const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+      const clean = rows
+        .filter((r: any) => r?.officerName && r?.year && r?.week)
+        .map((r: any) => ({
+          officerName: String(r.officerName),
+          nik: r.nik ? String(r.nik) : null,
+          year: Number(r.year),
+          week: Number(r.week),
+          shift1: r.shift1 === "NA" ? "NA" : "MASUK",
+          shift2: r.shift2 === "NA" ? "NA" : "MASUK",
+        }));
+      await storage.upsertAttendancePlan(clean as any);
+      res.json({ ok: true, count: clean.length });
+    } catch (error) {
+      console.error("Error saving attendance plan:", error);
+      res.status(500).json({ message: "Gagal menyimpan plan kehadiran" });
+    }
+  });
+
   app.get("/api/safety-patrol/kpi", async (req, res) => {
     try {
       const { startDate, endDate, pelaksana } = req.query;
@@ -13581,11 +13718,48 @@ Format sebagai bullet points singkat per insight.`;
         }
       }
 
+      // Plan kehadiran -> sesuaikan target per minggu (NA = tidak dihitung)
+      const weeksList = startDate && endDate ? weeksInRangeList(startDate as string, endDate as string) : [];
+      const planYear = startDate ? new Date((startDate as string) + "T00:00:00Z").getUTCFullYear() : new Date().getFullYear();
+      let attRows: any[] = [];
+      try { attRows = await storage.getAttendancePlan(planYear); } catch { attRows = []; }
+      // att[officerName][week] = { shift1, shift2 }
+      const att: Record<string, Record<number, { shift1: string; shift2: string }>> = {};
+      for (const a of attRows) {
+        if (!att[a.officerName]) att[a.officerName] = {};
+        att[a.officerName][a.week] = { shift1: a.shift1, shift2: a.shift2 };
+      }
+      const presentShift = (name: string, week: number, shiftKey: "shift1" | "shift2"): boolean => {
+        const rec = att[name]?.[week];
+        if (!rec) return true; // default Masuk
+        return rec[shiftKey] !== "NA";
+      };
+      // Hitung plan per orang per kegiatan (hormati kehadiran). Fallback: jumlah minggu = max(weeksList,1)
+      const computePlan = (name: string): { byActivity: Record<string, { s1: number; s2: number }>; presentWeeks: { s1: number; s2: number } } => {
+        const planByActivity: Record<string, { s1: number; s2: number }> = {};
+        let presS1 = 0, presS2 = 0;
+        const weeks = weeksList.length ? weeksList : [{ year: planYear, week: -1 }];
+        for (const wk of weeks) {
+          const inS1 = wk.week === -1 ? true : presentShift(name, wk.week, "shift1");
+          const inS2 = wk.week === -1 ? true : presentShift(name, wk.week, "shift2");
+          if (inS1) presS1++;
+          if (inS2) presS2++;
+          for (const act of SP_WEEKLY_PLAN) {
+            if (!planByActivity[act.name]) planByActivity[act.name] = { s1: 0, s2: 0 };
+            if (inS1) planByActivity[act.name].s1 += act.s1;
+            if (inS2) planByActivity[act.name].s2 += act.s2;
+          }
+        }
+        return { byActivity: planByActivity, presentWeeks: { s1: presS1, s2: presS2 } };
+      };
+
       // Build KPI per person
       const kpiData = Object.entries(byPerson).map(([name, reps]) => {
         const activityMap: Record<string, number> = {};
         const shiftMap: Record<string, number> = {};
         const weeklyMap: Record<string, number> = {};
+        // Aktual per kegiatan kanonik per shift (untuk tabel KPI vs jadwal mingguan)
+        const byActivity: Record<string, { s1: number; s2: number }> = {};
         let temuanCount = 0;
         let shift1 = 0, shift2 = 0;
 
@@ -13594,10 +13768,17 @@ Format sebagai bullet points singkat per insight.`;
           activityMap[activity] = (activityMap[activity] || 0) + 1;
           if (r.shift) shiftMap[r.shift] = (shiftMap[r.shift] || 0) + 1;
           if (r.temuan && r.temuan.trim()) temuanCount++;
+          const isShift2 = r.shift?.toLowerCase().includes("2");
           if (r.shift?.toLowerCase().includes("1")) shift1++;
-          else if (r.shift?.toLowerCase().includes("2")) shift2++;
+          else if (isShift2) shift2++;
           const weekKey = r.tanggal ? `${r.bulan || ""} W${r.week || ""}` : "Unknown";
           weeklyMap[weekKey] = (weeklyMap[weekKey] || 0) + 1;
+          // Pemetaan kanonik (gabung kegiatan + jenisLaporan agar lebih akurat)
+          const canon = canonicalSafetyActivity(`${r.kegiatan || ""} ${r.jenisLaporan || ""}`);
+          if (canon) {
+            if (!byActivity[canon]) byActivity[canon] = { s1: 0, s2: 0 };
+            if (isShift2) byActivity[canon].s2++; else byActivity[canon].s1++;
+          }
         }
 
         const activities = Object.entries(activityMap)
@@ -13608,6 +13789,8 @@ Format sebagai bullet points singkat per insight.`;
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([week, count]) => ({ week, count }));
 
+        const plan = computePlan(name);
+
         return {
           name,
           total: reps.length,
@@ -13615,6 +13798,9 @@ Format sebagai bullet points singkat per insight.`;
           shift1,
           shift2,
           activities,
+          byActivity,
+          planByActivity: plan.byActivity,
+          presentWeeks: plan.presentWeeks,
           weekly,
         };
       });

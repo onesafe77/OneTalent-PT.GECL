@@ -41,6 +41,15 @@ export async function tgGetMe(): Promise<{ id: number; username?: string; first_
   return tgApi("getMe");
 }
 
+/** Daftarkan webhook Telegram ke URL publik (produksi). */
+export async function tgSetWebhook(url: string, secretToken?: string): Promise<void> {
+  await tgApi("setWebhook", {
+    url,
+    allowed_updates: ["message"],
+    ...(secretToken ? { secret_token: secretToken } : {}),
+  });
+}
+
 /** Kirim pesan teks. parse_mode dibiarkan kosong (plain) agar aman dari karakter spesial. */
 export async function tgSendMessage(chatId: string | number, text: string): Promise<void> {
   try {

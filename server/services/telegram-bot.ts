@@ -21,6 +21,7 @@ import {
   tgSendMessage,
   tgSendTyping,
   tgDownloadPhotoToStorage,
+  tgSetWebhook,
 } from "./telegram-service";
 
 let running = false;
@@ -355,10 +356,22 @@ async function poll() {
         try { await processUpdate(u); } catch (e: any) { console.error("[Telegram] processUpdate error:", e?.message || e); }
       }
     } catch (e: any) {
-      console.error("[Telegram] getUpdates error:", e?.message || e);
+      const msg = e?.message || String(e);
+      // 409 = webhook aktif untuk token ini → polling tidak boleh jalan. Hentikan agar tidak spam.
+      if (msg.includes("409")) {
+        console.log("ℹ️ Telegram polling dihentikan: webhook sedang aktif untuk token ini (409).");
+        running = false;
+        break;
+      }
+      console.error("[Telegram] getUpdates error:", msg);
       await sleep(3000);
     }
   }
+}
+
+// Dipakai oleh route webhook (/api/webhook/telegram) untuk memproses 1 update.
+export async function processTelegramUpdate(update: any) {
+  return processUpdate(update);
 }
 
 export async function startTelegramBot() {
@@ -367,12 +380,31 @@ export async function startTelegramBot() {
     console.log("⚠️ Telegram bot: TELEGRAM_BOT_TOKEN belum diset — bot tidak aktif.");
     return;
   }
-  if (running) return;
   let me: any;
   try { me = await tgGetMe(); } catch (e: any) {
     console.error("⚠️ Telegram bot gagal start (getMe):", e?.message || e);
     return;
   }
+
+  // Mode WEBHOOK (produksi): daftarkan webhook, jangan polling.
+  if (process.env.TELEGRAM_USE_WEBHOOK === "true") {
+    const base = (process.env.PUBLIC_BASE_URL || process.env.APP_URL || "").replace(/\/$/, "");
+    if (!base) {
+      console.error("⚠️ Telegram webhook: PUBLIC_BASE_URL/APP_URL belum diset — webhook tidak didaftarkan.");
+      return;
+    }
+    const url = `${base}/api/webhook/telegram`;
+    try {
+      await tgSetWebhook(url, process.env.TELEGRAM_WEBHOOK_SECRET);
+      console.log(`✅ Telegram bot via WEBHOOK: @${me.username} → ${url}`);
+    } catch (e: any) {
+      console.error("⚠️ Gagal set webhook Telegram:", e?.message || e);
+    }
+    return;
+  }
+
+  // Mode LONG-POLLING (lokal/dev)
+  if (running) return;
   running = true;
   console.log(`✅ Telegram Safety Patrol bot aktif (long-polling): @${me.username}`);
   poll();

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -15,20 +16,24 @@ import { apiRequest } from "@/lib/queryClient";
 // ==============================
 // KPI Plan (Jadwal Pelaksanaan)
 // ==============================
-const WEEKLY_PLAN: Record<string, number> = {
-  "Fatigue Check": 14,
-  "Wake Up Call": 14,
-  "Inspeksi Jalan": 14,
-  "Jarak Aman Beriringan": 4,
-  "Sidak Kecepatan": 4,
-  "Sidak Kelengkapan": 4,
-  "Observasi Rambu": 3,
-  "Observasi Kepatuhan Lajur": 6,
-  "Inspeksi ROM": 2,
-  "Inspeksi Workshop": 2,
-  "Sidak Kesesuaian Roster": 4,
-};
-const TOTAL_PLAN_PER_WEEK = Object.values(WEEKLY_PLAN).reduce((s, v) => s + v, 0);
+// Jadwal Pelaksanaan Sidak OHS Hauling (acuan W17): 13 kegiatan, target per shift/minggu.
+// Nama HARUS sama dengan kanonik backend (canonicalSafetyActivity).
+const WEEKLY_PLAN: { name: string; s1: number; s2: number }[] = [
+  { name: "Jarak aman beriringan", s1: 7, s2: 0 },
+  { name: "Sidak kecepatan", s1: 7, s2: 0 },
+  { name: "Observasi rambu", s1: 7, s2: 0 },
+  { name: "Sidak kelengkapan", s1: 4, s2: 0 },
+  { name: "Fatigue check", s1: 7, s2: 7 },
+  { name: "Wake up call", s1: 7, s2: 7 },
+  { name: "Inspeksi Jalan", s1: 7, s2: 7 },
+  { name: "Inspeksi ROM", s1: 2, s2: 0 },
+  { name: "Inspeksi Workshop", s1: 2, s2: 0 },
+  { name: "Observasi kepatuhan Lajur", s1: 6, s2: 0 },
+  { name: "Assesment (Conditional)", s1: 1, s2: 0 },
+  { name: "Sidak kesesuaian roster", s1: 4, s2: 0 },
+  { name: "Monitoring Area Charging Station", s1: 2, s2: 0 },
+];
+const TOTAL_PLAN_PER_WEEK = WEEKLY_PLAN.reduce((s, v) => s + v.s1 + v.s2, 0); // 84
 
 // ==============================
 // Color palette per person
@@ -48,6 +53,9 @@ interface PersonKPI {
   shift1: number;
   shift2: number;
   activities: { kegiatan: string; count: number }[];
+  byActivity?: Record<string, { s1: number; s2: number }>;
+  planByActivity?: Record<string, { s1: number; s2: number }>;
+  presentWeeks?: { s1: number; s2: number };
   weekly: { week: string; count: number }[];
 }
 
@@ -85,8 +93,15 @@ function KPIScoreGauge({ score, color }: { score: number; color: string }) {
 function PersonCard({ person, idx, weeksInRange }: { person: PersonKPI; idx: number; weeksInRange: number }) {
   const color = getChartColor(person.name, idx);
   const colorSet = PERSON_COLORS[person.name];
-  const planTotal = TOTAL_PLAN_PER_WEEK * weeksInRange;
-  const achievementPct = planTotal > 0 ? (person.total / planTotal) * 100 : 0;
+  // Plan dari backend (hormati kehadiran/NA); fallback flat × minggu.
+  const planFor = (w: { name: string; s1: number; s2: number }) =>
+    person.planByActivity?.[w.name] ?? { s1: w.s1 * weeksInRange, s2: w.s2 * weeksInRange };
+  const planTotal = WEEKLY_PLAN.reduce((s, w) => { const p = planFor(w); return s + p.s1 + p.s2; }, 0);
+  // Capaian berbasis kegiatan terpetakan (kanonik), bukan semua laporan.
+  const actualCanonical = person.byActivity
+    ? Object.values(person.byActivity).reduce((s, a) => s + a.s1 + a.s2, 0)
+    : person.total;
+  const achievementPct = planTotal > 0 ? (actualCanonical / planTotal) * 100 : 0;
   const temuanRate = person.total > 0 ? (person.temuanCount / person.total) * 100 : 0;
 
   return (
@@ -121,31 +136,49 @@ function PersonCard({ person, idx, weeksInRange }: { person: PersonKPI; idx: num
           </div>
         </div>
 
-        {/* Top Activities */}
+        {/* Tabel Plan vs Aktual per kegiatan (acuan jadwal mingguan, breakdown shift) */}
         <div>
-          <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Aktivitas Terbanyak</p>
-          <div className="space-y-1.5">
-            {person.activities.slice(0, 5).map((a, i) => {
-              const plan = WEEKLY_PLAN[a.kegiatan] ?? null;
-              const pct = plan ? Math.min(100, (a.count / (plan * weeksInRange)) * 100) : null;
-              return (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground w-32 truncate">{a.kegiatan}</span>
-                  <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                    <div
-                      className="h-1.5 rounded-full transition-all"
-                      style={{ width: `${pct ?? Math.min(100, (a.count / (person.total || 1)) * 200)}%`, backgroundColor: color }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium w-6 text-right">{a.count}</span>
-                  {pct !== null && (
-                    <span className={`text-xs w-10 text-right font-semibold ${pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
-                      {Math.round(pct)}%
-                    </span>
-                  )}
-                </div>
-              );
-            })}
+          <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Plan vs Aktual per Kegiatan ({weeksInRange} mgg)</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border-collapse">
+              <thead>
+                <tr className="bg-gray-100 text-gray-600">
+                  <th className="text-left py-1 px-1.5 font-semibold">Kegiatan</th>
+                  <th className="text-center py-1 px-1 font-semibold" title="Aktual / Plan Shift 1">S1</th>
+                  <th className="text-center py-1 px-1 font-semibold" title="Aktual / Plan Shift 2">S2</th>
+                  <th className="text-center py-1 px-1 font-semibold">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {WEEKLY_PLAN.map((w) => {
+                  const act = person.byActivity?.[w.name] || { s1: 0, s2: 0 };
+                  const p = planFor(w);
+                  const planS1 = p.s1;
+                  const planS2 = p.s2;
+                  const planTot = planS1 + planS2;
+                  const aktTot = act.s1 + act.s2;
+                  const pct = planTot > 0 ? Math.round((aktTot / planTot) * 100) : 0;
+                  const pctColor = pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-500" : "text-red-500";
+                  const cell = (akt: number, plan: number) => plan > 0
+                    ? <span className={akt >= plan ? "text-green-600 font-semibold" : akt > 0 ? "text-amber-600" : "text-gray-400"}>{akt}/{plan}</span>
+                    : <span className="text-gray-300">–</span>;
+                  return (
+                    <tr key={w.name} className="border-b border-gray-100">
+                      <td className="py-1 px-1.5 text-gray-700">{w.name}</td>
+                      <td className="py-1 px-1 text-center">{cell(act.s1, planS1)}</td>
+                      <td className="py-1 px-1 text-center">{cell(act.s2, planS2)}</td>
+                      <td className={`py-1 px-1 text-center font-semibold ${pctColor}`}>{pct}%</td>
+                    </tr>
+                  );
+                })}
+                <tr className="bg-gray-50 font-bold">
+                  <td className="py-1 px-1.5">TOTAL</td>
+                  <td className="py-1 px-1 text-center">{WEEKLY_PLAN.reduce((s, w) => s + (person.byActivity?.[w.name]?.s1 || 0), 0)}/{WEEKLY_PLAN.reduce((s, w) => s + planFor(w).s1, 0)}</td>
+                  <td className="py-1 px-1 text-center">{WEEKLY_PLAN.reduce((s, w) => s + (person.byActivity?.[w.name]?.s2 || 0), 0)}/{WEEKLY_PLAN.reduce((s, w) => s + planFor(w).s2, 0)}</td>
+                  <td className="py-1 px-1 text-center" style={{ color }}>{Math.round(achievementPct)}%</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
@@ -167,6 +200,7 @@ function PersonCard({ person, idx, weeksInRange }: { person: PersonKPI; idx: num
 }
 
 export default function SafetyPatrolKPI() {
+  const [, navigate] = useLocation();
   const now = new Date();
   const [startDate, setStartDate] = useState(format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
@@ -223,19 +257,18 @@ export default function SafetyPatrolKPI() {
   kpiList.forEach(p => p.activities.forEach(a => { activityAgg[a.kegiatan] = (activityAgg[a.kegiatan] || 0) + a.count; }));
   const pieData = Object.entries(activityAgg).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, value]) => ({ name, value }));
 
-  // KPI plan vs actual per activity
-  const planActualData = Object.entries(WEEKLY_PLAN).map(([kegiatan, planPerWeek]) => {
-    const totalPlan = planPerWeek * weeksInRange;
+  // KPI plan vs actual per activity (gabungan semua orang) — pakai data kanonik backend (byActivity)
+  const planActualData = WEEKLY_PLAN.map((w) => {
+    const totalPlan = kpiList.reduce((s, p) => {
+      const pl = p.planByActivity?.[w.name] ?? { s1: w.s1 * weeksInRange, s2: w.s2 * weeksInRange };
+      return s + pl.s1 + pl.s2;
+    }, 0);
     const totalActual = kpiList.reduce((s, p) => {
-      const found = p.activities.find(a => {
-        const normK = a.kegiatan.toLowerCase().replace(/[^a-z]/g, "");
-        const normP = kegiatan.toLowerCase().replace(/[^a-z]/g, "");
-        return normK.includes(normP.substring(0, 6)) || normP.includes(normK.substring(0, 6));
-      });
-      return s + (found?.count ?? 0);
+      const a = p.byActivity?.[w.name];
+      return s + (a ? a.s1 + a.s2 : 0);
     }, 0);
     const pct = totalPlan > 0 ? Math.round((totalActual / totalPlan) * 100) : 0;
-    return { kegiatan: kegiatan.length > 20 ? kegiatan.substring(0, 18) + "…" : kegiatan, plan: totalPlan, actual: totalActual, pct };
+    return { kegiatan: w.name.length > 20 ? w.name.substring(0, 18) + "…" : w.name, plan: totalPlan, actual: totalActual, pct };
   });
 
   const handleApply = () => {
@@ -256,9 +289,14 @@ export default function SafetyPatrolKPI() {
             <p className="text-sm text-muted-foreground">Analisis capaian kinerja OHS Hauling BIB</p>
           </div>
         </div>
-        <Button onClick={() => refetch()} variant="outline" size="sm">
-          <TrendingUp className="h-4 w-4 mr-2" /> Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => navigate("/workspace/safety-patrol/attendance-plan")} variant="outline" size="sm">
+            <Users className="h-4 w-4 mr-2" /> Plan Kehadiran
+          </Button>
+          <Button onClick={() => refetch()} variant="outline" size="sm">
+            <TrendingUp className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Filter */}

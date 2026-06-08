@@ -61,6 +61,9 @@ import {
   type InsertPushSubscription,
   type SafetyPatrolReport,
   type InsertSafetyPatrolReport,
+  safetyPatrolAttendancePlan,
+  type SafetyPatrolAttendancePlan,
+  type InsertSafetyPatrolAttendancePlan,
   type SafetyPatrolAttendance,
   type InsertSafetyPatrolAttendance,
   type SafetyPatrolRawMessage,
@@ -4231,6 +4234,26 @@ export class DrizzleStorage implements IStorage {
       .where(eq(safetyPatrolReports.id, id))
       .returning();
     return result;
+  }
+
+  // ---- Plan Kehadiran Pengawas ----
+  async getAttendancePlan(year: number): Promise<SafetyPatrolAttendancePlan[]> {
+    return await this.db
+      .select()
+      .from(safetyPatrolAttendancePlan)
+      .where(eq(safetyPatrolAttendancePlan.year, year));
+  }
+
+  async upsertAttendancePlan(rows: InsertSafetyPatrolAttendancePlan[]): Promise<void> {
+    for (const row of rows) {
+      await this.db
+        .insert(safetyPatrolAttendancePlan)
+        .values(row)
+        .onConflictDoUpdate({
+          target: [safetyPatrolAttendancePlan.officerName, safetyPatrolAttendancePlan.year, safetyPatrolAttendancePlan.week],
+          set: { shift1: row.shift1, shift2: row.shift2, nik: row.nik, updatedAt: new Date() },
+        });
+    }
   }
 
   async deleteSafetyPatrolReport(id: string): Promise<boolean> {

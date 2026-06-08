@@ -547,8 +547,10 @@ export const sidakFatigueRecords = pgTable("sidak_fatigue_records", {
   // PVT Data
   pvtMeanRT: integer("pvt_mean_rt"), // Rata-rata waktu reaksi dalam ms
 
-  // Scan recording — short video captured when this driver was scanned during SIDAK
+  // Scan recording — short video captured when this driver was scanned during SIDAK (kamera belakang)
   scanVideoUrl: text("scan_video_url"),
+  // PVT recording — video kamera depan saat tes PVT berlangsung
+  pvtVideoUrl: text("pvt_video_url"),
 
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
@@ -1211,6 +1213,30 @@ export const insertTelegramSafetyPatrolUserSchema = createInsertSchema(telegramS
 });
 export type TelegramSafetyPatrolUser = typeof telegramSafetyPatrolUsers.$inferSelect;
 export type InsertTelegramSafetyPatrolUser = typeof telegramSafetyPatrolUsers.$inferInsert;
+
+// ============================================
+// SAFETY PATROL PLAN KEHADIRAN (per petugas × minggu ISO × shift)
+// ============================================
+
+export const safetyPatrolAttendancePlan = pgTable("safety_patrol_attendance_plan", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  officerName: text("officer_name").notNull(), // Nama kanonik (Dimas Saputra / Renaldi / Jumaidi)
+  nik: text("nik"),
+  year: integer("year").notNull(), // mis. 2026
+  week: integer("week").notNull(), // minggu ISO (W24 -> 24)
+  shift1: text("shift1").notNull().default("MASUK"), // "MASUK" | "NA"
+  shift2: text("shift2").notNull().default("MASUK"), // "MASUK" | "NA"
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("sp_attendance_plan_unique").on(table.officerName, table.year, table.week),
+]);
+
+export const insertSafetyPatrolAttendancePlanSchema = createInsertSchema(safetyPatrolAttendancePlan).omit({
+  id: true,
+  updatedAt: true,
+});
+export type SafetyPatrolAttendancePlan = typeof safetyPatrolAttendancePlan.$inferSelect;
+export type InsertSafetyPatrolAttendancePlan = typeof safetyPatrolAttendancePlan.$inferInsert;
 
 // ============================================
 // SAFETY PATROL TEMPLATES (Knowledge Base)
