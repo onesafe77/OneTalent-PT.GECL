@@ -65,7 +65,7 @@ interface Album { photos: string[]; caption: string; chatId: string; user: any; 
 const albumBuffer = new Map<string, Album>();
 
 // Agregasi foto<->teks yang dikirim TERPISAH (caption Telegram dibatasi 1024 char).
-const WINDOW_MS = 120000; // 2 menit
+const WINDOW_MS = 60000; // 1 menit (batas selisih teks↔foto agar dianggap 1 laporan)
 // Laporan terakhir yang disimpan per chat (untuk menempelkan foto yang datang menyusul).
 const lastReportByChat = new Map<string, { reportId: string; ts: number; photos: string[] }>();
 // Foto yang datang SEBELUM teks laporan (ditahan sebentar agar bisa digabung ke laporan berikutnya).

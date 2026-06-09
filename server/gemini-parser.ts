@@ -43,6 +43,61 @@ function getWeekOfMonth(date: Date): number {
   return Math.min(5, Math.floor((day - 1) / 7) + 1);
 }
 
+// ---- Ekstraktor heuristik (jaring pengaman bila AI gagal/kosong) ----
+const ID_MONTHS: Record<string, number> = {
+  januari: 1, jan: 1, februari: 2, feb: 2, maret: 3, mar: 3, april: 4, apr: 4, mei: 5,
+  juni: 6, jun: 6, juli: 7, jul: 7, agustus: 8, agu: 8, agt: 8, ags: 8, september: 9, sep: 9,
+  oktober: 10, okt: 10, november: 11, nov: 11, desember: 12, des: 12,
+};
+function normalizeTanggal(raw: string): string | undefined {
+  if (!raw) return undefined;
+  const s = raw.trim();
+  let m = s.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/); // 09 juni 2026
+  if (m && ID_MONTHS[m[2].toLowerCase()]) {
+    return `${m[3]}-${String(ID_MONTHS[m[2].toLowerCase()]).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
+  }
+  m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/); // 09/06/2026
+  if (m) return `${m[3]}-${String(+m[2]).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
+  m = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[0];
+  return undefined;
+}
+function lineVal(text: string, ...labels: string[]): string {
+  for (const ln of text.split(/\r?\n/)) {
+    for (const lab of labels) {
+      const mm = ln.match(new RegExp(`^\\s*\\**\\s*${lab}\\s*\\**\\s*[:\\-]\\s*(.+)$`, "i"));
+      if (mm) return mm[1].replace(/\*/g, "").trim();
+    }
+  }
+  return "";
+}
+function heuristicExtract(text: string): Partial<ParsedReport> {
+  const out: Partial<ParsedReport> = {};
+  const titleM = text.match(/^\s*\*([^*\n]{3,60})\*/m); // judul *...* di baris pertama
+  if (titleM) out.kegiatan = titleM[1].trim();
+  const tgl = normalizeTanggal(lineVal(text, "hari/tgl", "hari/tanggal", "tanggal", "tgl", "hari, tanggal"));
+  if (tgl) out.tanggal = tgl;
+  const shiftRaw = lineVal(text, "shift");
+  if (shiftRaw) out.shift = /(^|[^0-9])2|malam|night/i.test(shiftRaw) ? "Shift 2" : /(^|[^0-9])1|siang|pagi|day/i.test(shiftRaw) ? "Shift 1" : shiftRaw;
+  const waktu = lineVal(text, "waktu", "jam");
+  if (waktu) out.waktuPelaksanaan = waktu;
+  const lokasi = lineVal(text, "lokasi", "location");
+  if (lokasi) out.lokasi = lokasi;
+  const pel = text.match(/\*?\s*pelaksana\s*\*?\s*[:\-]?\s*\n?\s*[-•]?\s*([A-Za-z][A-Za-z .,'`]+)/i);
+  if (pel) out.namaPelaksana = pel[1].replace(/\bPT\.?\s*\w+/i, "").trim();
+  const temuan = lineVal(text, "temuan", "finding");
+  if (temuan) out.temuan = temuan;
+  return out;
+}
+function fillFromHeuristic(parsed: ParsedReport, text: string): ParsedReport {
+  const h = heuristicExtract(text);
+  (["kegiatan", "shift", "lokasi", "waktuPelaksanaan", "namaPelaksana", "temuan"] as const).forEach((k) => {
+    if ((!parsed[k] || String(parsed[k]).trim() === "") && h[k]) (parsed as any)[k] = h[k];
+  });
+  if (!parsed.tanggal && h.tanggal) parsed.tanggal = h.tanggal;
+  return parsed;
+}
+
 export async function parseReportWithGemini(messageText: string): Promise<ParsedReport> {
   const matchResult = await templateResolver.matchTemplate(messageText);
   const templateContext = templateResolver.buildPromptContext(matchResult.template);
@@ -113,6 +168,9 @@ ATURAN PENTING:
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]) as ParsedReport;
 
+      // Jaring pengaman: isi field yang AI kosongkan dari baris berlabel
+      fillFromHeuristic(parsed, messageText);
+
       if (!parsed.tanggal) {
         parsed.tanggal = new Date().toISOString().split('T')[0];
       }
@@ -152,17 +210,24 @@ ATURAN PENTING:
   } catch (error) {
     console.error("Error parsing with OpenRouter:", error);
 
-    const errorDate = new Date();
+    // AI gagal → bangun dari ekstraktor heuristik (baris berlabel) agar laporan tetap terisi
+    const h = heuristicExtract(messageText);
+    const errorDate = h.tanggal ? new Date(h.tanggal) : new Date();
     return {
-      jenisLaporan: matchResult.template?.name || "Laporan Umum",
-      kegiatan: matchResult.template?.name || undefined,
-      tanggal: errorDate.toISOString().split('T')[0],
+      jenisLaporan: h.kegiatan || matchResult.template?.name || "Laporan Umum",
+      kegiatan: h.kegiatan || matchResult.template?.name || undefined,
+      tanggal: h.tanggal || errorDate.toISOString().split('T')[0],
       bulan: getBulanIndonesia(errorDate),
       week: getWeekOfMonth(errorDate),
+      waktuPelaksanaan: h.waktuPelaksanaan,
+      shift: h.shift,
+      lokasi: h.lokasi,
+      namaPelaksana: h.namaPelaksana,
+      temuan: h.temuan,
       pemateri: [],
       attendance: [],
       rosterOff: [],
-      summary: "Gagal menganalisis pesan",
+      summary: h.kegiatan || "Laporan Safety Patrol",
       matchedTemplate: matchResult.template?.name,
       matchScore: matchResult.matchScore
     };
