@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { getRunningWeek } from "@/lib/weekCutoffs";
 import {
   Shield,
   FileText,
@@ -216,7 +217,7 @@ export default function SafetyPatrol() {
       const base: Record<string, string> = {
         Tanggal: formatDate(r.tanggal),
         Bulan: r.bulan || "-",
-        Week: r.week ? `W${r.week}` : "-",
+        Week: getRunningWeek(r.tanggal) ? `W${getRunningWeek(r.tanggal)}` : "-",
         Waktu: r.waktuPelaksanaan || "-",
         Shift: r.shift || "-",
         Lokasi: r.lokasi || "-",
@@ -473,7 +474,7 @@ export default function SafetyPatrol() {
                             <TableCell className="pl-5 py-3">
                               <div className="flex flex-col">
                                 <span className="text-sm font-medium text-gray-800">{formatDate(report.tanggal)}</span>
-                                <span className="text-xs text-gray-400">{report.bulan} · W{report.week || '-'}</span>
+                                <span className="text-xs text-gray-400">{getRunningWeek(report.tanggal) ? `W${getRunningWeek(report.tanggal)}` : '-'}</span>
                               </div>
                             </TableCell>
 

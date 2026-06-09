@@ -1239,6 +1239,135 @@ export type SafetyPatrolAttendancePlan = typeof safetyPatrolAttendancePlan.$infe
 export type InsertSafetyPatrolAttendancePlan = typeof safetyPatrolAttendancePlan.$inferInsert;
 
 // ============================================
+// SIMANTIK / ZERO HARM — tabel data mentah import (iSafe / FMS)
+// Tiap tabel: kolom kunci utk query + raw jsonb (semua kolom asli) + sourceKey unik (dedup re-import)
+// ============================================
+
+export const zhHazard = pgTable("zh_hazard", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceKey: text("source_key").notNull().unique(),
+  hazardId: text("hazard_id"),
+  nikPelapor: text("nik_pelapor"),
+  namaPelapor: text("nama_pelapor"),
+  perusahaanPelapor: text("perusahaan_pelapor"),
+  departemenPelapor: text("departemen_pelapor"),
+  jenisTemuan: text("jenis_temuan"), // KTA / TTA
+  resiko: text("resiko"), // low/medium/high
+  status: text("status"),
+  ketidaksesuaian: text("ketidaksesuaian"),
+  tanggalLaporan: timestamp("tanggal_laporan"),
+  week: text("week"), month: text("month"), quartal: text("quartal"),
+  raw: jsonb("raw"),
+  importedAt: timestamp("imported_at").defaultNow(),
+}, (t) => [index("IDX_zh_hazard_week").on(t.week)]);
+
+export const zhInspeksi = pgTable("zh_inspeksi", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceKey: text("source_key").notNull().unique(),
+  idInspeksi: text("id_inspeksi"),
+  namaPelaksana: text("nama_pelaksana"),
+  nikPelaksana: text("nik_pelaksana"),
+  perusahaan: text("perusahaan"),
+  judul: text("judul"),
+  lokasi: text("lokasi"),
+  jenisObjek: text("jenis_objek"),
+  jumlahTemuan: integer("jumlah_temuan"),
+  jumlahClose: integer("jumlah_close"),
+  status: text("status"),
+  kesesuaianWaktu: text("kesesuaian_waktu"),
+  tanggal: timestamp("tanggal"),
+  week: text("week"), month: text("month"), quartal: text("quartal"),
+  raw: jsonb("raw"),
+  importedAt: timestamp("imported_at").defaultNow(),
+}, (t) => [index("IDX_zh_inspeksi_week").on(t.week)]);
+
+export const zhObservasi = pgTable("zh_observasi", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceKey: text("source_key").notNull().unique(),
+  idObservasi: text("id_observasi"),
+  judul: text("judul"),
+  lokasi: text("lokasi"),
+  perusahaanPekerja: text("perusahaan_pekerja"),
+  namaPja: text("nama_pja"),
+  nikPja: text("nik_pja"),
+  namaPelapor: text("nama_pelapor"),
+  jumlahTemuan: integer("jumlah_temuan"),
+  jumlahClose: integer("jumlah_close"),
+  status: text("status"),
+  tanggal: timestamp("tanggal"),
+  week: text("week"), month: text("month"), quartal: text("quartal"),
+  raw: jsonb("raw"),
+  importedAt: timestamp("imported_at").defaultNow(),
+}, (t) => [index("IDX_zh_observasi_week").on(t.week)]);
+
+export const zhAttendance = pgTable("zh_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceKey: text("source_key").notNull().unique(),
+  namaEvent: text("nama_event"),
+  tipeEvent: text("tipe_event"),
+  peserta: text("peserta"),
+  nik: text("nik"),
+  jabatan: text("jabatan"),
+  departemen: text("departemen"),
+  perusahaan: text("perusahaan"),
+  statusAbsen: text("status_absen"),
+  shift: text("shift"),
+  tanggalEvent: timestamp("tanggal_event"),
+  week: text("week"), month: text("month"), quartal: text("quartal"),
+  raw: jsonb("raw"),
+  importedAt: timestamp("imported_at").defaultNow(),
+}, (t) => [index("IDX_zh_attendance_week").on(t.week)]);
+
+export const zhFms = pgTable("zh_fms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceKey: text("source_key").notNull().unique(),
+  tanggal: timestamp("tanggal"),
+  vehicleNo: text("vehicle_no"),
+  company: text("company"),
+  violation: text("violation"),
+  shift: text("shift"),
+  validationStatus: text("validation_status"),
+  validatedBy: text("validated_by"),
+  sla: real("sla"),
+  kategoriValidasi: text("kategori_validasi"),
+  kategori: text("kategori"),
+  week: text("week"), month: text("month"),
+  raw: jsonb("raw"),
+  importedAt: timestamp("imported_at").defaultNow(),
+}, (t) => [index("IDX_zh_fms_week").on(t.week)]);
+
+export const zhOpk = pgTable("zh_opk", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sourceKey: text("source_key").notNull().unique(),
+  idObservasi: text("id_observasi"),
+  namaObserver: text("nama_observer"),
+  nikObserver: text("nik_observer"),
+  perusahaanObserver: text("perusahaan_observer"),
+  judul: text("judul"),
+  lokasi: text("lokasi"),
+  sublokasi: text("sublokasi"),
+  nikUnitTerlibat: text("nik_unit_terlibat"),
+  namaTerlibat: text("nama_terlibat"),
+  perusahaanTerlibat: text("perusahaan_terlibat"),
+  itemChecklist: text("item_checklist"),
+  hasil: text("hasil"),
+  detailTemuan: text("detail_temuan"),
+  deviasi: text("deviasi"),
+  jenisPekerjaan: text("jenis_pekerjaan"),
+  tanggal: timestamp("tanggal"),
+  week: text("week"), month: text("month"), quartal: text("quartal"),
+  raw: jsonb("raw"),
+  importedAt: timestamp("imported_at").defaultNow(),
+}, (t) => [index("IDX_zh_opk_week").on(t.week)]);
+
+export type ZhHazard = typeof zhHazard.$inferInsert;
+export type ZhInspeksi = typeof zhInspeksi.$inferInsert;
+export type ZhObservasi = typeof zhObservasi.$inferInsert;
+export type ZhAttendance = typeof zhAttendance.$inferInsert;
+export type ZhFms = typeof zhFms.$inferInsert;
+export type ZhOpk = typeof zhOpk.$inferInsert;
+
+// ============================================
 // SAFETY PATROL TEMPLATES (Knowledge Base)
 // ============================================
 

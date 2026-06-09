@@ -13739,6 +13739,49 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // ===== SIMANTIK / Zero Harm — import iSafe/FMS =====
+  app.get("/api/zero-harm/summary", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const counts = await storage.zhCounts();
+      res.json({ counts, total: Object.values(counts).reduce((a: number, b: number) => a + b, 0) });
+    } catch (error) {
+      console.error("ZeroHarm summary error:", error);
+      res.status(500).json({ message: "Gagal mengambil ringkasan" });
+    }
+  });
+
+  app.get("/api/zero-harm/analytics", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const data = await storage.zhAnalytics();
+      res.json(data);
+    } catch (error: any) {
+      console.error("ZeroHarm analytics error:", error?.message || error);
+      res.status(500).json({ message: "Gagal mengambil analitik" });
+    }
+  });
+
+  app.post("/api/zero-harm/import", excelUpload.single("file"), async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      if (!req.file) return res.status(400).json({ message: "File Excel diperlukan" });
+      const { parseZeroHarmWorkbook } = await import("./services/zero-harm-import");
+      const { rows, counts, sheetsFound } = parseZeroHarmWorkbook(req.file.buffer);
+      const saved: Record<string, number> = {};
+      for (const sheet of ["hazard", "inspeksi", "observasi", "attendance", "fms"]) {
+        saved[sheet] = await storage.zhUpsert(sheet, (rows as any)[sheet]);
+      }
+      res.json({ ok: true, parsed: counts, saved, sheetsFound });
+    } catch (error: any) {
+      console.error("ZeroHarm import error:", error?.message || error);
+      res.status(500).json({ message: error?.message || "Gagal import data" });
+    }
+  });
+
   app.get("/api/safety-patrol/kpi", async (req, res) => {
     try {
       const { startDate, endDate, pelaksana } = req.query;

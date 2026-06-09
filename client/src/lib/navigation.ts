@@ -218,6 +218,20 @@ export const navigationGroups: NavGroup[] = [
         ]
     },
     {
+        title: "SIMANTIK",
+        items: [
+            {
+                name: "Zero Harm 2.0",
+                icon: Shield,
+                requiredPermissions: [Permission.VIEW_DASHBOARD],
+                children: [
+                    { name: "Dashboard Analitik", href: "/workspace/zero-harm", icon: BarChart3, requiredPermissions: [Permission.VIEW_DASHBOARD] },
+                    { name: "Import Data", href: "/workspace/zero-harm/import", icon: Database, requiredPermissions: [Permission.VIEW_DASHBOARD] },
+                ]
+            }
+        ]
+    },
+    {
         title: "Other",
         items: [
             {

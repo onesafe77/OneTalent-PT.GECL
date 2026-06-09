@@ -64,6 +64,7 @@ import {
   safetyPatrolAttendancePlan,
   type SafetyPatrolAttendancePlan,
   type InsertSafetyPatrolAttendancePlan,
+  zhHazard, zhInspeksi, zhObservasi, zhAttendance, zhFms, zhOpk,
   type SafetyPatrolAttendance,
   type InsertSafetyPatrolAttendance,
   type SafetyPatrolRawMessage,
@@ -4254,6 +4255,127 @@ export class DrizzleStorage implements IStorage {
           set: { shift1: row.shift1, shift2: row.shift2, nik: row.nik, updatedAt: new Date() },
         });
     }
+  }
+
+  // ---- Zero Harm (SIMANTIK) import ----
+  private zhTable(sheet: string): any {
+    return ({ hazard: zhHazard, inspeksi: zhInspeksi, observasi: zhObservasi, opk: zhOpk, attendance: zhAttendance, fms: zhFms } as any)[sheet];
+  }
+  // Replace penuh per sheet (mirror file export harian). File = sumber kebenaran.
+  async zhUpsert(sheet: string, rows: any[]): Promise<number> {
+    const table = this.zhTable(sheet);
+    if (!table) return 0;
+    if (!rows.length) return 0; // sheet absen di file → jangan hapus data lama
+    // Dedup baris identik (sourceKey = hash baris penuh) agar tak melanggar unique
+    const dedup = Array.from(new Map(rows.map((r) => [r.sourceKey, r])).values());
+    await this.db.delete(table); // hapus data lama sheet ini → ganti dengan isi file
+    let n = 0;
+    for (let i = 0; i < dedup.length; i += 500) {
+      const chunk = dedup.slice(i, i + 500);
+      await this.db.insert(table).values(chunk).onConflictDoNothing();
+      n += chunk.length;
+    }
+    return n;
+  }
+  async zhCounts(): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const [k, t] of Object.entries({ hazard: zhHazard, inspeksi: zhInspeksi, observasi: zhObservasi, opk: zhOpk, attendance: zhAttendance, fms: zhFms })) {
+      const [r] = await this.db.select({ c: sql<number>`count(*)::int` }).from(t as any);
+      out[k] = r?.c ?? 0;
+    }
+    return out;
+  }
+
+  // Agregasi analitik per sheet untuk dashboard Zero Harm (recharts).
+  async zhAnalytics(): Promise<any> {
+    const rows = async (text: string) => ((await this.db.execute(sql.raw(text))) as any).rows as any[];
+    const grp = (tbl: string, col: string, extra = "") => rows(`select ${col} as k, count(*)::int as c from ${tbl} where ${col} is not null and ${col} <> '' group by ${col} ${extra}`);
+    // Agregasi dari kolom asli di jsonb raw (tanpa perlu kolom tabel)
+    const grpRaw = (tbl: string, header: string, extra = "order by c desc limit 8") => {
+      const h = header.replace(/'/g, "''");
+      return rows(`select raw->>'${h}' as k, count(*)::int as c from ${tbl} where raw->>'${h}' is not null and raw->>'${h}' <> '' group by 1 ${extra}`);
+    };
+    const counts = await this.zhCounts();
+    return {
+      counts,
+      total: Object.values(counts).reduce((a: number, b: number) => a + b, 0),
+      hazard: {
+        byJenis: await grp("zh_hazard", "jenis_temuan"),
+        byRisiko: await grp("zh_hazard", "resiko"),
+        byStatus: await grp("zh_hazard", "status"),
+        byWeek: await grp("zh_hazard", "week", "order by k"),
+        byMonth: await grp("zh_hazard", "month", "order by k"),
+        byKetidaksesuaian: await grp("zh_hazard", "ketidaksesuaian", "order by c desc limit 8"),
+        topPelapor: await grp("zh_hazard", "nama_pelapor", "order by c desc limit 8"),
+        byPosisiPelapor: await grpRaw("zh_hazard", "Posisi Pelapor"),
+        byPosisiPenindak: await grpRaw("zh_hazard", "Posisi PenindakLanjut"),
+        byDeptPenindak: await grpRaw("zh_hazard", "Department PenindakLanjut"),
+        byPerusahaanPenindak: await grpRaw("zh_hazard", "Perusahaan PenindakLanjut"),
+        byLokasi: await grpRaw("zh_hazard", "Lokasi Laporan"),
+        bySubKetidak: await grpRaw("zh_hazard", "Sub Ketidaksesuaian"),
+        byPenyebab: await grpRaw("zh_hazard", "Penyebab"),
+      },
+      inspeksi: {
+        byWeekKesesuaian: await rows("select week as k, kesesuaian_waktu as s, count(*)::int as c from zh_inspeksi where week is not null group by week, kesesuaian_waktu order by week"),
+        byStatus: await grp("zh_inspeksi", "status"),
+        byJenisObjek: await grp("zh_inspeksi", "jenis_objek", "order by c desc limit 8"),
+        topPelaksana: await grp("zh_inspeksi", "nama_pelaksana", "order by c desc limit 8"),
+        byMonth: await grp("zh_inspeksi", "month", "order by k"),
+        temuan: (await rows("select coalesce(sum(jumlah_temuan),0)::int as t, coalesce(sum(jumlah_close),0)::int as c from zh_inspeksi"))[0],
+        byPosisi: await grpRaw("zh_inspeksi", "Posisi"),
+        byLokasi: await grpRaw("zh_inspeksi", "Lokasi Inspeksi"),
+        byNamaForm: await grpRaw("zh_inspeksi", "Nama Form Inspeksi"),
+        byPosisiPju: await grpRaw("zh_inspeksi", "Posisi PJU"),
+        byDeptPju: await grpRaw("zh_inspeksi", "Departemen PJU"),
+        byPerusahaanPju: await grpRaw("zh_inspeksi", "Perusahaan PJU"),
+      },
+      observasi: {
+        byWeek: await grp("zh_observasi", "week", "order by k"),
+        byMonth: await grp("zh_observasi", "month", "order by k"),
+        byLokasi: await grp("zh_observasi", "lokasi", "order by c desc limit 8"),
+        topPja: await grp("zh_observasi", "nama_pja", "order by c desc limit 8"),
+        byPosisiPja: await grpRaw("zh_observasi", "Posisi PJA"),
+        byPerusahaanPekerja: await grpRaw("zh_observasi", "Perusahaan Pekerja"),
+        byDeptPekerja: await grpRaw("zh_observasi", "Departemen Pekerja"),
+        byPosisiPelapor: await grpRaw("zh_observasi", "Posisi Pelapor"),
+        bySublokasi: await grpRaw("zh_observasi", "Sublokasi observasi"),
+        topPelapor: await grpRaw("zh_observasi", "Nama Pelapor"),
+      },
+      opk: {
+        byHasil: await grp("zh_opk", "hasil", "order by c desc limit 6"),
+        byJenisPekerjaan: await grp("zh_opk", "jenis_pekerjaan", "order by c desc limit 8"),
+        topObserver: await grp("zh_opk", "nama_observer", "order by c desc limit 8"),
+        byWeek: await grp("zh_opk", "week", "order by k"),
+        byMonth: await grp("zh_opk", "month", "order by k"),
+        byLokasi: await grpRaw("zh_opk", "Lokasi Observasi"),
+        byPerusahaanTerlibat: await grpRaw("zh_opk", "Perusahaan Orang / Unit Terlibat"),
+        byDeviasi: await grpRaw("zh_opk", "Deviasi"),
+      },
+      attendance: {
+        byTipe: await grp("zh_attendance", "tipe_event", "order by c desc limit 8"),
+        byShift: await grp("zh_attendance", "shift"),
+        byWeek: await grp("zh_attendance", "week", "order by k"),
+        byMonth: await grp("zh_attendance", "month", "order by k"),
+        validitas: await rows("select case when lower(status_absen) like 'valid%' then 'Valid' else 'Invalid' end as k, count(*)::int as c from zh_attendance group by 1"),
+        byPembicara: await grpRaw("zh_attendance", "Pembicara"),
+        byJabatan: await grpRaw("zh_attendance", "jabatan"),
+        byEvent: await grpRaw("zh_attendance", "Nama Event"),
+        byStatusReg: await grpRaw("zh_attendance", "Status Registrasi"),
+      },
+      fms: {
+        byKategori: await grp("zh_fms", "kategori"),
+        byValidation: await grp("zh_fms", "validation_status"),
+        byShift: await grp("zh_fms", "shift"),
+        byViolation: await grp("zh_fms", "violation", "order by c desc limit 6"),
+        byWeek: await grp("zh_fms", "week", "order by k"),
+        byMonth: await grp("zh_fms", "month", "order by k"),
+        slaByWeek: await rows("select week as k, round(avg(sla)::numeric,2)::float as v from zh_fms where sla is not null and week is not null group by week order by week"),
+        topVehicle: await grp("zh_fms", "vehicle_no", "order by c desc limit 8"),
+        byCompany: await grpRaw("zh_fms", "Company"),
+        byValidatedBy: await grpRaw("zh_fms", "validated_by"),
+        byKategoriValidasi: await grpRaw("zh_fms", "Kategori Validasi"),
+      },
+    };
   }
 
   async deleteSafetyPatrolReport(id: string): Promise<boolean> {

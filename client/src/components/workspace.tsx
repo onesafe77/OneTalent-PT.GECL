@@ -98,6 +98,8 @@ import HrInductionAttendance from "@/pages/hr-induction-attendance";
 import SafetyPatrol from "@/pages/safety-patrol";
 import SafetyPatrolKPI from "@/pages/safety-patrol-kpi";
 import SafetyPatrolAttendancePlan from "@/pages/safety-patrol-attendance-plan";
+import ZeroHarmDashboard from "@/pages/zero-harm/dashboard";
+import ZeroHarmImport from "@/pages/zero-harm/import";
 import SickLeavePage from "@/pages/hse/sick-leave-page";
 import TrainingMaster from "@/pages/hse/tna/training-master";
 import TnaInput from "@/pages/hse/tna/tna-input";
@@ -212,6 +214,8 @@ const workspaceRoutes = [
   { path: "/workspace/safety-patrol", component: SafetyPatrol, title: "Safety Patrol Dashboard" },
   { path: "/workspace/safety-patrol/kpi", component: SafetyPatrolKPI, title: "KPI Evaluasi Safety Patrol" },
   { path: "/workspace/safety-patrol/attendance-plan", component: SafetyPatrolAttendancePlan, title: "Plan Kehadiran Pengawas" },
+  { path: "/workspace/zero-harm", component: ZeroHarmDashboard, title: "SIMANTIK — Zero Harm 2.0" },
+  { path: "/workspace/zero-harm/import", component: ZeroHarmImport, title: "Zero Harm — Import Data" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
   { path: "/workspace/hse/evaluasi-driver-fatigue", component: EvaluasiDriverFatigue, title: "Evaluasi Driver Fatigue" },
@@ -431,6 +435,16 @@ export function Workspace() {
               <Route path="/workspace/safety-patrol/attendance-plan">
                 <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
                   <SafetyPatrolAttendancePlan />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm/import">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmImport />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmDashboard />
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/safety-patrol">

@@ -135,6 +135,36 @@ function drainRecentPhotos(chatId: string): string[] {
   return buf.urls;
 }
 
+// Foto/lampiran masuk: tempel ke laporan terakhir (≤WINDOW_MS) ATAU buffer untuk teks yang menyusul.
+// Dipakai cabang foto tunggal DAN album, supaya album juga menyatu dgn laporan teks.
+async function attachOrBufferPhotos(chatId: string, user: any, urls: string[]) {
+  if (!urls || !urls.length) return;
+  const last = lastReportByChat.get(chatId);
+  if (last && Date.now() - last.ts <= WINDOW_MS) {
+    const merged = [...(last.photos || []), ...urls];
+    try {
+      await storage.updateSafetyPatrolReport(last.reportId, { buktiKegiatan: merged, photos: merged } as any);
+      lastReportByChat.set(chatId, { ...last, ts: Date.now(), photos: merged });
+      await tgSendMessage(chatId, "📎 Foto/lampiran ditambahkan ke laporan.");
+    } catch (e: any) { console.error("[Telegram] attach photo error:", e?.message || e); }
+    return;
+  }
+  // Belum ada laporan → buffer; akan digabung ke teks yang menyusul (drainRecentPhotos di saveReport).
+  const buf = recentPhotosByChat.get(chatId) || { urls: [], ts: Date.now(), timer: null };
+  buf.urls.push(...urls);
+  buf.ts = Date.now();
+  if (buf.timer) clearTimeout(buf.timer);
+  buf.timer = setTimeout(async () => {
+    const cur = recentPhotosByChat.get(chatId);
+    recentPhotosByChat.delete(chatId);
+    if (cur && cur.urls.length) {
+      try { await saveReport(chatId, user, "(foto tanpa keterangan)", cur.urls); }
+      catch (e: any) { console.error("[Telegram] foto-only save error:", e?.message || e); }
+    }
+  }, 30000);
+  recentPhotosByChat.set(chatId, buf);
+}
+
 // ---------- Simpan laporan ----------
 async function saveReport(chatId: string, user: any, text: string, photos: string[]) {
   const parsed: any = await parseReportWithGemini(text);
@@ -262,11 +292,19 @@ async function processUpdate(update: any) {
     return;
   }
 
-  // Foto?
+  // Foto / lampiran (foto, video, dokumen)
   let photoUrls: string[] = [];
   if (msg.photo && msg.photo.length) {
     const largest = msg.photo[msg.photo.length - 1];
     const url = await tgDownloadPhotoToStorage(largest.file_id);
+    if (url) photoUrls.push(url);
+  }
+  if (msg.video?.file_id) {
+    const url = await tgDownloadPhotoToStorage(msg.video.file_id);
+    if (url) photoUrls.push(url);
+  }
+  if (msg.document?.file_id) {
+    const url = await tgDownloadPhotoToStorage(msg.document.file_id);
     if (url) photoUrls.push(url);
   }
 
@@ -283,7 +321,8 @@ async function processUpdate(update: any) {
         if (buf.caption && isLikelyPatrolReport(buf.caption)) {
           await handleReportText(chatId, user, buf.caption, buf.photos);
         } else if (buf.photos.length) {
-          await saveReport(chatId, user, buf.caption || "(foto)", buf.photos);
+          // Album tanpa caption laporan → tempel ke laporan teks terakhir / buffer (bukan laporan baru)
+          await attachOrBufferPhotos(chatId, buf.user, buf.photos);
         }
       } catch (e: any) { console.error("[Telegram] album error:", e?.message || e); }
     }, 2500);
@@ -312,37 +351,9 @@ async function processUpdate(update: any) {
     return;
   }
 
-  // Hanya foto tanpa teks
+  // Hanya foto/lampiran tanpa teks → tempel ke laporan terakhir atau buffer (helper bersama)
   if (photoUrls.length) {
-    // 1) Bila ada laporan yang baru saja disimpan (dalam window) -> tempelkan foto ke laporan itu
-    const last = lastReportByChat.get(chatId);
-    if (last && Date.now() - last.ts <= WINDOW_MS) {
-      const merged = [...(last.photos || []), ...photoUrls];
-      try {
-        await storage.updateSafetyPatrolReport(last.reportId, { buktiKegiatan: merged, photos: merged } as any);
-        lastReportByChat.set(chatId, { ...last, ts: Date.now(), photos: merged });
-        await tgSendMessage(chatId, "📎 Foto ditambahkan ke laporan sebelumnya.");
-      } catch (e: any) {
-        console.error("[Telegram] attach photo error:", e?.message || e);
-      }
-      return;
-    }
-
-    // 2) Belum ada laporan -> tahan sebentar; gabung ke laporan teks yang menyusul.
-    //    Bila tidak ada laporan dalam ~30s, baru buat "Laporan Foto".
-    const buf = recentPhotosByChat.get(chatId) || { urls: [], ts: Date.now(), timer: null };
-    buf.urls.push(...photoUrls);
-    buf.ts = Date.now();
-    if (buf.timer) clearTimeout(buf.timer);
-    buf.timer = setTimeout(async () => {
-      const cur = recentPhotosByChat.get(chatId);
-      recentPhotosByChat.delete(chatId);
-      if (cur && cur.urls.length) {
-        try { await saveReport(chatId, user, "(foto tanpa keterangan)", cur.urls); }
-        catch (e: any) { console.error("[Telegram] foto-only save error:", e?.message || e); }
-      }
-    }, 30000);
-    recentPhotosByChat.set(chatId, buf);
+    await attachOrBufferPhotos(chatId, user, photoUrls);
   }
 }
 

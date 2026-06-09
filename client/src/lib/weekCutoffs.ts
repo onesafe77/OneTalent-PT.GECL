@@ -93,3 +93,21 @@ export function getWeeksInMonth(year: number, monthName: string): WeekRange[] {
 export function getCurrentWeekNumber(): number {
   return getWeek(new Date(), { weekStartsOn: 0 });
 }
+
+/**
+ * Nomor minggu berjalan (cutweek) dari sebuah tanggal — sama dengan sistem Monitoring Fatigue
+ * (minggu kalender, mulai Minggu). Menerima Date atau string "YYYY-MM-DD".
+ * Mengembalikan 0 bila tanggal tidak valid.
+ */
+export function getRunningWeek(d: string | Date | null | undefined): number {
+  if (!d) return 0;
+  let date: Date;
+  if (typeof d === "string") {
+    const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    date = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(d);
+  } else {
+    date = d;
+  }
+  if (isNaN(date.getTime())) return 0;
+  return getWeek(date, { weekStartsOn: 0 });
+}
