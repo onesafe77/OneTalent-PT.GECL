@@ -112,15 +112,27 @@ async function hermes(system: string, user: string, fallback: string): Promise<s
 
 const SYS_BOT = "Kamu asisten Safety Patrol HSE PT Borneo Indobara di Telegram. Jawab singkat (maks 3 kalimat), sopan, ramah, Bahasa Indonesia. Jangan mengarang data.";
 
-async function replyConfirm(chatId: string, nama: string, parsed: any) {
+async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos: boolean = false) {
   const ringkas = JSON.stringify({
     jenis: parsed.jenisLaporan, kegiatan: parsed.kegiatan, tanggal: parsed.tanggal,
-    shift: parsed.shift, lokasi: parsed.lokasi, temuan: parsed.temuan,
+    shift: parsed.shift, waktu: parsed.waktuPelaksanaan, lokasi: parsed.lokasi,
+    pelaksana: parsed.namaPelaksana, temuan: parsed.temuan,
   });
+  // Ringkasan terstruktur (hanya field terisi) — dipakai sbg fallback bila AI gagal.
+  const lines = [
+    (parsed.kegiatan || parsed.jenisLaporan) ? `• Kegiatan: ${parsed.kegiatan || parsed.jenisLaporan}` : "",
+    parsed.tanggal ? `• Tanggal: ${parsed.tanggal}${parsed.shift ? " · " + parsed.shift : ""}` : (parsed.shift ? `• Shift: ${parsed.shift}` : ""),
+    parsed.waktuPelaksanaan ? `• Waktu: ${parsed.waktuPelaksanaan}` : "",
+    parsed.lokasi ? `• Lokasi: ${parsed.lokasi}` : "",
+    parsed.namaPelaksana ? `• Pelaksana: ${parsed.namaPelaksana}` : "",
+    parsed.temuan ? `• Temuan: ${String(parsed.temuan).slice(0, 200)}` : "",
+  ].filter(Boolean).join("\n");
+  const photoNote = hasPhotos ? "" : "\n\n📷 Jangan lupa kirim foto kegiatannya ya 🙏";
+  const fallback = `✅ Laporan tersimpan, terima kasih ${nama}!\n\n📋 Ringkasan:\n${lines || "(ringkasan tidak tersedia)"}${photoNote}`;
   const text = await hermes(
     SYS_BOT,
-    `Laporan dari ${nama} sudah TERSIMPAN. Buat 1 pesan konfirmasi ramah yang menyebut ringkas isinya. Data: ${ringkas}`,
-    `✅ Laporan tersimpan, terima kasih ${nama}.\n${parsed.kegiatan || parsed.jenisLaporan || "Laporan"}${parsed.shift ? " · " + parsed.shift : ""}${parsed.lokasi ? " · " + parsed.lokasi : ""}${parsed.tanggal ? " · " + parsed.tanggal : ""}`
+    `Laporan dari ${nama} sudah TERSIMPAN ke rekap. Buat konfirmasi ramah + RINGKASAN isi laporan (kegiatan, tanggal, shift, waktu, lokasi, pelaksana, temuan).${hasPhotos ? "" : " Akhiri dengan ajakan singkat mengirim foto kegiatan."} Data: ${ringkas}`,
+    fallback
   );
   await tgSendMessage(chatId, text);
 }
@@ -220,7 +232,7 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
     } catch (e: any) { console.error("[Telegram] attendance error:", e?.message || e); }
   }
 
-  await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed);
+  await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed, allPhotos.length > 0);
   return report;
 }
 
