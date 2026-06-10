@@ -71,10 +71,94 @@ function lineVal(text: string, ...labels: string[]): string {
   }
   return "";
 }
+
+// ---- Penyaring metadata & penutup (untuk ekstraksi narasi temuan) ----
+const META_LABELS = [
+  "hari/tgl", "hari/tanggal", "hari, tanggal", "hari", "tanggal", "tgl", "shift", "waktu", "jam",
+  "lokasi", "location", "sampel", "sample", "sempel", "total sample", "total sampel",
+  "team", "nama team patrol", "nama team", "pelaksana", "safety patrol", "nama pelapor",
+  "nama pengawas", "perusahaan", "job area pengawas", "job area", "foto", "kegiatan", "pemateri",
+];
+function isMetaLabelLine(line: string): boolean {
+  const l = line.replace(/\*/g, "").trim().toLowerCase();
+  return META_LABELS.some((lab) => new RegExp(`^${lab.replace(/\//g, "\\/")}\\b\\s*([:\\-].*)?$`).test(l));
+}
+const CLOSING_RE = /^\s*"?\s*(salam|salam k3|ohs hauling|utamakan keselamatan|dept\.?\s*hse|team safety patrol|team ohs|team bib|team alpha|team delta|team bravo|team charlie|team echo|safety first)\b/i;
+function isClosingLine(line: string): boolean {
+  return CLOSING_RE.test(line.trim());
+}
+function isPersonLine(line: string): boolean {
+  // baris nama pelaksana/petugas (mengandung "PT")
+  return /\bPT[\.\s]/i.test(line) && /^[\s\-•*\d.]*[A-Za-z]/.test(line.trim());
+}
+const TEMUAN_HEADERS = [
+  "temuan", "finding", "findings", "issue", "issues", "hasil observasi", "hasil temuan", "hasil",
+  "detail kondisi", "kondisi", "catatan", "keterangan", "kendala", "rekomendasi", "tindak lanjut", "detail",
+];
+// Ekstrak temuan: label-block sinonim → list bernomor → narasi deskriptif.
+export function extractTemuan(text: string): string {
+  const lines = text.split(/\r?\n/).map((l) => l.replace(/\s+$/, ""));
+  const clip = (s: string) => s.replace(/[ \t]+/g, " ").trim().slice(0, 500);
+
+  // (1) Label-block: header sinonim temuan + baris isi sesudahnya
+  for (let i = 0; i < lines.length; i++) {
+    const bare = lines[i].replace(/\*/g, "").trim().toLowerCase();
+    const hdr = TEMUAN_HEADERS.find((h) => new RegExp(`^${h}\\b\\s*[:\\-]?`).test(bare));
+    if (!hdr) continue;
+    const parts: string[] = [];
+    const inline = lines[i].replace(/\*/g, "").replace(new RegExp(`^\\s*${hdr}\\s*[:\\-]?\\s*`, "i"), "").trim();
+    if (inline) parts.push(inline);
+    for (let j = i + 1; j < lines.length; j++) {
+      const ln = lines[j].trim();
+      if (!ln) {
+        if (!parts.length) continue;
+        let k = j + 1; while (k < lines.length && !lines[k].trim()) k++;
+        const nxt = k < lines.length ? lines[k].trim() : "";
+        if (nxt && /^([-•*]|km\s|phase\b|\d+\s*[.)])/i.test(nxt)) continue;
+        break;
+      }
+      if (isClosingLine(ln) || isMetaLabelLine(ln)) break;
+      parts.push(ln.replace(/^[-•*]\s*/, "").replace(/\*/g, "").trim());
+    }
+    const joined = clip(parts.join(" · "));
+    if (joined.length >= 3) return joined;
+  }
+
+  // (2) List temuan bernomor (mis. "1. KMB 5062 : Safety Cone tidak ada reflektor")
+  const numbered = lines
+    .map((l) => l.trim())
+    .filter((l) => /^\d+\s*[.)]\s*\S+.*(:|temuan|tidak ada|tidak |rusak|bocor|reflektor|apar)/i.test(l) && l.length > 6);
+  if (numbered.length >= 2) return clip(numbered.map((l) => l.replace(/\*/g, "")).join(" · "));
+
+  // (3) Narasi deskriptif (buang judul, metadata, nama, penutup)
+  const narr: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const ln = lines[i].trim();
+    if (!ln || i === 0) continue;
+    if (isMetaLabelLine(ln) || isClosingLine(ln) || isPersonLine(ln)) continue;
+    const bare = ln.replace(/\*/g, "").replace(/^[-•*]\s*/, "").trim();
+    if (bare.length < 8) continue;
+    narr.push(bare);
+  }
+  if (narr.length) return clip(narr.join(" · "));
+  return "";
+}
+
 function heuristicExtract(text: string): Partial<ParsedReport> {
   const out: Partial<ParsedReport> = {};
   const titleM = text.match(/^\s*\*([^*\n]{3,60})\*/m); // judul *...* di baris pertama
   if (titleM) out.kegiatan = titleM[1].trim();
+  if (!out.kegiatan) {
+    // judul = baris non-kosong pertama yang BUKAN label metadata
+    for (const ln of text.split(/\r?\n/)) {
+      const t = ln.replace(/\*/g, "").trim();
+      if (!t) continue;
+      if (isMetaLabelLine(t)) break;
+      const title = t.replace(/^(laporan\s+kegiatan|kegiatan)\s+/i, "").trim();
+      if (title.length >= 3) out.kegiatan = title.slice(0, 60);
+      break;
+    }
+  }
   const tgl = normalizeTanggal(lineVal(text, "hari/tgl", "hari/tanggal", "tanggal", "tgl", "hari, tanggal"));
   if (tgl) out.tanggal = tgl;
   const shiftRaw = lineVal(text, "shift");
@@ -85,7 +169,7 @@ function heuristicExtract(text: string): Partial<ParsedReport> {
   if (lokasi) out.lokasi = lokasi;
   const pel = text.match(/\*?\s*pelaksana\s*\*?\s*[:\-]?\s*\n?\s*[-•]?\s*([A-Za-z][A-Za-z .,'`]+)/i);
   if (pel) out.namaPelaksana = pel[1].replace(/\bPT\.?\s*\w+/i, "").trim();
-  const temuan = lineVal(text, "temuan", "finding");
+  const temuan = extractTemuan(text);
   if (temuan) out.temuan = temuan;
   return out;
 }
@@ -128,7 +212,7 @@ INSTRUKSI EKSTRAKSI WAJIB - Cari dan ekstrak data ini dari pesan:
 4. **lokasi**: Cari nama tempat, area, KM, site, pit, workshop, rest area, unit, dll
 5. **kegiatan**: Identifikasi jenis aktivitas. Contoh: Wake Up Call, Daily Briefing, Sidak Roster, P2H, Observasi Kecepatan Berkendara, Sidak Kecepatan, Safety Meeting, Patrol, Inspeksi, dll. Jika pesan diawali "Kegiatan [nama]" atau berisi "Kegiatan Observasi...", gunakan itu sebagai kegiatan
 6. **namaPelaksana**: Cari nama orang yang melakukan/melaporkan kegiatan
-7. **temuan**: Cari hasil observasi, temuan, catatan penting, masalah yang ditemukan
+7. **temuan**: Rangkum hasil observasi/temuan/issue/kondisi. Termasuk: daftar temuan bernomor (mis. "KMB 5062: Safety Cone tidak ada reflektor"), poin "Issue", "Detail Kondisi" per-KM, ATAU kesimpulan naratif (mis. "Dari 15 unit semua patuh mengikuti lajur kiri", "semua Driver bekerja sesuai Roster"). WAJIB diisi bila ada deskripsi kondisi/hasil/temuan; jangan kosongkan
 8. **pemateri**: Cari nama-nama pemateri, pelapor, atau peserta penting
 9. **attendance**: Jika ada daftar unit/kehadiran, ekstrak kode unit
 10. **rosterOff**: Unit yang libur/off
@@ -143,7 +227,7 @@ FORMAT OUTPUT JSON:
   "lokasi": "lokasi/area kegiatan",
   "namaPelaksana": "nama pelaksana 1, nama pelaksana 2",
   "pemateri": ["nama1", "nama2"],
-  "temuan": "hasil temuan atau observasi",
+  "temuan": "rangkuman temuan/issue/kondisi/observasi",
   "attendance": [{"unitCode": "XXX", "shift": "Shift 1", "status": "Hadir", "keterangan": ""}],
   "rosterOff": ["XXX"],
   "summary": "ringkasan singkat 1-2 kalimat"
