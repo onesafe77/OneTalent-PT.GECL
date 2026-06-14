@@ -3510,6 +3510,32 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 
 // ============================================
+// NOTIFICATIONS (lonceng header — pemberitahuan data baru)
+// ============================================
+
+export const notifications = pgTable("notifications", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  type: varchar("type", { length: 20 }).notNull(), // mis. "fms", "sidak", "safety_patrol"
+  title: text("title").notNull(),
+  body: text("body"),
+  link: text("link"),
+  meta: jsonb("meta"),
+  audience: varchar("audience", { length: 20 }).default("all"), // 'all' | 'hse' | 'user'
+  audienceValue: text("audience_value"), // NIK bila audience='user'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_notifications_created_at").on(table.createdAt),
+]);
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+
+// ============================================
 // MCU (Medical Check Up) RECORDS
 // ============================================
 

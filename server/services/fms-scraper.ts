@@ -20,6 +20,8 @@ const ALARM_MAP: Record<string, { type: string; category: string }> = {
   "Camera Covered": { type: "Kamera FMS Tertutup", category: "Non Fatigue Alarm" },
   "Headway Monitoring Warning": { type: "Jaga Jarak", category: "Non Fatigue Alarm" },
   "Forward Collision Warning": { type: "Awas Tabrakan", category: "AEBS" },
+  "Softbrake AEBS": { type: "Softbrake AEBS", category: "AEBS" },
+  "Fullbrake AEBS": { type: "Fullbrake AEBS", category: "AEBS" },
   "Over Speed": { type: "Over Speed", category: "Overspeed" },
 };
 const ALARM_NAMES = Object.keys(ALARM_MAP).join(",");
@@ -149,10 +151,10 @@ function mapAlarm(a: any): InsertFmsViolation | null {
 }
 
 /** Tarik pelanggaran FAMOUS untuk rentang [from,to] (Date). Read-only. */
-export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fetched: number; upserted: number }> {
+export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fetched: number; upserted: number; inserted: number }> {
   if (!(await getStoredToken()) && (!process.env.FAMOUS_EMAIL || !process.env.FAMOUS_PASSWORD)) {
     console.warn("[fms-scraper] dilewati — set token via 'Token FMS' atau FAMOUS_EMAIL/PASSWORD");
-    return { fetched: 0, upserted: 0 };
+    return { fetched: 0, upserted: 0, inserted: 0 };
   }
   const to = new Date();
   const from = new Date(to.getTime() - (opts?.hoursBack ?? 3) * 3600 * 1000);
@@ -171,8 +173,63 @@ export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fet
     fetched += items.length;
     page++;
   } while (page <= totalPages && page <= 200); // guard
+  let upserted = 0, inserted = 0;
+  if (rows.length) {
+    const res = await storage.batchInsertFmsViolations(rows);
+    upserted = res.count; inserted = res.inserted;
+  }
+  console.log(`[fms-scraper] window ${fmt(from)}–${fmt(to)} | fetched=${fetched} upserted=${upserted} new=${inserted}`);
+  // Notifikasi lonceng: hanya bila ada pelanggaran BENAR-BENAR baru (bukan update validasi)
+  if (inserted > 0) {
+    try {
+      await storage.createNotification({
+        type: "fms",
+        title: `${inserted} pelanggaran FMS baru masuk`,
+        body: "Data otomatis dari FAMOUS (auto-pull).",
+        link: "/workspace/hse/fms-dashboard",
+        audience: "hse",
+        meta: { inserted, fetched },
+      });
+    } catch (e: any) { console.warn("[fms-scraper] gagal buat notifikasi:", e?.message || e); }
+  }
+  return { fetched, upserted, inserted };
+}
+
+// Nama alarm Level-2 (Fatigue/Non-Fatigue/AEBS) — SEMUA kecuali Overspeed.
+const GAP_L2_NAMES = Object.keys(ALARM_MAP).filter((n) => n !== "Over Speed").join(",");
+
+/**
+ * Backfill AMAN data historis: tarik HANYA alarm **Level-2** untuk Fatigue/Non-Fatigue/AEBS,
+ * yang TIDAK pernah masuk lewat export Excel (Excel = Level-1 only). Karena Excel tak punya
+ * baris Level-2, penambahan ini tidak menggandakan apa pun.
+ * Catatan: Level-1 TIDAK ditarik (akan dobel dengan baris Excel — dedupe key beda X: vs F:).
+ * Catatan: "Over Speed" TIDAK tersedia di endpoint source=FMS2 (nama tak dikenal → API balas
+ *   fallback default), jadi tidak ikut ditarik di sini.
+ * Read-only ke FAMOUS. Idempoten (upsert by dedupe_key F:<alarm_id>).
+ */
+export async function runFmsBackfillGap(opts: { from: Date; to: Date }): Promise<{ fetched: number; upserted: number }> {
+  if (!(await getStoredToken()) && (!process.env.FAMOUS_EMAIL || !process.env.FAMOUS_PASSWORD)) {
+    console.warn("[fms-backfill] dilewati — set token via 'Token FMS' atau FAMOUS_EMAIL/PASSWORD");
+    return { fetched: 0, upserted: 0 };
+  }
+  const { from, to } = opts;
+  const q = (page: number) =>
+    `/api/v2/alarms?page=${page}&limit=100&validation_status=1,2,0` +
+    `&nama_alarm=${encodeURIComponent(GAP_L2_NAMES)}&level=2` +
+    `&start_date=${encodeURIComponent(fmt(from))}&end_date=${encodeURIComponent(fmt(to))}` +
+    `&kontraktor=${KONTRAKTOR}&source=FMS2&geofences=&line=&mdvr_device_id=`;
+  let page = 1, totalPages = 1, fetched = 0;
+  const rows: InsertFmsViolation[] = [];
+  do {
+    const j = await apiGet(q(page));
+    const items = j.items || j.data || [];
+    totalPages = j?.meta?.totalPages || 1;
+    for (const a of items) { const r = mapAlarm(a); if (r) rows.push(r); }
+    fetched += items.length;
+    page++;
+  } while (page <= totalPages && page <= 200); // guard
   let upserted = 0;
   if (rows.length) upserted = (await storage.batchInsertFmsViolations(rows)).count;
-  console.log(`[fms-scraper] window ${fmt(from)}–${fmt(to)} | fetched=${fetched} upserted=${upserted}`);
+  console.log(`[fms-backfill] window ${fmt(from)}–${fmt(to)} | fetched=${fetched} upserted=${upserted}`);
   return { fetched, upserted };
 }

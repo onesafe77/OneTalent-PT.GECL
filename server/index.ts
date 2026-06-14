@@ -17,6 +17,16 @@ import { createBlastJob, getBlastJob, cancelBlastJob, blastWhatsApp } from "./se
 
 const app = express();
 
+// Jaga proses tetap hidup saat ada error transien (mis. koneksi DB Railway sempat putus →
+// express-session "req.session.touch is not a function"). Tanpa ini, 1 request gagal bisa
+// mematikan SELURUH server. Request itu gagal, tapi server tetap melayani request lain.
+process.on("uncaughtException", (err: any) => {
+  console.error("[uncaughtException] server tetap berjalan:", err?.message || err);
+});
+process.on("unhandledRejection", (reason: any) => {
+  console.error("[unhandledRejection] server tetap berjalan:", reason?.message || reason);
+});
+
 // EMERGENCY DEBUG ROUTE - DELETE TNA
 app.post("/api/hse/tna/delete-entry", async (req, res) => {
   try {

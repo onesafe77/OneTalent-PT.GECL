@@ -224,6 +224,18 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
   // Catat sebagai laporan terakhir agar foto yang menyusul bisa ditempelkan
   lastReportByChat.set(chatId, { reportId: report.id, ts: Date.now(), photos: allPhotos });
 
+  // Notifikasi lonceng (untuk tim HSE)
+  try {
+    await storage.createNotification({
+      type: "safety_patrol",
+      title: `Laporan Safety Patrol: ${parsed.kegiatan || "baru"}`,
+      body: `${namaPelaksana || "-"}${reportDate ? " · " + reportDate : ""}`,
+      link: "/workspace/safety-patrol",
+      audience: "hse",
+      meta: { reportId: report.id },
+    });
+  } catch (e: any) { console.warn("[notif safety_patrol] gagal:", e?.message || e); }
+
   if (parsed.attendance && parsed.attendance.length > 0) {
     try {
       await storage.createManySafetyPatrolAttendance(parsed.attendance.map((att: any) => ({

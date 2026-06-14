@@ -1,6 +1,6 @@
 
 import { useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import {
@@ -88,6 +88,19 @@ export default function FmsDashboard() {
         } catch (e: any) { toast({ title: "Gagal tarik", description: e?.message || "Cek token", variant: "destructive" }); }
         finally { setTokenBusy(false); }
     };
+    // Backfill aman data lama (Level-2 + Overspeed) untuk rentang tanggal terpilih
+    const [backfillBusy, setBackfillBusy] = useState(false);
+    const backfillGap = async () => {
+        const startDate = dateTimeRange.start.split("T")[0];
+        const endDate = dateTimeRange.end.split("T")[0];
+        setBackfillBusy(true);
+        try {
+            const r = await apiRequest("/api/fms/backfill", "POST", { startDate, endDate });
+            toast({ title: "Lengkapi data selesai", description: `Ditarik ${r?.fetched ?? 0}, tersimpan ${r?.upserted ?? 0} alarm Level-2` });
+            queryClient.invalidateQueries({ queryKey: ["fms-analytics"] });
+        } catch (e: any) { toast({ title: "Gagal melengkapi", description: e?.message || "Cek token", variant: "destructive" }); }
+        finally { setBackfillBusy(false); }
+    };
 
     // Build query string from state
     const buildQueryString = () => {
@@ -109,12 +122,13 @@ export default function FmsDashboard() {
     };
 
     // Queries
-    const { data: analytics, isLoading, isError, error } = useQuery({
+    const { data: analytics, isLoading, isError, error, isFetching } = useQuery({
         queryKey: ["fms-analytics", dateTimeRange, filters],
         queryFn: async () => {
             const res = await apiRequest(`/api/fms/analytics?${buildQueryString()}`, "GET");
             return res;
-        }
+        },
+        placeholderData: keepPreviousData,
     });
 
     // Mutations
@@ -168,7 +182,7 @@ export default function FmsDashboard() {
         }
     };
 
-    if (isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-10 h-10 animate-spin text-blue-500" /></div>;
+    if (isLoading && !analytics) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-10 h-10 animate-spin text-blue-500" /></div>;
 
     if (isError) {
         return (
@@ -211,6 +225,13 @@ export default function FmsDashboard() {
                                 />
                             </div>
 
+                            {isFetching && (
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600">
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span className="hidden sm:inline">Memuat…</span>
+                                </div>
+                            )}
+
                             <Dialog open={tokenOpen} onOpenChange={(o) => { setTokenOpen(o); if (o) loadTokenStatus(); }}>
                                 <DialogTrigger asChild>
                                     <Button variant="outline" className="rounded-full px-5 mr-2">🔑 Token FMS</Button>
@@ -234,6 +255,16 @@ export default function FmsDashboard() {
                                             <Button onClick={saveToken} disabled={tokenBusy || !tokenInput.trim()} style={{ background: "#0e7490" }} className="text-white">Simpan Token</Button>
                                             <Button onClick={scrapeNow} disabled={tokenBusy} variant="outline">Tarik Sekarang</Button>
                                         </div>
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                                            <div className="font-semibold text-slate-700 text-xs">📥 Lengkapi Data Lama (alarm Level-2)</div>
+                                            <p className="text-[11px] text-slate-500 leading-snug">
+                                                Upload Excel hanya berisi alarm Level-1. Tombol ini menarik <b>alarm Level-2</b> yang hilang dari FAMOUS untuk rentang tanggal yang sedang dipilih di atas (<b>{dateTimeRange.start.split("T")[0]}</b> s/d <b>{dateTimeRange.end.split("T")[0]}</b>). Aman: tidak menghapus & tidak menggandakan data lama.
+                                            </p>
+                                            <Button onClick={backfillGap} disabled={backfillBusy || tokenBusy} variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-100">
+                                                {backfillBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                                {backfillBusy ? "Melengkapi…" : "Lengkapi Sekarang"}
+                                            </Button>
+                                        </div>
                                     </div>
                                 </DialogContent>
                             </Dialog>
@@ -249,6 +280,9 @@ export default function FmsDashboard() {
                                     <DialogHeader>
                                         <DialogTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Upload Data FMS</DialogTitle>
                                     </DialogHeader>
+                                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 leading-snug">
+                                        ⚠️ Sumber utama kini <b>auto-pull FAMOUS</b> (otomatis tiap jam, Level-1 + Level-2). Upload Excel hanya untuk data lama/cadangan — <b>hindari mengunggah hari yang sudah ditarik otomatis</b> agar tidak terjadi data ganda.
+                                    </div>
                                     <div
                                         className="mt-4 border-2 border-dashed border-indigo-100 rounded-2xl p-10 text-center hover:bg-slate-50/50 hover:border-indigo-300 transition-all cursor-pointer group"
                                         onClick={() => fileInputRef.current?.click()}

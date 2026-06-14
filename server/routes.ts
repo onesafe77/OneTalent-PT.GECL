@@ -430,6 +430,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize auth/session middleware
   await setupAuth(app);
 
+  // Notifikasi otomatis untuk SUBMISSION SIDAK baru (satu tempat, semua tipe).
+  // Cocokkan hanya endpoint create-session (POST /api/sidak-<slug>), bukan /:id/records, /upload, dst.
+  const SIDAK_CREATE_RE = /^\/api\/sidak-[a-z0-9-]+$/;
+  app.use((req, res, next) => {
+    if (req.method === "POST" && SIDAK_CREATE_RE.test(req.path)) {
+      const origJson = res.json.bind(res);
+      (res as any).json = (body: any) => {
+        try {
+          const created = body && (body.id ? body : (body.session?.id ? body.session : null));
+          if (res.statusCode < 400 && created?.id) {
+            const slug = req.path.replace("/api/sidak-", "");
+            const pretty = slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+            const sessUser = (req.session as any).user;
+            const tgl = req.body?.tanggal ? ` · ${req.body.tanggal}` : "";
+            const by = sessUser?.name ? `oleh ${sessUser.name}` : "";
+            storage.createNotification({
+              type: "sidak",
+              title: `Sidak ${pretty} baru`,
+              body: `${by}${tgl}`.trim() || "Submission baru",
+              link: `/workspace/sidak/${slug}/history`,
+              audience: "hse",
+              meta: { slug },
+            }).catch((e: any) => console.warn("[notif sidak] gagal:", e?.message || e));
+          }
+        } catch { /* ignore */ }
+        return origJson(body);
+      };
+    }
+    next();
+  });
+
   // Ensure uploads directory exists with absolute path
   const uploadsDir = path.join(process.cwd(), "uploads");
   if (!fs.existsSync(uploadsDir)) {
@@ -16608,6 +16639,60 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error: any) {
       console.error("Error FMS scrape-now:", error?.message || error);
       res.status(500).json({ ok: false, error: error?.message || "scrape failed" });
+    }
+  });
+
+  // Backfill AMAN data historis: tarik HANYA Level-2 + Overspeed yang hilang dari Excel.
+  app.post("/api/fms/backfill", async (req, res) => {
+    try {
+      const { startDate, endDate, startTime, endTime } = req.body || {};
+      if (!startDate || !endDate) {
+        return res.status(400).json({ ok: false, error: "startDate & endDate wajib (YYYY-MM-DD)" });
+      }
+      const from = new Date(`${startDate}T${startTime || "00:00"}:00`);
+      const to = new Date(`${endDate}T${endTime || "23:59"}:59`);
+      if (isNaN(from.getTime()) || isNaN(to.getTime()) || from > to) {
+        return res.status(400).json({ ok: false, error: "Rentang tanggal tidak valid" });
+      }
+      const days = (to.getTime() - from.getTime()) / 86400000;
+      if (days > 62) {
+        return res.status(400).json({ ok: false, error: "Rentang terlalu lebar (maks ~60 hari per backfill)" });
+      }
+      const { runFmsBackfillGap } = await import("./services/fms-scraper");
+      const result = await runFmsBackfillGap({ from, to });
+      res.json({ ok: true, ...result });
+    } catch (error: any) {
+      console.error("Error FMS backfill:", error?.message || error);
+      res.status(500).json({ ok: false, error: error?.message || "backfill failed" });
+    }
+  });
+
+  // ===== Notifikasi (lonceng header) =====
+  app.get("/api/notifications", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const isHse = Array.isArray(u.permissions) ? u.permissions.includes("MANAGE_SIDAK") : (u.role && u.role !== "BASIC");
+      const items = await storage.getNotificationsForUser({ nik: u.nik, isHse: !!isHse }, 20);
+      const lastSeenStr = await storage.getSystemSetting(`notif_last_seen_${u.nik}`);
+      const lastSeen = lastSeenStr ? new Date(lastSeenStr).getTime() : 0;
+      const unreadCount = items.filter((n) => n.createdAt && new Date(n.createdAt).getTime() > lastSeen).length;
+      res.json({ items, unreadCount });
+    } catch (error: any) {
+      console.error("Error get notifications:", error?.message || error);
+      res.status(500).json({ items: [], unreadCount: 0 });
+    }
+  });
+
+  app.post("/api/notifications/seen", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      await storage.setSystemSetting(`notif_last_seen_${u.nik}`, new Date().toISOString(), "Notifikasi terakhir dilihat per user");
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Error mark notifications seen:", error?.message || error);
+      res.status(500).json({ ok: false });
     }
   });
 

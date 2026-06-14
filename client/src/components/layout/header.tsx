@@ -1,5 +1,6 @@
 import { Menu, Sun, Moon, Home, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/lib/auth-context";
 import { Link, useLocation } from "wouter";
@@ -127,6 +128,8 @@ export function Header({ title, onMenuClick }: HeaderProps) {
                 <Home className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
             </Link>
+
+            <NotificationBell />
 
             <Button
               variant="ghost"

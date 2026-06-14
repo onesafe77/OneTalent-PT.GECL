@@ -322,6 +322,9 @@ import {
   type InsertMcuRecord,
   systemSettings,
   type SystemSetting,
+  notifications,
+  type Notification,
+  type InsertNotification,
   whatsappBlasts,
   whatsappBlastRecipients,
   whatsappTemplates,
@@ -755,7 +758,7 @@ export interface IStorage {
     byInvestor: any[];
     byUnit: any[];
   }>;
-  batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number }>;
+  batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number; inserted: number }>;
   getFmsAnalytics(startDate?: string, endDate?: string, options?: {
     startTime?: string;
     endTime?: string;
@@ -8886,10 +8889,11 @@ export class DrizzleStorage implements IStorage {
     // Batch insert with ON CONFLICT DO UPDATE (Smart Upsert) by dedupe_key
     const CHUNK_SIZE = 1000;
     let totalInserted = 0;
+    let trulyNew = 0; // baris INSERT baru (bukan UPDATE) — via (xmax = 0)
 
     for (let i = 0; i < uniqueViolations.length; i += CHUNK_SIZE) {
       const chunk = uniqueViolations.slice(i, i + CHUNK_SIZE);
-      await db.insert(fmsViolations)
+      const rows = await db.insert(fmsViolations)
         .values(chunk)
         .onConflictDoUpdate({
           target: fmsViolations.dedupeKey,
@@ -8905,12 +8909,14 @@ export class DrizzleStorage implements IStorage {
             validatedBy: sql`excluded.validated_by`,
             uploadedAt: new Date(),
           }
-        });
+        })
+        .returning({ inserted: sql<boolean>`(xmax = 0)` });
 
       totalInserted += chunk.length;
+      trulyNew += rows.filter((r: any) => r.inserted === true).length;
     }
 
-    return { count: totalInserted };
+    return { count: totalInserted, inserted: trulyNew };
   }
 
   async getFmsInvestorEvaluation(options?: {
@@ -10362,6 +10368,35 @@ export class DrizzleStorage implements IStorage {
       })
       .returning();
     return result;
+  }
+
+  // Notifications (lonceng header)
+  async createNotification(n: InsertNotification): Promise<Notification> {
+    const [result] = await db.insert(notifications).values(n).returning();
+    return result;
+  }
+
+  async getRecentNotifications(limit: number = 20): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit);
+  }
+
+  async getNotificationsForUser(u: { nik: string; isHse: boolean }, limit: number = 20): Promise<Notification[]> {
+    return db
+      .select()
+      .from(notifications)
+      .where(
+        or(
+          eq(notifications.audience, "all"),
+          u.isHse ? eq(notifications.audience, "hse") : sql`false`,
+          and(eq(notifications.audience, "user"), eq(notifications.audienceValue, u.nik)),
+        )
+      )
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit);
   }
 
   // ==================================================
