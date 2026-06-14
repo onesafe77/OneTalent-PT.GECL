@@ -62,6 +62,32 @@ export default function FmsDashboard() {
     // Filters & Uploader states
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    // Token FMS (auto-pull FAMOUS)
+    const [tokenOpen, setTokenOpen] = useState(false);
+    const [tokenInput, setTokenInput] = useState("");
+    const [tokenStatus, setTokenStatus] = useState<any>(null);
+    const [tokenBusy, setTokenBusy] = useState(false);
+    const loadTokenStatus = async () => {
+        try { setTokenStatus(await apiRequest("/api/fms/token-status", "GET")); } catch { setTokenStatus(null); }
+    };
+    const saveToken = async () => {
+        setTokenBusy(true);
+        try {
+            const r = await apiRequest("/api/fms/token", "POST", { token: tokenInput.trim() });
+            toast({ title: "Token tersimpan", description: r?.expiresInHours != null ? `Berlaku ~${r.expiresInHours} jam` : "Berhasil" });
+            setTokenInput(""); await loadTokenStatus();
+        } catch (e: any) { toast({ title: "Gagal", description: e?.message || "Token tidak valid", variant: "destructive" }); }
+        finally { setTokenBusy(false); }
+    };
+    const scrapeNow = async () => {
+        setTokenBusy(true);
+        try {
+            const r = await apiRequest("/api/fms/scrape-now", "POST", { hoursBack: 3 });
+            toast({ title: "Tarik selesai", description: `Fetched ${r?.fetched ?? 0}, tersimpan ${r?.upserted ?? 0}` });
+            queryClient.invalidateQueries({ queryKey: ["fms-analytics"] });
+        } catch (e: any) { toast({ title: "Gagal tarik", description: e?.message || "Cek token", variant: "destructive" }); }
+        finally { setTokenBusy(false); }
+    };
 
     // Build query string from state
     const buildQueryString = () => {
@@ -184,6 +210,33 @@ export default function FmsDashboard() {
                                     onChange={(e) => setDateTimeRange(prev => ({ ...prev, end: e.target.value }))}
                                 />
                             </div>
+
+                            <Dialog open={tokenOpen} onOpenChange={(o) => { setTokenOpen(o); if (o) loadTokenStatus(); }}>
+                                <DialogTrigger asChild>
+                                    <Button variant="outline" className="rounded-full px-5 mr-2">🔑 Token FMS</Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-lg bg-white">
+                                    <DialogHeader><DialogTitle>Token FMS (Auto-pull FAMOUS)</DialogTitle></DialogHeader>
+                                    <div className="space-y-3 mt-2 text-sm">
+                                        <div className="rounded-lg bg-slate-50 border p-3">
+                                            {tokenStatus?.hasToken
+                                                ? <span>Status: {tokenStatus.expired ? <b className="text-red-600">KEDALUWARSA</b> : <b className="text-green-600">Aktif</b>}{tokenStatus.expiresInHours != null && !tokenStatus.expired ? ` · berlaku ~${tokenStatus.expiresInHours} jam lagi` : ""}</span>
+                                                : <span className="text-amber-600">Belum ada token — tempel di bawah.</span>}
+                                        </div>
+                                        <ol className="list-decimal ml-4 text-xs text-slate-500 space-y-1">
+                                            <li>Buka FAMOUS (sudah login) → DevTools Console (Cmd+Opt+J)</li>
+                                            <li>Ketik: <code className="bg-slate-100 px-1">localStorage.jwt_access_token</code> → salin nilainya (tanpa tanda kutip)</li>
+                                            <li>Tempel di sini → Simpan. (Token berlaku ~24 jam, perbarui bila kedaluwarsa)</li>
+                                        </ol>
+                                        <textarea value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Tempel token (eyJ...)" rows={3}
+                                            className="w-full border rounded-lg p-2 text-xs font-mono" />
+                                        <div className="flex gap-2">
+                                            <Button onClick={saveToken} disabled={tokenBusy || !tokenInput.trim()} style={{ background: "#0e7490" }} className="text-white">Simpan Token</Button>
+                                            <Button onClick={scrapeNow} disabled={tokenBusy} variant="outline">Tarik Sekarang</Button>
+                                        </div>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
 
                             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                                 <DialogTrigger asChild>

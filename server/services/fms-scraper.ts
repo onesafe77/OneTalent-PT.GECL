@@ -72,9 +72,18 @@ function envToken(): string | null {
   return t ? t.replace(/^"|"$/g, "").trim() : null;
 }
 
+// Token tersimpan: DB (system_settings 'famous_token') → env FAMOUS_TOKEN.
+export async function getStoredToken(): Promise<string | null> {
+  try {
+    const dbTok = await storage.getSystemSetting("famous_token");
+    if (dbTok && dbTok.trim()) return dbTok.trim();
+  } catch { /* ignore */ }
+  return envToken();
+}
+
 async function getToken(): Promise<string> {
-  const envt = envToken();
-  if (envt) return envt; // mode token: pakai token dari env (skip login)
+  const stored = await getStoredToken();
+  if (stored) return stored; // mode token (DB/env): skip login
   if (!tokenCache) await loginFamous();
   return tokenCache as string;
 }
@@ -86,7 +95,7 @@ async function apiGet(path: string, retry = true): Promise<any> {
     headers: { "x-access-token": token, "x-api-key": apiKey, Accept: "application/json" },
   });
   if (r.status === 401) {
-    if (envToken()) throw new Error("[fms-scraper] FAMOUS_TOKEN kedaluwarsa — perbarui FAMOUS_TOKEN (atau set FAMOUS_EMAIL/PASSWORD untuk auto-login)");
+    if (await getStoredToken()) throw new Error("[fms-scraper] Token FMS kedaluwarsa — perbarui via halaman 'Token FMS' / POST /api/fms/token");
     if (retry) { tokenCache = null; await loginFamous(); return apiGet(path, false); }
   }
   if (!r.ok) throw new Error(`[fms-scraper] GET ${path} → ${r.status}`);
@@ -141,8 +150,8 @@ function mapAlarm(a: any): InsertFmsViolation | null {
 
 /** Tarik pelanggaran FAMOUS untuk rentang [from,to] (Date). Read-only. */
 export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fetched: number; upserted: number }> {
-  if (!envToken() && (!process.env.FAMOUS_EMAIL || !process.env.FAMOUS_PASSWORD)) {
-    console.warn("[fms-scraper] dilewati — set FAMOUS_TOKEN atau FAMOUS_EMAIL/PASSWORD");
+  if (!(await getStoredToken()) && (!process.env.FAMOUS_EMAIL || !process.env.FAMOUS_PASSWORD)) {
+    console.warn("[fms-scraper] dilewati — set token via 'Token FMS' atau FAMOUS_EMAIL/PASSWORD");
     return { fetched: 0, upserted: 0 };
   }
   const to = new Date();

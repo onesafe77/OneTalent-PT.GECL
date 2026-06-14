@@ -16570,6 +16570,34 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // 1. Get Analytics Dashboard Data
+  // Decode exp dari JWT FAMOUS (tanpa verifikasi signature) untuk info kedaluwarsa.
+  const famousTokenExp = (tok: string): number | null => {
+    try { const p = JSON.parse(Buffer.from(tok.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString()); return p.exp ? p.exp * 1000 : null; } catch { return null; }
+  };
+
+  // Status token FMS (kedaluwarsa, dll)
+  app.get("/api/fms/token-status", async (_req, res) => {
+    try {
+      const { getStoredToken } = await import("./services/fms-scraper");
+      const tok = await getStoredToken();
+      if (!tok) return res.json({ hasToken: false });
+      const exp = famousTokenExp(tok);
+      res.json({ hasToken: true, exp, expired: exp ? Date.now() > exp : null, expiresInHours: exp ? Math.round((exp - Date.now()) / 36e5) : null });
+    } catch (e: any) { res.status(500).json({ error: e?.message }); }
+  });
+
+  // Update token FMS (tempel token baru dari browser FAMOUS). Disimpan di DB.
+  app.post("/api/fms/token", async (req, res) => {
+    try {
+      const token = String(req.body?.token || "").trim().replace(/^"|"$/g, "");
+      if (!token || token.split(".").length !== 3) return res.status(400).json({ ok: false, error: "Token tidak valid (harus JWT)" });
+      const exp = famousTokenExp(token);
+      if (exp && Date.now() > exp) return res.status(400).json({ ok: false, error: "Token sudah kedaluwarsa" });
+      await storage.setSystemSetting("famous_token", token, "Token akses FAMOUS untuk auto-pull FMS");
+      res.json({ ok: true, exp, expiresInHours: exp ? Math.round((exp - Date.now()) / 36e5) : null });
+    } catch (e: any) { res.status(500).json({ ok: false, error: e?.message }); }
+  });
+
   // Manual trigger FMS auto-pull dari FAMOUS (read-only). Untuk uji.
   app.post("/api/fms/scrape-now", async (req, res) => {
     try {
