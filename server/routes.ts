@@ -35,6 +35,7 @@ import { sendWhatsAppMessage, formatSimperEvNotification, formatSimperPerpanjang
 import { fetchSheetData, listSpreadsheetSheets, getSpreadsheetMetadata, generateVisualizationSuggestions } from "./google-sheets-service";
 import { ObjectStorageService, ObjectNotFoundError } from "./replit_integrations/object_storage";
 import { dbStorage } from "./services/storage-db";
+import { categorizeViolation, FMS_CATEGORIES } from "./services/fms-category";
 import { usignNotificationService } from "./services/usignNotificationService";
 import { setupAuth } from "./replitAuth";
 import {
@@ -16569,9 +16570,22 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // 1. Get Analytics Dashboard Data
+  // Manual trigger FMS auto-pull dari FAMOUS (read-only). Untuk uji.
+  app.post("/api/fms/scrape-now", async (req, res) => {
+    try {
+      const hoursBack = Number((req.query.hoursBack ?? req.body?.hoursBack) || 3);
+      const { runFmsScrape } = await import("./services/fms-scraper");
+      const result = await runFmsScrape({ hoursBack });
+      res.json({ ok: true, ...result });
+    } catch (error: any) {
+      console.error("Error FMS scrape-now:", error?.message || error);
+      res.status(500).json({ ok: false, error: error?.message || "scrape failed" });
+    }
+  });
+
   app.get("/api/fms/analytics", async (req, res) => {
     try {
-      const { startDate, endDate, startTime, endTime, violationType, shift, validationStatus, week, month } = req.query;
+      const { startDate, endDate, startTime, endTime, violationType, category, shift, validationStatus, week, month } = req.query;
 
       const stats = await storage.getFmsAnalytics(
         typeof startDate === 'string' ? startDate : undefined,
@@ -16580,6 +16594,7 @@ Format sebagai bullet points singkat per insight.`;
           startTime: typeof startTime === 'string' ? startTime : undefined,
           endTime: typeof endTime === 'string' ? endTime : undefined,
           violationType: typeof violationType === 'string' ? violationType : undefined,
+          category: typeof category === 'string' ? category : undefined,
           shift: typeof shift === 'string' ? shift : undefined,
           validationStatus: typeof validationStatus === 'string' ? validationStatus : undefined,
           week: typeof week === 'string' ? week : undefined,
@@ -17201,6 +17216,7 @@ Format sebagai bullet points singkat per insight.`;
           week: Number(getValue(['Week', 'Minggu', 'week']) || 0),
           month: String(getValue(['Month', 'Bulan', 'month']) || ""),
           level: getValue(['Level', 'level']) ? Number(getValue(['Level', 'level'])) : null,
+          category: categorizeViolation(String(getValue(['Violation', 'Jenis Pelanggaran', 'violation_type']) || "Unknown")),
 
           validationStatus: vStatus,
 

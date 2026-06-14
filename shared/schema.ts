@@ -3202,6 +3202,7 @@ export const fmsViolations = pgTable("fms_violations", {
   week: integer("week"),
   month: varchar("month", { length: 20 }),
   level: real("level"), // e.g., Speed value or severity
+  category: varchar("category", { length: 30 }), // FAMOUS tab: 'Fatigue Alarm' | 'Non Fatigue Alarm' | 'AEBS' | 'Overspeed' | 'Lainnya'
 
   validationStatus: varchar("validation_status", { length: 50 }).default('Tidak Valid'), // 'Valid', 'Tidak Valid'
 
@@ -3215,21 +3216,20 @@ export const fmsViolations = pgTable("fms_violations", {
   manualDriverNik: varchar("manual_driver_nik", { length: 50 }),
   evidenceUrl: text("evidence_url"),
 
+  alarmId: varchar("alarm_id", { length: 48 }), // ID alarm asli dari FAMOUS (null utk impor Excel)
+  dedupeKey: text("dedupe_key"), // Kunci unik universal: 'F:<alarm_id>' (FAMOUS) | 'X:<date>|<time>|<vehicle>|<type>' (Excel)
+
   uploadedAt: timestamp("uploaded_at").defaultNow(),
 }, (table) => {
   return {
-    // Unique constraint for "Smart Upsert" (Prevent duplicates based on event uniqueness)
-    uniqueEvent: uniqueIndex("idx_unique_fms_event").on(
-      table.violationDate,
-      table.violationTime,
-      table.vehicleNo,
-      table.violationType
-    ),
+    // Kunci unik universal (FAMOUS by alarm_id, Excel by 4-tuple) — cegah duplikat & merge keliru
+    uniqueDedupe: uniqueIndex("idx_unique_fms_dedupe").on(table.dedupeKey),
     // Performance indexes for Dashboard
     idxDate: index("idx_fms_date").on(table.violationDate),
     idxShift: index("idx_fms_shift").on(table.shift),
     idxStatus: index("idx_fms_status").on(table.validationStatus),
     idxViolation: index("idx_fms_violation").on(table.violationType),
+    idxCategory: index("idx_fms_category").on(table.category),
   };
 });
 

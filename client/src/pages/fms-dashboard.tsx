@@ -51,11 +51,14 @@ export default function FmsDashboard() {
     });
     // Multi-select filters (arrays)
     const [filters, setFilters] = useState({
+        categories: [] as string[],       // Multi-select (FAMOUS tabs)
         violationTypes: [] as string[],   // Multi-select
         shifts: [] as string[],           // Multi-select
         validationStatuses: [] as string[], // Multi-select
         weeks: [] as number[]             // Multi-select for weeks (1-5)
     });
+    // Daftar kategori/tab seperti FAMOUS
+    const FMS_CATEGORIES = ["Fatigue Alarm", "Non Fatigue Alarm", "AEBS", "Overspeed"];
     // Filters & Uploader states
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,6 +74,7 @@ export default function FmsDashboard() {
         if (startTime) params.append("startTime", startTime);
         if (endTime) params.append("endTime", endTime);
         // Multi-select: send comma-separated values
+        if (filters.categories.length > 0) params.append("category", filters.categories.join(","));
         if (filters.violationTypes.length > 0) params.append("violationType", filters.violationTypes.join(","));
         if (filters.shifts.length > 0) params.append("shift", filters.shifts.join(","));
         if (filters.validationStatuses.length > 0) params.append("validationStatus", filters.validationStatuses.join(","));
@@ -233,6 +237,34 @@ export default function FmsDashboard() {
                     </div>
                     {/* Filter Dropdowns - Using standard styles but clean */}
                     {/* Violation Type Multi-Select */}
+                    {/* Category / Tab Multi-Select (FAMOUS) */}
+                    <div className="relative">
+                        <details className="group">
+                            <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[160px] shadow-sm">
+                                <span className="truncate">
+                                    {filters.categories.length === 0 ? "Semua Kategori" : filters.categories.join(", ")}
+                                </span>
+                                <span className="ml-auto opacity-50 text-[10px]">▼</span>
+                            </summary>
+                            <div className="absolute z-20 mt-2 w-56 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 ring-1 ring-black/5">
+                                {FMS_CATEGORIES.map((cat) => (
+                                    <label key={cat} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={filters.categories.includes(cat)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setFilters(prev => ({ ...prev, categories: [...prev.categories, cat] }));
+                                                else setFilters(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
+                                            }}
+                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                        />
+                                        <span className="text-sm text-slate-700">{cat}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </details>
+                    </div>
+
                     <div className="relative">
                         <details className="group">
                             <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[160px] shadow-sm">
@@ -356,7 +388,7 @@ export default function FmsDashboard() {
                             variant="ghost"
                             size="sm"
                             className="text-slate-400 hover:text-red-500 hover:bg-red-50"
-                            onClick={() => setFilters({ violationTypes: [], shifts: [], validationStatuses: [], weeks: [] })}
+                            onClick={() => setFilters({ categories: [], violationTypes: [], shifts: [], validationStatuses: [], weeks: [] })}
                         >
                             Reset Filter
                         </Button>

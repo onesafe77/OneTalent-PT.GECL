@@ -760,6 +760,7 @@ export interface IStorage {
     startTime?: string;
     endTime?: string;
     violationType?: string;
+    category?: string;
     shift?: string;
     validationStatus?: string;
     week?: string;
@@ -767,6 +768,7 @@ export interface IStorage {
   }): Promise<{
     byShift: any[];
     byViolation: any[];
+    byCategory: any[];
     byDate: any[];
     byHour: any[];
     byWeek: any[];
@@ -8869,30 +8871,28 @@ export class DrizzleStorage implements IStorage {
   async batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number }> {
     if (violations.length === 0) return { count: 0 };
 
-    // Deduplicate: Keep last occurrence of each unique key (date+time+vehicle+type)
-    // This prevents "ON CONFLICT DO UPDATE command cannot affect row a second time" error
+    // Dedupe key universal: FAMOUS pakai 'F:<alarm_id>', Excel pakai 'X:<date>|<time>|<vehicle>|<type>'.
+    // Hitung otomatis bila belum ada (jalur upload Excel tak perlu diubah).
+    const dk = (v: InsertFmsViolation) =>
+      (v as any).dedupeKey || `X:${v.violationDate}|${v.violationTime}|${v.vehicleNo}|${v.violationType}`;
     const uniqueMap = new Map<string, InsertFmsViolation>();
     for (const v of violations) {
-      const key = `${v.violationDate}|${v.violationTime}|${v.vehicleNo}|${v.violationType}`;
-      uniqueMap.set(key, v); // Last occurrence wins
+      (v as any).dedupeKey = dk(v);
+      uniqueMap.set((v as any).dedupeKey, v); // Last occurrence wins
     }
     const uniqueViolations = Array.from(uniqueMap.values());
     console.log(`[FMS Upload] Deduplicated: ${violations.length} -> ${uniqueViolations.length} unique records`);
 
-    // Batch insert with ON CONFLICT DO UPDATE (Smart Upsert)
-    // We split into chunks to avoid query param limits
+    // Batch insert with ON CONFLICT DO UPDATE (Smart Upsert) by dedupe_key
     const CHUNK_SIZE = 1000;
     let totalInserted = 0;
 
     for (let i = 0; i < uniqueViolations.length; i += CHUNK_SIZE) {
       const chunk = uniqueViolations.slice(i, i + CHUNK_SIZE);
-
-      // Upsert: If (date, time, vehicle, type) matches, UPDATE the Mutable Fields
-      // This allows re-uploading validated data
       await db.insert(fmsViolations)
         .values(chunk)
         .onConflictDoUpdate({
-          target: [fmsViolations.violationDate, fmsViolations.violationTime, fmsViolations.vehicleNo, fmsViolations.violationType],
+          target: fmsViolations.dedupeKey,
           set: {
             validationStatus: sql`excluded.validation_status`,
             level: sql`excluded.level`,
@@ -8901,6 +8901,8 @@ export class DrizzleStorage implements IStorage {
             shift: sql`excluded.shift`,
             month: sql`excluded.month`,
             week: sql`excluded.week`,
+            category: sql`excluded.category`,
+            validatedBy: sql`excluded.validated_by`,
             uploadedAt: new Date(),
           }
         });
@@ -9039,6 +9041,7 @@ export class DrizzleStorage implements IStorage {
       startTime?: string; // HH:mm
       endTime?: string;   // HH:mm
       violationType?: string;
+      category?: string; // Tab filter: Fatigue Alarm / Non Fatigue Alarm / AEBS / Overspeed
       shift?: string;
       validationStatus?: string;
       week?: string; // Week filter (comma-separated: "1,2,3")
@@ -9047,6 +9050,7 @@ export class DrizzleStorage implements IStorage {
   ): Promise<{
     byShift: any[];
     byViolation: any[];
+    byCategory: any[];
     byDate: any[];
     byHour: any[];
     byWeek: any[];
@@ -9087,6 +9091,16 @@ export class DrizzleStorage implements IStorage {
         conditions.push(eq(fmsViolations.violationType, types[0]));
       } else if (types.length > 1) {
         conditions.push(inArray(fmsViolations.violationType, types));
+      }
+    }
+
+    // Category/tab filter (multi-select: Fatigue Alarm, Non Fatigue Alarm, AEBS, Overspeed)
+    if (options?.category && options.category !== 'all') {
+      const cats = options.category.split(',').map(c => c.trim()).filter(c => c);
+      if (cats.length === 1) {
+        conditions.push(eq(fmsViolations.category, cats[0]));
+      } else if (cats.length > 1) {
+        conditions.push(inArray(fmsViolations.category, cats));
       }
     }
 
@@ -9249,6 +9263,19 @@ export class DrizzleStorage implements IStorage {
       .groupBy(fmsViolations.violationType)
       .orderBy(desc(sql`count(*)`))
       .limit(10);
+
+    // 2b. By Category/Tab (Fatigue Alarm / Non Fatigue Alarm / AEBS / Overspeed)
+    const byCategory = await db
+      .select({
+        category: fmsViolations.category,
+        count: sql<number>`count(*)`,
+        valid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Valid' OR ${fmsViolations.validationStatus} = 'True')::integer`,
+        invalid: sql<number>`count(*) filter (where ${fmsViolations.validationStatus} = 'Tidak Valid' OR ${fmsViolations.validationStatus} = 'False')::integer`,
+      })
+      .from(fmsViolations)
+      .where(dateFilter)
+      .groupBy(fmsViolations.category)
+      .orderBy(desc(sql`count(*)`));
 
     // 3. By Shift (Split)
     const byShift = await db
@@ -9442,6 +9469,12 @@ export class DrizzleStorage implements IStorage {
       },
       byShift: byShift.map(s => ({ ...s, count: Number(s.count || 0) })),
       byViolation: byViolation.map(v => ({ ...v, count: Number(v.count || 0) })),
+      byCategory: byCategory.map(c => ({
+        category: c.category || 'Lainnya',
+        count: Number(c.count || 0),
+        valid: Number(c.valid || 0),
+        invalid: Number(c.invalid || 0),
+      })),
       byDate: byDate.map(d => ({ ...d, count: Number(d.count || 0) })),
       byHour: byHour.map(h => ({ ...h, count: Number(h.count || 0) })),
       byWeek: byWeek.map(w => ({

@@ -205,4 +205,18 @@ export function initializeCronJobs() {
   }, {
     timezone: "Asia/Jakarta"
   });
+
+  // FMS auto-pull dari FAMOUS (read-only) — tiap jam menit ke-5 (WITA)
+  cron.schedule('5 * * * *', async () => {
+    console.log('[FMS] Running hourly FAMOUS auto-pull...');
+    try {
+      const { runFmsScrape } = await import('./services/fms-scraper');
+      const res = await runFmsScrape({ hoursBack: 3 });
+      console.log(`[FMS] auto-pull selesai: fetched=${res.fetched} upserted=${res.upserted}`);
+    } catch (error) {
+      console.error('❌ Error in FMS auto-pull job:', error);
+    }
+  }, {
+    timezone: "Asia/Makassar"
+  });
 }
