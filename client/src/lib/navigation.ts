@@ -229,6 +229,7 @@ export const navigationGroups: NavGroup[] = [
                     { name: "Program Monitoring", href: "/workspace/zero-harm/programs", icon: Shield, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                     { name: "Workbook (Excel)", href: "/workspace/zero-harm/workbook", icon: Database, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                     { name: "KPI Program Sidak", href: "/workspace/zero-harm/sidak-kpi", icon: BarChart3, requiredPermissions: [Permission.VIEW_DASHBOARD] },
+                    { name: "Plan Kehadiran", href: "/workspace/zero-harm/plan-kehadiran", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                     { name: "Import Data", href: "/workspace/zero-harm/import", icon: Database, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                 ]
             }

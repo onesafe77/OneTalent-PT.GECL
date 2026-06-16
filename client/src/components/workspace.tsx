@@ -102,6 +102,7 @@ import ZeroHarmDashboard from "@/pages/zero-harm/dashboard";
 import ZeroHarmImport from "@/pages/zero-harm/import";
 import ZeroHarmSidakKpi from "@/pages/zero-harm/sidak-kpi";
 import ZeroHarmPrograms from "@/pages/zero-harm/programs";
+import ZeroHarmPlanKehadiran from "@/pages/zero-harm/plan-kehadiran";
 import ZeroHarmAttendanceKpi from "@/pages/zero-harm/attendance-kpi";
 import ZeroHarmWorkbook from "@/pages/zero-harm/workbook";
 import SickLeavePage from "@/pages/hse/sick-leave-page";
@@ -221,6 +222,7 @@ const workspaceRoutes = [
   { path: "/workspace/zero-harm", component: ZeroHarmDashboard, title: "SIMANTIK — Zero Harm 2.0" },
   { path: "/workspace/zero-harm/import", component: ZeroHarmImport, title: "Zero Harm — Import Data" },
   { path: "/workspace/zero-harm/sidak-kpi", component: ZeroHarmSidakKpi, title: "Zero Harm — KPI Program Sidak" },
+  { path: "/workspace/zero-harm/plan-kehadiran", component: ZeroHarmPlanKehadiran, title: "Zero Harm — Plan Kehadiran" },
   { path: "/workspace/zero-harm/programs", component: ZeroHarmPrograms, title: "Zero Harm — Program Monitoring" },
   { path: "/workspace/zero-harm/attendance-kpi", component: ZeroHarmAttendanceKpi, title: "Zero Harm — KPI Kehadiran" },
   { path: "/workspace/zero-harm/workbook", component: ZeroHarmWorkbook, title: "Zero Harm — Workbook (Excel)" },
@@ -453,6 +455,11 @@ export function Workspace() {
               <Route path="/workspace/zero-harm/sidak-kpi">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
                   <ZeroHarmSidakKpi />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm/plan-kehadiran">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmPlanKehadiran />
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/zero-harm/programs">

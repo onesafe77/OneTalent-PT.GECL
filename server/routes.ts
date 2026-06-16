@@ -13899,6 +13899,16 @@ Format sebagai bullet points singkat per insight.`;
             }
           }
         }
+        // injeksi Plan Kehadiran (hari/NA) ke sheet OPK + tulis formula Pencapaian per pengawas×minggu.
+        // SETELAH merge edit-manual (agar menang atas nilai stale), SEBELUM compute.
+        try {
+          const { loadAttendanceByProgram, injectAttendance } = await import("./lib/zh-attendance-inject");
+          const year = new Date().getFullYear();
+          const att = await loadAttendanceByProgram(year);
+          const n = injectAttendance(template, att);
+          console.log(`[zh-hf] injeksi kehadiran ${year}: ${n} sel`);
+        } catch (e: any) { console.error("[zh-hf] injeksi kehadiran gagal:", e?.message || e); }
+
         // sumber data mentah: utamakan tabel zh_* (live, hasil Import) via zh_raw_meta;
         // fallback ke blob 'raw' lama bila zh_raw_meta belum ada.
         let rawForHf: any = (rawRow?.data as any) || null;
@@ -14163,6 +14173,79 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error: any) {
       console.error("ZH sidak attendance error:", error?.message || error);
       res.status(500).json({ message: "Gagal menyimpan hari kerja" });
+    }
+  });
+
+  // ---- Plan Kehadiran terpadu: satu grid pengawas×minggu → semua program OPK ----
+  // GET: daftar pengawas (distinct, hanya yg ada di program Sidak) + days teragregasi per minggu.
+  app.get("/api/zero-harm/plan-kehadiran", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const year = Number(req.query.year) || new Date().getFullYear();
+      const { ZH_SIDAK_PROGRAMS } = await import("./lib/zh-sidak");
+      const codes = ZH_SIDAK_PROGRAMS.map((p: any) => p.code);
+      // pengawas distinct di program Sidak + daftar programnya
+      const offs: any = await db.execute(sql`
+        SELECT nik, MAX(nama) nama, MAX(dept) dept, MIN(ord) ord,
+               array_agg(DISTINCT program_code) programs
+        FROM zh_program_officer WHERE program_code = ANY(${codes})
+        GROUP BY nik ORDER BY MIN(ord), MAX(nama)`);
+      // days teragregasi per (nik, week) — MAX mengabaikan null; semua null → null (NA)
+      const att: any = await db.execute(sql`
+        SELECT nik, week, MAX(days) days FROM zh_program_attendance
+        WHERE year = ${year} AND program_code = ANY(${codes})
+        GROUP BY nik, week`);
+      const daysByNik: Record<string, Record<number, number | null>> = {};
+      for (const a of (att.rows || [])) {
+        (daysByNik[a.nik] ||= {})[Number(a.week)] = a.days == null ? null : Number(a.days);
+      }
+      const officers = (offs.rows || []).map((o: any) => ({
+        nik: o.nik, nama: o.nama, dept: o.dept,
+        programs: o.programs, days: daysByNik[o.nik] || {},
+      }));
+      res.json({ year, officers });
+    } catch (error: any) {
+      console.error("ZH plan-kehadiran get error:", error?.message || error);
+      res.status(500).json({ message: "Gagal memuat plan kehadiran" });
+    }
+  });
+
+  // POST: simpan grid terpadu → tulis days ke SEMUA program Sidak tiap pengawas → recompute Workbook.
+  app.post("/api/zero-harm/plan-kehadiran", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const { year, entries } = req.body as { year: number; entries: Array<{ nik: string; week: number; days: number | null }> };
+      if (!year || !Array.isArray(entries)) return res.status(400).json({ message: "year, entries wajib" });
+      const { ZH_SIDAK_PROGRAMS } = await import("./lib/zh-sidak");
+      const codes = new Set(ZH_SIDAK_PROGRAMS.map((p: any) => p.code));
+      // program (Sidak) per pengawas
+      const offRows: any = await db.execute(sql`SELECT nik, program_code FROM zh_program_officer`);
+      const progsByNik = new Map<string, string[]>();
+      for (const r of (offRows.rows || [])) {
+        if (!codes.has(r.program_code)) continue;
+        if (!progsByNik.has(r.nik)) progsByNik.set(r.nik, []);
+        progsByNik.get(r.nik)!.push(r.program_code);
+      }
+      // kelompokkan entri per program
+      const perProgram = new Map<string, Array<{ nik: string; week: number; days: number | null }>>();
+      for (const e of entries) {
+        if (!e.nik || !e.week) continue;
+        const progs = progsByNik.get(e.nik) || [];
+        for (const code of progs) {
+          if (!perProgram.has(code)) perProgram.set(code, []);
+          perProgram.get(code)!.push({ nik: e.nik, week: Number(e.week), days: e.days == null ? null : Number(e.days) });
+        }
+      }
+      let total = 0;
+      for (const [code, ents] of perProgram) total += await storage.upsertZhProgramAttendance(code, year, ents);
+      // Workbook ikut terhitung ulang dari kehadiran baru
+      try { recomputeWorkbook(); } catch (e: any) { console.error("[zh] recompute setelah plan-kehadiran gagal:", e?.message || e); }
+      res.json({ ok: true, upserted: total, programs: perProgram.size, computing: true });
+    } catch (error: any) {
+      console.error("ZH plan-kehadiran post error:", error?.message || error);
+      res.status(500).json({ message: "Gagal menyimpan plan kehadiran" });
     }
   });
 
