@@ -13819,6 +13819,8 @@ Format sebagai bullet points singkat per insight.`;
       for (const sheet of ["hazard", "inspeksi", "observasi", "opk", "attendance", "fms"]) {
         saved[sheet] = await storage.zhUpsert(sheet, (rows as any)[sheet]);
       }
+      // data mentah berubah → hitung ulang Workbook (background) agar Pencapaian ikut ter-update
+      try { recomputeWorkbook(); } catch (e: any) { console.error("[zh] auto-recompute setelah import gagal:", e?.message || e); }
       res.json({ ok: true, parsed: counts, saved, sheetsFound });
     } catch (error: any) {
       console.error("ZeroHarm import error:", error?.message || error);
@@ -13897,8 +13899,31 @@ Format sebagai bullet points singkat per insight.`;
             }
           }
         }
+        // sumber data mentah: utamakan tabel zh_* (live, hasil Import) via zh_raw_meta;
+        // fallback ke blob 'raw' lama bila zh_raw_meta belum ada.
+        let rawForHf: any = (rawRow?.data as any) || null;
+        try {
+          const { extractRawMeta, buildRawWorkbookFromDb } = await import("./lib/zh-raw-grid");
+          let metaStr = await storage.getSystemSetting("zh_raw_meta");
+          // backfill: bila meta belum ada tapi blob raw ada → buat dari blob (aktivasi tanpa upload ulang)
+          if (!metaStr && rawRow?.data) {
+            try {
+              const meta = extractRawMeta(rawRow.data as any);
+              metaStr = JSON.stringify(meta);
+              await storage.setSystemSetting("zh_raw_meta", metaStr);
+              console.log("[zh-hf] zh_raw_meta dibuat dari blob raw (backfill)");
+            } catch { /* noop */ }
+          }
+          if (metaStr) {
+            const fromDb = await buildRawWorkbookFromDb(JSON.parse(metaStr));
+            if (fromDb && fromDb.sheetOrder.length) {
+              rawForHf = fromDb;
+              console.log("[zh-hf] raw dari tabel zh_* (Import) →", fromDb.sheetOrder.join(","));
+            }
+          }
+        } catch (e: any) { console.error("[zh-hf] build raw dari DB gagal, pakai blob:", e?.message || e); }
         const { computeLightWorkbook } = await import("./lib/zh-hf");
-        const light = computeLightWorkbook(template, (rawRow?.data as any) || null);
+        const light = computeLightWorkbook(template, rawForHf);
         await db.insert(zhWorkbook).values({ id: "computed", name: "computed", data: light, updatedAt: new Date() })
           .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: light, updatedAt: new Date() } });
         console.log("[zh-hf] recompute selesai → computed disimpan");
@@ -13924,6 +13949,12 @@ Format sebagai bullet points singkat per insight.`;
         .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: program, name: data.name, updatedAt: new Date() } });
       await db.insert(zhWorkbook).values({ id: "raw", name: "raw", data: raw, updatedAt: new Date() })
         .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: raw, updatedAt: new Date() } });
+      // simpan peta kolom mentah (urutan header + grid Validasi) → recompute bisa pakai data Import (tabel zh_*)
+      try {
+        const { extractRawMeta } = await import("./lib/zh-raw-grid");
+        const rawMeta = extractRawMeta(raw);
+        await storage.setSystemSetting("zh_raw_meta", JSON.stringify(rawMeta));
+      } catch (e: any) { console.error("[zh] simpan zh_raw_meta gagal:", e?.message || e); }
       // hapus computed lama; hitung ulang (latar belakang) → workbook ringan dgn nilai terhitung
       await db.delete(zhWorkbook).where(eq(zhWorkbook.id, "computed"));
       recomputeWorkbook();
