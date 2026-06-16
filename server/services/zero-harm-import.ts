@@ -116,6 +116,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
       detailTemuan: pick(r, "Detail Temuan") || null,
       deviasi: pick(r, "Deviasi") || null,
       jenisPekerjaan: pick(r, "Jenis Pekerjaan") || null,
+      counter: (pick(r, "Counter") ?? "") === "" ? null : String(pick(r, "Counter")),
       tanggal: dateOrNull(pick(r, "Tanggal Observasi")),
       week: pick(r, "Week") || null, month: pick(r, "Month") || null, quartal: pick(r, "Quartal") || null,
       raw: r,

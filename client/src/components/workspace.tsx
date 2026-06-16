@@ -100,6 +100,10 @@ import SafetyPatrolKPI from "@/pages/safety-patrol-kpi";
 import SafetyPatrolAttendancePlan from "@/pages/safety-patrol-attendance-plan";
 import ZeroHarmDashboard from "@/pages/zero-harm/dashboard";
 import ZeroHarmImport from "@/pages/zero-harm/import";
+import ZeroHarmSidakKpi from "@/pages/zero-harm/sidak-kpi";
+import ZeroHarmPrograms from "@/pages/zero-harm/programs";
+import ZeroHarmAttendanceKpi from "@/pages/zero-harm/attendance-kpi";
+import ZeroHarmWorkbook from "@/pages/zero-harm/workbook";
 import SickLeavePage from "@/pages/hse/sick-leave-page";
 import TrainingMaster from "@/pages/hse/tna/training-master";
 import TnaInput from "@/pages/hse/tna/tna-input";
@@ -216,6 +220,10 @@ const workspaceRoutes = [
   { path: "/workspace/safety-patrol/attendance-plan", component: SafetyPatrolAttendancePlan, title: "Plan Kehadiran Pengawas" },
   { path: "/workspace/zero-harm", component: ZeroHarmDashboard, title: "SIMANTIK — Zero Harm 2.0" },
   { path: "/workspace/zero-harm/import", component: ZeroHarmImport, title: "Zero Harm — Import Data" },
+  { path: "/workspace/zero-harm/sidak-kpi", component: ZeroHarmSidakKpi, title: "Zero Harm — KPI Program Sidak" },
+  { path: "/workspace/zero-harm/programs", component: ZeroHarmPrograms, title: "Zero Harm — Program Monitoring" },
+  { path: "/workspace/zero-harm/attendance-kpi", component: ZeroHarmAttendanceKpi, title: "Zero Harm — KPI Kehadiran" },
+  { path: "/workspace/zero-harm/workbook", component: ZeroHarmWorkbook, title: "Zero Harm — Workbook (Excel)" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
   { path: "/workspace/hse/evaluasi-driver-fatigue", component: EvaluasiDriverFatigue, title: "Evaluasi Driver Fatigue" },
@@ -440,6 +448,26 @@ export function Workspace() {
               <Route path="/workspace/zero-harm/import">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
                   <ZeroHarmImport />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm/sidak-kpi">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmSidakKpi />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm/programs">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmPrograms />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm/attendance-kpi">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmAttendanceKpi />
+                </PermissionGuard>
+              </Route>
+              <Route path="/workspace/zero-harm/workbook">
+                <PermissionGuard requiredPermissions={[Permission.VIEW_DASHBOARD]}>
+                  <ZeroHarmWorkbook />
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/zero-harm">

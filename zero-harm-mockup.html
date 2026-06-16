@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zero Harm 2.0 — Analytics per Sheet (Mockup)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+ :root{--green:#16a34a;--amber:#f59e0b;--red:#dc2626;--blue:#2563eb;--violet:#7c3aed;--cyan:#0891b2;--pink:#db2777;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;--bg:#f1f5f9;--brand:#0e7490}
+ *{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+ body{background:var(--bg);color:var(--ink);font-size:13px}
+ .wrap{max-width:1320px;margin:0 auto;padding:18px}
+ .topbar{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+ h1{font-size:22px;font-weight:800;letter-spacing:-.3px} h1 span{color:var(--brand)}
+ .sub{color:var(--muted);font-size:12px;margin:2px 0 12px}
+ .badge-mock{background:#fef9c3;color:#854d0e;border:1px solid #fde68a;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700}
+ select,.btn{border:1px solid var(--line);background:#fff;border-radius:9px;padding:7px 12px;font-size:13px;cursor:pointer}
+ .btn-primary{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
+ .filters{display:flex;gap:8px;flex-wrap:wrap}
+ .tabs{display:flex;gap:4px;margin:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+ .tab{padding:9px 14px;border:none;background:none;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent}
+ .tab.active{color:var(--brand);border-bottom-color:var(--brand)}
+ .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+ .chartcard{display:flex;flex-direction:column;min-height:285px}
+ .chartcard canvas{flex:1;margin-top:4px}
+ .ctitle{font-weight:700;font-size:13px;margin-bottom:2px} .cnote{color:var(--muted);font-size:11px;margin-bottom:6px}
+ .grid{display:grid;gap:14px}
+ .charts{grid-template-columns:repeat(3,1fr)}
+ .kpis{grid-template-columns:repeat(6,1fr);margin-bottom:16px}
+ .kpi{position:relative;overflow:hidden}
+ .kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brand)}
+ .kpi .n{font-size:22px;font-weight:800;line-height:1.1} .kpi .l{color:var(--muted);font-size:10.5px;margin-top:4px;font-weight:600}
+ .c2{grid-template-columns:1fr 1fr}.c3{grid-template-columns:repeat(3,1fr)}.c4{grid-template-columns:repeat(4,1fr)}
+ canvas{max-height:210px}
+ table{width:100%;border-collapse:collapse;font-size:11.5px}
+ th,td{padding:6px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+ th{background:#f8fafc;font-size:10px;text-transform:uppercase;color:var(--muted)}
+ td.c,th.c{text-align:center}
+ .tag{padding:2px 7px;border-radius:6px;font-size:10px;font-weight:700}
+ .g{background:#dcfce7;color:#166534}.a{background:#fef3c7;color:#92400e}.r{background:#fee2e2;color:#991b1b}.b{background:#dbeafe;color:#1e40af}
+ .hidden{display:none}.scroll{overflow-x:auto}
+ .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.3s;pointer-events:none}.toast.show{opacity:1}
+ @media(max-width:1050px){.kpis{grid-template-columns:repeat(3,1fr)}.c2,.c3,.c4,.charts{grid-template-columns:1fr}}
+</style></head>
+<body>
+<div class="wrap">
+ <div class="topbar">
+   <div><h1><span>Zero Harm</span> 2.0 — Analytics</h1></div>
+   <div class="filters">
+     <select><option>Mei 2026</option><option>Q2 2026</option></select>
+     <select><option>PT GECL</option><option>Semua PT</option></select>
+     <select><option>Semua Minggu</option><option>W21</option><option>W20</option></select>
+     <button class="btn btn-primary" onclick="toast('Export PDF (mock)')">Export</button>
+   </div>
+ </div>
+ <div class="sub">Mockup statis — tiap sheet dianalisa detail. Data contoh dari struktur file asli. <span class="badge-mock">MOCKUP</span></div>
+
+ <div class="tabs" id="tabs"></div>
+ <div id="page"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+Chart.register(ChartDataLabels);
+const WK=['W14','W15','W16','W17','W18','W19','W20','W21'];
+const C={green:'#16a34a',amber:'#f59e0b',red:'#dc2626',blue:'#2563eb',violet:'#7c3aed',cyan:'#0891b2',pink:'#db2777',slate:'#94a3b8',brand:'#0e7490'};
+Chart.defaults.font.size=10;Chart.defaults.color='#64748b';Chart.defaults.plugins.legend.labels.boxWidth=9;
+const NUM={color:'#0f172a',font:{weight:'700',size:10},formatter:v=>v>=1000?(v/1000).toFixed(1)+'k':v};
+const PCT=arr=>({color:'#fff',font:{weight:'700',size:10},formatter:v=>{const t=arr.reduce((a,b)=>a+b,0);return t?Math.round(v/t*100)+'%':0}});
+
+// ---- PAGE DEFINITIONS (data-driven) ----
+const PAGES={
+ ringkasan:{label:'📊 Ringkasan', kpis:[['2.658','Hazard'],['1.396','Inspeksi'],['1.761','Observasi'],['999','Attendance'],['19.124','FMS Alert'],['78%','Capaian Total']],
+  charts:[
+   {w:2,t:'Tren Pelaporan Mingguan',n:'Hazard·Inspeksi·Observasi',type:'line',labels:WK,series:[['Hazard',[118,126,140,133,132,151,140,121],C.red],['Inspeksi',[55,60,66,58,64,70,58,61],C.blue],['Observasi',[80,84,88,82,88,91,83,79],C.green]]},
+   {w:1,t:'Capaian per Program',n:'vs target',type:'barh',labels:['FMS','Observasi','Attendance','Inspeksi','Hazard'],data:[93,88,62,35,12],colors:[C.green,C.green,C.amber,C.amber,C.red]},
+   {w:1,t:'Laporan per Perusahaan',type:'bar',labels:['GECL','PPA','BBS','Arum'],data:[5800,420,260,180],colors:[C.brand,C.slate,C.slate,C.slate]},
+   {w:1,t:'KTA vs TTA',type:'donut',labels:['KTA','TTA'],data:[845,262],colors:[C.violet,C.pink]},
+   {w:1,t:'FMS Compliance',type:'donut',labels:['Compliant','Non'],data:[17644,1280],colors:[C.green,C.red]},
+  ]},
+
+ hazard:{label:'🔴 Hazard', kpis:[['2.658','Total'],['845','KTA'],['262','TTA'],['59','Risiko High'],['12%','Close Rate'],['1.620','Open >30hr']],
+  charts:[
+   {w:2,t:'Tren Hazard (KTA vs TTA)',type:'line',labels:WK,series:[['KTA',[95,102,118,110,108,126,118,98],C.violet],['TTA',[23,24,22,23,24,25,22,23],C.pink]]},
+   {w:1,t:'KTA vs TTA',type:'donut',labels:['KTA','TTA'],data:[845,262],colors:[C.violet,C.pink]},
+   {w:1,t:'Tingkat Risiko',type:'bar',labels:['Low','Medium','High'],data:[597,451,59],colors:[C.green,C.amber,C.red]},
+   {w:1,t:'Status Penanganan',type:'donut',labels:['Submitted','Followup','Reassign','END'],data:[925,146,17,8],colors:[C.amber,C.blue,C.violet,C.green]},
+   {w:1,t:'Aging Tindak Lanjut',type:'bar',labels:['<7hr','7-30hr','>30hr','Closed'],data:[420,510,1620,108],colors:[C.green,C.amber,C.red,C.blue]},
+   {w:1,t:'Top Ketidaksesuaian',type:'barh',labels:['Perawatan Jalan','APD','Unit/Alat','Rambu','Housekeeping'],data:[612,388,341,276,210],colors:Array(5).fill(C.red)},
+   {w:1,t:'Per Departemen',type:'barh',labels:['Coal Hauling','Plant','Road Maint','ROM','Office'],data:[1480,520,360,210,88],colors:Array(5).fill(C.violet)},
+   {w:1,t:'Top Pelapor',type:'barh',labels:['PURI RAHMAN','SYAHRANI','M.IRFAN','BAGUS AJI','DANU'],data:[312,287,241,198,176],colors:Array(5).fill(C.blue)},
+  ],
+  table:{cols:['Hazard ID','Pelapor','Judul','Jenis','Risiko','Status','Week'],rows:[
+   ['2014525','PURI RAHMAN','jalan undulating','KTA','medium','SUBMITTED','W21'],
+   ['2014522','PURI RAHMAN','jalan undulating','KTA','medium','FOLLOWUP','W21'],
+   ['2014238','M. IRFAN','TTA','TTA','high','SUBMITTED','W21'],
+   ['2013990','SYAHRANI','APD tidak lengkap','TTA','low','END','W20']]}},
+
+ inspeksi:{label:'🔵 Inspeksi', kpis:[['1.396','Total'],['319','Tepat Waktu'],['877','Tidak Sesuai'],['27%','On-time'],['750','Status END'],['446','OPEN']],
+  charts:[
+   {w:2,t:'Kesesuaian Waktu / Minggu',type:'stack',labels:WK,series:[['Sesuai',[40,44,52,46,21,28,18,19],C.green],['Tidak',[15,16,14,12,43,42,40,42],C.red]]},
+   {w:1,t:'Status Inspeksi',type:'donut',labels:['END','OPEN'],data:[750,446],colors:[C.green,C.amber]},
+   {w:1,t:'Per Jenis Objek',type:'barh',labels:['Hauling Coal','Workshop','ROM','Fuel','Office'],data:[612,288,201,160,135],colors:Array(5).fill(C.blue)},
+   {w:1,t:'Temuan: Open vs Close',type:'donut',labels:['Open','Close'],data:[409,287],colors:[C.red,C.green]},
+   {w:1,t:'Top Pelaksana',type:'barh',labels:['SYAHRANI','PURI','M.IRFAN','BAGUS','DANU'],data:[142,128,96,84,71],colors:Array(5).fill(C.cyan)},
+   {w:3,t:'Tren Inspeksi',type:'line',labels:WK,series:[['Inspeksi',[55,60,66,58,64,70,58,61],C.blue]]},
+  ],
+  table:{cols:['ID','Pelaksana','Judul','Lokasi','Temuan/Close','Status','Kesesuaian','Week'],rows:[
+   ['2150141','PURI RAHMAN','inspeksi jalan','Hauling Phase 4','0/0','END','Tidak Sesuai','W21'],
+   ['2150122','SYAHRANI','inspeksi area km 6','Hauling TIA','2/1','OPEN','Sesuai','W21'],
+   ['2150121','SYAHRANI','inspeksi area km 2','Hauling Phase 7','1/1','END','Tidak Sesuai','W20']]}},
+
+ observasi:{label:'🟢 Observasi', kpis:[['1.761','Total'],['616','Status END'],['1.145','Proses'],['72','Temuan'],['54','Close'],['38','PJA aktif']],
+  charts:[
+   {w:2,t:'Tren Observasi / Minggu',type:'line',labels:WK,series:[['Observasi',[80,84,88,82,88,91,83,79],C.green]]},
+   {w:1,t:'Status',type:'donut',labels:['END','Proses'],data:[616,1145],colors:[C.green,C.amber]},
+   {w:1,t:'Temuan vs Close',type:'stack',labels:WK,series:[['Temuan',[12,10,14,11,12,10,8,7],C.amber],['Close',[9,8,11,9,9,8,6,5],C.green]]},
+   {w:1,t:'Per Lokasi',type:'barh',labels:['Workshop','Hauling','ROM','Office','Fuel'],data:[520,470,360,240,171],colors:Array(5).fill(C.green)},
+   {w:1,t:'Top PJA',type:'barh',labels:['IWAN SIGIT','RAHMADI','KOIRIN','BAGUS AJI','DANU'],data:[88,76,64,52,41],colors:Array(5).fill(C.cyan)},
+   {w:3,t:'Observasi per Departemen',type:'bar',labels:['Coal Hauling','Plant','ROM'],data:[980,520,261],colors:[C.green,C.cyan,C.slate]},
+  ],
+  table:{cols:['ID','Judul','Lokasi','PJA','Temuan/Close','Status','Week'],rows:[
+   ['1674637','p5m mekanik','Workshop GECL','IWAN SIGIT P','0/0','END','W21'],
+   ['1674610','observasi area','Hauling Phase 4','BAGUS AJI','2/1','END','W20']]}},
+
+ attendance:{label:'🟣 Attendance', kpis:[['999','Baris Absen'],['264','Event'],['260','Valid'],['5','Invalid'],['89','P5M'],['75','Safety Talk']],
+  charts:[
+   {w:1,t:'Per Tipe Event',type:'bar',labels:['P5M','Safety Talk','Sosialisasi'],data:[89,75,63],colors:[C.cyan,C.blue,C.violet]},
+   {w:1,t:'Validitas Absen',type:'donut',labels:['Valid','Invalid'],data:[260,5],colors:[C.green,C.red]},
+   {w:1,t:'Per Shift',type:'donut',labels:['Shift 1','Shift 2'],data:[560,439],colors:[C.blue,C.violet]},
+   {w:2,t:'Kehadiran / Minggu',type:'line',labels:WK,series:[['Hadir',[110,98,120,105,130,140,118,96],C.violet]]},
+   {w:1,t:'Top Peserta',type:'barh',labels:['DANU','SYAHRANI','ADING','AKHMAD','M.IRFAN'],data:[12,11,9,8,6],colors:Array(5).fill(C.cyan)},
+  ],
+  table:{cols:['Event','Tipe','Peserta','NIK','Status Absen','Week','Shift'],rows:[
+   ['Sosialisasi Integrasi','SAFETY TALK','ADING FAHRIZA','C-020433','valid/icore','W20','Shift 1'],
+   ['Safety Talk W3 Mei','SAFETY TALK','DANU AMPARIAN','C-024972','valid/isafe','W21','Shift 1'],
+   ['P5M Mekanik','P5M','BAGUS AJI','C-051242','valid/isafe','W21','Shift 2']]}},
+
+ fms:{label:'🟡 FMS Fatigue', kpis:[['19.124','Alert'],['17.644','Compliant'],['1.280','Non'],['93%','Compliance'],['190','Valid'],['2.3','Avg SLA mnt']],
+  charts:[
+   {w:1,t:'Compliance',type:'donut',labels:['Compliant','Non'],data:[17644,1280],colors:[C.green,C.red]},
+   {w:1,t:'Status Validasi',type:'donut',labels:['Tidak Valid','Valid'],data:[18734,190],colors:[C.slate,C.green]},
+   {w:1,t:'Per Shift',type:'donut',labels:['Shift 1','Shift 2'],data:[8120,11004],colors:[C.blue,C.violet]},
+   {w:1,t:'Jenis Violation',type:'barh',labels:['Mata Tertutup','Mengantuk','Kelelahan'],data:[18676,195,53],colors:[C.amber,C.red,C.violet]},
+   {w:2,t:'SLA Validasi (menit) / Minggu',type:'line',labels:WK,series:[['SLA',[3.2,2.8,3.5,2.1,1.9,2.4,2.0,1.7],C.cyan]]},
+   {w:1,t:'Alert / Minggu',type:'bar',labels:['W18','W19','W20','W21'],data:[5210,4980,4620,4314],colors:Array(4).fill(C.amber)},
+   {w:2,t:'Top Unit (Vehicle)',type:'barh',labels:['GECL 9024','GECL 9079','GECL 9002','GECL 9011','GECL 9080'],data:[210,188,176,165,151],colors:Array(5).fill(C.red)},
+  ],
+  table:{cols:['Date','Unit','Violation','Shift','Validasi','SLA','Kategori'],rows:[
+   ['29 Apr','GECL 9024','Mata Tertutup','Shift 2','Tidak Valid','0.4','Compliant'],
+   ['29 Apr','GECL 9079','Mata Tertutup','Shift 2','Tidak Valid','1.1','Compliant'],
+   ['30 Apr','GECL 9002','Mengantuk','Shift 1','Valid','6.2','Non Compliant']]}},
+
+ sap:{label:'🎯 SAP', special:'sap'},
+ import:{label:'⬆ Import', special:'import'},
+};
+
+const charts=[];
+function destroyCharts(){charts.forEach(c=>c.destroy());charts.length=0;}
+function mkChart(canvas,c){
+ let cfg;
+ if(c.type==='donut') cfg={type:'doughnut',data:{labels:c.labels,datasets:[{data:c.data,backgroundColor:c.colors}]},options:{maintainAspectRatio:false,cutout:'56%',plugins:{datalabels:PCT(c.data),legend:{position:'bottom'}}}};
+ else if(c.type==='line') cfg={type:'line',data:{labels:c.labels,datasets:c.series.map(s=>({label:s[0],data:s[1],borderColor:s[2],backgroundColor:'transparent',tension:.35}))},options:{maintainAspectRatio:false,plugins:{datalabels:{display:false},legend:{display:c.series.length>1}},interaction:{mode:'index',intersect:false}}};
+ else if(c.type==='stack') cfg={type:'bar',data:{labels:c.labels,datasets:c.series.map(s=>({label:s[0],data:s[1],backgroundColor:s[2]}))},options:{maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true}},plugins:{datalabels:{display:false}}}};
+ else cfg={type:'bar',data:{labels:c.labels,datasets:[{data:c.data,backgroundColor:c.colors}]},options:{maintainAspectRatio:false,indexAxis:c.type==='barh'?'y':'x',plugins:{legend:{display:false},datalabels:NUM}}};
+ charts.push(new Chart(canvas,cfg));
+}
+
+function renderPage(key){
+ destroyCharts();
+ const p=PAGES[key], el=document.getElementById('page');
+ if(p.special==='sap') return renderSAP(el);
+ if(p.special==='import') return renderImport(el);
+ let html='<div class="grid kpis">'+p.kpis.map(k=>`<div class="card kpi"><div class="n">${k[0]}</div><div class="l">${k[1]}</div></div>`).join('')+'</div>';
+ // charts grid (3 kolom konsisten)
+ html+='<div class="grid charts">';
+ p.charts.forEach((c,i)=>{ const span=Math.min(c.w||1,3); html+=`<div class="card chartcard" style="grid-column:span ${span}"><div class="ctitle">${c.t}</div>${c.n?`<div class="cnote">${c.n}</div>`:''}<canvas id="cv${i}"></canvas></div>`; });
+ html+='</div>';
+ if(p.table){ html+=`<div class="card scroll" style="margin-top:13px"><div class="ctitle">Contoh Data Mentah (${key})</div><table><thead><tr>${p.table.cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${p.table.rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table><div class="cnote" style="margin-top:6px">menampilkan 3 dari ribuan baris — versi nyata: filter, cari, paginasi, drill-down.</div></div>`; }
+ el.innerHTML=html;
+ p.charts.forEach((c,i)=>mkChart(document.getElementById('cv'+i),c));
+}
+
+function renderSAP(el){
+ const SAP=[
+  ['ADING FAHRIZA A','C-020433','PJO',1,1,1,0,0,0,'2/4','-'],['AKHMAD NOOR','C-081396','Section Head',4,4,4,3,2,4,'3/4','80%'],
+  ['SYAHRANI','C-027739','Pengawas FMS',7,7,4,7,5,4,'4/4','90%'],['PURI RAHMAN','C-037252','Pengawas',7,7,4,6,7,4,'4/4','75%'],
+  ['M. IRFAN','C-048185','Pengawas Opr',7,7,4,2,1,0,'1/4','40%'],['BAGUS AJI','C-051242','Group Leader',5,5,3,5,5,3,'4/4','95%']];
+ const col=p=>p>=80?C.green:p>=50?C.amber:C.red;
+ const cell=(a,t)=>`<td class="c"><span class="tag ${a>=t?'g':a>0?'a':'r'}">${a}/${t}</span></td>`;
+ const rows=SAP.map((s,i)=>{const tgt=s[3]+s[4]+s[5],akt=s[6]+s[7]+s[8],pct=Math.round(akt/tgt*100);
+  return `<tr><td class="c">${i+1}</td><td><b>${s[0]}</b></td><td>${s[1]}</td><td>${s[2]}</td><td class="c">${s[3]}/${s[4]}/${s[5]}</td>${cell(s[6],s[3])}${cell(s[7],s[4])}${cell(s[8],s[5])}<td class="c">${s[9]}</td><td class="c">${s[10]}</td><td class="c"><b style="color:${col(pct)}">${pct}%</b></td></tr>`;}).join('');
+ el.innerHTML=`<div class="grid c2" style="margin-bottom:13px"><div class="card"><div class="ctitle">SAP — Safety Accountability Program</div><div class="cnote">Target & aktual per pengawas/minggu (Hazard·Inspeksi·Observasi)+Kehadiran+TTA, dihitung dari data import (cocok NIK+Week).</div></div><div class="card"><div class="ctitle">Distribusi Capaian</div><canvas id="cvS" style="max-height:140px"></canvas></div></div>
+  <div class="card scroll"><table><thead><tr>${['No','Nama','NIK','Jabatan','Tgt H/I/O','Hazard','Inspeksi','Observasi','Hadir','TTA','% SAP'].map(h=>`<th class="c">${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+ charts.push(new Chart(document.getElementById('cvS'),{type:'bar',data:{labels:['<50%','50-79%','≥80%'],datasets:[{data:[1,2,3],backgroundColor:[C.red,C.amber,C.green]}]},options:{maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:NUM}}}));
+}
+function renderImport(el){
+ el.innerHTML=`<div class="card"><div class="ctitle" style="font-size:15px">Import Export iSafe / FMS</div><div class="cnote">Upload export berkala; app simpan & hitung ulang semua sheet + SAP.</div>
+  <div class="scroll"><table><thead><tr><th>Sheet</th><th class="c">Baris</th><th>Periode</th><th class="c">Status</th></tr></thead><tbody>
+  <tr><td>Hazard</td><td class="c">2.658</td><td>W1–W21</td><td class="c"><span class="tag g">siap</span></td></tr>
+  <tr><td>Inspeksi</td><td class="c">1.396</td><td>W1–W21</td><td class="c"><span class="tag g">siap</span></td></tr>
+  <tr><td>Observasi</td><td class="c">1.761</td><td>W1–W21</td><td class="c"><span class="tag g">siap</span></td></tr>
+  <tr><td>Attendance</td><td class="c">999</td><td>W1–W21</td><td class="c"><span class="tag g">siap</span></td></tr>
+  <tr><td>FMS</td><td class="c">19.124</td><td>W18–W21</td><td class="c"><span class="tag a">besar</span></td></tr></tbody></table></div>
+  <div style="margin-top:12px"><button class="btn btn-primary" onclick="toast('✓ 25.938 baris di-import & dihitung')">Import & Hitung</button></div></div>`;
+}
+
+// tabs
+const tabsEl=document.getElementById('tabs');
+Object.keys(PAGES).forEach((k,i)=>{const b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=PAGES[k].label;b.onclick=()=>{document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));b.classList.add('active');renderPage(k);};tabsEl.appendChild(b);});
+let tT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),2400);}
+renderPage('ringkasan');
+</script>
+</body>
+</html>

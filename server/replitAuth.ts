@@ -23,17 +23,27 @@ const getOidcConfig = memoize(
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
-  const pgStore = connectPg(session);
-  const sessionStore = new pgStore({
-    pool,
-    createTableIfMissing: true,
-    ttl: sessionTtl,
-    tableName: "sessions",
-  });
-  // Prevent unhandled 'error' events from crashing the process
-  (sessionStore as any).on?.('error', (err: any) => {
-    console.error('[session-store] Error:', err.message);
-  });
+  // Di DEV lokal, koneksi ke DB Railway sering putus (internet rumah flaky) → session store
+  // PostgreSQL gagal get() → "req.session.touch is not a function" → server crash.
+  // Maka pakai MemoryStore saat dev (tidak butuh DB). Produksi (Railway internal) tetap pg store.
+  let sessionStore: any;
+  if (process.env.NODE_ENV === "production") {
+    const pgStore = connectPg(session);
+    sessionStore = new pgStore({
+      pool,
+      createTableIfMissing: true,
+      ttl: sessionTtl,
+      tableName: "sessions",
+    });
+    // Prevent unhandled 'error' events from crashing the process
+    sessionStore.on?.('error', (err: any) => {
+      console.error('[session-store] Error:', err.message);
+    });
+  } else {
+    // Default express-session MemoryStore (cukup untuk dev satu proses; tidak bergantung DB)
+    sessionStore = undefined;
+    console.log('[session-store] DEV: pakai MemoryStore (tidak bergantung DB Railway)');
+  }
   return session({
     secret: process.env.SESSION_SECRET || "dev_secret_key_123",
     store: sessionStore,

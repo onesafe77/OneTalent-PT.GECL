@@ -159,6 +159,7 @@ import {
   insertChecklistTemplateSchema,
   documentMasterlist,
   documentVersions,
+  zhWorkbook,
 } from "@shared/schema";
 import { eq, ilike, and, or, not, lt, lte, gt, gte, isNull, isNotNull, desc, sql, asc, inArray } from "drizzle-orm";
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
@@ -980,20 +981,31 @@ Format sebagai bullet points singkat per insight.`;
       const { nik, password } = parseResult.data;
       console.log("🔐 Looking up user with NIK:", nik);
 
-      // Get auth user from database
+      // Get auth user from database — retry utk hiccup DNS/koneksi transien (link Railway flaky)
       let authUser;
-      try {
-        console.log("🔐 Attempting database lookup for NIK:", nik);
-        console.log("🔐 DATABASE_URL exists:", !!process.env.DATABASE_URL);
-        authUser = await storage.getAuthUserByNik(nik);
+      {
+        let dbError: any = null;
+        for (let attempt = 1; attempt <= 4; attempt++) {
+          try {
+            console.log(`🔐 DB lookup NIK ${nik} (attempt ${attempt})`);
+            authUser = await storage.getAuthUserByNik(nik);
+            dbError = null;
+            break;
+          } catch (e: any) {
+            dbError = e;
+            const transient = /ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|Connection terminated|getaddrinfo/i.test(e?.message || "");
+            console.error(`🔐 DB error (attempt ${attempt}):`, e?.message || e);
+            if (!transient || attempt === 4) break;
+            await new Promise((r) => setTimeout(r, 1500));
+          }
+        }
+        if (dbError) {
+          return res.status(500).json({
+            message: "Gagal mengakses database: " + (dbError?.message || "Unknown error"),
+            errorType: dbError?.name || "Unknown"
+          });
+        }
         console.log("🔐 Auth user lookup result:", authUser ? "found" : "not found");
-      } catch (dbError: any) {
-        console.error("🔐 Database error looking up auth user:", dbError?.message || dbError);
-        console.error("🔐 Full error:", JSON.stringify(dbError, Object.getOwnPropertyNames(dbError)));
-        return res.status(500).json({
-          message: "Gagal mengakses database: " + (dbError?.message || "Unknown error"),
-          errorType: dbError?.name || "Unknown"
-        });
       }
 
       if (!authUser) {
@@ -13804,13 +13816,322 @@ Format sebagai bullet points singkat per insight.`;
       const { parseZeroHarmWorkbook } = await import("./services/zero-harm-import");
       const { rows, counts, sheetsFound } = parseZeroHarmWorkbook(req.file.buffer);
       const saved: Record<string, number> = {};
-      for (const sheet of ["hazard", "inspeksi", "observasi", "attendance", "fms"]) {
+      for (const sheet of ["hazard", "inspeksi", "observasi", "opk", "attendance", "fms"]) {
         saved[sheet] = await storage.zhUpsert(sheet, (rows as any)[sheet]);
       }
       res.json({ ok: true, parsed: counts, saved, sheetsFound });
     } catch (error: any) {
       console.error("ZeroHarm import error:", error?.message || error);
       res.status(500).json({ message: error?.message || "Gagal import data" });
+    }
+  });
+
+  // ---- Zero Harm — Workbook editable (Univer) ----
+  // Upload khusus workbook: file master bisa ~30MB → limit 60MB.
+  const workbookUpload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+          file.mimetype === "application/vnd.ms-excel") cb(null, true);
+      else cb(new Error("Hanya file Excel (.xlsx/.xls) yang diperbolehkan"));
+    },
+    limits: { fileSize: 60 * 1024 * 1024 },
+  });
+  // ---- helpers workbook (split raw/program + merge + lock) ----
+  const ZH_RAW_SHEETS = new Set(["Validasi", "Hazard", "Inspeksi", "Observasi", "OPK", "Attendance", "FMS"]);
+  const isRawSheet = (s: any) => ZH_RAW_SHEETS.has(String(s?.name || "").trim());
+  function splitWorkbook(data: any) {
+    const program: any = { id: data.id, name: data.name, sheetOrder: [], sheets: {}, styles: data.styles || {} };
+    const raw: any = { sheetOrder: [], sheets: {} };
+    for (const id of data.sheetOrder || []) {
+      const sh = data.sheets?.[id];
+      if (!sh) continue;
+      if (isRawSheet(sh)) { raw.sheetOrder.push(id); raw.sheets[id] = sh; }
+      else { program.sheetOrder.push(id); program.sheets[id] = sh; }
+    }
+    return { program, raw };
+  }
+  function mergeWorkbook(program: any, raw: any) {
+    if (!program) return null;
+    if (!raw) return program;
+    return {
+      id: program.id, name: program.name,
+      sheetOrder: [...(program.sheetOrder || []), ...(raw.sheetOrder || [])],
+      sheets: { ...(program.sheets || {}), ...(raw.sheets || {}) },
+      styles: program.styles || {},
+    };
+  }
+  const LOCK_KEY = "zh_workbook_lock";
+  const LOCK_TTL = 60000; // 60 dtk
+  async function readLock() {
+    try { const v = await storage.getSystemSetting(LOCK_KEY); if (!v) return null; const o = JSON.parse(v); return o?.at && (Date.now() - new Date(o.at).getTime() < LOCK_TTL) ? o : null; } catch { return null; }
+  }
+
+  // recompute workbook RINGAN (HF dari template+raw) di latar belakang; hasil → row 'computed'
+  let zhComputing = false;
+  async function recomputeWorkbook() {
+    if (zhComputing) return;
+    zhComputing = true;
+    await storage.setSystemSetting("zh_workbook_computing", "1").catch(() => {});
+    setTimeout(async () => {
+      try {
+        const [act] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "active")).limit(1);
+        if (!act) return;
+        const [rawRow] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "raw")).limit(1);
+        const [comp] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "computed")).limit(1);
+        // gabung edit manual user (dari 'computed') ke template: sel TANPA formula di template diisi nilai dari computed
+        const template: any = JSON.parse(JSON.stringify(act.data));
+        if (comp?.data) {
+          const cd: any = comp.data;
+          for (const id of template.sheetOrder || []) {
+            const ts = template.sheets[id]; const cs = cd.sheets?.[id]; if (!ts || !cs) continue;
+            for (const r of Object.keys(cs.cellData || {})) {
+              for (const c of Object.keys(cs.cellData[r] || {})) {
+                const tcell = ts.cellData?.[r]?.[c];
+                if (tcell && tcell.f) continue; // jangan timpa sel berformula
+                const v = cs.cellData[r][c]?.v;
+                if (v == null) continue;
+                if (!ts.cellData[r]) ts.cellData[r] = {};
+                ts.cellData[r][c] = { ...(ts.cellData[r][c] || {}), v };
+              }
+            }
+          }
+        }
+        const { computeLightWorkbook } = await import("./lib/zh-hf");
+        const light = computeLightWorkbook(template, (rawRow?.data as any) || null);
+        await db.insert(zhWorkbook).values({ id: "computed", name: "computed", data: light, updatedAt: new Date() })
+          .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: light, updatedAt: new Date() } });
+        console.log("[zh-hf] recompute selesai → computed disimpan");
+      } catch (e: any) {
+        console.error("[zh-hf] recompute gagal:", e?.message || e);
+      } finally {
+        zhComputing = false;
+        await storage.setSystemSetting("zh_workbook_computing", "0").catch(() => {});
+      }
+    }, 50);
+  }
+
+  app.post("/api/zero-harm/workbook/upload", workbookUpload.single("file"), async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      if (!req.file) return res.status(400).json({ message: "File Excel diperlukan" });
+      const { xlsxToUniver } = await import("./lib/univer-xlsx");
+      const data = await xlsxToUniver(req.file.buffer);
+      const { program, raw } = splitWorkbook(data);
+      // program (kecil, sering diedit) + raw (besar, statis) disimpan terpisah
+      await db.insert(zhWorkbook).values({ id: "active", name: data.name, data: program, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: program, name: data.name, updatedAt: new Date() } });
+      await db.insert(zhWorkbook).values({ id: "raw", name: "raw", data: raw, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: raw, updatedAt: new Date() } });
+      // hapus computed lama; hitung ulang (latar belakang) → workbook ringan dgn nilai terhitung
+      await db.delete(zhWorkbook).where(eq(zhWorkbook.id, "computed"));
+      recomputeWorkbook();
+      res.json({ ok: true, sheets: data.sheetOrder.length, computing: true });
+    } catch (error: any) {
+      console.error("ZH workbook upload error:", error?.message || error);
+      res.status(500).json({ message: error?.message || "Gagal mengonversi workbook" });
+    }
+  });
+
+  app.get("/api/zero-harm/workbook", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      // baca minimal: hanya cek keberadaan active (tanpa data 5.7MB)
+      const [act] = await db.select({ name: zhWorkbook.name }).from(zhWorkbook).where(eq(zhWorkbook.id, "active")).limit(1);
+      if (!act) return res.json({ data: null });
+      const lock = await readLock();
+      const lockInfo = lock ? { nik: lock.nik, name: lock.name, mine: lock.nik === u.nik } : null;
+      // ambil HANYA computed.data (ringan ~2.9MB) — yang dikirim ke browser.
+      // Link DB lokal (Mac↔Railway) kadang putus saat baca row besar → retry dgn koneksi fresh.
+      let comp: any = null;
+      let lastErr: any = null;
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+          const rows = await db.select({ data: zhWorkbook.data, updatedAt: zhWorkbook.updatedAt }).from(zhWorkbook).where(eq(zhWorkbook.id, "computed")).limit(1);
+          comp = rows[0] || null;
+          lastErr = null;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          console.error(`ZH workbook computed read gagal (attempt ${attempt}):`, e?.message || e);
+          if (attempt < 4) await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+      if (lastErr) throw lastErr;
+      if (!comp) {
+        return res.json({ data: null, computing: true, lock: lockInfo });
+      }
+      res.json({ data: comp.data, name: act.name, updatedAt: comp.updatedAt, lock: lockInfo, computing: zhComputing });
+    } catch (error: any) {
+      console.error("ZH workbook get error:", error?.message || error);
+      res.status(500).json({ message: "Gagal memuat workbook" });
+    }
+  });
+
+  app.delete("/api/zero-harm/workbook", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      await db.delete(zhWorkbook);
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("ZH workbook delete error:", error?.message || error);
+      res.status(500).json({ message: "Gagal menghapus workbook" });
+    }
+  });
+
+  app.post("/api/zero-harm/workbook/save", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      // tolak bila lock dipegang user lain (anti saling-timpa)
+      const lock = await readLock();
+      if (lock && lock.nik !== u.nik) return res.status(409).json({ message: `Sedang diedit oleh ${lock.name}` });
+      let data = req.body?.data;
+      if (!data || !data.sheetOrder) return res.status(400).json({ message: "data IWorkbookData diperlukan" });
+      // simpan tampilan/edit ke 'computed' (ringan, cepat); template 'active' tak diubah → recompute pakai edit ini
+      const { program } = splitWorkbook(data);
+      // pengaman: jangan timpa computed isi dgn workbook kosong (mis. init default 1 sheet)
+      if (!program.sheetOrder || program.sheetOrder.length < 5) return res.json({ ok: true, skipped: true });
+      await db.insert(zhWorkbook).values({ id: "computed", name: program.name || "Zero Harm 2.0", data: program, updatedAt: new Date() })
+        .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: program, updatedAt: new Date() } });
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("ZH workbook save error:", error?.message || error);
+      res.status(500).json({ message: "Gagal menyimpan workbook" });
+    }
+  });
+
+  // ---- Kunci edit (kolaborasi aman) ----
+  app.get("/api/zero-harm/workbook/lock", async (req, res) => {
+    const u = (req.session as any).user; if (!u) return res.sendStatus(401);
+    const lock = await readLock();
+    res.json({ lock: lock ? { nik: lock.nik, name: lock.name, mine: lock.nik === u.nik } : null });
+  });
+  app.post("/api/zero-harm/workbook/lock", async (req, res) => {
+    const u = (req.session as any).user; if (!u) return res.sendStatus(401);
+    const lock = await readLock();
+    if (lock && lock.nik !== u.nik) return res.status(409).json({ ok: false, lock: { nik: lock.nik, name: lock.name, mine: false } });
+    await storage.setSystemSetting(LOCK_KEY, JSON.stringify({ nik: u.nik, name: u.name, at: new Date().toISOString() }));
+    res.json({ ok: true, lock: { nik: u.nik, name: u.name, mine: true } });
+  });
+  app.post("/api/zero-harm/workbook/lock/release", async (req, res) => {
+    const u = (req.session as any).user; if (!u) return res.sendStatus(401);
+    const lock = await readLock();
+    if (!lock || lock.nik === u.nik) await storage.setSystemSetting(LOCK_KEY, "");
+    res.json({ ok: true });
+  });
+
+  // Hitung ulang rumus dari data terbaru (tombol / setelah Import)
+  app.post("/api/zero-harm/workbook/recompute", async (req, res) => {
+    const u = (req.session as any).user; if (!u) return res.sendStatus(401);
+    recomputeWorkbook();
+    res.json({ ok: true, computing: true });
+  });
+  app.get("/api/zero-harm/workbook/status", async (req, res) => {
+    const u = (req.session as any).user; if (!u) return res.sendStatus(401);
+    const flag = await storage.getSystemSetting("zh_workbook_computing");
+    res.json({ computing: zhComputing || flag === "1" });
+  });
+
+  app.get("/api/zero-harm/workbook/export", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const [act] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "active")).limit(1);
+      if (!act) return res.status(404).json({ message: "Workbook belum ada" });
+      const [rawRow] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "raw")).limit(1);
+      const merged = mergeWorkbook(act.data, rawRow?.data);
+      const { univerToXlsx } = await import("./lib/univer-xlsx");
+      const buf = univerToXlsx(merged as any);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="Zero-Harm-2.0.xlsx"`);
+      res.send(buf);
+    } catch (error: any) {
+      console.error("ZH workbook export error:", error?.message || error);
+      res.status(500).json({ message: "Gagal export" });
+    }
+  });
+
+  // ---- Zero Harm — Program Monitoring (master, semua program) ----
+  app.get("/api/zero-harm/programs/summary", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const year = Number(req.query.year) || 2026;
+      const { getZhProgramsSummary, ZH_PILLARS } = await import("./lib/zh-programs");
+      const programs = await getZhProgramsSummary(year);
+      res.json({ year, pillars: ZH_PILLARS, programs });
+    } catch (error: any) {
+      console.error("ZH programs summary error:", error?.message || error);
+      res.status(500).json({ message: "Gagal mengambil ringkasan program" });
+    }
+  });
+
+  // ---- Zero Harm KPI program Kehadiran (Fase 2A) ----
+  app.get("/api/zero-harm/attendance/kpi", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const program = String(req.query.program || "3.1.1");
+      const year = Number(req.query.year) || 2026;
+      const { getZhAttendanceKpi, ZH_ATT_PROGRAMS } = await import("./lib/zh-attendance");
+      const data = await getZhAttendanceKpi(program, year);
+      if (!data) return res.status(404).json({ message: "Program tidak ditemukan" });
+      res.json({ ...data, allPrograms: ZH_ATT_PROGRAMS.map((p) => ({ code: p.code, name: p.name, pillar: p.pillar })) });
+    } catch (error: any) {
+      console.error("ZH attendance kpi error:", error?.message || error);
+      res.status(500).json({ message: "Gagal menghitung KPI kehadiran" });
+    }
+  });
+
+  // ---- Zero Harm KPI Program Sidak (Fase 1) ----
+  app.get("/api/zero-harm/sidak/programs", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const { ZH_SIDAK_PROGRAMS } = await import("./lib/zh-sidak");
+      res.json({ programs: ZH_SIDAK_PROGRAMS });
+    } catch (error: any) {
+      console.error("ZH sidak programs error:", error?.message || error);
+      res.status(500).json({ message: "Gagal mengambil daftar program" });
+    }
+  });
+
+  app.get("/api/zero-harm/sidak/kpi", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const program = String(req.query.program || "3.5");
+      const year = Number(req.query.year) || 2026;
+      const { getZhSidakKpi } = await import("./lib/zh-sidak");
+      const data = await getZhSidakKpi(program, year);
+      if (!data) return res.status(404).json({ message: "Program tidak ditemukan" });
+      res.json(data);
+    } catch (error: any) {
+      console.error("ZH sidak kpi error:", error?.message || error);
+      res.status(500).json({ message: "Gagal menghitung KPI" });
+    }
+  });
+
+  app.post("/api/zero-harm/sidak/attendance", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const { programCode, year, entries } = req.body as {
+        programCode: string; year: number;
+        entries: Array<{ nik: string; week: number; days: number | null }>;
+      };
+      if (!programCode || !year || !Array.isArray(entries)) {
+        return res.status(400).json({ message: "programCode, year, entries wajib" });
+      }
+      const n = await storage.upsertZhProgramAttendance(programCode, year, entries);
+      res.json({ ok: true, upserted: n });
+    } catch (error: any) {
+      console.error("ZH sidak attendance error:", error?.message || error);
+      res.status(500).json({ message: "Gagal menyimpan hari kerja" });
     }
   });
 
@@ -16673,7 +16994,15 @@ Format sebagai bullet points singkat per insight.`;
       const u = (req.session as any).user;
       if (!u) return res.sendStatus(401);
       const isHse = Array.isArray(u.permissions) ? u.permissions.includes("MANAGE_SIDAK") : (u.role && u.role !== "BASIC");
-      const items = await storage.getNotificationsForUser({ nik: u.nik, isHse: !!isHse }, 20);
+      let items = await storage.getNotificationsForUser({ nik: u.nik, isHse: !!isHse }, 50);
+      // sembunyikan yg sudah di-"Hapus Semua" (cleared_at) & yg di-dismiss per item
+      const clearedStr = await storage.getSystemSetting(`notif_cleared_at_${u.nik}`);
+      const clearedAt = clearedStr ? new Date(clearedStr).getTime() : 0;
+      const dismissedStr = await storage.getSystemSetting(`notif_dismissed_${u.nik}`);
+      let dismissed: string[] = [];
+      try { dismissed = dismissedStr ? JSON.parse(dismissedStr) : []; } catch { dismissed = []; }
+      const dismissedSet = new Set(dismissed);
+      items = items.filter((n) => !dismissedSet.has(n.id) && !(clearedAt && n.createdAt && new Date(n.createdAt).getTime() <= clearedAt));
       const lastSeenStr = await storage.getSystemSetting(`notif_last_seen_${u.nik}`);
       const lastSeen = lastSeenStr ? new Date(lastSeenStr).getTime() : 0;
       const unreadCount = items.filter((n) => n.createdAt && new Date(n.createdAt).getTime() > lastSeen).length;
@@ -16692,6 +17021,39 @@ Format sebagai bullet points singkat per insight.`;
       res.json({ ok: true });
     } catch (error: any) {
       console.error("Error mark notifications seen:", error?.message || error);
+      res.status(500).json({ ok: false });
+    }
+  });
+
+  // Hapus semua (per user): sembunyikan semua notif <= sekarang
+  app.post("/api/notifications/clear", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      await storage.setSystemSetting(`notif_cleared_at_${u.nik}`, new Date().toISOString(), "Notifikasi dibersihkan per user");
+      await storage.setSystemSetting(`notif_dismissed_${u.nik}`, "[]");
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Error clear notifications:", error?.message || error);
+      res.status(500).json({ ok: false });
+    }
+  });
+
+  // Dismiss satu notif (per user)
+  app.post("/api/notifications/:id/dismiss", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const key = `notif_dismissed_${u.nik}`;
+      const cur = await storage.getSystemSetting(key);
+      let arr: string[] = [];
+      try { arr = cur ? JSON.parse(cur) : []; } catch { arr = []; }
+      if (!arr.includes(req.params.id)) arr.push(req.params.id);
+      if (arr.length > 500) arr = arr.slice(-500);
+      await storage.setSystemSetting(key, JSON.stringify(arr));
+      res.json({ ok: true });
+    } catch (error: any) {
+      console.error("Error dismiss notification:", error?.message || error);
       res.status(500).json({ ok: false });
     }
   });

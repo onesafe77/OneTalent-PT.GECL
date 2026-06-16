@@ -1354,6 +1354,7 @@ export const zhOpk = pgTable("zh_opk", {
   detailTemuan: text("detail_temuan"),
   deviasi: text("deviasi"),
   jenisPekerjaan: text("jenis_pekerjaan"),
+  counter: text("counter"), // OPK Counter (=1 menandai observasi unik, bukan baris checklist)
   tanggal: timestamp("tanggal"),
   week: text("week"), month: text("month"), quartal: text("quartal"),
   raw: jsonb("raw"),
@@ -1366,6 +1367,56 @@ export type ZhObservasi = typeof zhObservasi.$inferInsert;
 export type ZhAttendance = typeof zhAttendance.$inferInsert;
 export type ZhFms = typeof zhFms.$inferInsert;
 export type ZhOpk = typeof zhOpk.$inferInsert;
+
+// ============================================
+// ZERO HARM — KPI Program Sidak (Fase 1)
+// Roster pengawas per program + grid hari-kerja per minggu (input manual).
+// Capaian dihitung dari zh_opk (jenisPekerjaan + week + counter=1).
+// ============================================
+
+export const zhProgramOfficer = pgTable("zh_program_officer", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  programCode: varchar("program_code", { length: 16 }).notNull(), // mis. "3.5"
+  nik: varchar("nik", { length: 32 }).notNull(),
+  nama: text("nama").notNull(),
+  dept: text("dept"),
+  jabatan: text("jabatan"),
+  ord: integer("ord").default(0),
+  target: integer("target"), // target/periode per pekerja (program Kehadiran); null utk Sidak (target program-level)
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("UX_zh_prog_officer").on(t.programCode, t.nik),
+  index("IDX_zh_prog_officer_prog").on(t.programCode),
+]);
+
+export const zhProgramAttendance = pgTable("zh_program_attendance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  programCode: varchar("program_code", { length: 16 }).notNull(),
+  nik: varchar("nik", { length: 32 }).notNull(),
+  year: integer("year").notNull(),
+  week: integer("week").notNull(), // 1..53
+  days: integer("days"), // null = NA (cuti); angka 0-7 = hari kerja
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("UX_zh_prog_att").on(t.programCode, t.nik, t.year, t.week),
+  index("IDX_zh_prog_att_prog").on(t.programCode, t.year),
+]);
+
+// Workbook editable (Univer) — menyimpan IWorkbookData sheet program. Satu baris aktif.
+export const zhWorkbook = pgTable("zh_workbook", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().default("Zero Harm 2.0"),
+  data: jsonb("data").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type ZhWorkbook = typeof zhWorkbook.$inferSelect;
+
+export const insertZhProgramOfficerSchema = createInsertSchema(zhProgramOfficer).omit({ id: true, createdAt: true });
+export const insertZhProgramAttendanceSchema = createInsertSchema(zhProgramAttendance).omit({ id: true, updatedAt: true });
+export type ZhProgramOfficer = typeof zhProgramOfficer.$inferSelect;
+export type ZhProgramAttendance = typeof zhProgramAttendance.$inferSelect;
+export type InsertZhProgramOfficer = z.infer<typeof insertZhProgramOfficerSchema>;
+export type InsertZhProgramAttendance = z.infer<typeof insertZhProgramAttendanceSchema>;
 
 // ============================================
 // SAFETY PATROL TEMPLATES (Knowledge Base)

@@ -64,7 +64,7 @@ import {
   safetyPatrolAttendancePlan,
   type SafetyPatrolAttendancePlan,
   type InsertSafetyPatrolAttendancePlan,
-  zhHazard, zhInspeksi, zhObservasi, zhAttendance, zhFms, zhOpk,
+  zhHazard, zhInspeksi, zhObservasi, zhAttendance, zhFms, zhOpk, zhProgramAttendance,
   type SafetyPatrolAttendance,
   type InsertSafetyPatrolAttendance,
   type SafetyPatrolRawMessage,
@@ -4289,6 +4289,27 @@ export class DrizzleStorage implements IStorage {
       out[k] = r?.c ?? 0;
     }
     return out;
+  }
+
+  // Upsert grid hari-kerja KPI Sidak (per program/tahun). days=null → NA (cuti).
+  async upsertZhProgramAttendance(
+    programCode: string,
+    year: number,
+    entries: Array<{ nik: string; week: number; days: number | null }>,
+  ): Promise<number> {
+    let n = 0;
+    for (const e of entries) {
+      if (!e.nik || !e.week) continue;
+      await this.db
+        .insert(zhProgramAttendance)
+        .values({ programCode, nik: e.nik, year, week: e.week, days: e.days ?? null })
+        .onConflictDoUpdate({
+          target: [zhProgramAttendance.programCode, zhProgramAttendance.nik, zhProgramAttendance.year, zhProgramAttendance.week],
+          set: { days: e.days ?? null, updatedAt: new Date() },
+        });
+      n++;
+    }
+    return n;
   }
 
   // Agregasi analitik per sheet untuk dashboard Zero Harm (recharts).
