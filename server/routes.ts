@@ -13774,8 +13774,9 @@ Format sebagai bullet points singkat per insight.`;
           nik: r.nik ? String(r.nik) : null,
           year: Number(r.year),
           week: Number(r.week),
-          shift1: r.shift1 === "NA" ? "NA" : "MASUK",
-          shift2: r.shift2 === "NA" ? "NA" : "MASUK",
+          // simpan nilai apa adanya (angka mis. "3") atau "NA"; kosong → "NA"
+          shift1: (r.shift1 == null || r.shift1 === "" || r.shift1 === "NA") ? "NA" : String(r.shift1),
+          shift2: (r.shift2 == null || r.shift2 === "" || r.shift2 === "NA") ? "NA" : String(r.shift2),
         }));
       await storage.upsertAttendancePlan(clean as any);
       res.json({ ok: true, count: clean.length });

@@ -115,8 +115,11 @@ export async function fetchSafetyPatrolPlanFromSheet(): Promise<SafetyPatrolPlan
   const namaCol = findCol("nama safety patrol", "nama");
   if (namaCol < 0) throw new Error("Kolom 'Nama Safety Patrol' tak ditemukan.");
 
-  // mirror sheet (seperti OPK pengawas): hanya nilai non-kosong & bukan "NA" → MASUK; kosong/NA → NA
-  const mapVal = (raw: string): string => (raw.trim() !== "" && !/^NA$/i.test(raw.trim())) ? "MASUK" : "NA";
+  // mirror sheet (seperti OPK pengawas): simpan ANGKA asli (mis. "3") saat present; kosong/"NA" → "NA"
+  const mapVal = (raw: string): string => {
+    const t = raw.trim();
+    return (t !== "" && !/^NA$/i.test(t)) ? t : "NA";
+  };
   const out: SafetyPatrolPlanRow[] = [];
   for (const r of grid.slice(headerIdx + 1)) {
     const nama = String(r[namaCol] || "").trim();

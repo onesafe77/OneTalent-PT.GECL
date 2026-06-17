@@ -21,7 +21,8 @@ function isoWeek(d: Date): { year: number; week: number } {
   return { year: date.getUTCFullYear(), week };
 }
 
-type Status = "MASUK" | "NA";
+// nilai sel = angka-string (mis. "3") saat hadir, atau "NA" (tak dijadwalkan)
+type Status = string;
 interface PlanRow { officerName: string; year: number; week: number; shift1: Status; shift2: Status; nik?: string | null; }
 
 export default function SafetyPatrolAttendancePlan() {
@@ -51,8 +52,8 @@ export default function SafetyPatrolAttendancePlan() {
     const g: Record<string, { shift1: Status; shift2: Status }> = {};
     for (const r of data?.plan || []) {
       g[`${r.officerName}|${r.week}`] = {
-        shift1: r.shift1 === "NA" ? "NA" : "MASUK",
-        shift2: r.shift2 === "NA" ? "NA" : "MASUK",
+        shift1: r.shift1 || "NA", // simpan nilai apa adanya (angka mis. "3" / "NA")
+        shift2: r.shift2 || "NA",
       };
     }
     setGrid(g);
@@ -67,11 +68,13 @@ export default function SafetyPatrolAttendancePlan() {
   const getCell = (officer: string, week: number) =>
     grid[`${officer}|${week}`] || { shift1: "NA" as Status, shift2: "NA" as Status };
 
-  const toggle = (officer: string, week: number, shift: "shift1" | "shift2") => {
+  // set nilai sel: input kosong → "NA"; angka → string angka (clamp 0–7)
+  const setCell = (officer: string, week: number, shift: "shift1" | "shift2", raw: string) => {
     const key = `${officer}|${week}`;
+    const val = raw.trim() === "" ? "NA" : String(Math.max(0, Math.min(7, Number(raw))));
     setGrid((prev) => {
       const curCell = prev[key] || { shift1: "NA" as Status, shift2: "NA" as Status };
-      return { ...prev, [key]: { ...curCell, [shift]: curCell[shift] === "NA" ? "MASUK" : "NA" } };
+      return { ...prev, [key]: { ...curCell, [shift]: val } };
     });
   };
 
@@ -109,17 +112,24 @@ export default function SafetyPatrolAttendancePlan() {
     }
   };
 
-  const StatusBtn = ({ s, onClick }: { s: Status; onClick: () => void }) => (
-    <button
-      onClick={onClick}
-      className={`w-12 h-7 rounded text-xs font-semibold transition-colors ${
-        s === "NA" ? "bg-red-100 text-red-700 hover:bg-red-200" : "bg-green-100 text-green-700 hover:bg-green-200"
-      }`}
-      title="Klik untuk ganti Masuk/NA"
-    >
-      {s === "NA" ? "NA" : "✓"}
-    </button>
-  );
+  // input angka per shift (mirip OPK pengawas): tampilkan angka mis. "3"; kosong = NA
+  const ShiftInput = ({ s, onChange }: { s: Status; onChange: (v: string) => void }) => {
+    const isNA = s === "NA" || s === "";
+    return (
+      <input
+        type="number"
+        min={0}
+        max={7}
+        value={isNA ? "" : s}
+        placeholder="NA"
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-12 h-7 text-center text-xs font-semibold rounded border ${
+          isNA ? "bg-red-50 text-red-400 border-red-200" : "bg-green-50 text-green-700 border-green-300"
+        }`}
+        title="Isi angka (hadir) atau kosongkan (NA)"
+      />
+    );
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-4 max-w-full">
@@ -149,7 +159,7 @@ export default function SafetyPatrolAttendancePlan() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Periode</CardTitle>
-          <CardDescription>Pilih tahun & rentang minggu (W). Hijau ✓ = Masuk, merah NA = cuti.</CardDescription>
+          <CardDescription>Pilih tahun & rentang minggu (W). Sel berangka (hijau) = hadir; kosong/NA (merah) = cuti.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4 items-end">
@@ -205,10 +215,10 @@ export default function SafetyPatrolAttendancePlan() {
                         return (
                           <>
                             <td key={`${officer}-${w}-s1`} className="border px-1 py-1 text-center">
-                              <StatusBtn s={c.shift1} onClick={() => toggle(officer, w, "shift1")} />
+                              <ShiftInput s={c.shift1} onChange={(v) => setCell(officer, w, "shift1", v)} />
                             </td>
                             <td key={`${officer}-${w}-s2`} className="border px-1 py-1 text-center">
-                              <StatusBtn s={c.shift2} onClick={() => toggle(officer, w, "shift2")} />
+                              <ShiftInput s={c.shift2} onChange={(v) => setCell(officer, w, "shift2", v)} />
                             </td>
                           </>
                         );
@@ -220,7 +230,7 @@ export default function SafetyPatrolAttendancePlan() {
             </div>
           )}
           <p className="text-xs text-muted-foreground mt-3">
-            Catatan: data ditarik dari Google Sheet (tab SAFETY PATROL GECL). Sel kosong di sheet = <b>NA</b> (tak dijadwalkan, target KPI minggu itu tidak dihitung); nilai terisi = <b>Masuk</b> (✓).
+            Catatan: data ditarik dari Google Sheet (tab SAFETY PATROL GECL). Sel kosong di sheet = <b>NA</b> (tak dijadwalkan, target KPI minggu itu tidak dihitung); sel berangka (mis. 3) = hadir.
           </p>
         </CardContent>
       </Card>
