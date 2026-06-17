@@ -1402,6 +1402,24 @@ export const zhProgramAttendance = pgTable("zh_program_attendance", {
   index("IDX_zh_prog_att_prog").on(t.programCode, t.year),
 ]);
 
+// Plan Kehadiran OPK — cermin Google Sheet GECL (per section/jabatan). Sumber yg dipelihara user.
+export const zhPlanKehadiran = pgTable("zh_plan_kehadiran", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  section: varchar("section", { length: 48 }).notNull(), // "Pengawas Hauling" / "Pengawas FMS" / "Pengawas Workshop"
+  nik: varchar("nik", { length: 32 }).notNull(),
+  nama: text("nama"),
+  dept: text("dept"),
+  perusahaan: text("perusahaan"),
+  ord: integer("ord").default(0),
+  year: integer("year").notNull(),
+  week: integer("week").notNull(), // 1..53
+  days: integer("days"), // null = NA (cuti); 0-7 = hari kerja
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("UX_zh_plan_keh").on(t.section, t.nik, t.year, t.week),
+  index("IDX_zh_plan_keh_year").on(t.year),
+]);
+
 // Workbook editable (Univer) — menyimpan IWorkbookData sheet program. Satu baris aktif.
 export const zhWorkbook = pgTable("zh_workbook", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

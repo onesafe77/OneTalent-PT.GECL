@@ -14176,73 +14176,76 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // ---- Plan Kehadiran terpadu: satu grid pengawas×minggu → semua program OPK ----
-  // GET: daftar pengawas (distinct, hanya yg ada di program Sidak) + days teragregasi per minggu.
+  // ---- Plan Kehadiran OPK (mirror Google Sheet GECL, per-section) ----
+  // GET: baris zh_plan_kehadiran (year) → kelompok per section + pengawas + days/minggu.
   app.get("/api/zero-harm/plan-kehadiran", async (req, res) => {
     try {
       const u = (req.session as any).user;
       if (!u) return res.sendStatus(401);
       const year = Number(req.query.year) || new Date().getFullYear();
-      const { ZH_SIDAK_PROGRAMS } = await import("./lib/zh-sidak");
-      const codes = ZH_SIDAK_PROGRAMS.map((p: any) => p.code);
-      // pengawas distinct di program Sidak + daftar programnya
-      const offs: any = await db.execute(sql`
-        SELECT nik, MAX(nama) nama, MAX(dept) dept, MIN(ord) ord,
-               array_agg(DISTINCT program_code) programs
-        FROM zh_program_officer WHERE program_code = ANY(${codes})
-        GROUP BY nik ORDER BY MIN(ord), MAX(nama)`);
-      // days teragregasi per (nik, week) — MAX mengabaikan null; semua null → null (NA)
-      const att: any = await db.execute(sql`
-        SELECT nik, week, MAX(days) days FROM zh_program_attendance
-        WHERE year = ${year} AND program_code = ANY(${codes})
-        GROUP BY nik, week`);
-      const daysByNik: Record<string, Record<number, number | null>> = {};
-      for (const a of (att.rows || [])) {
-        (daysByNik[a.nik] ||= {})[Number(a.week)] = a.days == null ? null : Number(a.days);
+      const rows: any = await db.execute(sql`
+        SELECT section, nik, nama, dept, perusahaan, ord, week, days
+        FROM zh_plan_kehadiran WHERE year = ${year}
+        ORDER BY section, ord, nik, week`);
+      // bangun struktur: sections[] → officers[] → days{week}
+      const secMap = new Map<string, Map<string, any>>();
+      for (const r of (rows.rows || [])) {
+        if (!secMap.has(r.section)) secMap.set(r.section, new Map());
+        const offs = secMap.get(r.section)!;
+        if (!offs.has(r.nik)) offs.set(r.nik, { nik: r.nik, nama: r.nama, dept: r.dept, perusahaan: r.perusahaan, ord: r.ord ?? 0, days: {} });
+        offs.get(r.nik).days[Number(r.week)] = r.days == null ? null : Number(r.days);
       }
-      const officers = (offs.rows || []).map((o: any) => ({
-        nik: o.nik, nama: o.nama, dept: o.dept,
-        programs: o.programs, days: daysByNik[o.nik] || {},
+      const sections = Array.from(secMap.entries()).map(([section, offs]) => ({
+        section,
+        officers: Array.from(offs.values()).sort((a, b) => (a.ord - b.ord) || String(a.nama).localeCompare(String(b.nama))),
       }));
-      res.json({ year, officers });
+      res.json({ year, sections });
     } catch (error: any) {
       console.error("ZH plan-kehadiran get error:", error?.message || error);
       res.status(500).json({ message: "Gagal memuat plan kehadiran" });
     }
   });
 
-  // POST: simpan grid terpadu → tulis days ke SEMUA program Sidak tiap pengawas → recompute Workbook.
+  // POST: simpan rows (per section) → upsert zh_plan_kehadiran → derive zh_program_attendance
+  //       (per SECTION_PROGRAMS) → recompute Workbook.
   app.post("/api/zero-harm/plan-kehadiran", async (req, res) => {
     try {
       const u = (req.session as any).user;
       if (!u) return res.sendStatus(401);
-      const { year, entries } = req.body as { year: number; entries: Array<{ nik: string; week: number; days: number | null }> };
-      if (!year || !Array.isArray(entries)) return res.status(400).json({ message: "year, entries wajib" });
-      const { ZH_SIDAK_PROGRAMS } = await import("./lib/zh-sidak");
-      const codes = new Set(ZH_SIDAK_PROGRAMS.map((p: any) => p.code));
-      // program (Sidak) per pengawas
-      const offRows: any = await db.execute(sql`SELECT nik, program_code FROM zh_program_officer`);
-      const progsByNik = new Map<string, string[]>();
-      for (const r of (offRows.rows || [])) {
-        if (!codes.has(r.program_code)) continue;
-        if (!progsByNik.has(r.nik)) progsByNik.set(r.nik, []);
-        progsByNik.get(r.nik)!.push(r.program_code);
-      }
-      // kelompokkan entri per program
+      const { year, rows } = req.body as {
+        year: number;
+        rows: Array<{ section: string; nik: string; nama?: string; dept?: string; perusahaan?: string; ord?: number; days: Record<string, number | null> }>;
+      };
+      if (!year || !Array.isArray(rows)) return res.status(400).json({ message: "year, rows wajib" });
+      const { SECTION_PROGRAMS } = await import("./lib/zh-attendance-inject");
+      // 1) upsert zh_plan_kehadiran + kumpulkan derive per program
       const perProgram = new Map<string, Array<{ nik: string; week: number; days: number | null }>>();
-      for (const e of entries) {
-        if (!e.nik || !e.week) continue;
-        const progs = progsByNik.get(e.nik) || [];
-        for (const code of progs) {
-          if (!perProgram.has(code)) perProgram.set(code, []);
-          perProgram.get(code)!.push({ nik: e.nik, week: Number(e.week), days: e.days == null ? null : Number(e.days) });
+      let planCells = 0;
+      for (const r of rows) {
+        if (!r.section || !r.nik || !r.days) continue;
+        const nik = String(r.nik).trim().toUpperCase();
+        const progs = SECTION_PROGRAMS[r.section.trim()] || [];
+        for (const [wk, val] of Object.entries(r.days)) {
+          const week = Number(wk); if (!week) continue;
+          const days = val == null ? null : Number(val);
+          await db.execute(sql`
+            INSERT INTO zh_plan_kehadiran (section, nik, nama, dept, perusahaan, ord, year, week, days, updated_at)
+            VALUES (${r.section.trim()}, ${nik}, ${r.nama ?? null}, ${r.dept ?? null}, ${r.perusahaan ?? null}, ${r.ord ?? 0}, ${year}, ${week}, ${days}, now())
+            ON CONFLICT (section, nik, year, week)
+            DO UPDATE SET days = ${days}, nama = ${r.nama ?? null}, dept = ${r.dept ?? null}, perusahaan = ${r.perusahaan ?? null}, ord = ${r.ord ?? 0}, updated_at = now()`);
+          planCells++;
+          for (const code of progs) {
+            if (!perProgram.has(code)) perProgram.set(code, []);
+            perProgram.get(code)!.push({ nik, week, days });
+          }
         }
       }
-      let total = 0;
-      for (const [code, ents] of perProgram) total += await storage.upsertZhProgramAttendance(code, year, ents);
-      // Workbook ikut terhitung ulang dari kehadiran baru
+      // 2) derive ke zh_program_attendance (pipeline injeksi + KPI native baca dari sini)
+      let derived = 0;
+      for (const [code, ents] of perProgram) derived += await storage.upsertZhProgramAttendance(code, year, ents);
+      // 3) hitung ulang Workbook
       try { recomputeWorkbook(); } catch (e: any) { console.error("[zh] recompute setelah plan-kehadiran gagal:", e?.message || e); }
-      res.json({ ok: true, upserted: total, programs: perProgram.size, computing: true });
+      res.json({ ok: true, planCells, derived, programs: perProgram.size, computing: true });
     } catch (error: any) {
       console.error("ZH plan-kehadiran post error:", error?.message || error);
       res.status(500).json({ message: "Gagal menyimpan plan kehadiran" });

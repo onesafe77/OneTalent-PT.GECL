@@ -5,6 +5,14 @@ import { sql } from "drizzle-orm";
 import { db } from "../db";
 import { ZH_SIDAK_PROGRAMS } from "./zh-sidak";
 
+// Pemetaan section (jabatan di sheet GECL) → program Sidak yang dipakai.
+// FMS ditunda (belum dipetakan). 12.x punya pengawas sendiri (di luar section ini).
+export const SECTION_PROGRAMS: Record<string, string[]> = {
+  "Pengawas Hauling": ["3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "5.1", "5.2"],
+  "Pengawas Workshop": ["7.2"],
+  // "Pengawas FMS": [] // DITUNDA
+};
+
 interface UniverCell { v?: any; f?: string; s?: string; }
 interface UniverSheet { id: string; name: string; cellData: Record<number, Record<number, UniverCell>>; [k: string]: any; }
 interface UniverWb { sheetOrder: string[]; sheets: Record<string, UniverSheet>; [k: string]: any; }
