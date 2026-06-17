@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { CalendarCheck, Save, Loader2, ClipboardPaste } from "lucide-react";
+import { CalendarCheck, Save, Loader2, ClipboardPaste, RefreshCw } from "lucide-react";
 
 interface Officer { nik: string; nama: string | null; dept: string | null; perusahaan?: string | null; ord: number; days: Record<number, number | null>; }
 interface Section { section: string; officers: Officer[]; }
@@ -69,6 +69,15 @@ export default function ZeroHarmPlanKehadiran() {
     onError: (e: any) => toast({ title: "Gagal menyimpan", description: e?.message, variant: "destructive" }),
   });
 
+  const syncMut = useMutation({
+    mutationFn: () => apiRequest("/api/zero-harm/plan-kehadiran/sync", "POST", { year }),
+    onSuccess: (r: any) => {
+      toast({ title: "Sync dari Google Sheet berhasil", description: `${r?.sections ?? 0} section · ${r?.officers ?? 0} pengawas · ${r?.planCells ?? 0} sel → ${r?.derived ?? 0} entri program. Workbook dihitung ulang…` });
+      qc.invalidateQueries({ queryKey: ["zh-plan-kehadiran", year] });
+    },
+    onError: (e: any) => toast({ title: "Sync gagal", description: e?.message || "Pastikan sheet di-share 'anyone with link'.", variant: "destructive" }),
+  });
+
   const weeks = useMemo(() => WEEKS.filter((w) => w >= fromWeek && w <= fromWeek + 13), [fromWeek]);
   const sections = useMemo(
     () => Object.keys(model).sort((a, b) => sectionRank(a) - sectionRank(b) || a.localeCompare(b))
@@ -113,7 +122,7 @@ export default function ZeroHarmPlanKehadiran() {
       const nik = (r[nc] || "").trim().toUpperCase(); if (!/^C-?\d+$/i.test(nik)) return;
       const rawSec = (r[sc] || "").trim();
       const sm = /pengawas\s+(hauling|fms|workshop)/i.exec(rawSec);
-      const section = sm ? "Pengawas " + sm[1][0].toUpperCase() + sm[1].slice(1).toLowerCase() : rawSec;
+      const section = sm ? "Pengawas " + (sm[1].toLowerCase() === "fms" ? "FMS" : sm[1][0].toUpperCase() + sm[1].slice(1).toLowerCase()) : rawSec;
       if (!section) return;
       secsSeen.add(section);
       if (!m[section]) m[section] = {};
@@ -150,7 +159,10 @@ export default function ZeroHarmPlanKehadiran() {
           <select value={fromWeek} onChange={(e) => setFromWeek(Number(e.target.value))} className="text-sm border rounded-lg px-3 py-2 bg-white font-medium">
             {Array.from({ length: 13 }, (_, i) => i * 4 + 1).map((w) => <option key={w} value={w}>Mulai W{w}</option>)}
           </select>
-          <Button size="sm" variant="outline" onClick={() => setPasteOpen(true)}><ClipboardPaste className="w-4 h-4 mr-1" /> Tempel dari Spreadsheet</Button>
+          <Button size="sm" onClick={() => syncMut.mutate()} disabled={syncMut.isPending} className="bg-teal-600 hover:bg-teal-700">
+            {syncMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />} Sync dari Google Sheet
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setPasteOpen(true)}><ClipboardPaste className="w-4 h-4 mr-1" /> Tempel</Button>
           <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !dirty}>
             {saveMut.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />} Simpan{dirty ? ` (${dirty})` : ""}
           </Button>
@@ -176,7 +188,7 @@ export default function ZeroHarmPlanKehadiran() {
         {isLoading && !data ? (
           <div className="p-10 text-center text-slate-400"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
         ) : sections.length === 0 ? (
-          <div className="p-10 text-center text-slate-400">Belum ada data. Klik <b>Tempel dari Spreadsheet</b> untuk mengisi dari Google Sheet (tab GECL).</div>
+          <div className="p-10 text-center text-slate-400">Belum ada data. Klik <b>Sync dari Google Sheet</b> untuk menarik langsung dari tab GECL (atau <b>Tempel</b> manual).</div>
         ) : (
           <div className="overflow-x-auto relative">
             {isFetching && <div className="absolute top-2 right-2 text-xs text-slate-400 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> memuat…</div>}

@@ -9,6 +9,8 @@ import path from 'path';
 import bcrypt from 'bcrypt';
 import OpenAI from "openai";
 import { openRouterClient, AI_MODELS } from "./ai-config";
+import { recomputeWorkbook, isZhComputing } from "./lib/zh-recompute";
+import { applyZhPlanRows } from "./lib/zh-plan-apply";
 import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths, getWeek, startOfWeek, endOfWeek } from "date-fns";
 import { exec } from "child_process";
 import Papa from "papaparse";
@@ -13869,82 +13871,7 @@ Format sebagai bullet points singkat per insight.`;
     try { const v = await storage.getSystemSetting(LOCK_KEY); if (!v) return null; const o = JSON.parse(v); return o?.at && (Date.now() - new Date(o.at).getTime() < LOCK_TTL) ? o : null; } catch { return null; }
   }
 
-  // recompute workbook RINGAN (HF dari template+raw) di latar belakang; hasil → row 'computed'
-  let zhComputing = false;
-  async function recomputeWorkbook() {
-    if (zhComputing) return;
-    zhComputing = true;
-    await storage.setSystemSetting("zh_workbook_computing", "1").catch(() => {});
-    setTimeout(async () => {
-      try {
-        const [act] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "active")).limit(1);
-        if (!act) return;
-        const [rawRow] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "raw")).limit(1);
-        const [comp] = await db.select().from(zhWorkbook).where(eq(zhWorkbook.id, "computed")).limit(1);
-        // gabung edit manual user (dari 'computed') ke template: sel TANPA formula di template diisi nilai dari computed
-        const template: any = JSON.parse(JSON.stringify(act.data));
-        if (comp?.data) {
-          const cd: any = comp.data;
-          for (const id of template.sheetOrder || []) {
-            const ts = template.sheets[id]; const cs = cd.sheets?.[id]; if (!ts || !cs) continue;
-            for (const r of Object.keys(cs.cellData || {})) {
-              for (const c of Object.keys(cs.cellData[r] || {})) {
-                const tcell = ts.cellData?.[r]?.[c];
-                if (tcell && tcell.f) continue; // jangan timpa sel berformula
-                const v = cs.cellData[r][c]?.v;
-                if (v == null) continue;
-                if (!ts.cellData[r]) ts.cellData[r] = {};
-                ts.cellData[r][c] = { ...(ts.cellData[r][c] || {}), v };
-              }
-            }
-          }
-        }
-        // injeksi Plan Kehadiran (hari/NA) ke sheet OPK + tulis formula Pencapaian per pengawas×minggu.
-        // SETELAH merge edit-manual (agar menang atas nilai stale), SEBELUM compute.
-        try {
-          const { loadAttendanceByProgram, injectAttendance } = await import("./lib/zh-attendance-inject");
-          const year = new Date().getFullYear();
-          const att = await loadAttendanceByProgram(year);
-          const n = injectAttendance(template, att);
-          console.log(`[zh-hf] injeksi kehadiran ${year}: ${n} sel`);
-        } catch (e: any) { console.error("[zh-hf] injeksi kehadiran gagal:", e?.message || e); }
-
-        // sumber data mentah: utamakan tabel zh_* (live, hasil Import) via zh_raw_meta;
-        // fallback ke blob 'raw' lama bila zh_raw_meta belum ada.
-        let rawForHf: any = (rawRow?.data as any) || null;
-        try {
-          const { extractRawMeta, buildRawWorkbookFromDb } = await import("./lib/zh-raw-grid");
-          let metaStr = await storage.getSystemSetting("zh_raw_meta");
-          // backfill: bila meta belum ada tapi blob raw ada → buat dari blob (aktivasi tanpa upload ulang)
-          if (!metaStr && rawRow?.data) {
-            try {
-              const meta = extractRawMeta(rawRow.data as any);
-              metaStr = JSON.stringify(meta);
-              await storage.setSystemSetting("zh_raw_meta", metaStr);
-              console.log("[zh-hf] zh_raw_meta dibuat dari blob raw (backfill)");
-            } catch { /* noop */ }
-          }
-          if (metaStr) {
-            const fromDb = await buildRawWorkbookFromDb(JSON.parse(metaStr));
-            if (fromDb && fromDb.sheetOrder.length) {
-              rawForHf = fromDb;
-              console.log("[zh-hf] raw dari tabel zh_* (Import) →", fromDb.sheetOrder.join(","));
-            }
-          }
-        } catch (e: any) { console.error("[zh-hf] build raw dari DB gagal, pakai blob:", e?.message || e); }
-        const { computeLightWorkbook } = await import("./lib/zh-hf");
-        const light = computeLightWorkbook(template, rawForHf);
-        await db.insert(zhWorkbook).values({ id: "computed", name: "computed", data: light, updatedAt: new Date() })
-          .onConflictDoUpdate({ target: zhWorkbook.id, set: { data: light, updatedAt: new Date() } });
-        console.log("[zh-hf] recompute selesai → computed disimpan");
-      } catch (e: any) {
-        console.error("[zh-hf] recompute gagal:", e?.message || e);
-      } finally {
-        zhComputing = false;
-        await storage.setSystemSetting("zh_workbook_computing", "0").catch(() => {});
-      }
-    }, 50);
-  }
+  // recompute Workbook + flag → standalone (server/lib/zh-recompute.ts), di-import di atas file.
 
   app.post("/api/zero-harm/workbook/upload", workbookUpload.single("file"), async (req, res) => {
     try {
@@ -14004,7 +13931,7 @@ Format sebagai bullet points singkat per insight.`;
       if (!comp) {
         return res.json({ data: null, computing: true, lock: lockInfo });
       }
-      res.json({ data: comp.data, name: act.name, updatedAt: comp.updatedAt, lock: lockInfo, computing: zhComputing });
+      res.json({ data: comp.data, name: act.name, updatedAt: comp.updatedAt, lock: lockInfo, computing: isZhComputing() });
     } catch (error: any) {
       console.error("ZH workbook get error:", error?.message || error);
       res.status(500).json({ message: "Gagal memuat workbook" });
@@ -14074,7 +14001,7 @@ Format sebagai bullet points singkat per insight.`;
   app.get("/api/zero-harm/workbook/status", async (req, res) => {
     const u = (req.session as any).user; if (!u) return res.sendStatus(401);
     const flag = await storage.getSystemSetting("zh_workbook_computing");
-    res.json({ computing: zhComputing || flag === "1" });
+    res.json({ computing: isZhComputing() || flag === "1" });
   });
 
   app.get("/api/zero-harm/workbook/export", async (req, res) => {
@@ -14206,49 +14133,37 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // POST: simpan rows (per section) → upsert zh_plan_kehadiran → derive zh_program_attendance
-  //       (per SECTION_PROGRAMS) → recompute Workbook.
+  // applyZhPlanRows (upsert + derive + recompute) → server/lib/zh-plan-apply.ts (dipakai juga cron).
+
+  // POST: simpan rows (per section) → upsert + derive + recompute.
   app.post("/api/zero-harm/plan-kehadiran", async (req, res) => {
     try {
       const u = (req.session as any).user;
       if (!u) return res.sendStatus(401);
-      const { year, rows } = req.body as {
-        year: number;
-        rows: Array<{ section: string; nik: string; nama?: string; dept?: string; perusahaan?: string; ord?: number; days: Record<string, number | null> }>;
-      };
+      const { year, rows } = req.body as { year: number; rows: any[] };
       if (!year || !Array.isArray(rows)) return res.status(400).json({ message: "year, rows wajib" });
-      const { SECTION_PROGRAMS } = await import("./lib/zh-attendance-inject");
-      // 1) upsert zh_plan_kehadiran + kumpulkan derive per program
-      const perProgram = new Map<string, Array<{ nik: string; week: number; days: number | null }>>();
-      let planCells = 0;
-      for (const r of rows) {
-        if (!r.section || !r.nik || !r.days) continue;
-        const nik = String(r.nik).trim().toUpperCase();
-        const progs = SECTION_PROGRAMS[r.section.trim()] || [];
-        for (const [wk, val] of Object.entries(r.days)) {
-          const week = Number(wk); if (!week) continue;
-          const days = val == null ? null : Number(val);
-          await db.execute(sql`
-            INSERT INTO zh_plan_kehadiran (section, nik, nama, dept, perusahaan, ord, year, week, days, updated_at)
-            VALUES (${r.section.trim()}, ${nik}, ${r.nama ?? null}, ${r.dept ?? null}, ${r.perusahaan ?? null}, ${r.ord ?? 0}, ${year}, ${week}, ${days}, now())
-            ON CONFLICT (section, nik, year, week)
-            DO UPDATE SET days = ${days}, nama = ${r.nama ?? null}, dept = ${r.dept ?? null}, perusahaan = ${r.perusahaan ?? null}, ord = ${r.ord ?? 0}, updated_at = now()`);
-          planCells++;
-          for (const code of progs) {
-            if (!perProgram.has(code)) perProgram.set(code, []);
-            perProgram.get(code)!.push({ nik, week, days });
-          }
-        }
-      }
-      // 2) derive ke zh_program_attendance (pipeline injeksi + KPI native baca dari sini)
-      let derived = 0;
-      for (const [code, ents] of perProgram) derived += await storage.upsertZhProgramAttendance(code, year, ents);
-      // 3) hitung ulang Workbook
-      try { recomputeWorkbook(); } catch (e: any) { console.error("[zh] recompute setelah plan-kehadiran gagal:", e?.message || e); }
-      res.json({ ok: true, planCells, derived, programs: perProgram.size, computing: true });
+      const r = await applyZhPlanRows(year, rows);
+      res.json({ ok: true, ...r, computing: true });
     } catch (error: any) {
       console.error("ZH plan-kehadiran post error:", error?.message || error);
       res.status(500).json({ message: "Gagal menyimpan plan kehadiran" });
+    }
+  });
+
+  // POST sync: tarik dari Google Sheet (tab GECL) → apply.
+  app.post("/api/zero-harm/plan-kehadiran/sync", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const year = Number(req.body?.year) || new Date().getFullYear();
+      const { fetchPlanRowsFromSheet } = await import("./lib/zh-plan-sheet");
+      const rows = await fetchPlanRowsFromSheet();
+      const r = await applyZhPlanRows(year, rows);
+      const sections = new Set(rows.map((x) => x.section)).size;
+      res.json({ ok: true, ...r, sections, officers: new Set(rows.map((x) => x.nik)).size, computing: true });
+    } catch (error: any) {
+      console.error("ZH plan-kehadiran sync error:", error?.message || error);
+      res.status(500).json({ message: error?.message || "Gagal sync dari Google Sheet" });
     }
   });
 

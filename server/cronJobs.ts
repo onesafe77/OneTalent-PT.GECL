@@ -15,6 +15,20 @@ async function getRosterByDate(date: string) {
 export function initializeCronJobs() {
   const monitoringService = new LeaveMonitoringService(storage as any);
 
+  // Zero Harm — sync Plan Kehadiran dari Google Sheet (tab GECL) tiap pagi 06:00 WITA
+  cron.schedule('0 6 * * *', async () => {
+    console.log('[zh] Sync Plan Kehadiran dari Google Sheet…');
+    try {
+      const { fetchPlanRowsFromSheet } = await import('./lib/zh-plan-sheet');
+      const { applyZhPlanRows } = await import('./lib/zh-plan-apply');
+      const rows = await fetchPlanRowsFromSheet();
+      const r = await applyZhPlanRows(new Date().getFullYear(), rows);
+      console.log(`[zh] Sync Plan Kehadiran OK: ${r.planCells} sel → ${r.derived} entri program`);
+    } catch (e: any) {
+      console.error('[zh] Sync Plan Kehadiran gagal:', e?.message || e);
+    }
+  }, { timezone: "Asia/Makassar" });
+
   // Run every day at 9:00 AM to check for leave reminders
   cron.schedule('0 9 * * *', async () => {
     console.log('Running daily leave reminder check...');
