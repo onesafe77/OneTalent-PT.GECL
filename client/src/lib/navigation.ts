@@ -137,6 +137,7 @@ export const navigationGroups: NavGroup[] = [
                                     { name: "Evaluasi SIDAK Roster", href: "/workspace/hse/evaluasi-roster", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Evaluasi Data PVT", href: "/workspace/hse/evaluasi-pvt", icon: Zap, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Safety Patrol", href: "/workspace/safety-patrol", icon: Shield, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
+                                    { name: "Plan Kehadiran SP", href: "/workspace/safety-patrol/attendance-plan", icon: Calendar, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Pengumuman", href: "/workspace/announcements", icon: Megaphone, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Kelola Berita", href: "/workspace/news", icon: Newspaper, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Induksi", href: "/workspace/hse/induction-admin", icon: BookOpen, requiredPermissions: [Permission.VIEW_SIDAK] },
