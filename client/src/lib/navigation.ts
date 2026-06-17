@@ -137,7 +137,6 @@ export const navigationGroups: NavGroup[] = [
                                     { name: "Evaluasi SIDAK Roster", href: "/workspace/hse/evaluasi-roster", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Evaluasi Data PVT", href: "/workspace/hse/evaluasi-pvt", icon: Zap, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Safety Patrol", href: "/workspace/safety-patrol", icon: Shield, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
-                                    { name: "Plan Kehadiran SP", href: "/workspace/safety-patrol/attendance-plan", icon: Calendar, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Pengumuman", href: "/workspace/announcements", icon: Megaphone, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Kelola Berita", href: "/workspace/news", icon: Newspaper, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Induksi", href: "/workspace/hse/induction-admin", icon: BookOpen, requiredPermissions: [Permission.VIEW_SIDAK] },
@@ -231,6 +230,7 @@ export const navigationGroups: NavGroup[] = [
                     { name: "Workbook (Excel)", href: "/workspace/zero-harm/workbook", icon: Database, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                     { name: "KPI Program Sidak", href: "/workspace/zero-harm/sidak-kpi", icon: BarChart3, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                     { name: "Plan Kehadiran", href: "/workspace/zero-harm/plan-kehadiran", icon: ClipboardCheck, requiredPermissions: [Permission.VIEW_DASHBOARD] },
+                    { name: "Plan Kehadiran Safety Patrol", href: "/workspace/safety-patrol/attendance-plan", icon: Calendar, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                     { name: "Import Data", href: "/workspace/zero-harm/import", icon: Database, requiredPermissions: [Permission.VIEW_DASHBOARD] },
                 ]
             }
