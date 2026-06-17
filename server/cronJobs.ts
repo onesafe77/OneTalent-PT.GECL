@@ -27,6 +27,16 @@ export function initializeCronJobs() {
     } catch (e: any) {
       console.error('[zh] Sync Plan Kehadiran gagal:', e?.message || e);
     }
+    // Safety Patrol plan (tab SAFETY PATROL GECL)
+    try {
+      const { fetchSafetyPatrolPlanFromSheet } = await import('./lib/zh-plan-sheet');
+      const year = new Date().getFullYear();
+      const sp = await fetchSafetyPatrolPlanFromSheet();
+      await storage.upsertAttendancePlan(sp.map((r) => ({ officerName: r.officerName, nik: r.nik, year, week: r.week, shift1: r.shift1, shift2: r.shift2 })) as any);
+      console.log(`[zh] Sync Plan Safety Patrol OK: ${sp.length} baris`);
+    } catch (e: any) {
+      console.error('[zh] Sync Plan Safety Patrol gagal:', e?.message || e);
+    }
   }, { timezone: "Asia/Makassar" });
 
   // Run every day at 9:00 AM to check for leave reminders

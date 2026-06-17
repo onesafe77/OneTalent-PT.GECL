@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Save, ArrowLeft, CalendarCheck } from "lucide-react";
+import { Loader2, Save, ArrowLeft, CalendarCheck, RefreshCw } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -95,6 +95,20 @@ export default function SafetyPatrolAttendancePlan() {
     }
   };
 
+  const [syncing, setSyncing] = useState(false);
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const r: any = await apiRequest("/api/safety-patrol/attendance-plan/sync", "POST", { year });
+      toast({ title: "Sync dari Google Sheet berhasil", description: `${r?.officers ?? 0} petugas · ${r?.count ?? 0} baris untuk ${year}` });
+      refetch();
+    } catch (e: any) {
+      toast({ title: "Sync gagal", description: e?.message || "Pastikan sheet di-share 'anyone with link'.", variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const StatusBtn = ({ s, onClick }: { s: Status; onClick: () => void }) => (
     <button
       onClick={onClick}
@@ -122,6 +136,9 @@ export default function SafetyPatrolAttendancePlan() {
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate("/workspace/safety-patrol/kpi")}>
             <ArrowLeft className="h-4 w-4 mr-2" /> KPI
+          </Button>
+          <Button size="sm" onClick={handleSync} disabled={syncing} className="bg-teal-600 hover:bg-teal-700">
+            {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />} Sync dari Google Sheet
           </Button>
           <Button size="sm" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Simpan

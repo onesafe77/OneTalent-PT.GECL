@@ -13785,6 +13785,23 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Sync Plan Kehadiran Safety Patrol dari Google Sheet (tab SAFETY PATROL GECL)
+  app.post("/api/safety-patrol/attendance-plan/sync", async (req, res) => {
+    try {
+      const u = (req.session as any).user;
+      if (!u) return res.sendStatus(401);
+      const year = Number(req.body?.year) || new Date().getFullYear();
+      const { fetchSafetyPatrolPlanFromSheet } = await import("./lib/zh-plan-sheet");
+      const rows = await fetchSafetyPatrolPlanFromSheet();
+      const clean = rows.map((r) => ({ officerName: r.officerName, nik: r.nik, year, week: r.week, shift1: r.shift1, shift2: r.shift2 }));
+      await storage.upsertAttendancePlan(clean as any);
+      res.json({ ok: true, count: clean.length, officers: new Set(rows.map((r) => r.officerName)).size });
+    } catch (error: any) {
+      console.error("SP attendance-plan sync error:", error?.message || error);
+      res.status(500).json({ message: error?.message || "Gagal sync dari Google Sheet" });
+    }
+  });
+
   // ===== SIMANTIK / Zero Harm — import iSafe/FMS =====
   app.get("/api/zero-harm/summary", async (req, res) => {
     try {

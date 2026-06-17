@@ -3,16 +3,33 @@
 import Papa from "papaparse";
 import { storage } from "../storage";
 
-const DEFAULT_SHEET_ID = "1VU6DfhhJEW5PvpuLbdZuvoNxJlswnU7-MoBPaxJVxGk";
-const DEFAULT_GECL_GID = "278633161";
+// Spreadsheet khusus "Plan Kehadiran" (2 tab: GECL pengawas + SAFETY PATROL GECL), link-share.
+const DEFAULT_SHEET_ID = "1DbhYWRTWjQeUdXDTtPqRj9n4tk0a-_rHdqoQBqp8-4M";
 
 export interface PlanRow {
   section: string; nik: string; nama: string | null; dept: string | null; perusahaan: string | null; ord: number;
   days: Record<number, number | null>;
 }
 
+export interface SafetyPatrolPlanRow { officerName: string; nik: string | null; week: number; shift1: string; shift2: string; }
+
 async function cfg(key: string, fallback: string): Promise<string> {
   try { const v = await storage.getSystemSetting(key); return v && v.trim() ? v.trim() : fallback; } catch { return fallback; }
+}
+
+function titleCase(s: string): string {
+  return s.trim().toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Ambil CSV satu tab via gviz by sheet name (stabil utk multi-tab, link-share).
+async function fetchSheetCsv(sheetName: string): Promise<string[][]> {
+  const id = await cfg("zh_plan_sheet_id", DEFAULT_SHEET_ID);
+  const url = `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const resp = await fetch(url, { redirect: "follow" });
+  if (!resp.ok) throw new Error(`Google Sheet tak terjangkau (HTTP ${resp.status}). Pastikan sheet di-share 'anyone with link'.`);
+  const text = await resp.text();
+  if (/<html/i.test(text.slice(0, 200))) throw new Error("Sheet tidak publik (dapat halaman login). Set share ke 'anyone with link can view'.");
+  return (Papa.parse(text, { skipEmptyLines: false }).data as string[][]) || [];
 }
 
 function normSection(raw: string): string | null {
@@ -25,14 +42,8 @@ function normSection(raw: string): string | null {
 
 /** Ambil & parse tab GECL → PlanRow[]. Throw bila tak terjangkau / format tak dikenal. */
 export async function fetchPlanRowsFromSheet(): Promise<PlanRow[]> {
-  const id = await cfg("zh_plan_sheet_id", DEFAULT_SHEET_ID);
-  const gid = await cfg("zh_plan_sheet_gid", DEFAULT_GECL_GID);
-  const url = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
-  const resp = await fetch(url, { redirect: "follow" });
-  if (!resp.ok) throw new Error(`Google Sheet tak terjangkau (HTTP ${resp.status}). Pastikan sheet di-share 'anyone with link'.`);
-  const text = await resp.text();
-  if (/<html/i.test(text.slice(0, 200))) throw new Error("Sheet tidak publik (dapat halaman login). Set share ke 'anyone with link can view'.");
-  const grid: string[][] = (Papa.parse(text, { skipEmptyLines: false }).data as string[][]) || [];
+  const sheetName = await cfg("zh_plan_sheet_tab", "GECL");
+  const grid = await fetchSheetCsv(sheetName);
   if (grid.length < 2) throw new Error("Sheet kosong / format tak dikenal.");
 
   // baris header minggu
@@ -75,5 +86,49 @@ export async function fetchPlanRowsFromSheet(): Promise<PlanRow[]> {
     out.push({ section, nik, nama: String(r[namaCol] || "").trim() || null, dept: null, perusahaan: null, ord: idx, days });
   });
   if (!out.length) throw new Error("Tidak ada baris pengawas terbaca dari sheet.");
+  return out;
+}
+
+/** Ambil & parse tab SAFETY PATROL GECL → rows {officerName, nik, week, shift1, shift2}. */
+export async function fetchSafetyPatrolPlanFromSheet(): Promise<SafetyPatrolPlanRow[]> {
+  const sheetName = await cfg("zh_plan_sp_tab", "SAFETY PATROL GECL");
+  const grid = await fetchSheetCsv(sheetName);
+  if (grid.length < 2) throw new Error("Tab Safety Patrol kosong / format tak dikenal.");
+
+  // baris header = baris dgn sel terbanyak cocok "W<n> Shift <1|2>"
+  let headerIdx = -1, best = 0;
+  // map: week → { 1?: col, 2?: col }
+  let weekShiftCol: Record<number, { 1?: number; 2?: number }> = {};
+  grid.forEach((r, i) => {
+    const map: Record<number, { 1?: number; 2?: number }> = {}; let n = 0;
+    r.forEach((c, ci) => {
+      const m = /^W\s*(\d+)\s*Shift\s*([12])$/i.exec(String(c).trim());
+      if (m) { const wk = +m[1], sh = +m[2] as 1 | 2; (map[wk] ||= {})[sh] = ci; n++; }
+    });
+    if (n > best) { best = n; headerIdx = i; weekShiftCol = map; }
+  });
+  if (best === 0) throw new Error("Header 'W<n> Shift 1/2' tak ditemukan di tab Safety Patrol.");
+
+  const header = grid[headerIdx].map((c) => String(c).trim().toLowerCase());
+  const findCol = (...names: string[]) => header.findIndex((h) => names.some((nm) => h.includes(nm)));
+  const nikCol = findCol("nik");
+  const namaCol = findCol("nama safety patrol", "nama");
+  if (namaCol < 0) throw new Error("Kolom 'Nama Safety Patrol' tak ditemukan.");
+
+  const mapVal = (raw: string): string => /^NA$/i.test(raw.trim()) ? "NA" : "MASUK";
+  const out: SafetyPatrolPlanRow[] = [];
+  for (const r of grid.slice(headerIdx + 1)) {
+    const nama = String(r[namaCol] || "").trim();
+    if (!nama) continue;
+    const nik = nikCol >= 0 ? (String(r[nikCol] || "").trim() || null) : null;
+    for (const [wkStr, cols] of Object.entries(weekShiftCol)) {
+      const week = Number(wkStr);
+      const raw1 = cols[1] != null ? String(r[cols[1]] ?? "").trim() : "";
+      const raw2 = cols[2] != null ? String(r[cols[2]] ?? "").trim() : "";
+      if (raw1 === "" && raw2 === "") continue; // minggu tanpa nilai → skip (jaga default KPI)
+      out.push({ officerName: titleCase(nama), nik, week, shift1: raw1 === "" ? "MASUK" : mapVal(raw1), shift2: raw2 === "" ? "MASUK" : mapVal(raw2) });
+    }
+  }
+  if (!out.length) throw new Error("Tidak ada baris safety patrol terisi di tab.");
   return out;
 }
