@@ -65,12 +65,12 @@ export default function SafetyPatrolAttendancePlan() {
   }, [fromWeek, toWeek]);
 
   const getCell = (officer: string, week: number) =>
-    grid[`${officer}|${week}`] || { shift1: "MASUK" as Status, shift2: "MASUK" as Status };
+    grid[`${officer}|${week}`] || { shift1: "NA" as Status, shift2: "NA" as Status };
 
   const toggle = (officer: string, week: number, shift: "shift1" | "shift2") => {
     const key = `${officer}|${week}`;
     setGrid((prev) => {
-      const curCell = prev[key] || { shift1: "MASUK" as Status, shift2: "MASUK" as Status };
+      const curCell = prev[key] || { shift1: "NA" as Status, shift2: "NA" as Status };
       return { ...prev, [key]: { ...curCell, [shift]: curCell[shift] === "NA" ? "MASUK" : "NA" } };
     });
   };
@@ -220,7 +220,7 @@ export default function SafetyPatrolAttendancePlan() {
             </div>
           )}
           <p className="text-xs text-muted-foreground mt-3">
-            Catatan: sel yang belum diatur dianggap <b>Masuk</b>. Tandai <b>NA</b> untuk minggu/shift cuti → target KPI minggu itu tidak dihitung.
+            Catatan: data ditarik dari Google Sheet (tab SAFETY PATROL GECL). Sel kosong di sheet = <b>NA</b> (tak dijadwalkan, target KPI minggu itu tidak dihitung); nilai terisi = <b>Masuk</b> (✓).
           </p>
         </CardContent>
       </Card>

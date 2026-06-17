@@ -115,18 +115,19 @@ export async function fetchSafetyPatrolPlanFromSheet(): Promise<SafetyPatrolPlan
   const namaCol = findCol("nama safety patrol", "nama");
   if (namaCol < 0) throw new Error("Kolom 'Nama Safety Patrol' tak ditemukan.");
 
-  const mapVal = (raw: string): string => /^NA$/i.test(raw.trim()) ? "NA" : "MASUK";
+  // mirror sheet (seperti OPK pengawas): hanya nilai non-kosong & bukan "NA" → MASUK; kosong/NA → NA
+  const mapVal = (raw: string): string => (raw.trim() !== "" && !/^NA$/i.test(raw.trim())) ? "MASUK" : "NA";
   const out: SafetyPatrolPlanRow[] = [];
   for (const r of grid.slice(headerIdx + 1)) {
     const nama = String(r[namaCol] || "").trim();
     if (!nama) continue;
     const nik = nikCol >= 0 ? (String(r[nikCol] || "").trim() || null) : null;
+    // tulis SEMUA minggu di header (kosong → NA) agar halaman mencerminkan sheet apa adanya
     for (const [wkStr, cols] of Object.entries(weekShiftCol)) {
       const week = Number(wkStr);
       const raw1 = cols[1] != null ? String(r[cols[1]] ?? "").trim() : "";
       const raw2 = cols[2] != null ? String(r[cols[2]] ?? "").trim() : "";
-      if (raw1 === "" && raw2 === "") continue; // minggu tanpa nilai → skip (jaga default KPI)
-      out.push({ officerName: titleCase(nama), nik, week, shift1: raw1 === "" ? "MASUK" : mapVal(raw1), shift2: raw2 === "" ? "MASUK" : mapVal(raw2) });
+      out.push({ officerName: titleCase(nama), nik, week, shift1: mapVal(raw1), shift2: mapVal(raw2) });
     }
   }
   if (!out.length) throw new Error("Tidak ada baris safety patrol terisi di tab.");
