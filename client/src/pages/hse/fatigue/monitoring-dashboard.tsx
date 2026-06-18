@@ -331,6 +331,17 @@ export default function FmsFatigueMonitoringDashboard() {
                 </div>
             ) : data ? (
                 <>
+                    {/* Petunjuk: hasil 0 karena filter status (mis. "Valid") padahal data ada */}
+                    {data.summary.totalViolations === 0 && validationFilter !== 'all' && (
+                        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm flex items-start gap-2">
+                            <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                            <span>
+                                0 alert berstatus <b>{validationFilter}</b> untuk periode ini. Data alert terbaru biasanya masih <b>Belum Validasi</b>.
+                                Ubah filter status (dropdown ini sekarang "{validationFilter}") ke <b>Semua Status</b> untuk melihat seluruh data.
+                                <button onClick={() => setValidationFilter('all')} className="ml-2 underline font-semibold hover:text-amber-900">Tampilkan Semua</button>
+                            </span>
+                        </div>
+                    )}
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         <Card className="bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200 rounded-2xl relative overflow-hidden group">
