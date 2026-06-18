@@ -255,7 +255,7 @@ export default function FmsFatigueMonitoringDashboard() {
                         Monitoring Fatigue (FMS)
                     </h2>
                     <p className="text-gray-500 text-sm mt-1">
-                        Pantauan khusus alert Mata Tertutup, Mengantuk, dan Kelelahan dari data FMS. Catatan: alert terbaru berstatus <b>Belum Validasi</b> (pilih status <b>Semua</b> untuk melihat data terkini; "Valid" hanya yang sudah divalidasi di FAMOUS).
+                        Pantauan khusus alert Mata Tertutup, Mengantuk, dan Kelelahan dari data FMS. Status validasi mengikuti FAMOUS dan disegarkan otomatis tiap hari — alert yang baru muncul berstatus <b>Belum Validasi</b> sampai divalidasi petugas, jadi pilih <b>Semua Status</b> untuk total terkini.
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -331,13 +331,12 @@ export default function FmsFatigueMonitoringDashboard() {
                 </div>
             ) : data ? (
                 <>
-                    {/* Petunjuk: hasil 0 karena filter status (mis. "Valid") padahal data ada */}
+                    {/* Petunjuk: 0 saat filter status spesifik karena periode ini belum ada yang berstatus itu */}
                     {data.summary.totalViolations === 0 && validationFilter !== 'all' && (
                         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm flex items-start gap-2">
                             <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
                             <span>
-                                0 alert berstatus <b>{validationFilter}</b> untuk periode ini. Data alert terbaru biasanya masih <b>Belum Validasi</b>.
-                                Ubah filter status (dropdown ini sekarang "{validationFilter}") ke <b>Semua Status</b> untuk melihat seluruh data.
+                                Belum ada alert berstatus <b>{validationFilter}</b> untuk periode ini. Alert yang baru muncul berstatus <b>Belum Validasi</b> sampai divalidasi petugas di FAMOUS.
                                 <button onClick={() => setValidationFilter('all')} className="ml-2 underline font-semibold hover:text-amber-900">Tampilkan Semua</button>
                             </span>
                         </div>

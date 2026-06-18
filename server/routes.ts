@@ -17013,6 +17013,20 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Revalidate: tarik ulang N hari terakhir agar status validasi (Valid/Tidak Valid,
+  // diisi manusia setelah alarm) ter-refresh. Idempoten (upsert by dedupe_key).
+  app.post("/api/fms/revalidate", async (req, res) => {
+    try {
+      const daysBack = Math.max(1, Math.min(60, Number((req.query.daysBack ?? req.body?.daysBack) || 14)));
+      const { runFmsRevalidate } = await import("./services/fms-scraper");
+      const result = await runFmsRevalidate({ daysBack });
+      res.json({ ok: true, daysBack, ...result });
+    } catch (error: any) {
+      console.error("Error FMS revalidate:", error?.message || error);
+      res.status(500).json({ ok: false, error: error?.message || "revalidate failed" });
+    }
+  });
+
   // Backfill AMAN data historis: tarik HANYA Level-2 + Overspeed yang hilang dari Excel.
   app.post("/api/fms/backfill", async (req, res) => {
     try {

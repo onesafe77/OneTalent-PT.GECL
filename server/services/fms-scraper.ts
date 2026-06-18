@@ -109,11 +109,24 @@ function fmt(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-function mapValidation(v: any): string {
-  const s = String(v);
-  if (s === "1" || /valid/i.test(s) && !/tidak|invalid/i.test(s)) return "Valid";
+// Pemetaan kode status (1=Valid, 2=Tidak Valid, 0/null=Belum Validasi).
+function statusCodeToLabel(raw: any): string {
+  if (raw == null || raw === "") return "Belum Validasi";
+  const s = String(raw).trim();
+  if (s === "1" || (/valid/i.test(s) && !/tidak|invalid/i.test(s))) return "Valid";
   if (s === "2" || /tidak|invalid/i.test(s)) return "Tidak Valid";
   return "Belum Validasi"; // 0
+}
+
+// Status EFEKTIF seperti tampilan FAMOUS: pakai validasi MANUSIA bila sudah divalidasi
+// (status 1/2), kalau belum (0/null) jatuh ke validasi AI (ai_validation_status).
+// FAMOUS v2 mengembalikan kedua field sebagai OBJEK {status, valid_by, role_id, validated_at}.
+function mapValidation(v: any, ai?: any): string {
+  const human = (v && typeof v === "object") ? v.status : v;
+  const hs = human == null ? "" : String(human).trim();
+  if (hs === "1" || hs === "2") return statusCodeToLabel(hs); // override manusia
+  const aiStatus = (ai && typeof ai === "object") ? ai.status : ai;
+  return statusCodeToLabel(aiStatus); // fallback ke AI (sesuai count FAMOUS)
 }
 
 function mapAlarm(a: any): InsertFmsViolation | null {
@@ -140,8 +153,8 @@ function mapAlarm(a: any): InsertFmsViolation | null {
     week: famousWeek(dObj),
     month: BULAN[+m[2] - 1],
     level: speed != null && !isNaN(speed) ? speed : (a.level != null ? Number(a.level) : null),
-    validationStatus: mapValidation(a.validation_status),
-    validatedBy: a.validated_by ? String(a.validated_by) : null,
+    validationStatus: mapValidation(a.validation_status, a.ai_validation_status),
+    validatedBy: a.validation_status?.valid_by ? String(a.validation_status.valid_by) : (a.ai_validation_status?.valid_by ? `AI` : (a.validated_by ? String(a.validated_by) : null)),
     manualDriverName: a.driver ? String(a.driver) : null,
     manualDriverNik: a.nik ? String(a.nik) : null,
     evidenceUrl: a.image_path ? String(a.image_path) : null,
@@ -150,14 +163,18 @@ function mapAlarm(a: any): InsertFmsViolation | null {
   } as InsertFmsViolation;
 }
 
-/** Tarik pelanggaran FAMOUS untuk rentang [from,to] (Date). Read-only. */
-export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fetched: number; upserted: number; inserted: number }> {
+/** Tarik pelanggaran FAMOUS untuk rentang [from,to] (Date). Read-only.
+ *  - hoursBack: jendela scrape rutin (default 3 jam) untuk data BARU.
+ *  - daysBack: jendela tarik-ulang (revalidate) agar status validasi lama ter-refresh.
+ *  - silent: jangan kirim notifikasi lonceng (dipakai saat revalidate). */
+export async function runFmsScrape(opts?: { hoursBack?: number; daysBack?: number; silent?: boolean; from?: Date; to?: Date }): Promise<{ fetched: number; upserted: number; inserted: number }> {
   if (!(await getStoredToken()) && (!process.env.FAMOUS_EMAIL || !process.env.FAMOUS_PASSWORD)) {
     console.warn("[fms-scraper] dilewati — set token via 'Token FMS' atau FAMOUS_EMAIL/PASSWORD");
     return { fetched: 0, upserted: 0, inserted: 0 };
   }
-  const to = new Date();
-  const from = new Date(to.getTime() - (opts?.hoursBack ?? 3) * 3600 * 1000);
+  const to = opts?.to ?? new Date();
+  const windowHours = opts?.daysBack != null ? opts.daysBack * 24 : (opts?.hoursBack ?? 3);
+  const from = opts?.from ?? new Date(to.getTime() - windowHours * 3600 * 1000);
   const q = (page: number) =>
     `/api/v2/alarms?page=${page}&limit=100&validation_status=1,2,0` +
     `&nama_alarm=${encodeURIComponent(ALARM_NAMES)}&level=1,2` +
@@ -180,7 +197,7 @@ export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fet
   }
   console.log(`[fms-scraper] window ${fmt(from)}–${fmt(to)} | fetched=${fetched} upserted=${upserted} new=${inserted}`);
   // Notifikasi lonceng: hanya bila ada pelanggaran BENAR-BENAR baru (bukan update validasi)
-  if (inserted > 0) {
+  if (inserted > 0 && !opts?.silent) {
     try {
       await storage.createNotification({
         type: "fms",
@@ -192,6 +209,26 @@ export async function runFmsScrape(opts?: { hoursBack?: number }): Promise<{ fet
       });
     } catch (e: any) { console.warn("[fms-scraper] gagal buat notifikasi:", e?.message || e); }
   }
+  return { fetched, upserted, inserted };
+}
+
+/** Tarik ULANG N hari terakhir agar status validasi (aksi manusia yang terjadi belakangan)
+ *  ter-refresh di DB. Idempoten: upsert by dedupe_key — hanya meng-update field validasi/level/dll,
+ *  tidak menggandakan baris. Default 14 hari. */
+export async function runFmsRevalidate(opts?: { daysBack?: number }): Promise<{ fetched: number; upserted: number; inserted: number }> {
+  const daysBack = opts?.daysBack ?? 14;
+  console.log(`[fms-revalidate] tarik ulang ${daysBack} hari terakhir untuk refresh status validasi`);
+  // Per-HARI agar setiap hari tuntas di bawah page-guard (window besar terpotong di 200 halaman).
+  let fetched = 0, upserted = 0, inserted = 0;
+  const now = new Date();
+  for (let d = 0; d < daysBack; d++) {
+    const day = new Date(now.getTime() - d * 24 * 3600 * 1000);
+    const from = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0);
+    const to = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 23, 59, 59);
+    const r = await runFmsScrape({ from, to, silent: true });
+    fetched += r.fetched; upserted += r.upserted; inserted += r.inserted;
+  }
+  console.log(`[fms-revalidate] selesai: fetched=${fetched} upserted=${upserted} new=${inserted}`);
   return { fetched, upserted, inserted };
 }
 

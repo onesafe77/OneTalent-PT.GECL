@@ -8892,8 +8892,8 @@ export class DrizzleStorage implements IStorage {
   // FMS VIOLATIONS IMPLEMENTATION
   // ==========================================
 
-  async batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number }> {
-    if (violations.length === 0) return { count: 0 };
+  async batchInsertFmsViolations(violations: InsertFmsViolation[]): Promise<{ count: number; inserted: number }> {
+    if (violations.length === 0) return { count: 0, inserted: 0 };
 
     // Dedupe key universal: FAMOUS pakai 'F:<alarm_id>', Excel pakai 'X:<date>|<time>|<vehicle>|<type>'.
     // Hitung otomatis bila belum ada (jalur upload Excel tak perlu diubah).

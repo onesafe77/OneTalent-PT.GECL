@@ -231,14 +231,30 @@ export function initializeCronJobs() {
   });
 
   // FMS auto-pull dari FAMOUS (read-only) — tiap jam menit ke-5 (WITA)
+  // Window 6 jam agar validasi yang masuk dalam beberapa jam pertama ikut ter-refresh.
   cron.schedule('5 * * * *', async () => {
     console.log('[FMS] Running hourly FAMOUS auto-pull...');
     try {
       const { runFmsScrape } = await import('./services/fms-scraper');
-      const res = await runFmsScrape({ hoursBack: 3 });
+      const res = await runFmsScrape({ hoursBack: 6 });
       console.log(`[FMS] auto-pull selesai: fetched=${res.fetched} upserted=${res.upserted}`);
     } catch (error) {
       console.error('❌ Error in FMS auto-pull job:', error);
+    }
+  }, {
+    timezone: "Asia/Makassar"
+  });
+
+  // FMS revalidate — tiap hari 02:10 WITA tarik ulang 14 hari terakhir agar status
+  // validasi (aksi manusia yang terjadi berhari-hari setelah alarm) ter-refresh di DB.
+  cron.schedule('10 2 * * *', async () => {
+    console.log('[FMS] Running daily revalidate (14 hari)...');
+    try {
+      const { runFmsRevalidate } = await import('./services/fms-scraper');
+      const res = await runFmsRevalidate({ daysBack: 14 });
+      console.log(`[FMS] revalidate selesai: fetched=${res.fetched} upserted=${res.upserted} new=${res.inserted}`);
+    } catch (error) {
+      console.error('❌ Error in FMS revalidate job:', error);
     }
   }, {
     timezone: "Asia/Makassar"
