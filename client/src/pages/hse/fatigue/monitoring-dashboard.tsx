@@ -255,7 +255,7 @@ export default function FmsFatigueMonitoringDashboard() {
                         Monitoring Fatigue (FMS)
                     </h2>
                     <p className="text-gray-500 text-sm mt-1">
-                        Pantauan khusus alert Mata Tertutup, Mengantuk, dan Kelelahan dari data FMS.
+                        Pantauan khusus alert Mata Tertutup, Mengantuk, dan Kelelahan dari data FMS. Catatan: alert terbaru berstatus <b>Belum Validasi</b> (pilih status <b>Semua</b> untuk melihat data terkini; "Valid" hanya yang sudah divalidasi di FAMOUS).
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
