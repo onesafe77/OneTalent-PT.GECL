@@ -17000,6 +17000,77 @@ Format sebagai bullet points singkat per insight.`;
     } catch (e: any) { res.status(500).json({ ok: false, error: e?.message }); }
   });
 
+  // Status token VSS (untuk preview foto evidence FMS)
+  app.get("/api/fms/vss-token-status", async (_req, res) => {
+    try {
+      const { getStoredVssToken } = await import("./services/fms-evidence");
+      const tok = await getStoredVssToken();
+      res.json({ hasToken: !!tok, tokenLen: tok ? tok.length : 0 });
+    } catch (e: any) { res.status(500).json({ error: e?.message }); }
+  });
+
+  // CORS untuk bookmarklet dari tab FAMOUS (kirim tokenVSS ke OneTalent).
+  const VSS_BOOKMARKLET_ORIGIN = process.env.FAMOUS_BASE_URL || "https://famous.borneo-indobara.com";
+  const allowVssCors = (req: any, res: any) => {
+    const origin = req.headers.origin;
+    if (origin === VSS_BOOKMARKLET_ORIGIN) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    }
+  };
+  app.options("/api/fms/vss-token", (req, res) => { allowVssCors(req, res); res.sendStatus(204); });
+
+  // Update token VSS (dari bookmarklet/tempel tokenVSS localStorage FAMOUS). Disimpan di DB.
+  app.post("/api/fms/vss-token", async (req, res) => {
+    try {
+      allowVssCors(req, res);
+      const token = String(req.body?.token || "").trim().replace(/^"|"$/g, "");
+      if (!token || token.length < 8) return res.status(400).json({ ok: false, error: "Token VSS tidak valid" });
+      const { setVssToken } = await import("./services/fms-evidence");
+      await setVssToken(token);
+      res.json({ ok: true, tokenLen: token.length });
+    } catch (e: any) { res.status(500).json({ ok: false, error: e?.message }); }
+  });
+
+  // Token VSS tersimpan untuk dipakai frontend memuat foto LANGSUNG di browser user.
+  app.get("/api/fms/vss-token-current", async (_req, res) => {
+    try {
+      const { getStoredVssToken, VSS_BASE, VSS_IPADDR } = await import("./services/fms-evidence");
+      const token = await getStoredVssToken();
+      res.json({ ok: true, token: token || null, base: VSS_BASE, ipaddr: VSS_IPADDR });
+    } catch (e: any) { res.status(500).json({ ok: false, error: e?.message }); }
+  });
+
+  // Tindak lanjut: alert fatigue VALID yang BELUM lengkap (driver Unknown/kosong ATAU
+  // foto kegiatan belum di-upload manual), dikelompokkan per nomor lambung. Live (padam saat lengkap).
+  app.get("/api/fms/follow-up", async (req, res) => {
+    try {
+      const days = Math.max(1, Math.min(90, Number(req.query.days || 7)));
+      const needDriver = sql`(manual_driver_name IS NULL OR btrim(manual_driver_name) = '' OR manual_driver_name ILIKE 'unknown%')`;
+      const needPhoto = sql`(evidence_url IS NULL OR evidence_url NOT LIKE '/api/uploads/%')`;
+      const result: any = await db.execute(sql`
+        SELECT vehicle_no AS "vehicleNo",
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE ${needDriver})::int AS "needsDriver",
+          COUNT(*) FILTER (WHERE ${needPhoto})::int AS "needsPhoto"
+        FROM fms_violations
+        WHERE category = 'Fatigue Alarm' AND validation_status = 'Valid'
+          AND violation_date >= (CURRENT_DATE - (${days} || ' days')::interval)
+          AND (${needDriver} OR ${needPhoto})
+        GROUP BY vehicle_no
+        ORDER BY total DESC, vehicle_no ASC
+      `);
+      const byVehicle = (result.rows || []) as Array<{ vehicleNo: string; total: number; needsDriver: number; needsPhoto: number }>;
+      const totalIncomplete = byVehicle.reduce((s, r) => s + (r.total || 0), 0);
+      res.json({ ok: true, windowDays: days, totalUnits: byVehicle.length, totalIncomplete, byVehicle });
+    } catch (e: any) {
+      console.error("Error FMS follow-up:", e?.message || e);
+      res.status(500).json({ ok: false, error: e?.message || "follow-up failed" });
+    }
+  });
+
   // Manual trigger FMS auto-pull dari FAMOUS (read-only). Untuk uji.
   app.post("/api/fms/scrape-now", async (req, res) => {
     try {
@@ -17010,6 +17081,24 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error: any) {
       console.error("Error FMS scrape-now:", error?.message || error);
       res.status(500).json({ ok: false, error: error?.message || "scrape failed" });
+    }
+  });
+
+  // Proxy gambar evidence FMS dari VSS (image_path = path server, butuh token VSS).
+  app.get("/api/fms/evidence", async (req, res) => {
+    try {
+      const path = String(req.query.path || "");
+      const { isVssEvidencePath, fetchVssImage } = await import("./services/fms-evidence");
+      if (!path || !isVssEvidencePath(path)) {
+        return res.status(400).json({ ok: false, error: "path evidence VSS tidak valid" });
+      }
+      const { buffer, contentType } = await fetchVssImage(path);
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Error FMS evidence proxy:", error?.message || error);
+      res.status(502).json({ ok: false, error: error?.message || "gagal mengambil foto evidence" });
     }
   });
 

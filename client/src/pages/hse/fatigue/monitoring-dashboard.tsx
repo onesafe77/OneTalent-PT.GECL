@@ -74,6 +74,21 @@ type FmsViolation = {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658'];
 
+function isFmsPath(s: string): boolean {
+    return /^E:[\\/]VssService/i.test(s) || /vssFiles/i.test(s) || /[\\/]hftp[\\/]/i.test(s);
+}
+
+// Sumber gambar evidence yang BISA ditampilkan di OneTalent:
+//  - /api/uploads/... , /uploads/... , http… (upload manual pengawas) → pakai apa adanya
+//  - path server FMS (E:/VssService/..., vssFiles, hftp) → TIDAK bisa (diproteksi anti-bot VSS) → null
+//  - lainnya/kosong → null (tampilkan placeholder, bukan ikon rusak)
+function resolveEvidenceSrc(url?: string | null): string | null {
+    const s = (url || "").trim();
+    if (!s) return null;
+    if (s.startsWith("/api/uploads/") || s.startsWith("/uploads/") || s.startsWith("http")) return s;
+    return null;
+}
+
 export default function FmsFatigueMonitoringDashboard() {
 
     const year = new Date().getFullYear();
@@ -104,6 +119,25 @@ export default function FmsFatigueMonitoringDashboard() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedDriver, setSelectedDriver] = useState<{ vehicleNo: string } | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const [showFollowUp, setShowFollowUp] = useState(false);
+
+    // Tindak lanjut: alert VALID yang belum lengkap (driver kosong / foto kegiatan belum upload),
+    // per nomor lambung. Live — padam otomatis saat dilengkapi. (7 hari terakhir)
+    const { data: followUp } = useQuery<{ ok: boolean; windowDays: number; totalUnits: number; totalIncomplete: number; byVehicle: { vehicleNo: string; total: number; needsDriver: number; needsPhoto: number }[] }>({
+        queryKey: ['/api/fms/follow-up'],
+        queryFn: async () => {
+            const res = await fetch('/api/fms/follow-up?days=7', { credentials: 'include' });
+            if (!res.ok) throw new Error('gagal');
+            return res.json();
+        },
+        refetchInterval: 60000,
+    });
+    const followUpMap = useMemo(() => {
+        const m: Record<string, { total: number; needsDriver: number; needsPhoto: number }> = {};
+        for (const v of followUp?.byVehicle || []) m[v.vehicleNo] = { total: v.total, needsDriver: v.needsDriver, needsPhoto: v.needsPhoto };
+        return m;
+    }, [followUp]);
 
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -339,6 +373,48 @@ export default function FmsFatigueMonitoringDashboard() {
                                 Belum ada alert berstatus <b>{validationFilter}</b> untuk periode ini. Alert yang baru muncul berstatus <b>Belum Validasi</b> sampai divalidasi petugas di FAMOUS.
                                 <button onClick={() => setValidationFilter('all')} className="ml-2 underline font-semibold hover:text-amber-900">Tampilkan Semua</button>
                             </span>
+                        </div>
+                    )}
+                    {/* Perlu Dilengkapi — alert VALID yang belum lengkap (driver/foto), per nomor lambung. Live. */}
+                    {followUp && followUp.totalIncomplete > 0 && (
+                        <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 overflow-hidden">
+                            <button
+                                onClick={() => setShowFollowUp((s) => !s)}
+                                className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-orange-100/60 transition-colors"
+                            >
+                                <span className="flex items-center gap-2 text-sm text-orange-800">
+                                    <span className="flex h-2.5 w-2.5 relative">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"></span>
+                                    </span>
+                                    <b>Perlu Dilengkapi:</b> {followUp.totalIncomplete} alert valid di {followUp.totalUnits} unit (driver / foto kegiatan) — {followUp.windowDays} hari terakhir
+                                </span>
+                                <ChevronDown className={`h-4 w-4 text-orange-600 transition-transform ${showFollowUp ? "rotate-180" : ""}`} />
+                            </button>
+                            {showFollowUp && (
+                                <div className="px-4 pb-3 pt-1 max-h-72 overflow-y-auto">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                        {(followUp.byVehicle || []).map((v) => (
+                                            <button
+                                                key={v.vehicleNo}
+                                                onClick={() => { setSelectedDriver({ vehicleNo: v.vehicleNo }); setIsModalOpen(true); }}
+                                                className="flex items-center justify-between gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-left hover:border-orange-400 hover:shadow-sm transition"
+                                            >
+                                                <span className="font-bold text-blue-600 text-sm">{v.vehicleNo}</span>
+                                                <span className="flex gap-1">
+                                                    {v.needsDriver > 0 && (
+                                                        <Badge className="text-[10px] px-1.5 py-0 h-5 bg-red-100 text-red-700 border-none">driver {v.needsDriver}</Badge>
+                                                    )}
+                                                    {v.needsPhoto > 0 && (
+                                                        <Badge className="text-[10px] px-1.5 py-0 h-5 bg-amber-100 text-amber-700 border-none">foto {v.needsPhoto}</Badge>
+                                                    )}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <p className="text-[11px] text-orange-600 mt-2">Klik nomor lambung untuk membuka rincian & menginput. Penanda hilang otomatis saat driver terisi & foto kegiatan ter-upload.</p>
+                                </div>
+                            )}
                         </div>
                     )}
                     {/* KPI Cards */}
@@ -767,18 +843,32 @@ export default function FmsFatigueMonitoringDashboard() {
                                                                 <span className="text-[10px] text-gray-400 font-normal">
                                                                     {unitMitraMap?.[washKey(driver.vehicleNo)] || ""}
                                                                 </span>
-                                                                {driver.unassignedCount > 0 && (
-                                                                    <span className="flex h-2.5 w-2.5 relative">
-                                                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                                                                    </span>
+                                                                {(() => {
+                                                                    const driverPending = Math.max(followUpMap[driver.vehicleNo]?.needsDriver || 0, driver.unassignedCount || 0);
+                                                                    const photoPending = followUpMap[driver.vehicleNo]?.needsPhoto || 0;
+                                                                    return (driverPending > 0 || photoPending > 0) ? (
+                                                                        <span className="flex h-2.5 w-2.5 relative">
+                                                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                                                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                                                                        </span>
+                                                                    ) : null;
+                                                                })()}
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {(() => {
+                                                                    const driverPending = Math.max(followUpMap[driver.vehicleNo]?.needsDriver || 0, driver.unassignedCount || 0);
+                                                                    return driverPending > 0 ? (
+                                                                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0 min-h-4 h-4 bg-red-100 text-red-700 hover:bg-red-200 border-none rounded" title="Driver Unknown/kosong — klik nomor lambung untuk input nama">
+                                                                            {driverPending} Driver belum
+                                                                        </Badge>
+                                                                    ) : null;
+                                                                })()}
+                                                                {(followUpMap[driver.vehicleNo]?.needsPhoto || 0) > 0 && (
+                                                                    <Badge className="text-[10px] px-1.5 py-0 min-h-4 h-4 bg-amber-100 text-amber-700 hover:bg-amber-200 border-none rounded">
+                                                                        {followUpMap[driver.vehicleNo].needsPhoto} Foto belum
+                                                                    </Badge>
                                                                 )}
                                                             </div>
-                                                            {driver.unassignedCount > 0 && (
-                                                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 min-h-4 h-4 bg-red-100 text-red-700 hover:bg-red-200 border-none rounded">
-                                                                    {driver.unassignedCount} Belum Diinput
-                                                                </Badge>
-                                                            )}
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-center font-bold text-red-600 bg-red-50/50">
@@ -943,12 +1033,38 @@ export default function FmsFatigueMonitoringDashboard() {
                                                                         {/* Evidence Upload */}
                                                                         <div className="space-y-1">
                                                                             <Label className="text-xs">📷 Evidence / Bukti Foto</Label>
-                                                                            {v.evidenceUrl && !evidencePreview && (
-                                                                                <div className="mb-2">
-                                                                                    <img src={v.evidenceUrl} alt="Evidence" className="w-full h-24 object-cover rounded-lg border border-gray-200" />
-                                                                                    <p className="text-xs text-green-600 mt-1">✓ Evidence sudah ada</p>
-                                                                                </div>
-                                                                            )}
+                                                                            {!evidencePreview && (() => {
+                                                                                const src = resolveEvidenceSrc(v.evidenceUrl);
+                                                                                // Hanya foto upload manual yang bisa ditampilkan; snapshot FMS diproteksi VSS.
+                                                                                if (!src) {
+                                                                                    const isFms = isFmsPath((v.evidenceUrl || "").trim());
+                                                                                    return (
+                                                                                        <div className="mb-2 w-full h-20 rounded-lg border border-dashed border-amber-300 bg-amber-50 flex flex-col items-center justify-center text-center px-2">
+                                                                                            <span className="text-[11px] text-amber-700 font-medium">{isFms ? "Foto kegiatan belum di-upload" : "Belum ada foto"}</span>
+                                                                                            <span className="text-[10px] text-amber-500">{isFms ? "snapshot FMS hanya bisa di FAMOUS — upload foto tindak lanjut di bawah" : "upload foto di bawah"}</span>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+                                                                                return (
+                                                                                    <div className="mb-2">
+                                                                                        <img
+                                                                                            src={src}
+                                                                                            alt="Evidence"
+                                                                                            className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                                                                                            onError={(e) => {
+                                                                                                const img = e.currentTarget;
+                                                                                                img.style.display = "none";
+                                                                                                const ph = img.nextElementSibling as HTMLElement | null;
+                                                                                                if (ph) ph.style.display = "flex";
+                                                                                            }}
+                                                                                        />
+                                                                                        <div className="w-full h-20 rounded-lg border border-dashed border-gray-300 bg-gray-50 flex-col items-center justify-center text-center px-2" style={{ display: "none" }}>
+                                                                                            <span className="text-[11px] text-gray-400">Foto gagal dimuat</span>
+                                                                                        </div>
+                                                                                        <p className="text-xs text-green-600 mt-1">✓ Foto kegiatan sudah ada</p>
+                                                                                    </div>
+                                                                                );
+                                                                            })()}
                                                                             {evidencePreview && (
                                                                                 <div className="mb-2 relative">
                                                                                     <img src={evidencePreview} alt="Preview" className="w-full h-24 object-cover rounded-lg border-2 border-blue-300" />

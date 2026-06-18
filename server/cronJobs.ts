@@ -5,7 +5,7 @@ import { simperNotificationService } from './services/simperNotificationService'
 import { emailService } from './services/emailService';
 import { db } from './db';
 import { rosterSchedules } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 // Helper function to get roster entries by date
 async function getRosterByDate(date: string) {
@@ -253,6 +253,30 @@ export function initializeCronJobs() {
       const { runFmsRevalidate } = await import('./services/fms-scraper');
       const res = await runFmsRevalidate({ daysBack: 14 });
       console.log(`[FMS] revalidate selesai: fetched=${res.fetched} upserted=${res.upserted} new=${res.inserted}`);
+
+      // Lonceng: ringkasan alert VALID yang perlu tindak lanjut (driver kosong / foto belum), 2 hari terakhir.
+      try {
+        const q: any = await db.execute(sql`
+          SELECT COUNT(*)::int AS n, COUNT(DISTINCT vehicle_no)::int AS units
+          FROM fms_violations
+          WHERE category = 'Fatigue Alarm' AND validation_status = 'Valid'
+            AND violation_date >= (CURRENT_DATE - INTERVAL '2 days')
+            AND ( manual_driver_name IS NULL OR btrim(manual_driver_name) = '' OR manual_driver_name ILIKE 'unknown%'
+                  OR evidence_url IS NULL OR evidence_url NOT LIKE '/api/uploads/%' )
+        `);
+        const n = q.rows?.[0]?.n || 0;
+        const units = q.rows?.[0]?.units || 0;
+        if (n > 0) {
+          await storage.createNotification({
+            type: 'fms',
+            title: `${n} alert fatigue VALID perlu tindak lanjut`,
+            body: `${units} unit menunggu input driver / upload foto kegiatan (2 hari terakhir).`,
+            link: '/workspace/hse/fatigue-monitoring',
+            audience: 'hse',
+            meta: { incomplete: n, units },
+          } as any);
+        }
+      } catch (e: any) { console.warn('[FMS] gagal buat notifikasi follow-up:', e?.message || e); }
     } catch (error) {
       console.error('❌ Error in FMS revalidate job:', error);
     }

@@ -39,7 +39,7 @@ function famousWeek(d: Date): number {
 let apiKeyCache: string | null = process.env.FAMOUS_API_KEY || null;
 let tokenCache: string | null = null;
 
-async function getApiKey(): Promise<string> {
+export async function getApiKey(): Promise<string> {
   if (apiKeyCache) return apiKeyCache;
   const html = await fetch(`${BASE}/sign-in`).then((r) => r.text());
   const scripts = Array.from(html.matchAll(/(?:src|href)="([^"]+\.js)"/g), (m) => m[1]);
