@@ -318,7 +318,22 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Navigation Items */}
         <div className="flex flex-col h-[calc(100vh-4rem)]">
           <nav className="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
-            {navigationGroups.map((group, groupIndex) => {
+            {user?.accountType === "subcon" ? (
+              <div>
+                <p className="px-4 mb-2 text-[11px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest opacity-90">
+                  Kesehatan
+                </p>
+                <div className="space-y-1">
+                  <SidebarItemRenderer
+                    item={{
+                      name: "MCU",
+                      href: "/workspace/hse/mcu",
+                      icon: Activity,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : navigationGroups.map((group, groupIndex) => {
               // Filter items inside the loop, but NOT hooks
               const visibleItems = group.items.filter(item => hasPermission(item));
               if (visibleItems.length === 0) return null;

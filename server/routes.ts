@@ -982,6 +982,25 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       const { nik, password } = parseResult.data;
+      const accountType = (parseResult.data as any).accountType || "karyawan";
+
+      // ---- Login SUBCON (username + password, tabel terpisah, akses MCU saja) ----
+      if (accountType === "subcon") {
+        const sub = await storage.getSubconByUsername(nik);
+        if (!sub || sub.isActive === false) return res.status(401).json({ message: "Username atau password salah" });
+        const ok = await bcrypt.compare(password, sub.hashedPassword);
+        if (!ok) return res.status(401).json({ message: "Username atau password salah" });
+        const subUser = {
+          id: sub.id, nik: sub.username, name: sub.name, position: "Subcon",
+          department: sub.company || null, role: "BASIC", permissions: [],
+          accountType: "subcon", company: sub.company || null,
+        };
+        (req.session as any).user = subUser;
+        await new Promise<void>((resolve, reject) => req.session.save((e) => e ? reject(e) : resolve()));
+        console.log("🔐 Subcon login success:", nik);
+        return res.json({ message: "Login berhasil", user: subUser });
+      }
+
       console.log("🔐 Looking up user with NIK:", nik);
 
       // Get auth user from database — retry utk hiccup DNS/koneksi transien (link Railway flaky)
@@ -1048,7 +1067,8 @@ Format sebagai bullet points singkat per insight.`;
       }
 
       // Create user with role and permissions based on position AND department
-      const userWithRole = createUserWithRole(employee.id, employee.name, employee.position || null, employee.department || null);
+      const userWithRole: any = createUserWithRole(employee.id, employee.name, employee.position || null, employee.department || null);
+      userWithRole.accountType = "karyawan";
 
       // Create session with role info - with explicit save
       try {
@@ -1115,10 +1135,15 @@ Format sebagai bullet points singkat per insight.`;
   // Get current session
   app.get("/api/auth/session", (req, res) => {
     const user = (req.session as any).user;
+    if (user && user.accountType === "subcon") {
+      // Subcon: bukan karyawan ber-role; kembalikan apa adanya (akses dibatasi ke MCU di FE).
+      return res.json({ authenticated: true, user });
+    }
     if (user) {
       // ALWAYS refresh role and permissions from current logic
       // This ensures that RBAC changes apply immediately even to active sessions
-      const userWithRole = createUserWithRole(user.nik, user.name, user.position || null, user.department || null);
+      const userWithRole: any = createUserWithRole(user.nik, user.name, user.position || null, user.department || null);
+      userWithRole.accountType = "karyawan";
 
       console.log(`[SESSION DEBUG] NIK: ${user.nik}, Name: ${user.name}`);
       console.log(`[SESSION DEBUG] Stored Dept: '${user.department}', Stored Pos: '${user.position}'`);
@@ -1166,6 +1191,56 @@ Format sebagai bullet points singkat per insight.`;
       console.error("Reset password error:", error);
       res.status(400).json({ message: "Invalid reset password request" });
     }
+  });
+
+  // ---- Admin: Kelola Akun Subcon ----
+  const requireAdmin = (req: any, res: any): boolean => {
+    const u = req.session?.user;
+    const ok = u && (u.role === "ADMIN" || (Array.isArray(u.permissions) && u.permissions.includes("MANAGE_EMPLOYEES")));
+    if (!ok) { res.status(403).json({ message: "Akses ditolak (khusus admin)" }); return false; }
+    return true;
+  };
+  app.get("/api/subcon-accounts", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const rows = await storage.listSubcon();
+      res.json(rows.map(({ hashedPassword, ...r }: any) => r));
+    } catch (e: any) { res.status(500).json({ message: e?.message || "gagal" }); }
+  });
+  app.post("/api/subcon-accounts", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const { username, name, company, password } = req.body || {};
+      if (!username || !name || !password) return res.status(400).json({ message: "username, name, password wajib" });
+      const exists = await storage.getSubconByUsername(String(username).trim());
+      if (exists) return res.status(409).json({ message: "Username sudah dipakai" });
+      const hashedPassword = await bcrypt.hash(String(password), 10);
+      const created = await storage.createSubcon({ username: String(username).trim(), name, company: company || null, hashedPassword });
+      const { hashedPassword: _h, ...safe } = created;
+      res.json({ ok: true, account: safe });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "gagal" }); }
+  });
+  app.put("/api/subcon-accounts/:id", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const { name, company, isActive, password } = req.body || {};
+      const patch: any = {};
+      if (name !== undefined) patch.name = name;
+      if (company !== undefined) patch.company = company || null;
+      if (isActive !== undefined) patch.isActive = !!isActive;
+      if (password) patch.hashedPassword = await bcrypt.hash(String(password), 10);
+      const updated = await storage.updateSubcon(req.params.id, patch);
+      if (!updated) return res.status(404).json({ message: "Tidak ditemukan" });
+      const { hashedPassword: _h, ...safe } = updated;
+      res.json({ ok: true, account: safe });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "gagal" }); }
+  });
+  app.delete("/api/subcon-accounts/:id", async (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    try {
+      const ok = await storage.deleteSubcon(req.params.id);
+      res.json({ ok });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "gagal" }); }
   });
 
   // Employee routes - OPTIMIZED WITH CACHING

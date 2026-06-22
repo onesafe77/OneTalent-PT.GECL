@@ -103,6 +103,7 @@ import {
   picaRecords,
   users,
   authUsers,
+  subconAccounts,
   attendanceRecords,
   rosterSchedules,
   leaveRequests,
@@ -2504,6 +2505,29 @@ export class DrizzleStorage implements IStorage {
       .update(authUsers)
       .set({ hashedPassword, updatedAt: new Date() })
       .where(eq(authUsers.nik, nik));
+  }
+
+  // ---- Akun Subcon ----
+  async getSubconByUsername(username: string): Promise<any | undefined> {
+    const [row] = await this.db.select().from(subconAccounts).where(eq(subconAccounts.username, username));
+    return row;
+  }
+  async listSubcon(): Promise<any[]> {
+    return await this.db.select().from(subconAccounts).orderBy(desc(subconAccounts.createdAt));
+  }
+  async createSubcon(row: { username: string; hashedPassword: string; name: string; company?: string | null }): Promise<any> {
+    const [created] = await this.db.insert(subconAccounts).values(row as any).returning();
+    return created;
+  }
+  async updateSubcon(id: string, patch: { name?: string; company?: string | null; isActive?: boolean; hashedPassword?: string }): Promise<any> {
+    const [updated] = await this.db.update(subconAccounts)
+      .set({ ...patch, updatedAt: new Date() } as any)
+      .where(eq(subconAccounts.id, id)).returning();
+    return updated;
+  }
+  async deleteSubcon(id: string): Promise<boolean> {
+    const r = await this.db.delete(subconAccounts).where(eq(subconAccounts.id, id)).returning();
+    return r.length > 0;
   }
 
   // Employee methods

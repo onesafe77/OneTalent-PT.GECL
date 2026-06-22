@@ -40,11 +40,12 @@ type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 export default function LoginPage() {
   const [, setLocation] = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<'login' | 'reset'>('login');
+  const [loginType, setLoginType] = useState<'karyawan' | 'subcon'>('karyawan');
   const [slide, setSlide] = useState(0);
 
   // Auto-slide panel kiri (crossfade). Hormati prefers-reduced-motion.
@@ -67,14 +68,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      setLocation("/workspace");
+      setLocation(user?.accountType === "subcon" ? "/workspace/hse/mcu" : "/workspace");
     }
-  }, [isAuthenticated, isLoading, setLocation]);
+  }, [isAuthenticated, isLoading, setLocation, user]);
 
   async function onLoginSubmit(data: LoginFormValues) {
     setIsLoading(true);
     try {
-      await login(data.nik, data.password);
+      await login(data.nik, data.password, loginType);
       toast({ title: "Login Berhasil", description: "Selamat datang kembali!" });
     } catch (error) {
       toast({ title: "Login Gagal", description: error instanceof Error ? error.message : "NIK atau password salah", variant: "destructive" });
@@ -204,14 +205,28 @@ export default function LoginPage() {
           {mode === 'login' ? (
             <Form {...loginForm}>
               <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-5">
+                {/* Toggle jenis akun */}
+                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100">
+                  {([['karyawan', 'Karyawan'], ['subcon', 'Subcon']] as const).map(([val, lbl]) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setLoginType(val)}
+                      className={`h-9 rounded-lg text-sm font-semibold transition-colors ${loginType === val ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+
                 <FormField
                   control={loginForm.control}
                   name="nik"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className={labelCls}>NIK</FormLabel>
+                      <FormLabel className={labelCls}>{loginType === 'subcon' ? 'USERNAME' : 'NIK'}</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Masukkan NIK Anda" disabled={isLoading} className={inputCls} />
+                        <Input {...field} placeholder={loginType === 'subcon' ? 'Masukkan username subcon' : 'Masukkan NIK Anda'} disabled={isLoading} className={inputCls} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

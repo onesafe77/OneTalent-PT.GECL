@@ -1,4 +1,4 @@
-import { Redirect } from "wouter";
+import { Redirect, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth-context";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { Permission } from "@shared/rbac";
@@ -16,7 +16,8 @@ export function ProtectedRoute({
   requireAll = false,
   fallbackPath = "/workspace"
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
+  const { isAuthenticated, isLoading, hasPermission, hasAnyPermission, hasAllPermissions, user } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return <LoadingScreen isLoading={true} />;
@@ -24,6 +25,11 @@ export function ProtectedRoute({
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
+  }
+
+  // Akun subcon hanya boleh mengakses modul MCU
+  if (user?.accountType === "subcon" && location !== "/workspace/hse/mcu") {
+    return <Redirect to="/workspace/hse/mcu" />;
   }
 
   if (requiredPermissions && requiredPermissions.length > 0) {

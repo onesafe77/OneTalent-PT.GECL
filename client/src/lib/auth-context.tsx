@@ -9,13 +9,15 @@ interface User {
   department?: string | null;
   role: Role;
   permissions: Permission[];
+  accountType?: "karyawan" | "subcon";
+  company?: string | null;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (nik: string, password: string) => Promise<void>;
+  login: (nik: string, password: string, accountType?: "karyawan" | "subcon") => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (oldPassword: string, newPassword: string) => Promise<void>;
   hasPermission: (permission: Permission) => boolean;
@@ -52,8 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function login(nik: string, password: string) {
-    const data = await apiRequest('/api/auth/login', 'POST', { nik, password });
+  async function login(nik: string, password: string, accountType: "karyawan" | "subcon" = "karyawan") {
+    const data = await apiRequest('/api/auth/login', 'POST', { nik, password, accountType });
     setUser(data.user);
 
     // Invalidate all queries on login to refresh data

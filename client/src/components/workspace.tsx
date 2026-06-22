@@ -11,6 +11,7 @@ import QRGenerator from "@/pages/qr-generator";
 import Scanner from "@/pages/scanner";
 import EmployeesDashboard from "@/pages/employees-dashboard";
 import EmployeesList from "@/pages/employees-list";
+import KelolaSubcon from "@/pages/kelola-subcon";
 import EmployeeDetail from "@/pages/employee-detail";
 import Roster from "@/pages/roster";
 import Leave from "@/pages/leave";
@@ -351,6 +352,7 @@ export function Workspace() {
               </Route>
               <Route path="/workspace/employees/dashboard" component={EmployeesDashboard} />
               <Route path="/workspace/employees/list" component={EmployeesList} />
+              <Route path="/workspace/kelola-subcon" component={KelolaSubcon} />
               <Route path="/workspace/employees/:id" component={EmployeeDetail} />
               <Route path="/workspace/roster" component={Roster} />
               <Route path="/workspace/leave" component={Leave} />

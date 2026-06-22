@@ -36,6 +36,21 @@ export const authUsers = pgTable("auth_users", {
   index("IDX_auth_users_nik").on(table.nik),
 ]);
 
+// Akun Subcon (subkontraktor) — login terpisah dari karyawan (username/kode + password).
+// Akses dibatasi ke modul MCU saja (lihat gating di sidebar/route).
+export const subconAccounts = pgTable("subcon_accounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: varchar("username").notNull().unique(),
+  hashedPassword: text("hashed_password").notNull(),
+  name: text("name").notNull(),
+  company: text("company"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export type SubconAccount = typeof subconAccounts.$inferSelect;
+export type InsertSubconAccount = typeof subconAccounts.$inferInsert;
+
 export const employees = pgTable("employees", {
   id: varchar("id").primaryKey(),
   name: text("name").notNull(),
@@ -805,6 +820,7 @@ export type InsertAuthUser = z.infer<typeof insertAuthUserSchema>;
 export const loginSchema = z.object({
   nik: z.string().min(1, "NIK is required"),
   password: z.string().min(1, "Password is required"),
+  accountType: z.enum(["karyawan", "subcon"]).optional(),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
