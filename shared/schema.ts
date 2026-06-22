@@ -1238,6 +1238,26 @@ export const insertSafetyPatrolAttendancePlanSchema = createInsertSchema(safetyP
 export type SafetyPatrolAttendancePlan = typeof safetyPatrolAttendancePlan.$inferSelect;
 export type InsertSafetyPatrolAttendancePlan = typeof safetyPatrolAttendancePlan.$inferInsert;
 
+// Target job per petugas dari "Briefing pembagian JOB" (dikirim 1x awal shift via bot Telegram).
+// Pencapaian dihitung live dgn mencocokkan laporan masuk ke `activities` (kegiatan kanonik).
+export const safetyPatrolJobTargets = pgTable("safety_patrol_job_targets", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),           // YYYY-MM-DD
+  shift: text("shift").notNull(),               // "Shift 1" | "Shift 2"
+  officerName: text("officer_name").notNull(),  // Nama kanonik petugas GECL
+  team: text("team"),                           // mis. "Team Alpha phase 1 dan 2"
+  lokasi: text("lokasi"),                        // standby lokasi
+  activities: text("activities").array().notNull().default(sql`ARRAY[]::text[]`),     // kegiatan KANONIK target
+  rawActivities: text("raw_activities").array().notNull().default(sql`ARRAY[]::text[]`), // teks asli briefing
+  sourceMessage: text("source_message"),        // pesan briefing mentah
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("sp_job_target_unique").on(table.officerName, table.tanggal, table.shift),
+]);
+export type SafetyPatrolJobTarget = typeof safetyPatrolJobTargets.$inferSelect;
+export type InsertSafetyPatrolJobTarget = typeof safetyPatrolJobTargets.$inferInsert;
+
 // ============================================
 // SIMANTIK / ZERO HARM — tabel data mentah import (iSafe / FMS)
 // Tiap tabel: kolom kunci utk query + raw jsonb (semua kolom asli) + sourceKey unik (dedup re-import)

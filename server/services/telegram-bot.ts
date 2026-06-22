@@ -13,6 +13,7 @@ import {
   analyzeReportContent,
 } from "../gemini-parser";
 import { storage } from "../storage";
+import { canonicalSafetyActivity } from "../lib/safety-activity";
 import { openRouterClient, AI_MODELS } from "../ai-config";
 import {
   getBotToken,
@@ -56,6 +57,86 @@ function resolveOfficers(text: string): string[] {
   return found.sort((a, b) => a.pos - b.pos).map((f) => f.name);
 }
 
+// Cocokkan satu nama (mis. "Renaldi") ke roster GECL → nama kanonik / null.
+function matchGeclOfficer(name: string): string | null {
+  const low = (name || "").toLowerCase();
+  for (const o of SP_OFFICERS) if (o.aliases.some((a) => low.includes(a))) return o.name;
+  return null;
+}
+
+// ---------- Briefing pembagian JOB → target per petugas ----------
+// Deteksi pesan briefing (bukan laporan biasa).
+function isJobBriefing(text: string): boolean {
+  const low = (text || "").toLowerCase();
+  if (/pembagian\s*job/.test(low)) return true;
+  return /briefing/.test(low) && /standby\s*lokasi/.test(low) && (low.match(/team/g) || []).length >= 1;
+}
+
+// Parse tanggal Indonesia "Sabtu 20 Juni 2026" / "20 Juni 2026" → YYYY-MM-DD.
+function parseIndoDate(text: string): string | null {
+  const m = /(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(text || "");
+  if (!m) return null;
+  const mi = BULAN.findIndex((b) => b.toLowerCase() === m[2].toLowerCase());
+  if (mi < 0) return null;
+  return `${m[3]}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
+}
+
+// Parse briefing → { tanggal, shift, teams:[{team, lokasi, gecl, activities[](kanonik), raw[]}] }
+function parseJobBriefing(text: string): { tanggal: string; shift: string; teams: Array<{ team: string; lokasi: string | null; gecl: string | null; activities: string[]; raw: string[] }> } {
+  const clean = (text || "").replace(/\*/g, ""); // buang penanda bold Telegram
+  const lines = clean.split(/\r?\n/);
+  const tanggal = parseIndoDate(clean) || todayStr();
+  const shiftM = /shift\s*(I{1,3}|\d)/i.exec(clean);
+  let shift = "Shift 1";
+  if (shiftM) { const t = shiftM[1].toUpperCase(); shift = (t === "II" || t === "2") ? "Shift 2" : "Shift 1"; }
+
+  // Pisah blok per "N. TEAM ..."
+  const idxs: number[] = [];
+  lines.forEach((ln, i) => { if (/^\s*\d+\.\s*team\b/i.test(ln)) idxs.push(i); });
+  const teams: Array<{ team: string; lokasi: string | null; gecl: string | null; activities: string[]; raw: string[] }> = [];
+  for (let k = 0; k < idxs.length; k++) {
+    const start = idxs[k], end = k + 1 < idxs.length ? idxs[k + 1] : lines.length;
+    const block = lines.slice(start, end);
+    const team = block[0].replace(/^\s*\d+\.\s*/, "").trim();
+    let lokasi: string | null = null, gecl: string | null = null;
+    const raw: string[] = [];
+    for (const ln of block) {
+      const lo = ln.toLowerCase();
+      const locM = /standby\s*lokasi\s*:\s*(.+)/i.exec(ln);
+      if (locM) lokasi = locM[1].trim();
+      const gm = /\bgecl\s*:\s*(.+)/i.exec(ln);
+      if (gm) gecl = matchGeclOfficer(gm[1].trim());
+      // baris kegiatan: diawali "- " atau "• "
+      const km = /^\s*[-•]\s*(.+)/.exec(ln);
+      if (km && !lo.includes("nama mitra") && !lo.includes("standby")) raw.push(km[1].trim());
+    }
+    const activities = Array.from(new Set(raw.map((r) => canonicalSafetyActivity(r)).filter(Boolean) as string[]));
+    teams.push({ team, lokasi, gecl, activities, raw });
+  }
+  return { tanggal, shift, teams };
+}
+
+// Tangani briefing: simpan target untuk tiap petugas GECL yang ada di tim.
+async function handleJobBriefing(chatId: string, text: string) {
+  const parsed = parseJobBriefing(text);
+  const saved: string[] = [];
+  for (const t of parsed.teams) {
+    if (!t.gecl || !t.activities.length) continue;
+    try {
+      await storage.upsertJobTarget({
+        tanggal: parsed.tanggal, shift: parsed.shift, officerName: t.gecl,
+        team: t.team, lokasi: t.lokasi, activities: t.activities, rawActivities: t.raw, sourceMessage: text,
+      });
+      saved.push(`${t.gecl} (${t.activities.length} kegiatan)`);
+    } catch (e: any) { console.error("[Telegram] upsert job target error:", e?.message || e); }
+  }
+  if (saved.length) {
+    await tgSendMessage(chatId, `✅ Briefing diterima — target ${parsed.shift}, ${parsed.tanggal}:\n${saved.map((s) => "• " + s).join("\n")}\n\nKegiatan akan ter-checklist otomatis dari laporan yang masuk.`);
+  } else {
+    await tgSendMessage(chatId, "📋 Briefing diterima, tapi tak ada petugas GECL (Renaldi/Jumaidi/Dimas) dengan kegiatan terdeteksi. Pastikan format 'GECL : <nama>' dan daftar 'Kegiatan' ada.");
+  }
+}
+
 // State percakapan "tanya-balik" (in-memory, cukup untuk ±5 user).
 interface Pending { rawText: string; photos: string[]; asked: number; }
 const pendingByChat = new Map<string, Pending>();
@@ -69,7 +150,11 @@ const WINDOW_MS = 60000; // 1 menit (batas selisih teks↔foto agar dianggap 1 l
 // Laporan terakhir yang disimpan per chat (untuk menempelkan foto yang datang menyusul).
 const lastReportByChat = new Map<string, { reportId: string; ts: number; photos: string[] }>();
 // Foto yang datang SEBELUM teks laporan (ditahan sebentar agar bisa digabung ke laporan berikutnya).
-const recentPhotosByChat = new Map<string, { urls: string[]; ts: number; timer: ReturnType<typeof setTimeout> | null }>();
+const recentPhotosByChat = new Map<string, { urls: string[]; ts: number; timer: ReturnType<typeof setTimeout> | null; asked?: boolean }>();
+// Foto tanpa teks: setelah jeda ini bot MENANYAKAN keterangan; bila tak dijawab sampai FALLBACK,
+// baru disimpan sebagai "(foto tanpa keterangan)".
+const PHOTO_ASK_AFTER_MS = 8000;      // 8 dtk: beri waktu album terkumpul sebelum bertanya
+const PHOTO_FALLBACK_MS = 600000;     // 10 mnt: batas tunggu jawaban keterangan
 
 // ---------- User mapping ----------
 async function upsertUser(chatId: string, username?: string, firstName?: string) {
@@ -141,7 +226,9 @@ async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos
 function drainRecentPhotos(chatId: string): string[] {
   const buf = recentPhotosByChat.get(chatId);
   if (!buf) return [];
-  if (Date.now() - buf.ts > WINDOW_MS) { recentPhotosByChat.delete(chatId); return []; }
+  // Buffer yang sudah ditanyakan (asked) ditunggu lebih lama (sampai jawaban keterangan masuk).
+  const maxAge = buf.asked ? PHOTO_FALLBACK_MS : WINDOW_MS;
+  if (Date.now() - buf.ts > maxAge) { recentPhotosByChat.delete(chatId); return []; }
   if (buf.timer) clearTimeout(buf.timer);
   recentPhotosByChat.delete(chatId);
   return buf.urls;
@@ -162,18 +249,34 @@ async function attachOrBufferPhotos(chatId: string, user: any, urls: string[]) {
     return;
   }
   // Belum ada laporan → buffer; akan digabung ke teks yang menyusul (drainRecentPhotos di saveReport).
-  const buf = recentPhotosByChat.get(chatId) || { urls: [], ts: Date.now(), timer: null };
+  const buf = recentPhotosByChat.get(chatId) || { urls: [], ts: Date.now(), timer: null, asked: false };
   buf.urls.push(...urls);
   buf.ts = Date.now();
   if (buf.timer) clearTimeout(buf.timer);
+  // Tahap 1 (≈8 dtk, biar album terkumpul): bila masih belum ada teks → bot TANYA keterangan.
   buf.timer = setTimeout(async () => {
     const cur = recentPhotosByChat.get(chatId);
-    recentPhotosByChat.delete(chatId);
-    if (cur && cur.urls.length) {
-      try { await saveReport(chatId, user, "(foto tanpa keterangan)", cur.urls); }
-      catch (e: any) { console.error("[Telegram] foto-only save error:", e?.message || e); }
+    if (!cur || !cur.urls.length) return;
+    if (!cur.asked) {
+      cur.asked = true;
+      cur.ts = Date.now();
+      try {
+        await tgSendMessage(chatId,
+          "📷 Foto diterima. Mohon kirim *keterangan kegiatannya* (tanggal, shift, lokasi, temuan) supaya laporan lengkap ya 🙏");
+      } catch (e: any) { console.error("[Telegram] ask-caption error:", e?.message || e); }
+      // Tahap 2 (fallback 10 mnt): bila tetap tak ada teks → simpan tanpa keterangan (data tak hilang).
+      if (cur.timer) clearTimeout(cur.timer);
+      cur.timer = setTimeout(async () => {
+        const c2 = recentPhotosByChat.get(chatId);
+        recentPhotosByChat.delete(chatId);
+        if (c2 && c2.urls.length) {
+          try { await saveReport(chatId, user, "(foto tanpa keterangan)", c2.urls); }
+          catch (e: any) { console.error("[Telegram] foto-only save error:", e?.message || e); }
+        }
+      }, PHOTO_FALLBACK_MS);
+      recentPhotosByChat.set(chatId, cur);
     }
-  }, 30000);
+  }, PHOTO_ASK_AFTER_MS);
   recentPhotosByChat.set(chatId, buf);
 }
 
@@ -316,6 +419,13 @@ async function processUpdate(update: any) {
     return;
   }
 
+  // Briefing pembagian JOB (dikirim 1x awal shift) → simpan target, BUKAN laporan.
+  if (text && isJobBriefing(text)) {
+    try { await handleJobBriefing(chatId, text); }
+    catch (e: any) { console.error("[Telegram] job briefing error:", e?.message || e); await tgSendMessage(chatId, "Maaf, gagal memproses briefing. Coba kirim ulang."); }
+    return;
+  }
+
   // Foto / lampiran (foto, video, dokumen)
   let photoUrls: string[] = [];
   if (msg.photo && msg.photo.length) {
@@ -365,7 +475,11 @@ async function processUpdate(update: any) {
 
   // Teks laporan
   if (text && text.length > 3) {
-    if (isLikelyPatrolReport(text)) {
+    // Petugas sedang MENJAWAB pertanyaan keterangan untuk foto yang ditahan → perlakukan sebagai laporan
+    // (foto buffer akan ikut tergabung via drainRecentPhotos di saveReport), walau teks pendek/tak baku.
+    const photoBuf = recentPhotosByChat.get(chatId);
+    const awaitingCaption = !!(photoBuf && photoBuf.asked && photoBuf.urls.length);
+    if (awaitingCaption || isLikelyPatrolReport(text)) {
       await handleReportText(chatId, user, text, photoUrls);
     } else {
       const r = await hermes(SYS_BOT, `Pelaksana menulis: "${text}". Ini bukan laporan patrol. Balas ramah & arahkan untuk mengirim laporan patrol (sebut contoh field: tanggal, kegiatan, shift, lokasi, temuan).`,

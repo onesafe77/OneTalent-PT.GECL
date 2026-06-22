@@ -25,6 +25,8 @@ import {
   Search,
   Filter,
   BarChart2,
+  Loader2,
+  ClipboardList,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import SafetyPatrolTemplates from "@/components/safety-patrol-templates";
@@ -308,7 +310,15 @@ export default function SafetyPatrol() {
               <BookOpen className="h-4 w-4" />
               Knowledge Templates
             </TabsTrigger>
+            <TabsTrigger value="job" className="flex items-center gap-2 data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+              <CheckCircle className="h-4 w-4" />
+              Pencapaian Job
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="job" className="mt-5">
+            <JobAchievementTab />
+          </TabsContent>
 
           <TabsContent value="reports" className="mt-5 space-y-5">
 
@@ -740,6 +750,116 @@ export default function SafetyPatrol() {
           </TabsContent>
         </Tabs>
       </div>
+    </div>
+  );
+}
+
+// ── Tab Pencapaian Job: target dari briefing vs laporan (checklist per petugas GECL) ──
+function JobAchievementTab() {
+  const today = new Date().toISOString().split("T")[0];
+  const [date, setDate] = useState(today);
+  const [shift, setShift] = useState("all");
+
+  const { data, isLoading, refetch } = useQuery<any>({
+    queryKey: ["/api/safety-patrol/job-achievement", date, shift],
+    queryFn: async () => {
+      const q = new URLSearchParams({ date });
+      if (shift !== "all") q.append("shift", shift);
+      const res = await fetch(`/api/safety-patrol/job-achievement?${q.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error("gagal");
+      return res.json();
+    },
+    refetchInterval: 60000,
+  });
+
+  const officers: any[] = data?.officers || [];
+
+  return (
+    <div className="space-y-4">
+      <Card className="border">
+        <CardContent className="p-4 flex flex-wrap items-end gap-4">
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Tanggal</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+              className="border rounded-lg px-3 h-10 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 block mb-1">Shift</label>
+            <select value={shift} onChange={(e) => setShift(e.target.value)}
+              className="border rounded-lg px-3 h-10 text-sm bg-white">
+              <option value="all">Semua Shift</option>
+              <option value="Shift 1">Shift 1</option>
+              <option value="Shift 2">Shift 2</option>
+            </select>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="h-10">
+            <RefreshCw className="h-4 w-4 mr-2" /> Refresh
+          </Button>
+          <p className="text-xs text-gray-400 ml-auto">Target diisi dari briefing pembagian job di bot Telegram. Tercentang otomatis dari laporan masuk.</p>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div>
+      ) : officers.length === 0 ? (
+        <Card className="border"><CardContent className="py-12 text-center text-gray-500">
+          <ClipboardList className="h-10 w-10 mx-auto mb-3 text-gray-300" />
+          Belum ada target job untuk tanggal/shift ini.<br />
+          <span className="text-xs text-gray-400">Kirim "Briefing pembagian JOB" ke bot Telegram di awal shift.</span>
+        </CardContent></Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {officers.map((o: any) => (
+            <Card key={`${o.officerName}-${o.shift}`} className="border">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="font-bold text-gray-900">{o.officerName}</div>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${o.pct >= 80 ? "bg-green-100 text-green-700" : o.pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700"}`}>
+                    {o.done}/{o.total} · {o.pct}%
+                  </span>
+                </div>
+                <div className="text-[11px] text-gray-500 mb-3">{o.team || "-"} · {o.shift} · {o.lokasi || "-"}</div>
+                <div className="h-1.5 w-full bg-gray-100 rounded-full mb-3 overflow-hidden">
+                  <div className={`h-full ${o.pct >= 80 ? "bg-green-500" : o.pct >= 50 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${o.pct}%` }} />
+                </div>
+                <ul className="space-y-2">
+                  {o.items.map((it: any, idx: number) => (
+                    <li key={idx} className="text-sm">
+                      <div className="flex items-center gap-2">
+                        {it.achieved
+                          ? <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+                          : <span className="h-4 w-4 rounded-full border-2 border-gray-300 flex-shrink-0" />}
+                        <span className={it.achieved ? "text-gray-800 font-medium" : "text-gray-400"}>{it.activity}</span>
+                      </div>
+                      {it.achieved && it.report && (
+                        <div className="ml-6 mt-1 text-[11px] text-gray-500 space-y-1">
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                            {it.report.waktu && <span>⏰ {it.report.waktu}</span>}
+                            {it.report.lokasi && <span>📍 {it.report.lokasi}</span>}
+                          </div>
+                          {it.report.temuan && (
+                            <div className="text-gray-600 line-clamp-2">📝 {it.report.temuan}</div>
+                          )}
+                          {Array.isArray(it.report.photos) && it.report.photos.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {it.report.photos.slice(0, 4).map((p: string, pi: number) => (
+                                <PhotoThumbnail key={pi} photo={p} index={pi} className="h-10 w-10 rounded border border-gray-200 object-cover" />
+                              ))}
+                              {it.report.photos.length > 4 && (
+                                <span className="text-[10px] text-gray-400 self-center">+{it.report.photos.length - 4}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -171,6 +171,7 @@ import { db } from "./db";
 import { PushNotificationService } from "./push-notification";
 import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition } from "@shared/rbac";
 import { inductionAiService } from "./services/induction-ai-service";
+import { canonicalSafetyActivity as canonicalActivityLib } from "./lib/safety-activity";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -13473,18 +13474,75 @@ Format sebagai bullet points singkat per insight.`;
         reports = await storage.getAllSafetyPatrolReports();
       }
 
-      // Get attendance for each report
-      const reportsWithAttendance = await Promise.all(
-        reports.map(async (report) => {
-          const attendance = await storage.getSafetyPatrolAttendanceByReport(report.id);
-          return { ...report, attendance };
-        })
-      );
+      // Ambil SEMUA attendance dalam 1 query (hindari N+1), lalu kelompokkan per report.
+      const ids = reports.map((r: any) => r.id);
+      const allAttendance = await storage.getSafetyPatrolAttendanceByReportIds(ids);
+      const byReport = new Map<string, any[]>();
+      for (const a of allAttendance) {
+        const arr = byReport.get(a.reportId) || [];
+        arr.push(a);
+        byReport.set(a.reportId, arr);
+      }
+      const reportsWithAttendance = reports.map((report: any) => {
+        const { parsedData, ...rest } = report; // buang jsonb redundan (tak dipakai di daftar)
+        return { ...rest, attendance: byReport.get(report.id) || [] };
+      });
 
       res.json(reportsWithAttendance);
     } catch (error) {
       console.error("Error fetching safety patrol reports:", error);
       res.status(500).json({ message: "Gagal mengambil data laporan Safety Patrol" });
+    }
+  });
+
+  // Pencapaian Job Harian: target dari briefing vs laporan masuk (checklist per petugas GECL).
+  app.get("/api/safety-patrol/job-achievement", async (req, res) => {
+    try {
+      const date = String(req.query.date || "");
+      const shift = req.query.shift ? String(req.query.shift) : undefined;
+      if (!date) return res.status(400).json({ ok: false, error: "date wajib (YYYY-MM-DD)" });
+
+      const targets = await storage.getJobTargets(date, shift);
+      const reports = await storage.getSafetyPatrolReportsByDateRange(date, date);
+
+      const result = targets.map((t: any) => {
+        // laporan petugas ini di tanggal (+shift bila ada)
+        const officerReports = reports.filter((r: any) => {
+          const nm = (r.namaPelaksana || "").toLowerCase();
+          if (!nm.includes(String(t.officerName).toLowerCase())) return false;
+          if (t.shift && r.shift && String(r.shift) !== String(t.shift)) return false;
+          return true;
+        });
+        const achievedSet = new Set(
+          officerReports.map((r: any) => canonicalActivityLib(r.kegiatan)).filter(Boolean) as string[]
+        );
+        const items = (t.activities || []).map((act: string) => {
+          const reportFor = officerReports.find((r: any) => canonicalActivityLib(r.kegiatan) === act);
+          return {
+            activity: act,
+            achieved: achievedSet.has(act),
+            reportId: reportFor?.id || null,
+            report: reportFor ? {
+              id: reportFor.id,
+              waktu: reportFor.waktuPelaksanaan || null,
+              lokasi: reportFor.lokasi || null,
+              temuan: reportFor.temuan || null,
+              photos: (reportFor.buktiKegiatan || reportFor.photos || []) as string[],
+            } : null,
+          };
+        });
+        const done = items.filter((i: any) => i.achieved).length;
+        const total = items.length;
+        return {
+          officerName: t.officerName, team: t.team, lokasi: t.lokasi, shift: t.shift,
+          items, done, total, pct: total ? Math.round((done / total) * 100) : 0,
+        };
+      });
+
+      res.json({ ok: true, date, shift: shift || null, officers: result });
+    } catch (e: any) {
+      console.error("Error job-achievement:", e?.message || e);
+      res.status(500).json({ ok: false, error: e?.message || "gagal" });
     }
   });
 

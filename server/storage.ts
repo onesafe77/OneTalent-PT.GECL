@@ -62,6 +62,7 @@ import {
   type SafetyPatrolReport,
   type InsertSafetyPatrolReport,
   safetyPatrolAttendancePlan,
+  safetyPatrolJobTargets,
   type SafetyPatrolAttendancePlan,
   type InsertSafetyPatrolAttendancePlan,
   zhHazard, zhInspeksi, zhObservasi, zhAttendance, zhFms, zhOpk, zhProgramAttendance,
@@ -4262,6 +4263,30 @@ export class DrizzleStorage implements IStorage {
     }
   }
 
+  // ---- Target Job dari Briefing (pencapaian per petugas) ----
+  async upsertJobTarget(row: {
+    tanggal: string; shift: string; officerName: string; team?: string | null;
+    lokasi?: string | null; activities: string[]; rawActivities: string[]; sourceMessage?: string | null;
+  }): Promise<void> {
+    await this.db
+      .insert(safetyPatrolJobTargets)
+      .values(row as any)
+      .onConflictDoUpdate({
+        target: [safetyPatrolJobTargets.officerName, safetyPatrolJobTargets.tanggal, safetyPatrolJobTargets.shift],
+        set: {
+          team: row.team ?? null, lokasi: row.lokasi ?? null,
+          activities: row.activities, rawActivities: row.rawActivities,
+          sourceMessage: row.sourceMessage ?? null, updatedAt: new Date(),
+        },
+      });
+  }
+
+  async getJobTargets(tanggal: string, shift?: string): Promise<any[]> {
+    const conds = [eq(safetyPatrolJobTargets.tanggal, tanggal)];
+    if (shift) conds.push(eq(safetyPatrolJobTargets.shift, shift));
+    return await this.db.select().from(safetyPatrolJobTargets).where(and(...conds));
+  }
+
   // ---- Zero Harm (SIMANTIK) import ----
   private zhTable(sheet: string): any {
     return ({ hazard: zhHazard, inspeksi: zhInspeksi, observasi: zhObservasi, opk: zhOpk, attendance: zhAttendance, fms: zhFms } as any)[sheet];
@@ -4418,6 +4443,15 @@ export class DrizzleStorage implements IStorage {
       .select()
       .from(safetyPatrolAttendance)
       .where(eq(safetyPatrolAttendance.reportId, reportId));
+  }
+
+  // Bulk: ambil attendance utk banyak report sekaligus (hindari N+1 di daftar laporan).
+  async getSafetyPatrolAttendanceByReportIds(reportIds: string[]): Promise<SafetyPatrolAttendance[]> {
+    if (!reportIds.length) return [];
+    return await this.db
+      .select()
+      .from(safetyPatrolAttendance)
+      .where(inArray(safetyPatrolAttendance.reportId, reportIds));
   }
 
   async createSafetyPatrolAttendance(attendance: InsertSafetyPatrolAttendance): Promise<SafetyPatrolAttendance> {
