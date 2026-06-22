@@ -128,11 +128,13 @@ async function handleJobBriefing(chatId: string, text: string) {
         team: t.team, lokasi: t.lokasi, activities: t.activities, rawActivities: t.raw,
         sourceMessage: text, sourceChatId: chatId,
       });
-      saved.push(`${t.gecl} (${t.activities.length} kegiatan)`);
+      // Blok per petugas + DAFTAR kegiatan yang harus dikumpulkan
+      const header = `*${t.gecl}*${t.team ? " — " + t.team : ""}${t.lokasi ? " (" + t.lokasi + ")" : ""} · ${t.activities.length} kegiatan`;
+      saved.push(`${header}\n${t.activities.map((a) => "   ☐ " + a).join("\n")}`);
     } catch (e: any) { console.error("[Telegram] upsert job target error:", e?.message || e); }
   }
   if (saved.length) {
-    await tgSendMessage(chatId, `✅ Briefing diterima — target ${parsed.shift}, ${parsed.tanggal}:\n${saved.map((s) => "• " + s).join("\n")}\n\nKegiatan akan ter-checklist otomatis dari laporan yang masuk.`);
+    await tgSendMessage(chatId, `✅ Briefing diterima — target ${parsed.shift}, ${parsed.tanggal}:\n\n${saved.join("\n\n")}\n\nKegiatan di atas akan ter-checklist otomatis dari laporan yang masuk. Ketik /progress kapan saja untuk cek sisa.`);
   } else {
     await tgSendMessage(chatId, "📋 Briefing diterima, tapi tak ada petugas GECL (Renaldi/Jumaidi/Dimas) dengan kegiatan terdeteksi. Pastikan format 'GECL : <nama>' dan daftar 'Kegiatan' ada.");
   }
