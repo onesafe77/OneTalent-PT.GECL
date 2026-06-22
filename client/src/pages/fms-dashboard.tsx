@@ -80,10 +80,13 @@ export default function FmsDashboard() {
         finally { setTokenBusy(false); }
     };
     const scrapeNow = async () => {
+        // Tarik SEMUA data untuk rentang tanggal yang dipilih (hari-per-hari), bukan cuma 3 jam.
+        const startDate = dateTimeRange.start.split("T")[0];
+        const endDate = dateTimeRange.end.split("T")[0];
         setTokenBusy(true);
         try {
-            const r = await apiRequest("/api/fms/scrape-now", "POST", { hoursBack: 3 });
-            toast({ title: "Tarik selesai", description: `Fetched ${r?.fetched ?? 0}, tersimpan ${r?.upserted ?? 0}` });
+            const r = await apiRequest("/api/fms/scrape-now", "POST", { startDate, endDate });
+            toast({ title: "Tarik selesai", description: `${startDate} s/d ${endDate} · ditarik ${r?.fetched ?? 0}, tersimpan ${r?.upserted ?? 0} (baru ${r?.inserted ?? 0})` });
             queryClient.invalidateQueries({ queryKey: ["fms-analytics"] });
         } catch (e: any) { toast({ title: "Gagal tarik", description: e?.message || "Cek token", variant: "destructive" }); }
         finally { setTokenBusy(false); }
@@ -253,7 +256,7 @@ export default function FmsDashboard() {
                                             className="w-full border rounded-lg p-2 text-xs font-mono" />
                                         <div className="flex gap-2">
                                             <Button onClick={saveToken} disabled={tokenBusy || !tokenInput.trim()} style={{ background: "#0e7490" }} className="text-white">Simpan Token</Button>
-                                            <Button onClick={scrapeNow} disabled={tokenBusy} variant="outline">Tarik Sekarang</Button>
+                                            <Button onClick={scrapeNow} disabled={tokenBusy} variant="outline" title="Tarik semua data untuk rentang tanggal yang dipilih di atas">{tokenBusy ? "Menarik…" : "Tarik Rentang Ini"}</Button>
                                         </div>
                                         <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
                                             <div className="font-semibold text-slate-700 text-xs">📥 Lengkapi Data Lama (alarm Level-2)</div>

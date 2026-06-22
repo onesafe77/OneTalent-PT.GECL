@@ -17074,8 +17074,23 @@ Format sebagai bullet points singkat per insight.`;
   // Manual trigger FMS auto-pull dari FAMOUS (read-only). Untuk uji.
   app.post("/api/fms/scrape-now", async (req, res) => {
     try {
+      const { startDate, endDate, startTime, endTime } = req.body || {};
+      const { runFmsScrape, runFmsScrapeRange } = await import("./services/fms-scraper");
+      // Mode rentang tanggal (tarik data historis untuk tanggal terpilih)
+      if (startDate && endDate) {
+        const from = new Date(`${startDate}T${startTime || "00:00"}:00`);
+        const to = new Date(`${endDate}T${endTime || "23:59"}:59`);
+        if (isNaN(from.getTime()) || isNaN(to.getTime()) || from > to) {
+          return res.status(400).json({ ok: false, error: "Rentang tanggal tidak valid" });
+        }
+        if ((to.getTime() - from.getTime()) / 86400000 > 62) {
+          return res.status(400).json({ ok: false, error: "Rentang terlalu lebar (maks ~60 hari per tarik)" });
+        }
+        const result = await runFmsScrapeRange({ from, to });
+        return res.json({ ok: true, ...result });
+      }
+      // Mode lama: tarik beberapa jam terakhir
       const hoursBack = Number((req.query.hoursBack ?? req.body?.hoursBack) || 3);
-      const { runFmsScrape } = await import("./services/fms-scraper");
       const result = await runFmsScrape({ hoursBack });
       res.json({ ok: true, ...result });
     } catch (error: any) {

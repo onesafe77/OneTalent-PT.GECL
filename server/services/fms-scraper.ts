@@ -212,6 +212,25 @@ export async function runFmsScrape(opts?: { hoursBack?: number; daysBack?: numbe
   return { fetched, upserted, inserted };
 }
 
+/** Tarik SEMUA alarm (Level 1+2) untuk rentang tanggal [from,to], HARI-PER-HARI agar tiap hari
+ *  tuntas di bawah page-guard. Idempoten (upsert by dedupe_key). Untuk tarik data historis. */
+export async function runFmsScrapeRange(opts: { from: Date; to: Date }): Promise<{ fetched: number; upserted: number; inserted: number; days: number }> {
+  const { from, to } = opts;
+  let fetched = 0, upserted = 0, inserted = 0, days = 0;
+  // mulai dari hari 'from' (00:00) sampai 'to'
+  const cur = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0);
+  const end = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59);
+  while (cur <= end) {
+    const dayStart = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 0, 0, 0);
+    const dayEnd = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 23, 59, 59);
+    const r = await runFmsScrape({ from: dayStart, to: dayEnd, silent: true });
+    fetched += r.fetched; upserted += r.upserted; inserted += r.inserted; days++;
+    cur.setDate(cur.getDate() + 1);
+  }
+  console.log(`[fms-scrape-range] ${fmt(from)}–${fmt(to)} (${days} hari): fetched=${fetched} upserted=${upserted} new=${inserted}`);
+  return { fetched, upserted, inserted, days };
+}
+
 /** Tarik ULANG N hari terakhir agar status validasi (aksi manusia yang terjadi belakangan)
  *  ter-refresh di DB. Idempoten: upsert by dedupe_key — hanya meng-update field validasi/level/dll,
  *  tidak menggandakan baris. Default 14 hari. */
