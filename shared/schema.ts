@@ -1250,6 +1250,7 @@ export const safetyPatrolJobTargets = pgTable("safety_patrol_job_targets", {
   activities: text("activities").array().notNull().default(sql`ARRAY[]::text[]`),     // kegiatan KANONIK target
   rawActivities: text("raw_activities").array().notNull().default(sql`ARRAY[]::text[]`), // teks asli briefing
   sourceMessage: text("source_message"),        // pesan briefing mentah
+  sourceChatId: text("source_chat_id"),         // chat Telegram asal briefing (utk pengingat akhir shift)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

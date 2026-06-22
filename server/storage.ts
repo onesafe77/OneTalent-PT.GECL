@@ -4266,7 +4266,8 @@ export class DrizzleStorage implements IStorage {
   // ---- Target Job dari Briefing (pencapaian per petugas) ----
   async upsertJobTarget(row: {
     tanggal: string; shift: string; officerName: string; team?: string | null;
-    lokasi?: string | null; activities: string[]; rawActivities: string[]; sourceMessage?: string | null;
+    lokasi?: string | null; activities: string[]; rawActivities: string[];
+    sourceMessage?: string | null; sourceChatId?: string | null;
   }): Promise<void> {
     await this.db
       .insert(safetyPatrolJobTargets)
@@ -4276,7 +4277,7 @@ export class DrizzleStorage implements IStorage {
         set: {
           team: row.team ?? null, lokasi: row.lokasi ?? null,
           activities: row.activities, rawActivities: row.rawActivities,
-          sourceMessage: row.sourceMessage ?? null, updatedAt: new Date(),
+          sourceMessage: row.sourceMessage ?? null, sourceChatId: row.sourceChatId ?? null, updatedAt: new Date(),
         },
       });
   }

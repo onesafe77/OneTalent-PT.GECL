@@ -125,7 +125,8 @@ async function handleJobBriefing(chatId: string, text: string) {
     try {
       await storage.upsertJobTarget({
         tanggal: parsed.tanggal, shift: parsed.shift, officerName: t.gecl,
-        team: t.team, lokasi: t.lokasi, activities: t.activities, rawActivities: t.raw, sourceMessage: text,
+        team: t.team, lokasi: t.lokasi, activities: t.activities, rawActivities: t.raw,
+        sourceMessage: text, sourceChatId: chatId,
       });
       saved.push(`${t.gecl} (${t.activities.length} kegiatan)`);
     } catch (e: any) { console.error("[Telegram] upsert job target error:", e?.message || e); }
@@ -280,6 +281,66 @@ async function attachOrBufferPhotos(chatId: string, user: any, urls: string[]) {
   recentPhotosByChat.set(chatId, buf);
 }
 
+// ---------- Feedback target job (kegiatan yang kurang) ----------
+// Hitung progres petugas terhadap target briefing utk tanggal (+shift bila ada).
+async function computeJobProgress(officerName: string, tanggal: string, shift?: string):
+  Promise<{ team: string | null; shift: string; total: number; done: number; doneList: string[]; pending: string[] } | null> {
+  const targets = await storage.getJobTargets(tanggal, shift);
+  const t = targets.find((x: any) => String(x.officerName).toLowerCase() === officerName.toLowerCase());
+  if (!t || !(t.activities || []).length) return null;
+  const reports = await storage.getSafetyPatrolReportsByDateRange(tanggal, tanggal);
+  const achieved = new Set(
+    reports
+      .filter((r: any) => (r.namaPelaksana || "").toLowerCase().includes(officerName.toLowerCase())
+        && (!t.shift || !r.shift || String(r.shift) === String(t.shift)))
+      .map((r: any) => canonicalSafetyActivity(r.kegiatan))
+      .filter(Boolean) as string[]
+  );
+  const doneList = (t.activities as string[]).filter((a) => achieved.has(a));
+  const pending = (t.activities as string[]).filter((a) => !achieved.has(a));
+  return { team: t.team, shift: t.shift, total: t.activities.length, done: doneList.length, doneList, pending };
+}
+
+// Rangkai pesan feedback (AI ramah + daftar sisa kegiatan). Fallback teks ringkas bila AI gagal.
+async function jobFeedbackText(officerName: string, p: { team: string | null; shift: string; total: number; done: number; pending: string[] }): Promise<string> {
+  const pendingStr = p.pending.length ? p.pending.map((x) => "• " + x).join("\n") : "(semua selesai 🎉)";
+  const fallback = `📋 Progres ${officerName} (${p.shift}): ${p.done}/${p.total} kegiatan selesai.\n` +
+    (p.pending.length ? `Belum dikumpulkan:\n${pendingStr}\n\nSemangat, dilengkapi ya 🙏` : `Mantap, semua target tercapai! 🎉`);
+  return hermes(
+    SYS_BOT,
+    `Beri feedback singkat & memotivasi untuk petugas ${officerName}. Progres target shift: ${p.done} dari ${p.total} selesai. ` +
+    (p.pending.length ? `Kegiatan yang BELUM dikumpulkan: ${p.pending.join(", ")}. Sebutkan daftar sisa kegiatan itu dengan jelas (boleh pakai bullet) dan ajak melengkapi.` : `Semua sudah selesai, beri apresiasi.`),
+    fallback
+  );
+}
+
+// Pengingat akhir shift: kirim ringkasan sisa kegiatan ke chat asal briefing (per source_chat_id).
+export async function runJobReminders(): Promise<{ chats: number; sent: number }> {
+  const tgl = todayStr();
+  const targets = await storage.getJobTargets(tgl);
+  const byChat = new Map<string, any[]>();
+  for (const t of targets) {
+    if (!t.sourceChatId) continue;
+    const arr = byChat.get(t.sourceChatId) || []; arr.push(t); byChat.set(t.sourceChatId, arr);
+  }
+  let sent = 0;
+  for (const [chatId, list] of Array.from(byChat.entries())) {
+    const lines: string[] = [];
+    for (const t of list) {
+      const prog = await computeJobProgress(t.officerName, tgl, t.shift);
+      if (prog && prog.pending.length) {
+        lines.push(`*${t.officerName}* (${t.shift}) — ${prog.done}/${prog.total}\nBelum: ${prog.pending.join(", ")}`);
+      }
+    }
+    if (lines.length) {
+      try { await tgSendMessage(chatId, `🔔 Pengingat akhir shift (${tgl}) — kegiatan yang masih kurang:\n\n${lines.join("\n\n")}\n\nMohon dilengkapi sebelum shift berakhir 🙏`); sent++; }
+      catch (e: any) { console.warn("[Telegram] job reminder error:", e?.message || e); }
+    }
+  }
+  console.log(`[job-reminder] ${tgl}: ${byChat.size} chat, ${sent} pengingat terkirim`);
+  return { chats: byChat.size, sent };
+}
+
 // ---------- Simpan laporan ----------
 async function saveReport(chatId: string, user: any, text: string, photos: string[]) {
   const parsed: any = await parseReportWithGemini(text);
@@ -348,6 +409,16 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
   }
 
   await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed, allPhotos.length > 0);
+
+  // Feedback target job: bila petugas punya target hari ini → kirim progres + sisa kegiatan.
+  try {
+    const officer = officers[0] || namaPelaksana;
+    if (officer) {
+      const prog = await computeJobProgress(officer, reportDate, parsed.shift || undefined);
+      if (prog) await tgSendMessage(chatId, await jobFeedbackText(officer, prog));
+    }
+  } catch (e: any) { console.warn("[Telegram] job feedback error:", e?.message || e); }
+
   return report;
 }
 
@@ -409,7 +480,19 @@ async function processUpdate(update: any) {
     return;
   }
   if (text.startsWith("/help")) {
-    await tgSendMessage(chatId, "Kirim teks laporan patrol (boleh + foto). Bot akan merangkum & menyimpan. Bila ada data kurang, saya akan menanyakannya. Ubah nama: /nama <nama>.");
+    await tgSendMessage(chatId, "Kirim teks laporan patrol (boleh + foto). Bot akan merangkum & menyimpan. Bila ada data kurang, saya akan menanyakannya.\n\nPerintah: /nama <nama> · /progress (cek sisa kegiatan target hari ini).");
+    return;
+  }
+  if (text.startsWith("/progress")) {
+    const officer = matchGeclOfficer(user.namaPelaksana || from.first_name || "");
+    if (!officer) { await tgSendMessage(chatId, "Belum bisa kenali nama petugas. Set dulu: /nama <nama Anda> (mis. /nama Renaldi)."); return; }
+    const tgl = todayStr();
+    const todayTargets = (await storage.getJobTargets(tgl)).filter((t: any) => String(t.officerName).toLowerCase() === officer.toLowerCase());
+    if (!todayTargets.length) { await tgSendMessage(chatId, `Belum ada target job untuk ${officer} hari ini (${tgl}). Pastikan briefing sudah dikirim.`); return; }
+    for (const t of todayTargets) {
+      const prog = await computeJobProgress(officer, tgl, t.shift);
+      if (prog) await tgSendMessage(chatId, await jobFeedbackText(officer, prog));
+    }
     return;
   }
   if (text.startsWith("/nama")) {

@@ -283,4 +283,18 @@ export function initializeCronJobs() {
   }, {
     timezone: "Asia/Makassar"
   });
+
+  // Pengingat akhir shift Safety Patrol — 15:00 WITA: kirim sisa kegiatan target ke chat briefing.
+  cron.schedule('0 15 * * *', async () => {
+    console.log('[SafetyPatrol] Running job reminders...');
+    try {
+      const { runJobReminders } = await import('./services/telegram-bot');
+      const r = await runJobReminders();
+      console.log(`[SafetyPatrol] job reminders: ${r.sent} terkirim ke ${r.chats} chat`);
+    } catch (error) {
+      console.error('❌ Error in Safety Patrol job reminder:', error);
+    }
+  }, {
+    timezone: "Asia/Makassar"
+  });
 }
