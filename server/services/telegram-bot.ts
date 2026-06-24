@@ -13,7 +13,7 @@ import {
   analyzeReportContent,
 } from "../gemini-parser";
 import { storage } from "../storage";
-import { canonicalSafetyActivity } from "../lib/safety-activity";
+import { canonicalSafetyActivity, canonicalReportActivity } from "../lib/safety-activity";
 import { openRouterClient, AI_MODELS } from "../ai-config";
 import {
   getBotToken,
@@ -293,9 +293,8 @@ async function computeJobProgress(officerName: string, tanggal: string, shift?: 
   const reports = await storage.getSafetyPatrolReportsByDateRange(tanggal, tanggal);
   const achieved = new Set(
     reports
-      .filter((r: any) => (r.namaPelaksana || "").toLowerCase().includes(officerName.toLowerCase())
-        && (!t.shift || !r.shift || String(r.shift) === String(t.shift)))
-      .map((r: any) => canonicalSafetyActivity(r.kegiatan))
+      .filter((r: any) => (r.namaPelaksana || "").toLowerCase().includes(officerName.toLowerCase()))
+      .map((r: any) => canonicalReportActivity(r))
       .filter(Boolean) as string[]
   );
   const doneList = (t.activities as string[]).filter((a) => achieved.has(a));

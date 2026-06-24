@@ -34,7 +34,20 @@ export function canonicalSafetyActivity(raw: string | null | undefined): string 
   if (s.includes("kelengkapan")) return "Sidak kelengkapan";
   if (s.includes("jarak") || s.includes("beriringan")) return "Jarak aman beriringan";
   if (s.includes("asses") || s.includes("assess")) return "Assesment (Conditional)";
-  if (s.includes("issue") || s.includes("kritikal") || s.includes("kritis")) return "Issue Kritikal";
-  if (s.includes("jalan")) return "Inspeksi Jalan";
+  if (s.includes("issue") || s.includes("kritikal") || s.includes("kritis") || s.includes("hazard")) return "Issue Kritikal";
+  if (s.includes("give way")) return "Observasi rambu";
+  if (s.includes("jalan") || s.includes("hauling") || s.includes("haul road")) return "Inspeksi Jalan";
   return null;
+}
+
+// Aktivitas kanonik dari sebuah laporan: utamakan `kegiatan`, lalu jenis laporan, lalu temuan.
+// Dipakai pencocokan Pencapaian Job agar laporan dgn judul generik tetap terdeteksi.
+export function canonicalReportActivity(r: {
+  kegiatan?: string | null; jenisLaporan?: string | null; temuan?: string | null;
+} | null | undefined): string | null {
+  if (!r) return null;
+  return canonicalSafetyActivity(r.kegiatan)
+    || canonicalSafetyActivity(r.jenisLaporan)
+    || canonicalSafetyActivity(r.temuan)
+    || null;
 }

@@ -171,7 +171,7 @@ import { db } from "./db";
 import { PushNotificationService } from "./push-notification";
 import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition } from "@shared/rbac";
 import { inductionAiService } from "./services/induction-ai-service";
-import { canonicalSafetyActivity as canonicalActivityLib } from "./lib/safety-activity";
+import { canonicalSafetyActivity as canonicalActivityLib, canonicalReportActivity } from "./lib/safety-activity";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -13582,17 +13582,17 @@ Format sebagai bullet points singkat per insight.`;
 
       const result = targets.map((t: any) => {
         // laporan petugas ini di tanggal (+shift bila ada)
+        // Cocokkan per petugas + tanggal. Shift sengaja TIDAK dijadikan filter:
+        // shift hasil AI sering tak konsisten (mis. target Shift 1 vs laporan Shift 2).
         const officerReports = reports.filter((r: any) => {
           const nm = (r.namaPelaksana || "").toLowerCase();
-          if (!nm.includes(String(t.officerName).toLowerCase())) return false;
-          if (t.shift && r.shift && String(r.shift) !== String(t.shift)) return false;
-          return true;
+          return nm.includes(String(t.officerName).toLowerCase());
         });
         const achievedSet = new Set(
-          officerReports.map((r: any) => canonicalActivityLib(r.kegiatan)).filter(Boolean) as string[]
+          officerReports.map((r: any) => canonicalReportActivity(r)).filter(Boolean) as string[]
         );
         const items = (t.activities || []).map((act: string) => {
-          const reportFor = officerReports.find((r: any) => canonicalActivityLib(r.kegiatan) === act);
+          const reportFor = officerReports.find((r: any) => canonicalReportActivity(r) === act);
           return {
             activity: act,
             achieved: achievedSet.has(act),
