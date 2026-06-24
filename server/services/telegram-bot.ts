@@ -354,15 +354,24 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
   const buffered = drainRecentPhotos(chatId);
   const allPhotos = [...buffered, ...photos];
 
-  // Normalisasi pelaksana ke petugas Safety Patrol resmi (PT GECL) dari isi laporan.
+  // Normalisasi pelaksana ke petugas Safety Patrol resmi (PT GECL).
+  // Prioritas: nama eksplisit di teks → identitas akun Telegram pengirim (1 akun = 1 petugas)
+  //            → hasil AI (hanya bila BUKAN generik). Hindari "Safety Patrol"/"patrol" dari AI.
+  const isGeneric = (n?: string | null) => {
+    const s = (n || "").trim().toLowerCase();
+    return !s || ["safety patrol", "patrol", "pelaksana", "tim", "team", "-", "."].includes(s);
+  };
   const officers = resolveOfficers(text);
+  const userOfficer = matchGeclOfficer(user.namaPelaksana || user.firstName || "")
+    || (!isGeneric(user.namaPelaksana) ? user.namaPelaksana : null);
+  const aiName = !isGeneric(parsed.namaPelaksana) ? parsed.namaPelaksana : null;
   const namaPelaksana = officers.length
     ? officers.join(", ")
-    : (parsed.namaPelaksana || user.namaPelaksana || null);
-  // "Pengirim" ditampilkan = nama petugas dari laporan (bila dikenali), jika tidak fallback.
+    : (userOfficer || aiName || user.firstName || null);
+  // "Pengirim" ditampilkan = nama petugas dari laporan/akun (bila dikenali), jika tidak fallback.
   const displaySender = officers.length
     ? officers.join(", ")
-    : (user.namaPelaksana || user.firstName || null);
+    : (userOfficer || user.namaPelaksana || user.firstName || null);
 
   const report = await storage.createSafetyPatrolReport({
     tanggal: reportDate,
