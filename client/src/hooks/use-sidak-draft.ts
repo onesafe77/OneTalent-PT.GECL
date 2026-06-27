@@ -62,9 +62,13 @@ export function useSidakDraft<T>({
       try {
         const hasData = JSON.stringify(data) !== JSON.stringify(initialData);
         if (hasData) {
+          const iso = new Date().toISOString();
           localStorage.setItem(storageKey, JSON.stringify(data));
-          localStorage.setItem(timestampKey, new Date().toISOString());
+          localStorage.setItem(timestampKey, iso);
           setHasDraft(true);
+          setDraftTimestamp(iso);
+          // Broadcast ke MobileSidakLayout (penanda "Terakhir disimpan ...")
+          try { window.dispatchEvent(new CustomEvent("sidak:draft-saved", { detail: { at: iso } })); } catch {}
         }
       } catch (error) {
         console.error("Error saving draft:", error);
@@ -93,6 +97,7 @@ export function useSidakDraft<T>({
       localStorage.removeItem(timestampKey);
       setHasDraft(false);
       setDraftTimestamp(null);
+      try { window.dispatchEvent(new CustomEvent("sidak:draft-saved", { detail: { at: null } })); } catch {}
     } catch (error) {
       console.error("Error clearing draft:", error);
     }

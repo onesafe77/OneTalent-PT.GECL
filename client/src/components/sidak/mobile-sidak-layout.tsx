@@ -1,4 +1,5 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,20 @@ export function MobileSidakLayout({
     headerRight
 }: MobileSidakLayoutProps) {
     const progress = (step / totalSteps) * 100;
+
+    // Penanda "Terakhir disimpan" — dengar broadcast dari useSidakDraft (semua form SIDAK)
+    const [lastSaved, setLastSaved] = useState<string | null>(null);
+    useEffect(() => {
+        const onSaved = (e: Event) => {
+            const at = (e as CustomEvent)?.detail?.at ?? null;
+            setLastSaved(at);
+        };
+        window.addEventListener("sidak:draft-saved", onSaved as EventListener);
+        return () => window.removeEventListener("sidak:draft-saved", onSaved as EventListener);
+    }, []);
+    const lastSavedLabel = lastSaved
+        ? new Date(lastSaved).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+        : null;
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -57,6 +72,14 @@ export function MobileSidakLayout({
                 <div className="mt-3">
                     <Progress value={progress} className="h-1.5 w-full bg-gray-100 dark:bg-gray-800 [&>div]:bg-red-600" />
                 </div>
+
+                {/* Penanda terakhir disimpan */}
+                {lastSavedLabel && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400">
+                        <Check className="h-3 w-3" />
+                        <span>Terakhir disimpan {lastSavedLabel} · Langkah {step}</span>
+                    </div>
+                )}
             </div>
 
             {/* Scrollable Content - extra padding for bottom action + mobile navbar */}
