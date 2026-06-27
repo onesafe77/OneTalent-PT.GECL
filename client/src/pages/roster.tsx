@@ -16,7 +16,7 @@ import type { Employee, RosterSchedule, AttendanceRecord, InsertRosterSchedule }
 
 // Row hasil parse Excel upload — mengizinkan field extra `nomorLambung` yang
 // dipakai backend (/api/roster/bulk) untuk meng-update employees.nomorLambung.
-type RosterUploadRow = InsertRosterSchedule & { nomorLambung?: string };
+type RosterUploadRow = InsertRosterSchedule & { nomorLambung?: string; department?: string };
 
 import { Plus, Upload, Download, Filter, Calendar, CheckCircle, Clock, Users, Edit, Trash2, AlertCircle, Save, X, CalendarDays, List, ArrowLeft } from "lucide-react";
 import { Link } from "wouter";
@@ -43,6 +43,9 @@ export default function Roster() {
   const [editingRoster, setEditingRoster] = useState<RosterSchedule | null>(null);
   const [shiftFilter, setShiftFilter] = useState("all");
   const [attendanceFilter, setAttendanceFilter] = useState("all");
+  // Departemen: filter tampilan (all/Driver/HSE) + mode upload (null=Driver, "HSE"=Dept HSE)
+  const [deptFilter, setDeptFilter] = useState("all");
+  const [uploadDept, setUploadDept] = useState<string | null>(null);
   const [searchName, setSearchName] = useState("");
   const [searchNIK, setSearchNIK] = useState("");
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
@@ -498,7 +501,7 @@ export default function Roster() {
             return;
           }
 
-          const employeeName = row['NAMA DRIVER'] || row.Nama || row.nama || row.Name || row.name || '';
+          const employeeName = row['NAMA DRIVER'] || row['NAMA STAFF'] || row['NAMA'] || row.Nama || row.nama || row.Name || row.name || '';
           const nomorLambung = row.DRIVER || row['Nomor Lambung'] || row.nomorLambung || row.nomor_lambung || '';
 
           // Iterate through keys 1 to 31 (could be "01", "1", "02", "2", etc.)
@@ -555,6 +558,8 @@ export default function Roster() {
                     // & bulkCreateRosterSchedules auto-isi plannedNomorLambung.
                     nomorLambung: nomorLambung || undefined,
                     plannedNomorLambung: nomorLambung || null,
+                    // Tandai departemen (mis. "HSE") bila upload via "Upload Roster HSE".
+                    department: uploadDept || undefined,
                     status: 'scheduled'
                   });
                 }
@@ -653,6 +658,34 @@ export default function Roster() {
     saveAs(data, `template-roster-matrix-${selectedYear}-${String(selectedMonth).padStart(2, '0')}.xlsx`);
   };
 
+  // Template khusus Dept HSE: tanpa Nomor Lambung & Mitra (staf, bukan driver).
+  const downloadTemplateHSE = () => {
+    const dayKeys: { [key: string]: string } = {};
+    for (let i = 1; i <= 31; i++) {
+      dayKeys[String(i).padStart(2, '0')] = (i === 1 || i === 2) ? "DS" + i : (i === 3) ? "NS" + i : (i === 4) ? "OFF" + i : (i === 5) ? "CTO" : "";
+    }
+    const emptyKeys: { [key: string]: string } = {};
+    for (let i = 1; i <= 31; i++) emptyKeys[String(i).padStart(2, '0')] = "";
+
+    const allData = [
+      { "NO": 1, "NAMA STAFF": "BAGUS ANDYKA F", "NIK": "C-075768", ...dayKeys },
+      {},
+      { "NO": "INSTRUKSI PENGISIAN ROSTER DEPT HSE:", "NAMA STAFF": "", "NIK": "", ...emptyKeys },
+      { "NO": "1. Isi kode shift + hari kerja pada sel tanggal (mis. DS1, NS3).", "NAMA STAFF": "", "NIK": "", ...emptyKeys },
+      { "NO": "2. DS = Shift 1 · NS = Shift 2 · OFF = Over Shift · CTO = Cuti.", "NAMA STAFF": "", "NIK": "", ...emptyKeys },
+      { "NO": "3. Kosongkan sel bila tidak ada jadwal.", "NAMA STAFF": "", "NIK": "", ...emptyKeys },
+    ];
+    const headers = ["NO", "NAMA STAFF", "NIK"];
+    for (let i = 1; i <= 31; i++) headers.push(String(i).padStart(2, '0'));
+
+    const worksheet = XLSX.utils.json_to_sheet(allData, { header: headers });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Template Roster');
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    saveAs(data, `template-roster-HSE-${selectedYear}-${String(selectedMonth).padStart(2, '0')}.xlsx`);
+  };
+
   const getEmployeeName = (employeeId: string) => {
     return (Array.isArray(employees) ? employees : []).find(emp => emp.id === employeeId)?.name || 'Unknown';
   };
@@ -668,6 +701,10 @@ export default function Roster() {
     const employee = roster.employee || (Array.isArray(employees) ? employees : []).find(emp => emp.id === roster.employeeId);
     const nameMatch = !searchName || (employee?.name || '').toLowerCase().includes(searchName.toLowerCase());
 
+    // Filter Departemen (HSE vs Driver)
+    const isHSE = ((employee as any)?.department || '').toUpperCase() === 'HSE';
+    const deptMatch = deptFilter === 'all' || (deptFilter === 'HSE' ? isHSE : !isHSE);
+
     // Filter by attendance status
     const hasAttended = attendance.some(att => att.employeeId === roster.employeeId);
     let attendanceMatch = true;
@@ -678,7 +715,7 @@ export default function Roster() {
     }
     // If attendanceFilter === "all", attendanceMatch remains true
 
-    return shiftMatch && nikMatch && nameMatch && attendanceMatch;
+    return shiftMatch && nikMatch && nameMatch && attendanceMatch && deptMatch;
   });
 
   const rosterWithAttendance = filteredRosterSchedules.map(roster => ({
@@ -784,6 +821,18 @@ export default function Roster() {
               </SelectContent>
             </Select>
 
+            {/* Filter Departemen */}
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="w-full sm:w-36" data-testid="dept-filter-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Dept</SelectItem>
+                <SelectItem value="Driver">Driver</SelectItem>
+                <SelectItem value="HSE">Dept HSE</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* Filter Status Kehadiran */}
             <Select value={attendanceFilter} onValueChange={setAttendanceFilter}>
               <SelectTrigger className="w-full sm:w-40" data-testid="attendance-filter-select">
@@ -809,10 +858,21 @@ export default function Roster() {
                   <Download className="w-4 h-4 mr-2" />
                   Template Excel
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsUploadDialogOpen(true)} data-testid="upload-excel-button">
+                <DropdownMenuItem onClick={() => { setUploadDept(null); setIsUploadDialogOpen(true); }} data-testid="upload-excel-button">
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Excel Roster
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-emerald-700">Dept HSE</DropdownMenuLabel>
+                <DropdownMenuItem onClick={downloadTemplateHSE} data-testid="download-template-hse-button">
+                  <Download className="w-4 h-4 mr-2" />
+                  Template Roster HSE
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setUploadDept('HSE'); setIsUploadDialogOpen(true); }} data-testid="upload-hse-button">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Roster HSE
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setIsUpdateScheduleDialogOpen(true)} data-testid="update-schedule-button">
                   <CalendarCheck className="w-4 h-4 mr-2" />
                   Update Jadwal Karyawan
@@ -912,6 +972,18 @@ export default function Roster() {
               </SelectContent>
             </Select>
 
+            {/* Filter Departemen (Calendar & Matrix) */}
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="w-full sm:w-36" data-testid="calendar-dept-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Dept</SelectItem>
+                <SelectItem value="Driver">Driver</SelectItem>
+                <SelectItem value="HSE">Dept HSE</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* Aksi Lainnya Dropdown for Calendar & Matrix */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -926,10 +998,21 @@ export default function Roster() {
                   <Download className="w-4 h-4 mr-2" />
                   Template Excel
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setIsUploadDialogOpen(true)} data-testid="upload-excel-button-matrix">
+                <DropdownMenuItem onClick={() => { setUploadDept(null); setIsUploadDialogOpen(true); }} data-testid="upload-excel-button-matrix">
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Excel Roster
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-emerald-700">Dept HSE</DropdownMenuLabel>
+                <DropdownMenuItem onClick={downloadTemplateHSE} data-testid="download-template-hse-button-matrix">
+                  <Download className="w-4 h-4 mr-2" />
+                  Template Roster HSE
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setUploadDept('HSE'); setIsUploadDialogOpen(true); }} data-testid="upload-hse-button-matrix">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Roster HSE
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setIsUpdateScheduleDialogOpen(true)} data-testid="update-schedule-button-matrix">
                   <CalendarCheck className="w-4 h-4 mr-2" />
                   Update Jadwal Karyawan
@@ -1227,7 +1310,10 @@ export default function Roster() {
 
             const matchShift = shiftFilter === 'all' || employeeIdsWithShift.has(roster.employeeId);
 
-            return matchNIK && matchName && matchShift;
+            const isHSE = ((roster.employee as any)?.department || '').toUpperCase() === 'HSE';
+            const matchDept = deptFilter === 'all' || (deptFilter === 'HSE' ? isHSE : !isHSE);
+
+            return matchNIK && matchName && matchShift && matchDept;
           }) || [];
 
           return viewMode === 'calendar' ? (
@@ -1275,11 +1361,11 @@ export default function Roster() {
       </CardContent>
 
       {/* Upload Excel Dialog */}
-      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+      <Dialog open={isUploadDialogOpen} onOpenChange={(o) => { setIsUploadDialogOpen(o); if (!o) setUploadDept(null); }}>
 
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Upload Excel Roster</DialogTitle>
+            <DialogTitle>{uploadDept === 'HSE' ? 'Upload Roster Dept HSE' : 'Upload Excel Roster'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>

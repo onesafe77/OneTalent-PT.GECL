@@ -2034,6 +2034,8 @@ Format sebagai bullet points singkat per insight.`;
             const existingEmployee = employeeMap.get(validatedData.employeeId);
             const employeeName = rawData.employeeName || rawData.name || `Employee ${validatedData.employeeId}`;
             const nomorLambung = rawData.nomorLambung || rawData.nomor_lambung || null;
+            // Departemen dari upload (mis. "HSE"); dipakai untuk menandai karyawan agar bisa difilter di roster.
+            const department = rawData.department || null;
 
             if (!existingEmployee) {
               // Create new employee using data from Excel upload
@@ -2042,6 +2044,7 @@ Format sebagai bullet points singkat per insight.`;
                   id: validatedData.employeeId,
                   name: employeeName,
                   nomorLambung: nomorLambung,
+                  department: department || undefined,
                   phone: '+628123456789',
                   status: 'active'
                 });
@@ -2054,20 +2057,17 @@ Format sebagai bullet points singkat per insight.`;
                 continue;
               }
             } else {
-              // Update existing employee with nomor lambung if provided and different
-              if (nomorLambung && existingEmployee.nomorLambung !== nomorLambung) {
+              // Update existing employee: nomor lambung &/atau departemen bila berubah
+              const patch: any = {};
+              if (nomorLambung && existingEmployee.nomorLambung !== nomorLambung) patch.nomorLambung = nomorLambung;
+              if (department && (existingEmployee as any).department !== department) patch.department = department;
+              if (Object.keys(patch).length) {
                 try {
-                  await storage.updateEmployee(validatedData.employeeId, {
-                    nomorLambung: nomorLambung
-                  });
-                  // Update the map with new data
-                  employeeMap.set(validatedData.employeeId, {
-                    ...existingEmployee,
-                    nomorLambung: nomorLambung
-                  });
-                  console.log(`Updated employee nomor lambung: ${validatedData.employeeId} - ${nomorLambung}`);
+                  await storage.updateEmployee(validatedData.employeeId, patch);
+                  employeeMap.set(validatedData.employeeId, { ...existingEmployee, ...patch });
+                  console.log(`Updated employee ${validatedData.employeeId}:`, patch);
                 } catch (updateError) {
-                  console.log(`Failed to update nomor lambung for ${validatedData.employeeId}`);
+                  console.log(`Failed to update employee ${validatedData.employeeId}`);
                 }
               }
             }
