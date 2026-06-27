@@ -549,10 +549,15 @@ export interface IStorage {
   deleteSidakFatigueSession(id: string): Promise<boolean>;
   getSidakFatigueRecords(sessionId: string): Promise<SidakFatigueRecord[]>;
   getSidakFatigueRecordsBySessionIds(sessionIds: string[]): Promise<SidakFatigueRecord[]>;
+  getSidakFatigueRecord(id: string): Promise<SidakFatigueRecord | undefined>;
   createSidakFatigueRecord(record: InsertSidakFatigueRecord): Promise<SidakFatigueRecord>;
+  updateSidakFatigueRecord(id: string, record: Partial<InsertSidakFatigueRecord>): Promise<SidakFatigueRecord | undefined>;
+  deleteSidakFatigueRecord(id: string): Promise<boolean>;
   getSidakFatigueObservers(sessionId: string): Promise<SidakFatigueObserver[]>;
   updateSidakFatigueSessionSampleCount(sessionId: string): Promise<void>;
   createSidakFatigueObserver(observer: InsertSidakFatigueObserver): Promise<SidakFatigueObserver>;
+  updateSidakFatigueObserver(id: string, updates: Partial<InsertSidakFatigueObserver>): Promise<SidakFatigueObserver | undefined>;
+  deleteSidakFatigueObserver(id: string): Promise<boolean>;
 
   // Sidak Behavior Driver methods
   getSidakBehaviorSession(id: string): Promise<SidakBehaviorSession | undefined>;
@@ -3683,6 +3688,30 @@ export class DrizzleStorage implements IStorage {
       .values(observerData)
       .returning();
     return result;
+  }
+
+  async getSidakFatigueRecord(id: string): Promise<SidakFatigueRecord | undefined> {
+    const [result] = await this.db.select().from(sidakFatigueRecords).where(eq(sidakFatigueRecords.id, id));
+    return result;
+  }
+
+  async deleteSidakFatigueRecord(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakFatigueRecords).where(eq(sidakFatigueRecords.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async updateSidakFatigueObserver(id: string, updates: Partial<InsertSidakFatigueObserver>): Promise<SidakFatigueObserver | undefined> {
+    const [result] = await this.db
+      .update(sidakFatigueObservers)
+      .set(updates)
+      .where(eq(sidakFatigueObservers.id, id))
+      .returning();
+    return result;
+  }
+
+  async deleteSidakFatigueObserver(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakFatigueObservers).where(eq(sidakFatigueObservers.id, id)).returning();
+    return result.length > 0;
   }
 
   // ============================================

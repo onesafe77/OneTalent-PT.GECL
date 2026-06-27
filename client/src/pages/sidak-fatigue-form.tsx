@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { MobileSidakLayout } from "@/components/sidak/mobile-sidak-layout";
 import { cn } from "@/lib/utils";
-import { Activity, Check, X, ArrowLeft, ArrowRight, Save, Camera, Users, Pen, UserPlus } from "lucide-react";
+import { Activity, Check, X, ArrowLeft, ArrowRight, Save, Camera, Users, Pen, UserPlus, Pencil, Trash2, MapPin } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -126,6 +126,10 @@ export default function SidakFatigueForm() {
 
   const [step, setStep] = useState(1);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Fitur Edit di Step 4: mode edit per bagian (kembali ke ringkasan setelah simpan)
+  const [editHeaderMode, setEditHeaderMode] = useState(false);
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
+  const [editingObserverIdx, setEditingObserverIdx] = useState<number | null>(null);
 
   const [headerData, setHeaderData] = useState({
     tanggal: new Date().toISOString().split('T')[0],
@@ -625,7 +629,116 @@ export default function SidakFatigueForm() {
       });
       return;
     }
+    // Mode edit header (dari Step 4): update sesi, jangan buat sesi baru
+    if (editHeaderMode && sessionId) {
+      (async () => {
+        try {
+          await apiRequest(`/api/sidak-fatigue/${sessionId}`, "PATCH", { ...headerData, waktu: headerData.waktuMulai });
+          toast({ title: "Header diperbarui" });
+          setEditHeaderMode(false);
+          setStep(4);
+        } catch (e: any) {
+          toast({ title: "Gagal memperbarui header", description: e?.message, variant: "destructive" });
+        }
+      })();
+      return;
+    }
     createSessionMutation.mutate(headerData);
+  };
+
+  // Update satu karyawan saat mode edit (dari Step 4)
+  const updateEmployee = async () => {
+    if (!editingRecordId) return;
+    try {
+      await apiRequest(`/api/sidak-fatigue/records/${editingRecordId}`, "PATCH", {
+        nama: currentEmployee.nama, nik: currentEmployee.nik, jabatan: currentEmployee.jabatan,
+        nomorLambung: currentEmployee.nomorLambung, jamTidur: currentEmployee.jamTidur,
+        konsumiObat: currentEmployee.konsumiObat ?? false, masalahPribadi: currentEmployee.masalahPribadi ?? false,
+        pemeriksaanRespon: currentEmployee.pemeriksaanRespon ?? false, pemeriksaanKonsentrasi: currentEmployee.pemeriksaanKonsentrasi ?? false,
+        pemeriksaanKesehatan: currentEmployee.pemeriksaanKesehatan ?? false, karyawanSiapBekerja: currentEmployee.karyawanSiapBekerja ?? false,
+        fitUntukBekerja: currentEmployee.fitUntukBekerja ?? false, istirahatDanMonitor: currentEmployee.istirahatDanMonitor ?? false,
+        istirahatLebihdariSatuJam: currentEmployee.istirahatLebihdariSatuJam ?? false, tidakBolehBekerja: currentEmployee.tidakBolehBekerja ?? false,
+        employeeSignature: currentEmployee.employeeSignature,
+      });
+      setEmployees(prev => prev.map(e => (e as any).backendRecordId === editingRecordId ? { ...currentEmployee, backendRecordId: editingRecordId } : e));
+      toast({ title: "Data karyawan diperbarui" });
+      setEditingRecordId(null);
+      setStep(4);
+    } catch (e: any) {
+      toast({ title: "Gagal memperbarui karyawan", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const resetCurrentEmployee = () => {
+    setCurrentEmployee({
+      nama: "", nik: "", jabatan: "", nomorLambung: "", jamTidur: 0,
+      konsumiObat: null, masalahPribadi: null, pemeriksaanRespon: null, pemeriksaanKonsentrasi: null,
+      pemeriksaanKesehatan: null, karyawanSiapBekerja: null, fitUntukBekerja: null,
+      istirahatDanMonitor: null, istirahatLebihdariSatuJam: null, tidakBolehBekerja: null,
+      employeeSignature: undefined,
+    } as any);
+    setIsLoadedFromQr(false);
+  };
+
+  // Muat karyawan ke form untuk diedit (dari Step 4)
+  const startEditEmployee = (emp: any) => {
+    setCurrentEmployee({ ...emp });
+    setEditingRecordId(emp.backendRecordId || null);
+    setIsLoadedFromQr(true); // sudah ada data, lewati wajib-scan
+    setStep(2);
+  };
+
+  const deleteEmployeeRecord = async (emp: any) => {
+    if (!emp.backendRecordId) { setEmployees(prev => prev.filter(e => e !== emp)); return; }
+    if (!confirm(`Hapus data karyawan ${emp.nama}?`)) return;
+    try {
+      await apiRequest(`/api/sidak-fatigue/records/${emp.backendRecordId}`, "DELETE");
+      setEmployees(prev => prev.filter(e => (e as any).backendRecordId !== emp.backendRecordId));
+      toast({ title: "Karyawan dihapus" });
+    } catch (e: any) {
+      toast({ title: "Gagal menghapus", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const startEditObserver = (idx: number) => {
+    const obs: any = observers[idx];
+    setManualObserver({ nama: obs.nama, perusahaan: obs.perusahaan, signatureDataUrl: obs.signatureDataUrl });
+    setEditingObserverIdx(idx);
+    setStep(3);
+  };
+
+  const updateObserver = async () => {
+    if (editingObserverIdx === null) return;
+    const obs: any = observers[editingObserverIdx];
+    if (!manualObserver.nama || !manualObserver.perusahaan || !manualObserver.signatureDataUrl) {
+      toast({ title: "Data observer belum lengkap", variant: "destructive" }); return;
+    }
+    try {
+      if (obs?.backendObserverId) {
+        await apiRequest(`/api/sidak-fatigue/observers/${obs.backendObserverId}`, "PATCH", {
+          nama: manualObserver.nama, perusahaan: manualObserver.perusahaan, signatureDataUrl: manualObserver.signatureDataUrl,
+        });
+      }
+      setObservers(prev => prev.map((o, i) => i === editingObserverIdx ? { ...o, nama: manualObserver.nama, perusahaan: manualObserver.perusahaan, signatureDataUrl: manualObserver.signatureDataUrl } : o));
+      toast({ title: "Observer diperbarui" });
+      setManualObserver({ nama: "", perusahaan: "", signatureDataUrl: "" });
+      setEditingObserverIdx(null);
+      setStep(4);
+    } catch (e: any) {
+      toast({ title: "Gagal memperbarui observer", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const deleteObserver = async (idx: number) => {
+    const obs: any = observers[idx];
+    if (!confirm(`Hapus observer ${obs?.nama}?`)) return;
+    try {
+      if (obs?.backendObserverId) await apiRequest(`/api/sidak-fatigue/observers/${obs.backendObserverId}`, "DELETE");
+      setObservers(prev => prev.filter((_, i) => i !== idx));
+      toast({ title: "Observer dihapus" });
+    } catch (e: any) {
+      toast({ title: "Gagal menghapus observer", description: e?.message, variant: "destructive" });
+    }
   };
 
   const handleSaveEmployee = () => {
@@ -686,6 +799,8 @@ export default function SidakFatigueForm() {
       return;
     }
 
+    // Mode edit (dari Step 4): update record, jangan tambah baru
+    if (editingRecordId) { updateEmployee(); return; }
     addEmployeeMutation.mutate(currentEmployee);
   };
 
@@ -718,9 +833,9 @@ export default function SidakFatigueForm() {
       const response = await apiRequest(`/api/sidak-fatigue/${sessionId}/observers`, "POST", observer);
       return response;
     },
-    onSuccess: (_data, variables) => {
-      // Only update state after successful backend save
-      setObservers(prev => [...prev, variables]);
+    onSuccess: (_data: any, variables) => {
+      // Simpan backendObserverId agar bisa di-edit/hapus dari Step 4
+      setObservers(prev => [...prev, { ...variables, backendObserverId: _data?.id } as any]);
       toast({
         title: "Observer ditambahkan",
         description: `Observer ${variables.nama} berhasil disimpan`,
@@ -736,6 +851,8 @@ export default function SidakFatigueForm() {
   });
 
   const handleAddManualObserver = () => {
+    // Mode edit (dari Step 4): perbarui observer, jangan tambah baru
+    if (editingObserverIdx !== null) { updateObserver(); return; }
     // Validate manual input
     if (!manualObserver.nama || !manualObserver.perusahaan) {
       toast({
@@ -784,14 +901,21 @@ export default function SidakFatigueForm() {
   const renderBottomAction = () => {
     if (step === 1) {
       return (
-        <Button
-          onClick={handleStep1Submit}
-          className="w-full h-12 text-lg font-medium shadow-md shadow-blue-200 dark:shadow-none transition-all active:scale-[0.98]"
-          disabled={createSessionMutation.isPending}
-        >
-          {createSessionMutation.isPending ? "Membuat Sesi..." : "Lanjut ke Karyawan"}
-          <ArrowRight className="ml-2 h-5 w-5" />
-        </Button>
+        <div className="flex flex-col gap-2">
+          <Button
+            onClick={handleStep1Submit}
+            className="w-full h-12 text-lg font-medium shadow-md shadow-blue-200 dark:shadow-none transition-all active:scale-[0.98]"
+            disabled={createSessionMutation.isPending}
+          >
+            {editHeaderMode ? "Simpan Perubahan" : (createSessionMutation.isPending ? "Membuat Sesi..." : "Lanjut ke Karyawan")}
+            <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+          {editHeaderMode && (
+            <Button variant="ghost" className="w-full h-10 text-gray-500" onClick={() => { setEditHeaderMode(false); setStep(4); }}>
+              Batal / Kembali ke Ringkasan
+            </Button>
+          )}
+        </div>
       );
     }
     if (step === 2) {
@@ -799,14 +923,22 @@ export default function SidakFatigueForm() {
         <div className="flex flex-col gap-3">
           <Button
             onClick={handleSaveEmployee}
-            disabled={!canAddMore || addEmployeeMutation.isPending || !currentEmployee.employeeSignature}
+            disabled={(!editingRecordId && !canAddMore) || addEmployeeMutation.isPending || !currentEmployee.employeeSignature}
             className="w-full h-12 text-lg font-medium shadow-md shadow-blue-200 dark:shadow-none"
           >
             <Save className="mr-2 h-5 w-5" />
-            {addEmployeeMutation.isPending ? "Menyimpan..." : "Simpan & Input Lagi"}
+            {editingRecordId ? "Simpan Perubahan" : (addEmployeeMutation.isPending ? "Menyimpan..." : "Simpan & Input Lagi")}
           </Button>
 
-          {employees.length > 0 && (
+          {editingRecordId ? (
+            <Button
+              onClick={() => { setEditingRecordId(null); resetCurrentEmployee(); setStep(4); }}
+              variant="ghost"
+              className="w-full h-10 text-gray-500"
+            >
+              Batal / Kembali ke Ringkasan
+            </Button>
+          ) : employees.length > 0 && (
             <Button
               onClick={handleFinishEmployees}
               variant="outline"
@@ -1336,21 +1468,57 @@ export default function SidakFatigueForm() {
               </p>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-4">
-              <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">Ringkasan</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Lokasi</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{headerData.lokasi}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Waktu</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{headerData.waktuMulai} - {headerData.waktuSelesai}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Observer</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{observers.length} orang</span>
-                </div>
+            {/* HEADER + Edit */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Header</h3>
+                <Button size="sm" variant="ghost" className="h-8 text-red-600 hover:text-red-700"
+                  onClick={() => { setEditHeaderMode(true); setStep(1); }}>
+                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                </Button>
+              </div>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500">Tanggal / Shift</span><span className="font-medium">{headerData.tanggal} · {headerData.shift}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Waktu</span><span className="font-medium">{headerData.waktuMulai} - {headerData.waktuSelesai}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Lokasi</span><span className="font-medium text-right">{headerData.lokasi}{headerData.area ? ` · ${headerData.area}` : ""}</span></div>
+              </div>
+            </div>
+
+            {/* KARYAWAN list + Edit/Hapus */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
+              <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">Karyawan ({employees.length})</h3>
+              <div className="space-y-2">
+                {employees.map((emp: any, i: number) => (
+                  <div key={emp.backendRecordId || i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-900/40">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{emp.nama} <span className="text-gray-400">· {emp.nik}</span></p>
+                      <p className="text-xs text-gray-500">Jam tidur: {emp.jamTidur} · {emp.fitUntukBekerja ? "Fit" : "Tidak Fit"}</p>
+                    </div>
+                    <div className="flex shrink-0">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => startEditEmployee(emp)}><Pencil className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-red-600" onClick={() => deleteEmployeeRecord(emp)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* OBSERVER list + Edit/Hapus */}
+            <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
+              <h3 className="font-semibold text-gray-900 dark:text-white border-b pb-2">Observer ({observers.length})</h3>
+              <div className="space-y-2">
+                {observers.map((obs: any, i: number) => (
+                  <div key={obs.backendObserverId || i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-900/40">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{obs.nama}</p>
+                      <p className="text-xs text-gray-500 truncate">{obs.perusahaan}</p>
+                    </div>
+                    <div className="flex shrink-0">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => startEditObserver(i)}><Pencil className="h-4 w-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-red-600" onClick={() => deleteObserver(i)}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

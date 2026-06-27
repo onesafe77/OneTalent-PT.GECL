@@ -11172,7 +11172,9 @@ Format sebagai bullet points singkat per insight.`;
         "pemeriksaanKonsentrasi", "pemeriksaanKesehatan",
         "karyawanSiapBekerja", "fitUntukBekerja", "istirahatDanMonitor",
         "istirahatLebihdariSatuJam", "tidakBolehBekerja",
-        "pvtMeanRT"
+        "pvtMeanRT",
+        // Field data karyawan (dipakai fitur Edit di Step 4)
+        "nama", "nik", "jabatan", "nomorLambung", "jamTidur", "employeeSignature",
       ];
 
       const updateData: any = {};
@@ -11202,6 +11204,65 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error updating fatigue record:", error);
       res.status(500).json({ message: "Gagal mengupdate data fatigue" });
+    }
+  });
+
+  // Edit HEADER sesi Sidak Fatigue (fitur Edit di Step 4)
+  app.patch("/api/sidak-fatigue/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const allowed = ["tanggal", "shift", "waktu", "waktuMulai", "waktuSelesai", "lokasi", "area", "departemen"];
+      const updateData: any = {};
+      for (const k of Object.keys(req.body || {})) if (allowed.includes(k)) updateData[k] = req.body[k];
+      if (!Object.keys(updateData).length) return res.status(400).json({ message: "Tidak ada data yang diupdate" });
+      const updated = await storage.updateSidakFatigueSession(id, updateData);
+      if (!updated) return res.status(404).json({ message: "Sesi tidak ditemukan" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating fatigue session:", error);
+      res.status(500).json({ message: "Gagal mengupdate sesi fatigue" });
+    }
+  });
+
+  // Hapus satu record karyawan Sidak Fatigue (fitur Edit di Step 4)
+  app.delete("/api/sidak-fatigue/records/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const rec = await storage.getSidakFatigueRecord(id);
+      if (!rec) return res.status(404).json({ message: "Record tidak ditemukan" });
+      const ok = await storage.deleteSidakFatigueRecord(id);
+      if (rec.sessionId) await storage.updateSidakFatigueSessionSampleCount(rec.sessionId);
+      res.json({ ok });
+    } catch (error) {
+      console.error("Error deleting fatigue record:", error);
+      res.status(500).json({ message: "Gagal menghapus record fatigue" });
+    }
+  });
+
+  // Edit & hapus observer Sidak Fatigue (fitur Edit di Step 4)
+  app.patch("/api/sidak-fatigue/observers/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const allowed = ["nama", "nik", "perusahaan", "jabatan", "signatureDataUrl"];
+      const updateData: any = {};
+      for (const k of Object.keys(req.body || {})) if (allowed.includes(k)) updateData[k] = req.body[k];
+      if (!Object.keys(updateData).length) return res.status(400).json({ message: "Tidak ada data yang diupdate" });
+      const updated = await storage.updateSidakFatigueObserver(id, updateData);
+      if (!updated) return res.status(404).json({ message: "Observer tidak ditemukan" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating fatigue observer:", error);
+      res.status(500).json({ message: "Gagal mengupdate observer" });
+    }
+  });
+
+  app.delete("/api/sidak-fatigue/observers/:id", async (req, res) => {
+    try {
+      const ok = await storage.deleteSidakFatigueObserver(req.params.id);
+      res.json({ ok });
+    } catch (error) {
+      console.error("Error deleting fatigue observer:", error);
+      res.status(500).json({ message: "Gagal menghapus observer" });
     }
   });
 
