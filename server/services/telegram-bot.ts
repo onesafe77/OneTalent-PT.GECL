@@ -30,7 +30,17 @@ let offset = 0;
 
 const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const todayStr = () => new Date().toISOString().split("T")[0];
+const todayStr = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Makassar" });
+
+// Tentukan shift dari jam pada string waktu (06:00–17:59 = Shift 1, selain itu Shift 2).
+function shiftFromTime(waktu?: string | null): string | null {
+  if (!waktu) return null;
+  const m = String(waktu).match(/(\d{1,2})[:.](\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  if (isNaN(h) || h > 23) return null;
+  return (h >= 6 && h < 18) ? "Shift 1" : "Shift 2";
+}
 const bulanIndo = (d: Date) => BULAN[d.getMonth()];
 const weekOfMonth = (d: Date) => Math.min(5, Math.floor((d.getDate() - 1) / 7) + 1);
 
@@ -85,7 +95,9 @@ function parseIndoDate(text: string): string | null {
 function parseJobBriefing(text: string): { tanggal: string; shift: string; teams: Array<{ team: string; lokasi: string | null; gecl: string | null; activities: string[]; raw: string[] }> } {
   const clean = (text || "").replace(/\*/g, ""); // buang penanda bold Telegram
   const lines = clean.split(/\r?\n/);
-  const tanggal = parseIndoDate(clean) || todayStr();
+  // Briefing = pembagian job AWAL SHIFT hari ini → pakai tanggal saat diterima bot,
+  // bukan tanggal yang diketik (sering stale/template, mis. "01 Juni" padahal kirim 26 Jun).
+  const tanggal = todayStr();
   const shiftM = /shift\s*(I{1,3}|\d)/i.exec(clean);
   let shift = "Shift 1";
   if (shiftM) { const t = shiftM[1].toUpperCase(); shift = (t === "II" || t === "2") ? "Shift 2" : "Shift 1"; }
@@ -380,7 +392,8 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
     waktuPelaksanaan: parsed.waktuPelaksanaan || null,
     jenisLaporan: parsed.jenisLaporan || "Laporan Patrol",
     kegiatan: parsed.kegiatan || null,
-    shift: parsed.shift || null,
+    // Shift: pakai hasil AI; bila kosong, tentukan dari jam pelaksanaan (deterministik).
+    shift: parsed.shift || shiftFromTime(parsed.waktuPelaksanaan) || null,
     lokasi: parsed.lokasi || null,
     namaPelaksana,
     pemateri: parsed.pemateri || [],
