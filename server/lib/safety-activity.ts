@@ -19,6 +19,22 @@ export const SAFETY_ACTIVITIES = [
   "Issue Kritikal",
 ] as const;
 
+// Tentukan shift dari jam pada string waktu (06:00–17:59 = Shift 1, selain itu Shift 2).
+export function shiftFromTime(waktu?: string | null): string | null {
+  if (!waktu) return null;
+  const m = String(waktu).match(/(\d{1,2})[:.](\d{2})/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  if (isNaN(h) || h > 23) return null;
+  return (h >= 6 && h < 18) ? "Shift 1" : "Shift 2";
+}
+
+// Nama pelaksana generik (bukan identitas petugas) — jangan dipakai menimpa nama yang sudah benar.
+export function isGenericName(n?: string | null): boolean {
+  const s = (n || "").trim().toLowerCase();
+  return !s || ["safety patrol", "patrol", "pelaksana", "tim", "team", "-", "."].includes(s);
+}
+
 export function canonicalSafetyActivity(raw: string | null | undefined): string | null {
   const s = (raw || "").toLowerCase();
   if (!s) return null;

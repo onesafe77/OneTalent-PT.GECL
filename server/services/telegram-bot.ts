@@ -13,7 +13,7 @@ import {
   analyzeReportContent,
 } from "../gemini-parser";
 import { storage } from "../storage";
-import { canonicalSafetyActivity, canonicalReportActivity } from "../lib/safety-activity";
+import { canonicalSafetyActivity, canonicalReportActivity, shiftFromTime, isGenericName } from "../lib/safety-activity";
 import { openRouterClient, AI_MODELS } from "../ai-config";
 import {
   getBotToken,
@@ -31,16 +31,6 @@ let offset = 0;
 const BULAN = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const todayStr = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Makassar" });
-
-// Tentukan shift dari jam pada string waktu (06:00–17:59 = Shift 1, selain itu Shift 2).
-function shiftFromTime(waktu?: string | null): string | null {
-  if (!waktu) return null;
-  const m = String(waktu).match(/(\d{1,2})[:.](\d{2})/);
-  if (!m) return null;
-  const h = parseInt(m[1], 10);
-  if (isNaN(h) || h > 23) return null;
-  return (h >= 6 && h < 18) ? "Shift 1" : "Shift 2";
-}
 const bulanIndo = (d: Date) => BULAN[d.getMonth()];
 const weekOfMonth = (d: Date) => Math.min(5, Math.floor((d.getDate() - 1) / 7) + 1);
 
@@ -369,14 +359,10 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
   // Normalisasi pelaksana ke petugas Safety Patrol resmi (PT GECL).
   // Prioritas: nama eksplisit di teks → identitas akun Telegram pengirim (1 akun = 1 petugas)
   //            → hasil AI (hanya bila BUKAN generik). Hindari "Safety Patrol"/"patrol" dari AI.
-  const isGeneric = (n?: string | null) => {
-    const s = (n || "").trim().toLowerCase();
-    return !s || ["safety patrol", "patrol", "pelaksana", "tim", "team", "-", "."].includes(s);
-  };
   const officers = resolveOfficers(text);
   const userOfficer = matchGeclOfficer(user.namaPelaksana || user.firstName || "")
-    || (!isGeneric(user.namaPelaksana) ? user.namaPelaksana : null);
-  const aiName = !isGeneric(parsed.namaPelaksana) ? parsed.namaPelaksana : null;
+    || (!isGenericName(user.namaPelaksana) ? user.namaPelaksana : null);
+  const aiName = !isGenericName(parsed.namaPelaksana) ? parsed.namaPelaksana : null;
   const namaPelaksana = officers.length
     ? officers.join(", ")
     : (userOfficer || aiName || user.firstName || null);

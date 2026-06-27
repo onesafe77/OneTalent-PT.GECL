@@ -171,7 +171,7 @@ import { db } from "./db";
 import { PushNotificationService } from "./push-notification";
 import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition } from "@shared/rbac";
 import { inductionAiService } from "./services/induction-ai-service";
-import { canonicalSafetyActivity as canonicalActivityLib, canonicalReportActivity } from "./lib/safety-activity";
+import { canonicalSafetyActivity as canonicalActivityLib, canonicalReportActivity, shiftFromTime, isGenericName } from "./lib/safety-activity";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -13669,19 +13669,23 @@ Format sebagai bullet points singkat per insight.`;
       const parsed = await parseReportWithGemini(report.rawMessage);
       const aiAnalysis = await analyzeReportContent(report.rawMessage);
 
-      // Update report with new parsed data
+      // FILL-ONLY & NO-DOWNGRADE: jangan hapus data yang sudah benar / jangan pindah tanggal.
+      const waktu = parsed.waktuPelaksanaan || report.waktuPelaksanaan || null;
+      const keepName = !isGenericName(report.namaPelaksana)
+        ? report.namaPelaksana
+        : (!isGenericName(parsed.namaPelaksana) ? parsed.namaPelaksana : report.namaPelaksana);
       const updatedReport = await storage.updateSafetyPatrolReport(req.params.id, {
-        tanggal: parsed.tanggal,
-        bulan: parsed.bulan || null,
-        week: parsed.week || null,
-        waktuPelaksanaan: parsed.waktuPelaksanaan || null,
-        jenisLaporan: parsed.jenisLaporan,
-        kegiatan: parsed.kegiatan || null,
-        shift: parsed.shift || null,
-        lokasi: parsed.lokasi || null,
-        namaPelaksana: parsed.namaPelaksana || null,
-        pemateri: parsed.pemateri,
-        temuan: parsed.temuan || null,
+        tanggal: report.tanggal, // jangan pindahkan laporan
+        bulan: report.bulan || parsed.bulan || null,
+        week: report.week || parsed.week || null,
+        waktuPelaksanaan: waktu,
+        jenisLaporan: parsed.jenisLaporan || report.jenisLaporan,
+        kegiatan: parsed.kegiatan || report.kegiatan || null,
+        shift: parsed.shift || shiftFromTime(waktu) || report.shift || null,
+        lokasi: parsed.lokasi || report.lokasi || null,
+        namaPelaksana: keepName,
+        pemateri: (parsed.pemateri && parsed.pemateri.length) ? parsed.pemateri : report.pemateri,
+        temuan: parsed.temuan || report.temuan || null,
         parsedData: parsed,
         aiAnalysis
       });
@@ -13736,17 +13740,22 @@ Format sebagai bullet points singkat per insight.`;
       for (const report of missing) {
         try {
           const parsed = await parseReportWithGemini(report.rawMessage!);
+          // FILL-ONLY & NO-DOWNGRADE (lihat /reparse): hanya isi yang kosong, jangan timpa nama benar / tanggal.
+          const waktu = parsed.waktuPelaksanaan || (report as any).waktuPelaksanaan || null;
+          const keepName = !isGenericName((report as any).namaPelaksana)
+            ? (report as any).namaPelaksana
+            : (!isGenericName(parsed.namaPelaksana) ? parsed.namaPelaksana : (report as any).namaPelaksana);
           await storage.updateSafetyPatrolReport(report.id, {
-            waktuPelaksanaan: parsed.waktuPelaksanaan || null,
-            shift: parsed.shift || null,
-            lokasi: parsed.lokasi || null,
-            namaPelaksana: parsed.namaPelaksana || null,
-            kegiatan: parsed.kegiatan || null,
-            temuan: parsed.temuan || null,
-            tanggal: parsed.tanggal,
-            bulan: parsed.bulan || null,
-            week: parsed.week || null,
-            jenisLaporan: parsed.jenisLaporan,
+            waktuPelaksanaan: waktu,
+            shift: parsed.shift || shiftFromTime(waktu) || (report as any).shift || null,
+            lokasi: parsed.lokasi || (report as any).lokasi || null,
+            namaPelaksana: keepName,
+            kegiatan: parsed.kegiatan || (report as any).kegiatan || null,
+            temuan: parsed.temuan || (report as any).temuan || null,
+            tanggal: (report as any).tanggal, // jangan pindahkan laporan
+            bulan: (report as any).bulan || parsed.bulan || null,
+            week: (report as any).week || parsed.week || null,
+            jenisLaporan: parsed.jenisLaporan || (report as any).jenisLaporan,
             parsedData: parsed,
           });
           processed++;
