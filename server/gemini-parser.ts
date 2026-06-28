@@ -62,14 +62,44 @@ function normalizeTanggal(raw: string): string | undefined {
   if (m) return m[0];
   return undefined;
 }
+// Buang karakter tak terlihat (LRM/RLM/ZWSP/BOM) yang sering muncul di laporan dari iPhone/WhatsApp.
+function stripInvisible(s: string): string {
+  return (s || "").replace(/[​‌‍‎‏﻿]/g, "");
+}
 function lineVal(text: string, ...labels: string[]): string {
-  for (const ln of text.split(/\r?\n/)) {
+  for (const raw of stripInvisible(text).split(/\r?\n/)) {
+    const ln = raw;
     for (const lab of labels) {
-      const mm = ln.match(new RegExp(`^\\s*\\**\\s*${lab}\\s*\\**\\s*[:\\-]\\s*(.+)$`, "i"));
+      // Izinkan kata tambahan antara label & ':' (mis. "Waktu pelaksanaan :", "Lokasi sidak :")
+      const mm = ln.match(new RegExp(`^\\s*\\**\\s*${lab}[^:\\n*]*\\**\\s*[:\\-]\\s*(.+)$`, "i"));
       if (mm) return mm[1].replace(/\*/g, "").trim();
     }
   }
   return "";
+}
+
+// Ekstraksi shift tahan-banting: "Shift l (Siang)", "Shift : I (Siang)", "Shift : 1 (Siang)", "Shift 2", dll.
+function extractShift(text: string): string | undefined {
+  const t = stripInvisible(text);
+  // cari baris/segmen yang memuat "shift"
+  const m = t.match(/shift[^\n:]*[:\-]?\s*([ivl0-9]+)?\s*\(?\s*(siang|pagi|malam|day|night)?/i);
+  if (m) {
+    const num = (m[1] || "").toLowerCase().replace(/l/g, "i"); // typo "l" → "i"
+    const word = (m[2] || "").toLowerCase();
+    if (word === "malam" || word === "night") return "Shift 2";
+    if (word === "siang" || word === "pagi" || word === "day") return "Shift 1";
+    if (num === "2" || num === "ii") return "Shift 2";
+    if (num === "1" || num === "i") return "Shift 1";
+    if (num === "3" || num === "iii") return "Shift 3";
+  }
+  return undefined;
+}
+
+// Ambil jam pertama dari seluruh teks bila label waktu tak ditemukan.
+function extractWaktu(text: string): string | undefined {
+  const m = stripInvisible(text).match(/(\d{1,2}[:.]\d{2})\s*(wita|wib|wit)?/i);
+  if (m) return (m[1] + (m[2] ? " " + m[2].toUpperCase() : "")).trim();
+  return undefined;
 }
 
 // ---- Penyaring metadata & penutup (untuk ekstraksi narasi temuan) ----
@@ -161,9 +191,9 @@ function heuristicExtract(text: string): Partial<ParsedReport> {
   }
   const tgl = normalizeTanggal(lineVal(text, "hari/tgl", "hari/tanggal", "tanggal", "tgl", "hari, tanggal"));
   if (tgl) out.tanggal = tgl;
-  const shiftRaw = lineVal(text, "shift");
-  if (shiftRaw) out.shift = /(^|[^0-9])2|malam|night/i.test(shiftRaw) ? "Shift 2" : /(^|[^0-9])1|siang|pagi|day/i.test(shiftRaw) ? "Shift 1" : shiftRaw;
-  const waktu = lineVal(text, "waktu", "jam");
+  const shift = extractShift(text);
+  if (shift) out.shift = shift;
+  const waktu = lineVal(text, "waktu", "jam", "waktu pelaksanaan") || extractWaktu(text);
   if (waktu) out.waktuPelaksanaan = waktu;
   const lokasi = lineVal(text, "lokasi", "location");
   if (lokasi) out.lokasi = lokasi;
