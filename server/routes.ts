@@ -13736,7 +13736,7 @@ Format sebagai bullet points singkat per insight.`;
         ? report.namaPelaksana
         : (!isGenericName(parsed.namaPelaksana) ? parsed.namaPelaksana : report.namaPelaksana);
       const updatedReport = await storage.updateSafetyPatrolReport(req.params.id, {
-        tanggal: report.tanggal, // jangan pindahkan laporan
+        tanggal: parsed.tanggal || report.tanggal, // ikut tanggal di teks bila ada; selain itu tetap
         bulan: report.bulan || parsed.bulan || null,
         week: report.week || parsed.week || null,
         waktuPelaksanaan: waktu,
@@ -13813,7 +13813,7 @@ Format sebagai bullet points singkat per insight.`;
             namaPelaksana: keepName,
             kegiatan: parsed.kegiatan || (report as any).kegiatan || null,
             temuan: parsed.temuan || (report as any).temuan || null,
-            tanggal: (report as any).tanggal, // jangan pindahkan laporan
+            tanggal: parsed.tanggal || (report as any).tanggal, // ikut tanggal di teks bila ada; selain itu tetap
             bulan: (report as any).bulan || parsed.bulan || null,
             week: (report as any).week || parsed.week || null,
             jenisLaporan: parsed.jenisLaporan || (report as any).jenisLaporan,
