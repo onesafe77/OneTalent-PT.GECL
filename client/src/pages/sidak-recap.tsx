@@ -1952,345 +1952,85 @@ export default function SidakRecap() {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <ClipboardCheck className="h-7 w-7 text-primary" />
-            Rekap Kegiatan SIDAK
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Rekapitulasi semua kegiatan SIDAK dari seluruh supervisor
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="shrink-0 p-2.5 rounded-2xl bg-primary/10 text-primary">
+            <ClipboardCheck className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+              Rekap Kegiatan SIDAK
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+              Rekapitulasi semua kegiatan SIDAK dari seluruh supervisor
+            </p>
+          </div>
         </div>
-        <Button onClick={handleExportExcel} disabled={!filteredSessions.length} data-testid="button-export-excel">
+        <Button onClick={handleExportExcel} disabled={!filteredSessions.length} data-testid="button-export-excel" className="rounded-xl shadow-sm">
           <Download className="h-4 w-4 mr-2" />
           Export Excel
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <ClipboardCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalSidak || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Total SIDAK</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                <Activity className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalFatigue || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Fatigue</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <CalendarIcon className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalRoster || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Roster</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <Users className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalSeatbelt || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Seatbelt</p>
+      {/* Stats Cards (modern, data-driven) */}
+      {(() => {
+        const fmt = (n: number) => (n || 0).toLocaleString("id-ID");
+        const st: any = data?.stats || {};
+        const CARDS: { key: string; label: string; Icon: any; chip: string }[] = [
+          { key: "totalFatigue", label: "Fatigue", Icon: Activity, chip: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
+          { key: "totalRoster", label: "Roster", Icon: CalendarIcon, chip: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" },
+          { key: "totalSeatbelt", label: "Seatbelt", Icon: Users, chip: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400" },
+          { key: "totalAntrian", label: "Antrian", Icon: Truck, chip: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400" },
+          { key: "totalApd", label: "APD", Icon: ClipboardCheck, chip: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
+          { key: "totalJarak", label: "Jarak Aman", Icon: Maximize2, chip: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" },
+          { key: "totalKecepatan", label: "Kecepatan", Icon: Gauge, chip: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" },
+          { key: "totalPencahayaan", label: "Pencahayaan", Icon: Sun, chip: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400" },
+          { key: "totalLoto", label: "LOTO", Icon: Lock, chip: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" },
+          { key: "totalDigital", label: "Digital", Icon: Tablet, chip: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" },
+          { key: "totalWorkshop", label: "Workshop", Icon: PenTool, chip: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" },
+          { key: "totalBehavior", label: "Behavior", Icon: Activity, chip: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" },
+          { key: "totalIntercom", label: "Intercom", Icon: ClipboardCheck, chip: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400" },
+          { key: "totalStandJack", label: "Stand Jack", Icon: Shield, chip: "bg-slate-100 text-slate-600 dark:bg-slate-900/30 dark:text-slate-400" },
+          { key: "totalHydraulicJack", label: "Hydraulic Jack", Icon: Shield, chip: "bg-slate-100 text-slate-600 dark:bg-slate-900/30 dark:text-slate-400" },
+          { key: "totalBottleJack", label: "Bottle Jack", Icon: Shield, chip: "bg-slate-100 text-slate-600 dark:bg-slate-900/30 dark:text-slate-400" },
+          { key: "totalApar", label: "APAR", Icon: Activity, chip: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" },
+          { key: "totalImpact", label: "Impact", Icon: PenTool, chip: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400" },
+          { key: "totalMesinLas", label: "Mesin Las", Icon: Building, chip: "bg-zinc-100 text-zinc-600 dark:bg-zinc-900/30 dark:text-zinc-400" },
+          { key: "totalMesinKompresor", label: "Mesin Kompresor", Icon: Activity, chip: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400" },
+          { key: "totalGerindaDuduk", label: "Gerinda Duduk", Icon: PenTool, chip: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" },
+          { key: "totalFuelStorage", label: "Fuel Storage", Icon: Building, chip: "bg-stone-100 text-stone-600 dark:bg-stone-900/30 dark:text-stone-400" },
+        ];
+        return (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <div className="col-span-2 sm:col-span-1 relative overflow-hidden rounded-2xl bg-gradient-to-br from-red-600 to-rose-500 p-4 text-white shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 shrink-0 rounded-xl bg-white/20 flex items-center justify-center">
+                  <ClipboardCheck className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-3xl font-bold tracking-tight tabular-nums leading-none">{fmt(st.totalSidak)}</p>
+                  <p className="mt-1 text-[11px] font-semibold uppercase tracking-wider text-white/80">Total SIDAK</p>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-rose-100 dark:bg-rose-900/30 rounded-lg">
-                <Truck className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+            {CARDS.map((c) => (
+              <div
+                key={c.key}
+                className="group rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 transition-all hover:shadow-md hover:border-gray-200 dark:hover:border-gray-700 hover:-translate-y-0.5"
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`h-10 w-10 shrink-0 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 ${c.chip}`}>
+                    <c.Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-2xl font-bold tracking-tight tabular-nums leading-none text-gray-900 dark:text-white">{fmt(st[c.key])}</p>
+                    <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 truncate">{c.label}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalAntrian || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Antrian</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                <ClipboardCheck className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalApd || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK APD</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Maximize2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalJarak || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Jarak</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <Gauge className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalKecepatan || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Kecepatan</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <Sun className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalPencahayaan || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Pencahayaan</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <Lock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalLoto || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK LOTO</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Tablet className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalDigital || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Digital</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <PenTool className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalWorkshop || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Workshop</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                <Activity className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalBehavior || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Behavior</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <ClipboardCheck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalIntercom || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Intercom</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-lg">
-                <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalStandJack || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Stand Jack</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-lg">
-                <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalHydraulicJack || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Hydraulic Jack</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-lg">
-                <Shield className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalBottleJack || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Bottle Jack</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <Activity className="h-5 w-5 text-red-600 dark:text-red-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalApar || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK APAR</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-zinc-100 dark:bg-zinc-900/30 rounded-lg">
-                <PenTool className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalImpact || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Impact</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <Building className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalMesinLas || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Mesin Las</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg">
-                <Activity className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalMesinKompresor || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Mesin Kompresor</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <PenTool className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalGerindaDuduk || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Gerinda Duduk</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-stone-100 dark:bg-stone-900/30 rounded-lg">
-                <Building className="h-5 w-5 text-stone-600 dark:text-stone-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{data?.stats.totalFuelStorage || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">SIDAK Fuel Storage</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Supervisor Stats */}
       {
