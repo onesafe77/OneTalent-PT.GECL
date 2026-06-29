@@ -191,6 +191,8 @@ export default function FmsFatigueMonitoringDashboard() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/fms/analytics'] });
             queryClient.invalidateQueries({ queryKey: ['/api/fms/violations'] });
+            // Penting: refresh badge "Driver/Foto belum" agar langsung akurat tanpa reload
+            queryClient.invalidateQueries({ queryKey: ['/api/fms/follow-up'] });
             toast({ title: "Berhasil", description: "Nama driver & evidence berhasil disimpan." });
             setOverrideName("");
             setOverrideNik("");
@@ -942,11 +944,24 @@ export default function FmsFatigueMonitoringDashboard() {
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-sm">
-                                                            {v.manualDriverName ? (
-                                                                <span className="font-medium text-green-700">{v.manualDriverName}</span>
-                                                            ) : (
-                                                                <span className="text-gray-400 italic">Belum diisi</span>
-                                                            )}
+                                                            {(() => {
+                                                                const nm = (v.manualDriverName || "").trim();
+                                                                const driverOk = nm && !/^unknown/i.test(nm);
+                                                                const ev = (v.evidenceUrl || "");
+                                                                const photoOk = ev.startsWith("/api/uploads/") || ev.startsWith("/uploads/") || ev.startsWith("http");
+                                                                return (
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        {driverOk ? (
+                                                                            <span className="font-medium text-green-700">{nm}</span>
+                                                                        ) : (
+                                                                            <span className="text-red-600 italic font-medium">Driver belum diisi</span>
+                                                                        )}
+                                                                        {!photoOk && (
+                                                                            <span className="text-[10px] text-amber-600">⚠ Foto kegiatan belum diupload</span>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </TableCell>
                                                         <TableCell className="text-sm max-w-[200px] truncate" title={v.location}>
                                                             {v.location || "-"}
