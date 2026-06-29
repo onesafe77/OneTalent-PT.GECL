@@ -2303,73 +2303,61 @@ export default function SidakRecap() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {data.stats.supervisorStats.slice(0, 6).map((supervisor) => (
-                  <div
-                    key={supervisor.name}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                        <User className="h-4 w-4 text-primary" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {data.stats.supervisorStats.slice(0, 6).map((supervisor) => {
+                  // Semua kategori SIDAK (label singkat + nama lengkap + warna). Hanya yang >0 ditampilkan.
+                  const CATS: { key: keyof typeof supervisor; short: string; full: string; cls: string }[] = [
+                    { key: "fatigue", short: "F", full: "Fatigue", cls: "bg-blue-50 text-blue-700" },
+                    { key: "roster", short: "R", full: "Roster", cls: "bg-green-50 text-green-700" },
+                    { key: "seatbelt", short: "SB", full: "Seatbelt", cls: "bg-teal-50 text-teal-700" },
+                    { key: "rambu", short: "RB", full: "Rambu", cls: "bg-cyan-50 text-cyan-700" },
+                    { key: "antrian", short: "AN", full: "Antrian", cls: "bg-rose-50 text-rose-700" },
+                    { key: "apd", short: "APD", full: "APD", cls: "bg-purple-50 text-purple-700" },
+                    { key: "jarak", short: "J", full: "Jarak Aman", cls: "bg-sky-50 text-sky-700" },
+                    { key: "kecepatan", short: "K", full: "Kecepatan", cls: "bg-orange-50 text-orange-700" },
+                    { key: "pencahayaan", short: "P", full: "Pencahayaan", cls: "bg-yellow-50 text-yellow-700" },
+                    { key: "loto", short: "LO", full: "LOTO", cls: "bg-amber-50 text-amber-700" },
+                    { key: "digital", short: "DG", full: "Digital", cls: "bg-indigo-50 text-indigo-700" },
+                    { key: "workshop", short: "WS", full: "Workshop", cls: "bg-orange-50 text-orange-700" },
+                    { key: "behavior", short: "BH", full: "Behavior", cls: "bg-violet-50 text-violet-700" },
+                    { key: "intercom", short: "IC", full: "Intercom", cls: "bg-slate-50 text-slate-700" },
+                    { key: "standjack", short: "SJ", full: "Stand Jack", cls: "bg-stone-50 text-stone-700" },
+                    { key: "hydraulicjack", short: "HJ", full: "Hydraulic Jack", cls: "bg-stone-50 text-stone-700" },
+                    { key: "bottlejack", short: "BJ", full: "Bottle Jack", cls: "bg-stone-50 text-stone-700" },
+                    { key: "apar", short: "AP", full: "APAR", cls: "bg-red-50 text-red-700" },
+                    { key: "impact", short: "IM", full: "Impact", cls: "bg-pink-50 text-pink-700" },
+                    { key: "mesinlas", short: "ML", full: "Mesin Las", cls: "bg-zinc-50 text-zinc-700" },
+                    { key: "mesinkompresor", short: "MK", full: "Mesin Kompresor", cls: "bg-zinc-50 text-zinc-700" },
+                    { key: "gerindaduduk", short: "GD", full: "Gerinda Duduk", cls: "bg-zinc-50 text-zinc-700" },
+                    { key: "fuelstorage", short: "FS", full: "Fuel Storage", cls: "bg-emerald-50 text-emerald-700" },
+                  ];
+                  const active = CATS.filter((c) => Number(supervisor[c.key]) > 0);
+                  return (
+                    <div
+                      key={supervisor.name}
+                      className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-8 h-8 shrink-0 bg-primary/10 rounded-full flex items-center justify-center">
+                            <User className="h-4 w-4 text-primary" />
+                          </div>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {supervisor.name}
+                          </span>
+                        </div>
+                        <Badge className="text-xs shrink-0">Total: {supervisor.total}</Badge>
                       </div>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[120px]">
-                        {supervisor.name}
-                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {active.map((c) => (
+                          <Badge key={c.key as string} variant="outline" title={c.full} className={`text-[11px] ${c.cls}`}>
+                            {c.short}: {Number(supervisor[c.key])}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                        F: {supervisor.fatigue}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
-                        R: {supervisor.roster}
-                      </Badge>
-                      {supervisor.apd > 0 && (
-                        <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                          APD: {supervisor.apd}
-                        </Badge>
-                      )}
-                      {supervisor.jarak > 0 && (
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                          J: {supervisor.jarak}
-                        </Badge>
-                      )}
-                      {supervisor.kecepatan > 0 && (
-                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700">
-                          K: {supervisor.kecepatan}
-                        </Badge>
-                      )}
-                      {supervisor.pencahayaan > 0 && (
-                        <Badge variant="outline" className="text-xs bg-yellow-50 text-yellow-700">
-                          P: {supervisor.pencahayaan}
-                        </Badge>
-                      )}
-                      {supervisor.loto > 0 && (
-                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700">
-                          L: {supervisor.loto}
-                        </Badge>
-                      )}
-                      {supervisor.digital > 0 && (
-                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                          D: {supervisor.digital}
-                        </Badge>
-                      )}
-                      {supervisor.workshop > 0 && (
-                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700">
-                          W: {supervisor.workshop}
-                        </Badge>
-                      )}
-                      {supervisor.behavior > 0 && (
-                        <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700">
-                          B: {supervisor.behavior}
-                        </Badge>
-                      )}
-                      <Badge className="text-xs">
-                        {supervisor.total}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
