@@ -202,26 +202,34 @@ async function hermes(system: string, user: string, fallback: string): Promise<s
 
 const SYS_BOT = "Kamu asisten Safety Patrol HSE PT Borneo Indobara di Telegram. Jawab singkat (maks 3 kalimat), sopan, ramah, Bahasa Indonesia. Jangan mengarang data.";
 
-async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos: boolean = false) {
+async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos: boolean = false, reportDate?: string, dateFromText: boolean = true) {
+  // Tanggal tercatat = tanggal final yang DISIMPAN (bukan sekadar hasil parse).
+  const recordedDate = reportDate || parsed.tanggal || todayStr();
+  // Peringatan laporan susulan: tanggal tak terbaca → masuk ke HARI INI.
+  const backdateNote = !dateFromText
+    ? `\n\n⚠️ Tanggal tidak terbaca dari laporan, jadi dicatat untuk *HARI INI* (${recordedDate}).\nKalau ini laporan susulan, tambahkan baris *Tanggal: 28/06/2026* (sesuai tanggal kejadian) lalu kirim ulang.`
+    : "";
   const ringkas = JSON.stringify({
-    jenis: parsed.jenisLaporan, kegiatan: parsed.kegiatan, tanggal: parsed.tanggal,
-    shift: parsed.shift, waktu: parsed.waktuPelaksanaan, lokasi: parsed.lokasi,
+    jenis: parsed.jenisLaporan, kegiatan: parsed.kegiatan, tanggalTercatat: recordedDate,
+    tanggalDariTeks: dateFromText, shift: parsed.shift, waktu: parsed.waktuPelaksanaan, lokasi: parsed.lokasi,
     pelaksana: parsed.namaPelaksana, temuan: parsed.temuan,
   });
   // Ringkasan terstruktur (hanya field terisi) — dipakai sbg fallback bila AI gagal.
   const lines = [
     (parsed.kegiatan || parsed.jenisLaporan) ? `• Kegiatan: ${parsed.kegiatan || parsed.jenisLaporan}` : "",
-    parsed.tanggal ? `• Tanggal: ${parsed.tanggal}${parsed.shift ? " · " + parsed.shift : ""}` : (parsed.shift ? `• Shift: ${parsed.shift}` : ""),
+    `• Tercatat untuk tanggal: ${recordedDate}${parsed.shift ? " · " + parsed.shift : ""}`,
     parsed.waktuPelaksanaan ? `• Waktu: ${parsed.waktuPelaksanaan}` : "",
     parsed.lokasi ? `• Lokasi: ${parsed.lokasi}` : "",
     parsed.namaPelaksana ? `• Pelaksana: ${parsed.namaPelaksana}` : "",
     parsed.temuan ? `• Temuan: ${String(parsed.temuan).slice(0, 200)}` : "",
   ].filter(Boolean).join("\n");
   const photoNote = hasPhotos ? "" : "\n\n📷 Jangan lupa kirim foto kegiatannya ya 🙏";
-  const fallback = `✅ Laporan tersimpan, terima kasih ${nama}!\n\n📋 Ringkasan:\n${lines || "(ringkasan tidak tersedia)"}${photoNote}`;
+  const fallback = `✅ Laporan tersimpan, terima kasih ${nama}!\n\n📋 Ringkasan:\n${lines || "(ringkasan tidak tersedia)"}${backdateNote}${photoNote}`;
   const text = await hermes(
     SYS_BOT,
-    `Laporan dari ${nama} sudah TERSIMPAN ke rekap. Buat konfirmasi ramah + RINGKASAN isi laporan (kegiatan, tanggal, shift, waktu, lokasi, pelaksana, temuan).${hasPhotos ? "" : " Akhiri dengan ajakan singkat mengirim foto kegiatan."} Data: ${ringkas}`,
+    `Laporan dari ${nama} sudah TERSIMPAN ke rekap untuk tanggal ${recordedDate}. Buat konfirmasi ramah + RINGKASAN isi laporan (kegiatan, TERCATAT UNTUK TANGGAL ${recordedDate}, shift, waktu, lokasi, pelaksana, temuan). ` +
+    (!dateFromText ? `PENTING: tanggal tidak terbaca dari teks sehingga dicatat untuk HARI INI — ingatkan bila ini laporan susulan agar menambahkan baris "Tanggal: <tgl kejadian>" lalu kirim ulang. ` : "") +
+    `${hasPhotos ? "" : "Akhiri dengan ajakan singkat mengirim foto kegiatan. "}Data: ${ringkas}`,
     fallback
   );
   await tgSendMessage(chatId, text);
@@ -347,6 +355,7 @@ export async function runJobReminders(): Promise<{ chats: number; sent: number }
 // ---------- Simpan laporan ----------
 async function saveReport(chatId: string, user: any, text: string, photos: string[]) {
   const parsed: any = await parseReportWithGemini(text);
+  const dateFromText = !!parsed.tanggal; // tanggal terbaca dari isi laporan? (utk laporan susulan)
   const reportDate = parsed.tanggal || todayStr();
   const d = new Date(reportDate);
   let aiAnalysis: string | null = null;
@@ -417,7 +426,7 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
     } catch (e: any) { console.error("[Telegram] attendance error:", e?.message || e); }
   }
 
-  await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed, allPhotos.length > 0);
+  await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed, allPhotos.length > 0, reportDate, dateFromText);
 
   // Feedback target job: bila petugas punya target hari ini → kirim progres + sisa kegiatan.
   try {
