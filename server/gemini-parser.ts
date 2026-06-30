@@ -78,6 +78,19 @@ function lineVal(text: string, ...labels: string[]): string {
   return "";
 }
 
+// Ekstraksi tanggal tahan-banting: cocok untuk semua varian label
+// ("Hari tanggal :", "Hari / tgl :", "Hari/tgl :", "Hari, tanggal :", "Tanggal :", "Tgl :"),
+// menerima baris hanya bila nilainya benar-benar terurai jadi tanggal (mengabaikan "Hari ini ..." dsb).
+function extractTanggal(text: string): string | undefined {
+  for (const raw of stripInvisible(text).split(/\r?\n/)) {
+    const m = raw.match(/^\s*\**\s*(?:hari|tanggal|tgl)[^:\n*]*\**\s*[:\-]\s*(.+)$/i);
+    if (m) { const d = normalizeTanggal(m[1].replace(/\*/g, "").trim()); if (d) return d; }
+  }
+  // Fallback: token tanggal pertama di mana pun (DD/MM/YYYY | DD Bulan YYYY | YYYY-MM-DD)
+  const g = stripInvisible(text).match(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}|\d{1,2}\s+[A-Za-z]+\s+\d{4}|\d{4}-\d{2}-\d{2}/);
+  return g ? normalizeTanggal(g[0]) : undefined;
+}
+
 // Ekstraksi shift tahan-banting: "Shift l (Siang)", "Shift : I (Siang)", "Shift : 1 (Siang)", "Shift 2", dll.
 function extractShift(text: string): string | undefined {
   const t = stripInvisible(text);
@@ -189,7 +202,7 @@ function heuristicExtract(text: string): Partial<ParsedReport> {
       break;
     }
   }
-  const tgl = normalizeTanggal(lineVal(text, "hari/tgl", "hari/tanggal", "tanggal", "tgl", "hari, tanggal"));
+  const tgl = extractTanggal(text);
   if (tgl) out.tanggal = tgl;
   const shift = extractShift(text);
   if (shift) out.shift = shift;
