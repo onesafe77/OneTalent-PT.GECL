@@ -81,6 +81,22 @@ function parseIndoDate(text: string): string | null {
   return `${m[3]}-${String(mi + 1).padStart(2, "0")}-${String(+m[1]).padStart(2, "0")}`;
 }
 
+// Deteksi shift briefing tahan-banting: "Shift I", "Shift ll" (typo L=I), "Shift : II",
+// "Shift 2 (malam)", atau kata "malam"/"siang". Regex lama gagal di "Shift ll" (default Shift 1).
+function shiftFromBriefing(text: string): string | undefined {
+  const t = (text || "").replace(/[​‌‍‎‏﻿]/g, "");
+  const m = t.match(/shift\s*[:\-]?\s*([il]{1,3}|\d)/i);
+  if (m) {
+    const r = m[1].toLowerCase().replace(/l/g, "i"); // typo "l" → "i"
+    if (r === "2" || r === "ii") return "Shift 2";
+    if (r === "3" || r === "iii") return "Shift 3";
+    if (r === "1" || r === "i") return "Shift 1";
+  }
+  if (/\bmalam\b/i.test(t)) return "Shift 2";
+  if (/\bsiang\b|\bpagi\b/i.test(t)) return "Shift 1";
+  return undefined;
+}
+
 // Parse briefing → { tanggal, shift, teams:[{team, lokasi, gecl, activities[](kanonik), raw[]}] }
 function parseJobBriefing(text: string): { tanggal: string; shift: string; teams: Array<{ team: string; lokasi: string | null; gecl: string | null; activities: string[]; raw: string[] }> } {
   const clean = (text || "").replace(/\*/g, ""); // buang penanda bold Telegram
@@ -88,9 +104,7 @@ function parseJobBriefing(text: string): { tanggal: string; shift: string; teams
   // Briefing = pembagian job AWAL SHIFT hari ini → pakai tanggal saat diterima bot,
   // bukan tanggal yang diketik (sering stale/template, mis. "01 Juni" padahal kirim 26 Jun).
   const tanggal = todayStr();
-  const shiftM = /shift\s*(I{1,3}|\d)/i.exec(clean);
-  let shift = "Shift 1";
-  if (shiftM) { const t = shiftM[1].toUpperCase(); shift = (t === "II" || t === "2") ? "Shift 2" : "Shift 1"; }
+  const shift = shiftFromBriefing(clean) || "Shift 1";
 
   // Pisah blok per "N. TEAM ..."
   const idxs: number[] = [];
