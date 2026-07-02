@@ -56,7 +56,6 @@ import {
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { useState, useMemo, useRef, useEffect } from "react";
-import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { SeatbeltFormPreview } from "@/components/seatbelt-form-preview";
@@ -1900,33 +1899,111 @@ export default function SidakRecap() {
     return data.stats.supervisorStats.map(s => s.name);
   }, [data?.stats?.supervisorStats]);
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!filteredSessions.length) return;
 
-    const exportData = filteredSessions.map((session, idx) => ({
-      'No': idx + 1,
-      'Tanggal': format(new Date(session.tanggal), 'dd/MM/yyyy'),
-      'Waktu': session.waktu,
-      'Tipe SIDAK': session.type,
-      'Shift': session.shift,
-      'Lokasi': session.lokasi,
-      'Departemen': session.departemen,
-      'Area/Perusahaan': session.area || session.perusahaan || '-',
-      'Jumlah Sampel': session.totalSampel,
-      'Observer': session.observers,
-      'Supervisor': session.supervisorName,
-    }));
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Rekap SIDAK", { views: [{ state: "frozen", ySplit: 4 }] });
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Rekap SIDAK");
-
-    ws['!cols'] = [
-      { wch: 5 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 },
-      { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 25 }, { wch: 25 }
+    const COLS = [
+      { header: "No", width: 5 },
+      { header: "Tanggal", width: 12 },
+      { header: "Waktu", width: 10 },
+      { header: "Tipe SIDAK", width: 18 },
+      { header: "Shift", width: 9 },
+      { header: "Lokasi", width: 22 },
+      { header: "Departemen", width: 18 },
+      { header: "Area/Perusahaan", width: 20 },
+      { header: "Jumlah Sampel", width: 10 },
+      { header: "Observer", width: 32 },
+      { header: "Supervisor", width: 24 },
     ];
+    ws.columns = COLS.map((c) => ({ width: c.width }));
+    const lastCol = String.fromCharCode(64 + COLS.length); // K
 
-    XLSX.writeFile(wb, `Rekap_SIDAK_${format(new Date(), 'yyyyMMdd')}.xlsx`);
+    const thin = { style: "thin" as const, color: { argb: "FFD1D5DB" } };
+    const border = { top: thin, left: thin, bottom: thin, right: thin };
+
+    // Judul + periode
+    const dates = filteredSessions.map((s) => new Date(s.tanggal).getTime());
+    const periode = `${format(new Date(Math.min(...dates)), "dd/MM/yyyy")} – ${format(new Date(Math.max(...dates)), "dd/MM/yyyy")}`;
+    ws.mergeCells(`A1:${lastCol}1`);
+    const title = ws.getCell("A1");
+    title.value = "REKAP KEGIATAN SIDAK";
+    title.font = { bold: true, size: 14, color: { argb: "FFB91C1C" } };
+    title.alignment = { horizontal: "center", vertical: "middle" };
+    ws.getRow(1).height = 22;
+    ws.mergeCells(`A2:${lastCol}2`);
+    const sub = ws.getCell("A2");
+    sub.value = `Periode: ${periode}  ·  Diekspor: ${format(new Date(), "dd/MM/yyyy HH:mm")}  ·  ${filteredSessions.length} sesi`;
+    sub.font = { italic: true, size: 10, color: { argb: "FF6B7280" } };
+    sub.alignment = { horizontal: "center" };
+
+    // Header (baris 4)
+    const headerRow = ws.getRow(4);
+    COLS.forEach((c, i) => {
+      const cell = headerRow.getCell(i + 1);
+      cell.value = c.header;
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDC2626" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.border = border;
+    });
+    headerRow.height = 20;
+
+    // Data (mulai baris 5) + zebra + border
+    filteredSessions.forEach((session, idx) => {
+      const row = ws.getRow(5 + idx);
+      const vals = [
+        idx + 1,
+        format(new Date(session.tanggal), "dd/MM/yyyy"),
+        session.waktu,
+        session.type,
+        session.shift,
+        session.lokasi,
+        session.departemen,
+        session.area || session.perusahaan || "-",
+        session.totalSampel,
+        session.observers,
+        session.supervisorName,
+      ];
+      vals.forEach((v, i) => {
+        const cell = row.getCell(i + 1);
+        cell.value = v as any;
+        cell.border = border;
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: i === 0 || i === 8 ? "center" : i === 1 || i === 2 || i === 4 ? "center" : "left",
+          wrapText: i === 9, // Observer bisa panjang
+        };
+        if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+      });
+    });
+
+    // Baris TOTAL
+    const totalRow = ws.getRow(5 + filteredSessions.length);
+    ws.mergeCells(`A${totalRow.number}:H${totalRow.number}`);
+    totalRow.getCell(1).value = "TOTAL";
+    totalRow.getCell(9).value = filteredSessions.reduce((a, s) => a + (Number(s.totalSampel) || 0), 0);
+    for (let i = 1; i <= COLS.length; i++) {
+      const cell = totalRow.getCell(i);
+      cell.font = { bold: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+      cell.border = border;
+      cell.alignment = { horizontal: i === 1 ? "right" : "center", vertical: "middle" };
+    }
+
+    ws.autoFilter = { from: "A4", to: `${lastCol}4` };
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Rekap_SIDAK_${format(new Date(), "yyyyMMdd")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   if (isLoading) {
