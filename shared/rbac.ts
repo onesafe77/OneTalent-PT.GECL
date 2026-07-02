@@ -136,6 +136,7 @@ const SUPERVISOR_POSITIONS = [
   "maintenance group leader",
   "production group leader",
   "fms specialist",
+  "admin penggajihan", // akses Rekap SIDAK (PUTRI SARI AZHARI.NST C-080679, satu-satunya pemegang jabatan ini)
 ];
 
 // Get role from position - STRICT exact matching to prevent privilege escalation
