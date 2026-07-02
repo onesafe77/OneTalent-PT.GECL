@@ -10175,6 +10175,46 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Unduh form SIDAK sebagai PDF (dipakai link "Download Form" di export Excel Rekap SIDAK).
+  // Ambil data via self-fetch ke /api/sidak-recap/detail (hindari refactor switch 23 tipe),
+  // lalu render PDF generik (server/lib/sidak-form-pdf).
+  app.get("/api/sidak-recap/form-pdf", async (req, res) => {
+    try {
+      const sessionId = req.query.sessionId as string;
+      const type = req.query.type as string;
+      if (!sessionId || !type) {
+        return res.status(400).json({ message: "Session ID and Type are required" });
+      }
+      const port = process.env.PORT || 5000;
+      const detailRes = await fetch(
+        `http://127.0.0.1:${port}/api/sidak-recap/detail?sessionId=${encodeURIComponent(sessionId)}&type=${encodeURIComponent(type)}`,
+      );
+      if (!detailRes.ok) {
+        return res.status(detailRes.status === 404 ? 404 : 502).json({ message: "Data sesi tidak ditemukan" });
+      }
+      const detail = await detailRes.json();
+      // Utamakan LAYOUT ASLI (util jsPDF yang sama dgn download di History); fallback generik.
+      let pdf: Buffer | null = null;
+      try {
+        const { renderOriginalSidakPdf } = await import("./lib/sidak-original-pdf");
+        pdf = await renderOriginalSidakPdf(type, detail);
+      } catch (e: any) {
+        console.warn(`[SIDAK-FORM-PDF] layout asli gagal utk ${type}, pakai generik:`, e?.message || e);
+      }
+      if (!pdf) {
+        const { renderSidakFormPdf } = await import("./lib/sidak-form-pdf");
+        pdf = await renderSidakFormPdf(detail, type);
+      }
+      const tanggal = String(detail?.session?.tanggal || "").slice(0, 10) || "form";
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="Form_SIDAK_${type}_${tanggal}.pdf"`);
+      res.send(pdf);
+    } catch (error: any) {
+      console.error("[SIDAK-FORM-PDF]", error?.message || error);
+      res.status(500).json({ message: "Gagal membuat PDF form" });
+    }
+  });
+
   app.get("/api/sidak-recap/detail", async (req, res) => {
     try {
       const sessionId = req.query.sessionId as string;

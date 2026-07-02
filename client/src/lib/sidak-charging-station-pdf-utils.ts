@@ -7,7 +7,7 @@
 // - Tabel Pemantau 2 blok bersebelahan (8 slot)
 // PDF & JPG di-render dari SATU template HTML (html2canvas) agar identik.
 
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import type { SidakChargingStationSession, SidakChargingStationRecord, SidakChargingStationObserver } from '@shared/schema';

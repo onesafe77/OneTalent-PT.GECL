@@ -1,7 +1,7 @@
 // Export PDF & JPG "Ringkasan Pengendalian dan SOP Kritikal" (Observasi SOP Kritis / CCC).
 // Layout mengikuti formulir PDF resmi (PORTRAIT). PDF & JPG dari satu template HTML (html2canvas).
 
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 

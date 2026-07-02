@@ -1,4 +1,5 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import { loadGeclLogo } from "./pdf-logo";
 import autoTable from 'jspdf-autotable';
 import type {
     SidakIntercomSession,
@@ -26,14 +27,8 @@ export async function generateSidakIntercomPdf(data: SidakIntercomData): Promise
 
     // ==================== HEADER WITH LOGO ====================
     try {
-        const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            // logo-gecl.png is common across other sidak pdfs
-            img.src = '/assets/logo-gecl.png';
-        });
-
+        const logoImg = await loadGeclLogo();
+        if (!logoImg) throw new Error("logo tidak tersedia");
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
     } catch (error) {
         pdf.setFont('helvetica', 'bold');

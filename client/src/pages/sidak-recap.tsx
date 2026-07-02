@@ -1883,6 +1883,33 @@ export default function SidakRecap() {
     }
   };
 
+  // Deep-link dari export Excel: ?session=<id>&type=<type>&dl=pdf → buka dialog form (+ auto-download PDF)
+  const deepLinkDone = useRef(false);
+  const autoDlPdf = useRef(false);
+  useEffect(() => {
+    if (deepLinkDone.current || !data?.sessions?.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const sid = params.get("session");
+    if (!sid) { deepLinkDone.current = true; return; }
+    deepLinkDone.current = true;
+    const stype = params.get("type");
+    const s = data.sessions.find((x) => x.id === sid && (!stype || x.type === stype));
+    if (!s) return;
+    autoDlPdf.current = params.get("dl") === "pdf";
+    setSelectedSession(s);
+    setDetailOpen(true);
+    // bersihkan param agar refresh tidak memicu ulang download
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [data]);
+
+  useEffect(() => {
+    if (!autoDlPdf.current || !detailData || !detailOpen) return;
+    autoDlPdf.current = false;
+    // beri waktu dialog & gambar ter-render sebelum di-render ke PDF
+    const t = setTimeout(() => { handleDownloadPDF(); }, 900);
+    return () => clearTimeout(t);
+  }, [detailData, detailOpen]);
+
   const filteredSessions = useMemo(() => {
     if (!data?.sessions) return [];
 
@@ -1923,6 +1950,8 @@ export default function SidakRecap() {
     // Kolom evidence foto (link) — dinamis sesuai jumlah foto terbanyak (maks 5)
     const maxFotos = Math.min(5, Math.max(0, ...filteredSessions.map((s) => (s.photos || []).length)));
     for (let i = 1; i <= maxFotos; i++) COLS.push({ header: `Foto ${i}`, width: 13 });
+    // Kolom form: deep-link buka dialog detail sesi + auto-download PDF (?session&type&dl=pdf)
+    COLS.push({ header: "Form (PDF)", width: 15 });
     const toAbsUrl = (u: string) =>
       /^https?:\/\//i.test(u) ? u : `${window.location.origin}${u.startsWith("/") ? "" : "/"}${u}`;
 
@@ -1998,6 +2027,16 @@ export default function SidakRecap() {
           cell.font = { color: { argb: "FF0563C1" }, underline: true, size: 10 };
         }
       }
+      // Kolom Form (PDF): link buka form di aplikasi + auto-download PDF
+      const formCell = row.getCell(vals.length + 1 + maxFotos);
+      formCell.border = border;
+      formCell.alignment = { vertical: "middle", horizontal: "center" };
+      if (idx % 2 === 1) formCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+      formCell.value = {
+        text: "Download Form",
+        hyperlink: `${window.location.origin}/api/sidak-recap/form-pdf?sessionId=${session.id}&type=${encodeURIComponent(session.type)}`,
+      };
+      formCell.font = { color: { argb: "FF0563C1" }, underline: true, size: 10 };
     });
 
     // Baris TOTAL

@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import type { SidakLotoSession, SidakLotoRecord, SidakLotoObserver } from '@shared/schema';
 import { getSidakLotoHtml } from './sidak-loto-html-template';

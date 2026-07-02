@@ -1,4 +1,5 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import { loadGeclLogo } from "./pdf-logo";
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -39,14 +40,9 @@ export const generateSidakMesinLasPDF = async (data: any) => {
     const margin = 10;
     const availableWidth = pageWidth - (margin * 2);
 
-    let logoImg: HTMLImageElement | null = null;
+    let logoImg: HTMLImageElement | string | null = null;
     try {
-        logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error('Failed to load logo'));
-            img.src = '/assets/logo-gecl.png';
-        });
+        logoImg = await loadGeclLogo();
     } catch (error) {
         console.error('Logo loading failed:', error);
     }

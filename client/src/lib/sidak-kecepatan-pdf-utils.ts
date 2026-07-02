@@ -1,4 +1,5 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import { loadGeclLogo } from "./pdf-logo";
 import autoTable from 'jspdf-autotable';
 import type { SidakKecepatanSession, SidakKecepatanRecord, SidakKecepatanObserver } from '@shared/schema';
 
@@ -17,12 +18,7 @@ export async function generateSidakKecepatanPdf(data: SidakKecepatanData): Promi
     let yPosition = margin;
 
     try {
-        const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = '/assets/logo-gecl.png';
-        });
+        const logoImg = await loadGeclLogo();
         pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
     } catch {
         pdf.setFont('helvetica', 'bold');

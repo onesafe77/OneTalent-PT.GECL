@@ -1,4 +1,5 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import { loadGeclLogo } from "./pdf-logo";
 import autoTable from 'jspdf-autotable';
 import type {
   SidakFatigueSession,
@@ -28,14 +29,9 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
   const EMPLOYEES_PER_PAGE = 10;
 
   // Pre-load logo image once for reuse
-  let logoImg: HTMLImageElement | null = null;
+  let logoImg: HTMLImageElement | string | null = null;
   try {
-    logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('Failed to load logo'));
-      img.src = '/assets/logo-gecl.png';
-    });
+    logoImg = await loadGeclLogo();
   } catch (error) {
     console.error('Logo loading failed, will use text fallback:', error);
   }
@@ -495,12 +491,7 @@ export async function generateSidakRosterPdf(data: SidakRosterData): Promise<jsP
   // ==================== HEADER WITH LOGO ====================
   // Load and add company logo (async)
   try {
-    const logoImg = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = '/assets/logo-gecl.png';
-    });
+    const logoImg = await loadGeclLogo();
 
     // Add logo to top-left corner with proper dimensions
     pdf.addImage(logoImg, 'PNG', margin, margin, 45, 10);
