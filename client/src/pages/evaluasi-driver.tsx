@@ -55,6 +55,7 @@ interface EvaluationData {
   };
   drivers: DriverEvaluation[];
   month: string;
+  rosterMissing?: boolean; // roster bulan ini belum diupload → pool driver diambil dari data SIDAK
 }
 
 export default function EvaluasiDriver() {
@@ -446,6 +447,15 @@ export default function EvaluasiDriver() {
           </div>
         </div>
       </div>
+
+      {/* Penanda mode fallback (roster bulan ini belum diupload) */}
+      {data?.rosterMissing && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          Roster bulan ini belum diupload — daftar driver diambil dari data SIDAK yang masuk.
+          Angka <b>&quot;Belum SIDAK&quot;</b> tidak dapat dihitung untuk bulan ini. Upload roster bulan
+          tersebut untuk perhitungan penuh.
+        </div>
+      )}
 
       {/* Summary Cards with Gradients */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
