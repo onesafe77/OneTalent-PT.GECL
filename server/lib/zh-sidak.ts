@@ -4,6 +4,7 @@
 import { db } from "../db";
 import { zhOpk, zhProgramOfficer, zhProgramAttendance } from "@shared/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { ZH_PROGRAM_START_ISO_WEEK } from "./zh-raw-grid";
 
 export interface ZhSidakProgram {
   code: string;
@@ -87,18 +88,22 @@ export async function getZhSidakKpi(programCode: string, year: number): Promise<
     attMap.get(a.nik)!.set(a.week, a.days);
   }
 
-  // 3) Aktual dari zh_opk: count per (nik, week) untuk program ini, counter='1'
+  // 3) Aktual dari zh_opk: jumlah sampel per (nik, week) untuk program ini (counter='1' = 1 sampel,
+  //    tervalidasi 1:1 dgn master). Minggu OPK disimpan sbg ISO week → konversi ke minggu-program
+  //    agar cocok dgn grid attendance/template (W5..W11).
   const opkRows = await db
     .select({ nik: zhOpk.nikObserver, week: zhOpk.week, c: sql<number>`count(*)::int` })
     .from(zhOpk)
     .where(and(eq(zhOpk.jenisPekerjaan, program.opkKey), eq(zhOpk.counter, "1")))
     .groupBy(zhOpk.nikObserver, zhOpk.week);
-  const actMap = new Map<string, number>(); // key `${nik}|${weekNum}`
+  const actMap = new Map<string, number>(); // key `${nik}|${weekNum(program)}`
   for (const r of opkRows) {
     const nik = (r.nik || "").trim();
     const m = String(r.week || "").match(/^W?(\d+)$/i);
     if (!nik || !m) continue;
-    actMap.set(`${nik}|${Number(m[1])}`, (actMap.get(`${nik}|${Number(m[1])}`) || 0) + Number(r.c));
+    let w = Number(m[1]);
+    if (w >= ZH_PROGRAM_START_ISO_WEEK) w = w - (ZH_PROGRAM_START_ISO_WEEK - 1); // ISO → minggu-program
+    actMap.set(`${nik}|${w}`, (actMap.get(`${nik}|${w}`) || 0) + Number(r.c));
   }
 
   // 4) Susun minggu yang relevan = minggu yg ada di grid attendance (union)
