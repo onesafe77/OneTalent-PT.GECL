@@ -80,6 +80,7 @@ interface SidakSession {
   createdBy: string | null;
   supervisorName: string;
   createdAt: string;
+  photos?: string[]; // evidence foto kegiatan (URL) — utk kolom link di export Excel
 }
 
 interface SupervisorStats {
@@ -1919,8 +1920,14 @@ export default function SidakRecap() {
       { header: "Observer", width: 32 },
       { header: "Supervisor", width: 24 },
     ];
+    // Kolom evidence foto (link) — dinamis sesuai jumlah foto terbanyak (maks 5)
+    const maxFotos = Math.min(5, Math.max(0, ...filteredSessions.map((s) => (s.photos || []).length)));
+    for (let i = 1; i <= maxFotos; i++) COLS.push({ header: `Foto ${i}`, width: 13 });
+    const toAbsUrl = (u: string) =>
+      /^https?:\/\//i.test(u) ? u : `${window.location.origin}${u.startsWith("/") ? "" : "/"}${u}`;
+
     ws.columns = COLS.map((c) => ({ width: c.width }));
-    const lastCol = String.fromCharCode(64 + COLS.length); // K
+    const lastCol = String.fromCharCode(64 + COLS.length); // K..P (maks 16 kolom, aman < Z)
 
     const thin = { style: "thin" as const, color: { argb: "FFD1D5DB" } };
     const border = { top: thin, left: thin, bottom: thin, right: thin };
@@ -1979,6 +1986,18 @@ export default function SidakRecap() {
         };
         if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
       });
+      // Kolom evidence foto: sel ber-hyperlink "Lihat Foto i"
+      const fotos = (session.photos || []).slice(0, maxFotos);
+      for (let i = 0; i < maxFotos; i++) {
+        const cell = row.getCell(vals.length + 1 + i);
+        cell.border = border;
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+        if (idx % 2 === 1) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF9FAFB" } };
+        if (fotos[i]) {
+          cell.value = { text: `Lihat Foto ${i + 1}`, hyperlink: toAbsUrl(fotos[i]) };
+          cell.font = { color: { argb: "FF0563C1" }, underline: true, size: 10 };
+        }
+      }
     });
 
     // Baris TOTAL

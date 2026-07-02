@@ -9641,10 +9641,15 @@ Format sebagai bullet points singkat per insight.`;
         aparFull, mesinLasFull, mesinKompresorFull, gerindaDudukFull, fuelStorageFull, chargingStationFull, sopKritisFull
       ] = await fetchAllInBatches();
 
-      // Omit large fields like activityPhotos for the recap list to save bandwidth and speed up JSON serialization
+      // Omit large fields like activityPhotos for the recap list to save bandwidth and speed up JSON serialization.
+      // Keep a slim `photos` (URL-only, max 5) so the Excel export can link evidence photos —
+      // base64/data-URIs are dropped (huge & un-linkable).
       const omitLargeFields = (sessions: any[]) => sessions.map(s => {
         const { activityPhotos, ...rest } = s;
-        return rest;
+        const photos = (Array.isArray(activityPhotos) ? activityPhotos : [])
+          .filter((u: any) => typeof u === "string" && (u.startsWith("/") || /^https?:/i.test(u)))
+          .slice(0, 5);
+        return { ...rest, photos };
       });
 
       const fatigue = omitLargeFields(fatigueFull);
@@ -9728,7 +9733,8 @@ Format sebagai bullet points singkat per insight.`;
           observers: obsNames,
           createdBy: s.createdBy || null,
           supervisorName: s.createdBy || s.namaSupervisor || s.supervisorName || s.picName || s.nama || "-",
-          createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString()
+          createdAt: s.createdAt ? new Date(s.createdAt).toISOString() : new Date().toISOString(),
+          photos: Array.isArray(s.photos) ? s.photos : [], // evidence foto (URL ringkas, utk export)
         };
       };
 
