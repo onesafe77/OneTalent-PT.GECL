@@ -24,6 +24,11 @@ export function ProtectedRoute({
   }
 
   if (!isAuthenticated) {
+    // Simpan URL tujuan (path + query) agar setelah login diarahkan balik —
+    // penting utk deep-link (mis. "Download Form" dari export Excel Rekap SIDAK).
+    try {
+      sessionStorage.setItem("postLoginRedirect", window.location.pathname + window.location.search);
+    } catch { /* storage bisa gagal di private mode — abaikan */ }
     return <Redirect to="/login" />;
   }
 

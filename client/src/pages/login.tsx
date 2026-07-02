@@ -68,7 +68,18 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
-      setLocation(user?.accountType === "subcon" ? "/workspace/hse/mcu" : "/workspace");
+      // Kembali ke URL tujuan sebelum login (deep-link, mis. "Download Form" dari Excel).
+      // Subcon tetap dipaksa ke MCU (guard di ProtectedRoute juga menegakkan ini).
+      let saved: string | null = null;
+      try {
+        saved = sessionStorage.getItem("postLoginRedirect");
+        if (saved) sessionStorage.removeItem("postLoginRedirect");
+      } catch { /* abaikan */ }
+      if (saved && saved.startsWith("/") && user?.accountType !== "subcon") {
+        setLocation(saved);
+      } else {
+        setLocation(user?.accountType === "subcon" ? "/workspace/hse/mcu" : "/workspace");
+      }
     }
   }, [isAuthenticated, isLoading, setLocation, user]);
 
