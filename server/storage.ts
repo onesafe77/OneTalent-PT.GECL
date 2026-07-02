@@ -1,5 +1,5 @@
 import { format, parse, parseISO } from "date-fns";
-import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns, isNotNull, not } from "drizzle-orm";
+import { eq, desc, and, or, sql, ilike, inArray, asc, getTableColumns, isNotNull, not, gte, lte } from "drizzle-orm";
 import {
   type Employee,
   type InsertEmployee,
@@ -4339,6 +4339,12 @@ export class DrizzleStorage implements IStorage {
     const conds = [eq(safetyPatrolJobTargets.tanggal, tanggal)];
     if (shift) conds.push(eq(safetyPatrolJobTargets.shift, shift));
     return await this.db.select().from(safetyPatrolJobTargets).where(and(...conds));
+  }
+
+  // Target briefing dalam rentang tanggal (dipakai KPI: acuan plan = briefing pembagian job).
+  async getJobTargetsByDateRange(startDate: string, endDate: string): Promise<any[]> {
+    return await this.db.select().from(safetyPatrolJobTargets)
+      .where(and(gte(safetyPatrolJobTargets.tanggal, startDate), lte(safetyPatrolJobTargets.tanggal, endDate)));
   }
 
   // ---- Zero Harm (SIMANTIK) import ----

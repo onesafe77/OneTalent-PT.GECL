@@ -519,6 +519,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve uploaded files statically with absolute path
   app.use('/uploads', express.static(uploadsDir));
 
+  // Placeholder untuk foto legacy yang filenya sudah hilang (object storage Replit lama).
+  // Dibalas 200 + gambar placeholder, bukan 404, supaya UI tidak membanjiri console dengan error.
+  const MISSING_PHOTO_SVG = Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">` +
+    `<rect width="400" height="300" fill="#e5e7eb"/>` +
+    `<g fill="none" stroke="#9ca3af" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">` +
+    `<rect x="135" y="85" width="130" height="100" rx="10"/>` +
+    `<circle cx="172" cy="120" r="10" fill="#9ca3af" stroke="none"/>` +
+    `<path d="M150 172 L188 135 L218 162 L235 147 L250 172"/>` +
+    `</g>` +
+    `<text x="200" y="225" font-family="sans-serif" font-size="17" fill="#6b7280" text-anchor="middle">Foto tidak tersedia</text>` +
+    `<text x="200" y="248" font-family="sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">arsip lama sudah tidak tersimpan</text>` +
+    `</svg>`
+  );
+  const isImagePath = (p: string) => /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(p);
+  const serveMissingPhotoPlaceholder = (res: Response) => {
+    res.set({ "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" });
+    res.status(200).send(MISSING_PHOTO_SVG);
+  };
+
+  // Fallback bila express.static di atas tidak menemukan filenya (mis. /uploads/safety-patrol/* lama)
+  app.use('/uploads', (req, res, next) => {
+    if (req.method === "GET" && isImagePath(req.path)) {
+      return serveMissingPhotoPlaceholder(res);
+    }
+    next();
+  });
+
   // Serve files from database storage
   app.get("/api/uploads/:id", async (req, res) => {
     try {
@@ -3086,7 +3114,7 @@ Format sebagai bullet points singkat per insight.`;
       );
 
       // Resolve to employee objects — only ACTIVE employees (exclude non-aktif)
-      const driversOnly = uniqueDriverIds
+      let driversOnly = uniqueDriverIds
         .map(id => employeeMap.get(id))
         .filter(emp => emp != null && emp.status === 'active') as typeof allEmployees;
 
@@ -3118,6 +3146,23 @@ Format sebagai bullet points singkat per insight.`;
       ]);
 
       const resolvedWeekRecords = weekRecords ?? fullMonthRecords;
+
+      // FALLBACK: roster bulan ini belum diupload (mis. Jan–Apr 2026, era pra-roster) →
+      // pool driver diambil dari NIK yang muncul di records SIDAK bulan tsb agar evaluasi
+      // tidak kosong. Pada mode ini "Belum SIDAK" tak bermakna (pool = yang sudah di-SIDAK),
+      // dan driver resign tetap ditampilkan (komposisi saat itu).
+      const rosterMissing = rosterEntries.length === 0;
+      if (rosterMissing) {
+        const seen = new Map<string, string>(); // nik -> nama dari record pertama
+        for (const r of fullMonthRecords) {
+          const nik = (r.nik || "").trim();
+          if (nik && !seen.has(nik)) seen.set(nik, r.nama || nik);
+        }
+        driversOnly = Array.from(seen.entries()).map(([nik, nama]) => {
+          const emp = employeeMap.get(nik);
+          return emp ?? ({ id: nik, name: nama, investorGroup: null } as any);
+        });
+      }
 
       // Count SIDAKs per employee for both scopes
       const fullMonthCountByNik = fullMonthRecords.reduce((acc, r) => {
@@ -3164,7 +3209,7 @@ Format sebagai bullet points singkat per insight.`;
       } else if (status === "belum") {
         filteredEvaluationData = allEvaluationData.filter(d =>
           d.monthTotal === 0 &&
-          (!hasWeekFilter || weekRosterDriverIds.has(d.id))
+          (!hasWeekFilter || rosterMissing || weekRosterDriverIds.has(d.id))
         );
       }
 
@@ -3179,7 +3224,8 @@ Format sebagai bullet points singkat per insight.`;
           totalSidakKeseluruhan
         },
         drivers: filteredEvaluationData,
-        month
+        month,
+        rosterMissing
       });
     } catch (error) {
       console.error("Error fetching evaluasi driver:", error);
@@ -3586,10 +3632,14 @@ Format sebagai bullet points singkat per insight.`;
       );
       objectStorageService.downloadObject(objectFile, res);
     } catch (error) {
-      console.error("Error accessing object:", error);
       if (error instanceof ObjectNotFoundError) {
+        // Foto legacy (object storage Replit) sudah tidak ada → placeholder, bukan 404
+        if (isImagePath(req.path)) {
+          return serveMissingPhotoPlaceholder(res);
+        }
         return res.sendStatus(404);
       }
+      console.error("Error accessing object:", error);
       return res.sendStatus(500);
     }
   });
@@ -13687,6 +13737,22 @@ Format sebagai bullet points singkat per insight.`;
       const targets = await storage.getJobTargets(date, shift);
       const reports = await storage.getSafetyPatrolReportsByDateRange(date, date);
 
+      // Foto asli petugas dari master karyawan (utk avatar kartu Pencapaian Job).
+      // Nama ganda (mis. 2x "JUMAIDI") → prioritaskan dept HSE, lalu posisi safety.
+      const allEmp = await storage.getAllEmployees();
+      const officerPhoto = (officerName: string): { photoUrl: string | null; nik: string | null } => {
+        const q = String(officerName || "").toLowerCase().trim();
+        if (!q) return { photoUrl: null, nik: null };
+        const score = (e: any) =>
+          (String(e.department || "").toUpperCase().includes("HSE") ? 2 : 0) +
+          (String(e.position || "").toLowerCase().includes("safety") ? 1 : 0);
+        let cands = allEmp.filter((e: any) => String(e.name || "").toLowerCase() === q);
+        if (!cands.length) cands = allEmp.filter((e: any) => String(e.name || "").toLowerCase().includes(q));
+        if (!cands.length) return { photoUrl: null, nik: null };
+        cands.sort((a: any, b: any) => score(b) - score(a));
+        return { photoUrl: cands[0].photoUrl || null, nik: cands[0].id || null };
+      };
+
       const result = targets.map((t: any) => {
         // laporan petugas ini di tanggal (+shift bila ada)
         // Cocokkan per petugas + tanggal. Shift sengaja TIDAK dijadikan filter:
@@ -13715,8 +13781,10 @@ Format sebagai bullet points singkat per insight.`;
         });
         const done = items.filter((i: any) => i.achieved).length;
         const total = items.length;
+        const foto = officerPhoto(t.officerName);
         return {
           officerName: t.officerName, team: t.team, lokasi: t.lokasi, shift: t.shift,
+          photoUrl: foto.photoUrl, nik: foto.nik,
           items, done, total, pct: total ? Math.round((done / total) * 100) : 0,
         };
       });
@@ -14480,28 +14548,62 @@ Format sebagai bullet points singkat per insight.`;
         if (!att[a.officerName]) att[a.officerName] = {};
         att[a.officerName][a.week] = { shift1: a.shift1, shift2: a.shift2 };
       }
-      const presentShift = (name: string, week: number, shiftKey: "shift1" | "shift2"): boolean => {
+      // Hari kerja pada shift-minggu tsb: "NA"=0; angka (mis. "3")=hari; kosong/non-angka=7 (default lama).
+      const daysShift = (name: string, week: number, shiftKey: "shift1" | "shift2"): number => {
         const rec = att[name]?.[week];
-        if (!rec) return true; // default Masuk
-        return rec[shiftKey] !== "NA";
+        if (!rec) return 7; // default Masuk penuh
+        const v = String(rec[shiftKey] ?? "").trim();
+        if (v.toUpperCase() === "NA") return 0;
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) && n >= 0 ? Math.min(n, 7) : 7;
       };
-      // Hitung plan per orang per kegiatan (hormati kehadiran). Fallback: jumlah minggu = max(weeksList,1)
+      // Hitung plan per orang per kegiatan — target mingguan DISKALAKAN sesuai hari kerja (days/7),
+      // bukan dihitung penuh 7 hari utk tiap minggu hadir. Fallback tanpa rentang: 1 minggu penuh.
       const computePlan = (name: string): { byActivity: Record<string, { s1: number; s2: number }>; presentWeeks: { s1: number; s2: number } } => {
         const planByActivity: Record<string, { s1: number; s2: number }> = {};
         let presS1 = 0, presS2 = 0;
         const weeks = weeksList.length ? weeksList : [{ year: planYear, week: -1 }];
         for (const wk of weeks) {
-          const inS1 = wk.week === -1 ? true : presentShift(name, wk.week, "shift1");
-          const inS2 = wk.week === -1 ? true : presentShift(name, wk.week, "shift2");
-          if (inS1) presS1++;
-          if (inS2) presS2++;
+          const d1 = wk.week === -1 ? 7 : daysShift(name, wk.week, "shift1");
+          const d2 = wk.week === -1 ? 7 : daysShift(name, wk.week, "shift2");
+          if (d1 > 0) presS1++;
+          if (d2 > 0) presS2++;
           for (const act of SP_WEEKLY_PLAN) {
             if (!planByActivity[act.name]) planByActivity[act.name] = { s1: 0, s2: 0 };
-            if (inS1) planByActivity[act.name].s1 += act.s1;
-            if (inS2) planByActivity[act.name].s2 += act.s2;
+            if (d1 > 0) planByActivity[act.name].s1 += Math.round(act.s1 * d1 / 7);
+            if (d2 > 0) planByActivity[act.name].s2 += Math.round(act.s2 * d2 / 7);
           }
         }
         return { byActivity: planByActivity, presentWeeks: { s1: presS1, s2: presS2 } };
+      };
+
+      // Target BRIEFING dalam rentang (acuan utama KPI utk petugas GECL — sumber sama dgn
+      // tab Pencapaian Job). byOfficer: normName(officerName) → daftar target.
+      let rangeTargets: any[] = [];
+      try {
+        if (startDate && endDate) rangeTargets = await storage.getJobTargetsByDateRange(startDate as string, endDate as string);
+      } catch { rangeTargets = []; }
+      const targetsByOfficer: Record<string, any[]> = {};
+      for (const t of rangeTargets) {
+        const k = normName(String(t.officerName || ""));
+        if (!k) continue;
+        (targetsByOfficer[k] = targetsByOfficer[k] || []).push(t);
+      }
+
+      // Foto asli petugas (logika sama dgn kartu Pencapaian Job): exact name dulu,
+      // nama ganda → prioritas dept HSE lalu posisi safety; fallback contains.
+      const kpiEmployees = await storage.getAllEmployees();
+      const kpiPhoto = (personName: string): { photoUrl: string | null; nik: string | null } => {
+        const q = String(personName || "").toLowerCase().trim();
+        if (!q) return { photoUrl: null, nik: null };
+        const score = (e: any) =>
+          (String(e.department || "").toUpperCase().includes("HSE") ? 2 : 0) +
+          (String(e.position || "").toLowerCase().includes("safety") ? 1 : 0);
+        let cands = kpiEmployees.filter((e: any) => String(e.name || "").toLowerCase() === q);
+        if (!cands.length) cands = kpiEmployees.filter((e: any) => String(e.name || "").toLowerCase().includes(q));
+        if (!cands.length) return { photoUrl: null, nik: null };
+        cands.sort((a: any, b: any) => score(b) - score(a));
+        return { photoUrl: cands[0].photoUrl || null, nik: cands[0].id || null };
       };
 
       // Build KPI per person
@@ -14525,7 +14627,9 @@ Format sebagai bullet points singkat per insight.`;
           const weekKey = r.tanggal ? `${r.bulan || ""} W${r.week || ""}` : "Unknown";
           weeklyMap[weekKey] = (weeklyMap[weekKey] || 0) + 1;
           // Pemetaan kanonik (gabung kegiatan + jenisLaporan agar lebih akurat)
-          const canon = canonicalSafetyActivity(`${r.kegiatan || ""} ${r.jenisLaporan || ""}`);
+          // Pakai helper yang sama dgn Pencapaian Job (kegiatan→temuan→lokasi) — jauh lebih banyak
+          // laporan valid yang ter-map dibanding hanya kegiatan+jenisLaporan.
+          const canon = canonicalReportActivity(r);
           if (canon) {
             if (!byActivity[canon]) byActivity[canon] = { s1: 0, s2: 0 };
             if (isShift2) byActivity[canon].s2++; else byActivity[canon].s1++;
@@ -14542,6 +14646,36 @@ Format sebagai bullet points singkat per insight.`;
 
         const plan = computePlan(name);
 
+        // KPI berbasis BRIEFING: per target-hari, cocokkan aktivitas target dgn laporan hari itu
+        // (logika identik tab Pencapaian Job). null bila petugas tak punya target di rentang.
+        let briefing: null | {
+          totalTargets: number; totalDone: number; days: number;
+          byActivity: Record<string, { plan: number; done: number }>;
+        } = null;
+        const myTargets = targetsByOfficer[normName(name)] || [];
+        if (myTargets.length) {
+          const repsByDate: Record<string, Set<string>> = {};
+          for (const r of reps) {
+            const d = String(r.tanggal || "").slice(0, 10);
+            if (!d) continue;
+            const canon = canonicalReportActivity(r);
+            if (!canon) continue;
+            (repsByDate[d] = repsByDate[d] || new Set()).add(canon);
+          }
+          const byAct: Record<string, { plan: number; done: number }> = {};
+          let tot = 0, done = 0;
+          for (const t of myTargets) {
+            const doneSet = repsByDate[String(t.tanggal)] || new Set();
+            for (const act of (t.activities || [])) {
+              if (!byAct[act]) byAct[act] = { plan: 0, done: 0 };
+              byAct[act].plan++; tot++;
+              if (doneSet.has(act)) { byAct[act].done++; done++; }
+            }
+          }
+          briefing = { totalTargets: tot, totalDone: done, days: myTargets.length, byActivity: byAct };
+        }
+
+        const foto = kpiPhoto(name);
         return {
           name,
           total: reps.length,
@@ -14552,6 +14686,9 @@ Format sebagai bullet points singkat per insight.`;
           byActivity,
           planByActivity: plan.byActivity,
           presentWeeks: plan.presentWeeks,
+          briefing,
+          photoUrl: foto.photoUrl,
+          nik: foto.nik,
           weekly,
         };
       });
@@ -16943,15 +17080,13 @@ Format sebagai bullet points singkat per insight.`;
       const relevantChunks = await searchSimilarChunks(embedding, allChunks as any);
       const { prompt: ragPrompt, sources } = buildRAGPrompt(message, relevantChunks);
 
-      // 5. Call OpenAI with Tools
-      if (!process.env.OPENAI_API_KEY) {
+      // 5. Call AI with Tools (via OpenRouter, same client as other AI endpoints)
+      if (!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)) {
         return res.json({
-          reply: "Maaf, API Key OpenAI tidak ditemukan. Hubungi admin.",
+          message: "Maaf, API Key AI tidak ditemukan. Hubungi admin.",
           sessionId: currentSessionId
         });
       }
-
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
       const messages: any[] = [
         {
@@ -16966,8 +17101,8 @@ Format sebagai bullet points singkat per insight.`;
         { role: "user", content: ragPrompt } // The RAG prompt contains the user question + context
       ];
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const completion = await openRouterClient.chat.completions.create({
+        model: AI_MODELS.FAST_TEXT,
         messages: messages,
         tools: tools as any,
         tool_choice: "auto",
@@ -17105,8 +17240,8 @@ Format sebagai bullet points singkat per insight.`;
         }
 
         // 7. Get final response after tool execution
-        const secondResponse = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+        const secondResponse = await openRouterClient.chat.completions.create({
+          model: AI_MODELS.FAST_TEXT,
           messages: messages,
         });
 
