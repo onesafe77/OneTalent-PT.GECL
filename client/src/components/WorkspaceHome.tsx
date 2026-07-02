@@ -41,7 +41,6 @@ export function WorkspaceHome() {
       clearTimeout(timeoutId);
 
       if (!res.ok) {
-        console.error('API returned non-OK status:', res.status);
         throw new Error(`Failed to fetch insight: ${res.status}`);
       }
 
@@ -49,7 +48,14 @@ export function WorkspaceHome() {
       const aiMessage = data.message || "";
 
       if (!aiMessage) {
-        throw new Error('Empty response from API');
+        // Empty response (e.g. AI unavailable) — quietly fall back to default insight
+        setSafetyInsight({
+          title: "Safety Insight Hari Ini",
+          message: "Selalu utamakan keselamatan. Periksa kondisi unit dan APD sebelum bekerja.",
+          condition: "Kondisi: Periksa area kerja",
+          lastUpdated: new Date()
+        });
+        return;
       }
 
       // Parse the AI response - look for patterns
@@ -94,7 +100,7 @@ export function WorkspaceHome() {
       });
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error("Failed to fetch safety insight:", error);
+      console.warn("Safety insight unavailable, showing fallback:", error instanceof Error ? error.message : error);
       // Fallback to default - always set a value
       setSafetyInsight({
         title: "Safety Insight Hari Ini",
@@ -275,12 +281,12 @@ export function WorkspaceHome() {
 
         {/* Action Button */}
         <Link href="/workspace/sidak/fatigue/new">
-          <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-lg flex items-center justify-between group cursor-pointer border border-gray-100 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-lg flex items-center justify-between group cursor-pointer border border-gray-100 dark:border-gray-700 transition-transform duration-150 ease-out active:scale-[0.98]">
             <div>
-              <h4 className="text-gray-900 dark:text-white font-bold text-lg">Mulai Inspeksi</h4>
-              <p className="text-gray-500 text-xs">Buat form inspeksi baru</p>
+              <h4 className="text-gray-900 dark:text-white font-bold text-lg tracking-tight">Mulai Inspeksi</h4>
+              <p className="text-gray-500 text-xs mt-0.5">Buat form inspeksi baru</p>
             </div>
-            <div className="w-10 h-10 bg-gradient-to-tr from-red-600 to-red-500 rounded-xl flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
+            <div className="w-11 h-11 bg-gradient-to-tr from-red-600 to-red-500 rounded-2xl flex items-center justify-center shadow-lg transition-transform duration-150 ease-out group-active:scale-95">
               <ArrowRight className="w-5 h-5 text-white" />
             </div>
           </div>
@@ -292,29 +298,27 @@ export function WorkspaceHome() {
             const visibleItems = group.items.filter(hasPermission);
             if (visibleItems.length === 0) return null;
 
+            const accent = GROUP_ACCENTS[group.title] || DEFAULT_ACCENT;
             return (
-              <div key={group.title} className="space-y-2">
-                <h3 className="px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+              <div key={group.title} className="space-y-2.5">
+                <h3 className="px-2 text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">
                   {group.title}
                 </h3>
 
-                <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 mx-1">
-                  {/* Increased vertical gap for better breathing room */}
-                  <div className="grid grid-cols-4 gap-y-8 gap-x-2">
+                <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 mx-1">
+                  <div className="grid grid-cols-4 gap-y-6 gap-x-3">
                     {visibleItems.map((item) => {
                       // Flatten children for mobile grid to make everything accessible
                       if (item.children) {
                         const visibleChildren = item.children.filter(hasPermission);
                         const flatChildren = flattenItems(visibleChildren);
 
-                        // If standard menu item has children but no direct link (like "HSE"), 
-                        // we might want to show its children directly in the grid
                         return flatChildren.map(child => (
-                          <MobileAppIcon key={child.name} item={child} />
+                          <MobileAppIcon key={child.name} item={child} accent={accent} />
                         ));
                       }
 
-                      return <MobileAppIcon key={item.name} item={item} />;
+                      return <MobileAppIcon key={item.name} item={item} accent={accent} />;
                     })}
                   </div>
                 </div>
@@ -341,17 +345,26 @@ export function WorkspaceHome() {
   );
 }
 
-function MobileAppIcon({ item }: { item: NavItem }) {
+// Aksen chip per KELOMPOK menu (konsisten dalam satu seksi — bukan pelangi per item).
+const GROUP_ACCENTS: Record<string, string> = {
+  Utama: "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400",
+  Divisi: "bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400",
+  SIMANTIK: "bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400",
+  Other: "bg-violet-50 text-violet-600 dark:bg-violet-900/25 dark:text-violet-400",
+};
+const DEFAULT_ACCENT = "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300";
+
+function MobileAppIcon({ item, accent }: { item: NavItem; accent?: string }) {
   const Icon = item.icon;
   if (!item.href) return null;
 
   return (
     <Link href={item.href}>
-      <div className="flex flex-col items-center justify-start gap-2 p-1 group cursor-pointer">
-        <div className="w-14 h-14 rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-200 group-hover:bg-red-50 dark:group-hover:bg-red-900/20 group-hover:text-red-600 transition-all duration-200 group-active:scale-95">
-          {Icon ? <Icon className="w-6 h-6" /> : <ChevronRight className="w-6 h-6" />}
+      <div className="flex flex-col items-center justify-start gap-2 group cursor-pointer">
+        <div className={`w-[52px] h-[52px] rounded-2xl flex items-center justify-center transition-transform duration-150 ease-out group-active:scale-95 ${accent || DEFAULT_ACCENT}`}>
+          {Icon ? <Icon className="w-6 h-6" strokeWidth={1.75} /> : <ChevronRight className="w-6 h-6" strokeWidth={1.75} />}
         </div>
-        <span className="text-[10px] sm:text-xs font-medium text-center text-gray-600 dark:text-gray-300 leading-tight line-clamp-2 w-full px-1">
+        <span className="text-[11px] font-medium tracking-tight text-center text-gray-600 dark:text-gray-300 leading-snug line-clamp-2 h-8 w-full">
           {item.name}
         </span>
       </div>
