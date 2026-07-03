@@ -220,6 +220,7 @@ export async function downloadSidakChargingStationAsPdf(data: SidakChargingStati
 
     // Halaman dibuat seukuran gambar → konten mengisi penuh, tanpa ruang kosong kiri/kanan.
     const pdf = new jsPDF({
+        compress: true,
         orientation: canvas.width >= canvas.height ? 'landscape' : 'portrait',
         unit: 'px',
         format: [canvas.width, canvas.height],

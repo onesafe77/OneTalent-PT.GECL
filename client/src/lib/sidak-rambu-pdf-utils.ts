@@ -21,7 +21,7 @@ export interface SidakRambuData {
 }
 
 export async function generateSidakRambuPdf(data: SidakRambuData): Promise<jsPDF> {
-    const pdf = new jsPDF('landscape', 'mm', 'a4');
+    const pdf = new jsPDF('landscape', 'mm', 'a4', true);
 
     const pageWidth = pdf.internal.pageSize.width; // 297mm
     const pageHeight = pdf.internal.pageSize.height; // 210mm

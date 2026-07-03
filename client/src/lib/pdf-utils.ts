@@ -81,7 +81,7 @@ export async function generateAttendancePDF(data: ReportData): Promise<void> {
     }
     
     // Untuk landscape, gunakan layout yang sudah ada
-    const doc = new jsPDF('landscape'); 
+    const doc = new jsPDF('landscape', 'mm', 'a4', true); 
     const pageWidth = doc.internal.pageSize.width;
     const pageHeight = doc.internal.pageSize.height;
     const margin = 25; // Professional margin sesuai ReportLab standard (25pt)
@@ -701,7 +701,7 @@ function redrawTableHeader(doc: jsPDF, headers: string[], columnWidths: number[]
 
 // Function khusus untuk A4 Portrait dengan layout yang diminta user
 async function generateA4PortraitPDF(data: ReportData): Promise<void> {
-  const doc = new jsPDF('portrait', 'pt', 'a4'); // Use points for precise measurements
+  const doc = new jsPDF('portrait', 'pt', 'a4', true); // Use points for precise measurements
   const pageWidth = doc.internal.pageSize.width; // 595.28 pt
   const pageHeight = doc.internal.pageSize.height; // 841.89 pt
   const margin = 15; // 0.5cm margin minimal mendekati batas A4 (15pt ≈ 0.5cm)

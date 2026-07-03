@@ -195,7 +195,7 @@ export async function downloadSidakSopKritisAsPdf(data: SopKritisData, filename:
     const canvas = await renderToCanvas(data);
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
     // Halaman A4 portrait; gambar di-fit (contain) agar konten utuh di satu halaman, rasio terjaga.
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pdf = new jsPDF({ compress: true, orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pageW = 210, pageH = 297; // A4 mm
     let w = pageW;                              // muat penuh lebar A4
     let h = (canvas.height * w) / canvas.width; // jaga rasio

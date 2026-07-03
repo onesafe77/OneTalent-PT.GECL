@@ -4,7 +4,20 @@
 // jsPDF.addImage menerima keduanya, jadi pemanggil tak perlu peduli lingkungan.
 export type PdfLogo = HTMLImageElement | string;
 
-export async function loadGeclLogo(): Promise<PdfLogo | null> {
+// Memo: logo tak berubah selama sesi — muat sekali, download berikutnya instan.
+let cachedLogo: Promise<PdfLogo | null> | null = null;
+
+export function loadGeclLogo(): Promise<PdfLogo | null> {
+  if (!cachedLogo) {
+    cachedLogo = doLoadGeclLogo().then((logo) => {
+      if (logo === null) cachedLogo = null; // gagal → coba lagi di panggilan berikutnya
+      return logo;
+    });
+  }
+  return cachedLogo;
+}
+
+async function doLoadGeclLogo(): Promise<PdfLogo | null> {
   try {
     if (typeof window === "undefined") {
       const fs = await import(/* @vite-ignore */ "node:fs/promises");

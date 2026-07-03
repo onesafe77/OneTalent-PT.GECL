@@ -46,7 +46,7 @@ export async function generateSidakLotoPdf(data: SidakLotoData): Promise<jsPDF> 
         });
 
         // 5. Create PDF - A4 Landscape
-        const pdf = new jsPDF('landscape', 'mm', 'a4');
+        const pdf = new jsPDF('landscape', 'mm', 'a4', true);
         const pdfWidth = pdf.internal.pageSize.getWidth();   // 297mm
         const pdfHeight = pdf.internal.pageSize.getHeight();  // 210mm
 

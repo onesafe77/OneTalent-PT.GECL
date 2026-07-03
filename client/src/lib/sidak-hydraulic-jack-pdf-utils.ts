@@ -80,7 +80,7 @@ export async function generateSidakHydraulicJackPDF(data: HydraulicJackPDFData):
     const inspectorData = data.observers || [];
 
     // PORTRAIT format A4 (210mm x 297mm) — same as Workshop
-    const pdf = new jsPDF('portrait', 'mm', 'a4');
+    const pdf = new jsPDF('portrait', 'mm', 'a4', true);
     const pageWidth = pdf.internal.pageSize.width;  // 210mm
     const pageHeight = pdf.internal.pageSize.height; // 297mm
     const margin = 10;

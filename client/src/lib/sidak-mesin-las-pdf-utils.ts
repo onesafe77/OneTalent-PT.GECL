@@ -35,7 +35,7 @@ export const MESIN_LAS_CHECKLIST = [
 ];
 
 export const generateSidakMesinLasPDF = async (data: any) => {
-    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdf = new jsPDF('p', 'mm', 'a4', true);
     const pageWidth = pdf.internal.pageSize.width;
     const margin = 10;
     const availableWidth = pageWidth - (margin * 2);

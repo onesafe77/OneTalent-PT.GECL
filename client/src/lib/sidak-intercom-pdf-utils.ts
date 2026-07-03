@@ -19,7 +19,7 @@ interface SidakIntercomData {
 }
 
 export async function generateSidakIntercomPdf(data: SidakIntercomData): Promise<jsPDF> {
-    const pdf = new jsPDF('landscape', 'mm', 'a4');
+    const pdf = new jsPDF('landscape', 'mm', 'a4', true);
     const pageWidth = pdf.internal.pageSize.width;
     const pageHeight = pdf.internal.pageSize.height;
     const margin = 10;
