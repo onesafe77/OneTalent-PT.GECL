@@ -567,6 +567,10 @@ export const sidakFatigueRecords = pgTable("sidak_fatigue_records", {
   // PVT recording — video kamera depan saat tes PVT berlangsung
   pvtVideoUrl: text("pvt_video_url"),
 
+  // Kesesuaian roster (di-mirror otomatis ke sidak_roster_* — lihat syncRosterFromFatigue)
+  rosterSesuai: boolean("roster_sesuai"), // null = tidak dicek; true/false = hasil cek
+  rosterKeterangan: text("roster_keterangan"),
+
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_fatigue_records_session").on(table.sessionId),
@@ -603,6 +607,7 @@ export const sidakRosterSessions = pgTable("sidak_roster_sessions", {
   totalSampel: integer("total_sampel").notNull().default(0), // Auto calculated from records
   activityPhotos: text("activity_photos").array(), // Array of photo URLs for activity documentation
   createdBy: varchar("created_by"), // NIK of supervisor who created the SIDAK
+  sourceFatigueSessionId: varchar("source_fatigue_session_id"), // Terisi bila sesi ini mirror otomatis dari Sidak Fatigue
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_roster_sessions_created_by").on(table.createdBy),

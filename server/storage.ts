@@ -554,6 +554,8 @@ export interface IStorage {
   updateSidakFatigueRecord(id: string, record: Partial<InsertSidakFatigueRecord>): Promise<SidakFatigueRecord | undefined>;
   deleteSidakFatigueRecord(id: string): Promise<boolean>;
   getSidakFatigueObservers(sessionId: string): Promise<SidakFatigueObserver[]>;
+  getSidakFatigueObserversBySessionIds(sessionIds: string[]): Promise<SidakFatigueObserver[]>;
+  countSidakFatigueRecordsBySessionIds(sessionIds: string[]): Promise<Map<string, number>>;
   updateSidakFatigueSessionSampleCount(sessionId: string): Promise<void>;
   createSidakFatigueObserver(observer: InsertSidakFatigueObserver): Promise<SidakFatigueObserver>;
   updateSidakFatigueObserver(id: string, updates: Partial<InsertSidakFatigueObserver>): Promise<SidakFatigueObserver | undefined>;
@@ -598,6 +600,7 @@ export interface IStorage {
   createSidakRosterSession(session: InsertSidakRosterSession): Promise<SidakRosterSession>;
   updateSidakRosterSession(id: string, updates: Partial<InsertSidakRosterSession>): Promise<SidakRosterSession | undefined>;
   deleteSidakRosterSession(id: string): Promise<boolean>;
+  getSidakRosterSessionByFatigueId(fatigueSessionId: string): Promise<SidakRosterSession | undefined>;
   getSidakRosterRecords(sessionId: string): Promise<SidakRosterRecord[]>;
   getSidakRosterRecordsBySessionIds(sessionIds: string[]): Promise<SidakRosterRecord[]>;
   createSidakRosterRecord(record: InsertSidakRosterRecord): Promise<SidakRosterRecord>;
@@ -1919,6 +1922,12 @@ export class MemStorage implements IStorage {
   async getSidakFatigueRecordsBySessionIds(sessionIds: string[]): Promise<SidakFatigueRecord[]> {
     throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
   }
+  async getSidakFatigueObserversBySessionIds(sessionIds: string[]): Promise<SidakFatigueObserver[]> {
+    throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async countSidakFatigueRecordsBySessionIds(sessionIds: string[]): Promise<Map<string, number>> {
+    throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
+  }
   async createSidakFatigueRecord(record: InsertSidakFatigueRecord): Promise<SidakFatigueRecord> {
     throw new Error("Sidak Fatigue not implemented in MemStorage. Use DrizzleStorage.");
   }
@@ -1978,6 +1987,9 @@ export class MemStorage implements IStorage {
     throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
   }
   async deleteSidakRosterSession(id: string): Promise<boolean> {
+    throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
+  }
+  async getSidakRosterSessionByFatigueId(fatigueSessionId: string): Promise<SidakRosterSession | undefined> {
     throw new Error("Sidak Roster not implemented in MemStorage. Use DrizzleStorage.");
   }
   async getSidakRosterRecords(sessionId: string): Promise<SidakRosterRecord[]> {
@@ -3606,6 +3618,41 @@ export class DrizzleStorage implements IStorage {
       .orderBy(sql`created_at ASC`);
   }
 
+  async getSidakFatigueObserversBySessionIds(sessionIds: string[]): Promise<SidakFatigueObserver[]> {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+    // Tanpa signatureDataUrl: dipakai utk daftar/list — base64 tanda tangan ratusan baris
+    // membuat query berat; detail per-sesi tetap lewat getSidakFatigueObservers.
+    return await this.db
+      .select({
+        id: sidakFatigueObservers.id,
+        sessionId: sidakFatigueObservers.sessionId,
+        nama: sidakFatigueObservers.nama,
+        nik: sidakFatigueObservers.nik,
+        perusahaan: sidakFatigueObservers.perusahaan,
+        jabatan: sidakFatigueObservers.jabatan,
+        signatureDataUrl: sql<string>`''`,
+        createdAt: sidakFatigueObservers.createdAt,
+      })
+      .from(sidakFatigueObservers)
+      .where(inArray(sidakFatigueObservers.sessionId, sessionIds))
+      .orderBy(sql`created_at ASC`);
+  }
+
+  async countSidakFatigueRecordsBySessionIds(sessionIds: string[]): Promise<Map<string, number>> {
+    if (sessionIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({
+        sessionId: sidakFatigueRecords.sessionId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(sidakFatigueRecords)
+      .where(inArray(sidakFatigueRecords.sessionId, sessionIds))
+      .groupBy(sidakFatigueRecords.sessionId);
+    return new Map(rows.map(r => [r.sessionId, r.count]));
+  }
+
   async createSidakFatigueRecord(recordData: InsertSidakFatigueRecord): Promise<SidakFatigueRecord> {
     // Retry-based optimistic locking pattern (neon-http driver doesn't support transactions)
     // Unique constraint on (sessionId, ordinal) prevents duplicates
@@ -3755,6 +3802,14 @@ export class DrizzleStorage implements IStorage {
       .delete(sidakRosterSessions)
       .where(eq(sidakRosterSessions.id, id));
     return result.rowCount > 0;
+  }
+
+  async getSidakRosterSessionByFatigueId(fatigueSessionId: string): Promise<SidakRosterSession | undefined> {
+    const [result] = await this.db
+      .select()
+      .from(sidakRosterSessions)
+      .where(eq(sidakRosterSessions.sourceFatigueSessionId, fatigueSessionId));
+    return result;
   }
 
   async getSidakRosterRecords(sessionId: string): Promise<SidakRosterRecord[]> {

@@ -20,11 +20,23 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { fotoKegiatanGuard } from "@/lib/sidak-foto-guard";
-import { generateSidakFatiguePdf, downloadSidakFatigueAsJpg } from "@/lib/sidak-pdf-utils";
+import { generateSidakFatiguePdf, downloadSidakFatigueAsJpg, generateSidakRosterPdf, type SidakRosterData } from "@/lib/sidak-pdf-utils";
+
+// Ambil sesi Sidak Roster hasil mirror dari sesi fatigue (null bila tidak ada)
+async function fetchLinkedRoster(fatigueSessionId: string): Promise<SidakRosterData | null> {
+  try {
+    const res = await fetch(`/api/sidak-roster/by-fatigue/${fatigueSessionId}`);
+    if (!res.ok) return null;
+    const d = await res.json();
+    return { session: d, records: d.records || [], observers: d.observers || [] };
+  } catch {
+    return null;
+  }
+}
 import type { SidakFatigueSession, SidakFatigueRecord, SidakFatigueObserver } from "@shared/schema";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 
 interface SessionWithDetails extends SidakFatigueSession {
@@ -36,6 +48,12 @@ export default function SidakFatigueHistory() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  // Warm modul pdf.js (besar) saat halaman dibuka — klik Download JPG tak lagi menunggu import
+  useEffect(() => {
+    void import('pdfjs-dist');
+    void import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+  }, []);
   const [photoDialogOpen, setPhotoDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionWithDetails | null>(null);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
@@ -184,8 +202,11 @@ export default function SidakFatigueHistory() {
     try {
       setDownloadingId(sessionId);
 
-      // Fetch full session data with records and observers
-      const response = await fetch(`/api/sidak-fatigue/${sessionId}`);
+      // Fetch detail fatigue + roster tersambung secara PARALEL (bukan berurutan)
+      const [response, roster] = await Promise.all([
+        fetch(`/api/sidak-fatigue/${sessionId}`),
+        fetchLinkedRoster(sessionId),
+      ]);
       if (!response.ok) {
         throw new Error('Gagal mengambil data session');
       }
@@ -198,6 +219,9 @@ export default function SidakFatigueHistory() {
         records: sessionData.records || [],
         observers: sessionData.observers || [],
       });
+
+      // Lampirkan 1 halaman form Sidak Roster tersambung (hasil mirror) bila ada
+      if (roster) await generateSidakRosterPdf(roster, pdf);
 
       // Download PDF
       const fileName = `Sidak_Fatigue_${sessionData.tanggal}_${sessionData.shift.replace(' ', '_')}.pdf`;
@@ -222,21 +246,24 @@ export default function SidakFatigueHistory() {
     try {
       setDownloadingId(sessionId);
 
-      // Fetch full session data with records and observers
-      const response = await fetch(`/api/sidak-fatigue/${sessionId}`);
+      // Fetch detail fatigue + roster tersambung secara PARALEL (bukan berurutan)
+      const [response, roster] = await Promise.all([
+        fetch(`/api/sidak-fatigue/${sessionId}`),
+        fetchLinkedRoster(sessionId),
+      ]);
       if (!response.ok) {
         throw new Error('Gagal mengambil data session');
       }
 
       const sessionData = await response.json();
 
-      // Download as JPG - use .jpg extension
+      // Download as JPG - use .jpg extension (+ halaman roster tersambung bila ada)
       const fileName = `Sidak_Fatigue_${sessionData.tanggal}_${sessionData.shift.replace(' ', '_')}.jpg`;
       await downloadSidakFatigueAsJpg({
         session: sessionData,
         records: sessionData.records || [],
         observers: sessionData.observers || [],
-      }, fileName);
+      }, fileName, roster || undefined);
 
       toast({
         title: "JPG berhasil diunduh",

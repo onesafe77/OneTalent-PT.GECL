@@ -44,6 +44,9 @@ interface EmployeeRecord {
   buktiIntervensi?: string;
   catatanIntervensi?: string;
   pvtMeanRT?: number;
+  // Kesesuaian roster — di-mirror otomatis jadi Sidak Roster di server
+  rosterSesuai?: boolean;
+  rosterKeterangan?: string;
 }
 
 interface Observer {
@@ -100,7 +103,9 @@ const initialDraftData: FatigueDraftData = {
     fitUntukBekerja: null,
     istirahatDanMonitor: null,
     istirahatLebihdariSatuJam: null,
-    tidakBolehBekerja: null
+    tidakBolehBekerja: null,
+    rosterSesuai: undefined,
+    rosterKeterangan: ""
   },
   observers: [],
   isLoadedFromQr: false
@@ -157,7 +162,9 @@ export default function SidakFatigueForm() {
     fitUntukBekerja: null,
     istirahatDanMonitor: null,
     istirahatLebihdariSatuJam: null,
-    tidakBolehBekerja: null
+    tidakBolehBekerja: null,
+    rosterSesuai: undefined,
+    rosterKeterangan: ""
   });
 
   const [observers, setObservers] = useState<Observer[]>([]);
@@ -420,6 +427,44 @@ export default function SidakFatigueForm() {
       title: "Data Dimuat",
       description: `Data karyawan ${employee.name} berhasil dimuat dari QR Code`,
     });
+
+    // Auto-cek kesesuaian roster dari jadwal asli (pengawas tetap bisa override)
+    void autoCheckRoster(employee.id);
+  };
+
+  // Cek roster_schedules utk tanggal sidak: isi otomatis toggle "Roster Sesuai"
+  const autoCheckRoster = async (employeeId: string) => {
+    try {
+      const res = await fetch(`/api/roster?employeeId=${encodeURIComponent(employeeId)}`, { credentials: "include" });
+      if (!res.ok) return; // gagal cek → biarkan default, jangan blokir alur
+      const schedules: any[] = await res.json();
+      const entry = schedules.find((s) => s.date === headerData.tanggal);
+
+      const norm = (s: string) => (s || "").toUpperCase().replace(/\s+/g, " ").trim();
+      let sesuai: boolean;
+      let ket = "";
+      if (!entry) {
+        sesuai = false;
+        ket = "Tidak ada jadwal roster tanggal ini";
+      } else if (norm(entry.shift) === "CUTI") {
+        sesuai = false;
+        ket = "Roster: CUTI (seharusnya tidak bekerja)";
+      } else if (norm(entry.shift) === norm(headerData.shift)) {
+        sesuai = true;
+      } else {
+        sesuai = false;
+        ket = `Roster: ${entry.shift}, aktual: ${headerData.shift}`;
+      }
+
+      setCurrentEmployee(prev => ({ ...prev, rosterSesuai: sesuai, rosterKeterangan: ket }));
+      toast({
+        title: sesuai ? "Roster dicek otomatis: Sesuai" : "Roster dicek otomatis: Tidak sesuai",
+        description: sesuai ? `Jadwal ${entry.shift} cocok dengan sidak` : ket,
+        variant: sesuai ? "default" : "destructive",
+      });
+    } catch {
+      // silent — auto-cek adalah bantuan, bukan penghalang
+    }
   };
 
   const [isRecording, setIsRecording] = useState(false);
@@ -599,6 +644,8 @@ export default function SidakFatigueForm() {
         istirahatDanMonitor: null,
         istirahatLebihdariSatuJam: null,
         tidakBolehBekerja: null,
+        rosterSesuai: undefined,
+        rosterKeterangan: "",
         employeeSignature: undefined
       });
       setIsLoadedFromQr(false); // Reset lock for next employee
@@ -658,6 +705,7 @@ export default function SidakFatigueForm() {
         pemeriksaanKesehatan: currentEmployee.pemeriksaanKesehatan ?? false, karyawanSiapBekerja: currentEmployee.karyawanSiapBekerja ?? false,
         fitUntukBekerja: currentEmployee.fitUntukBekerja ?? false, istirahatDanMonitor: currentEmployee.istirahatDanMonitor ?? false,
         istirahatLebihdariSatuJam: currentEmployee.istirahatLebihdariSatuJam ?? false, tidakBolehBekerja: currentEmployee.tidakBolehBekerja ?? false,
+        rosterSesuai: currentEmployee.rosterSesuai ?? true, rosterKeterangan: currentEmployee.rosterKeterangan || null,
         employeeSignature: currentEmployee.employeeSignature,
       });
       setEmployees(prev => prev.map(e => (e as any).backendRecordId === editingRecordId ? { ...currentEmployee, backendRecordId: editingRecordId } : e));
@@ -675,6 +723,7 @@ export default function SidakFatigueForm() {
       konsumiObat: null, masalahPribadi: null, pemeriksaanRespon: null, pemeriksaanKonsentrasi: null,
       pemeriksaanKesehatan: null, karyawanSiapBekerja: null, fitUntukBekerja: null,
       istirahatDanMonitor: null, istirahatLebihdariSatuJam: null, tidakBolehBekerja: null,
+      rosterSesuai: undefined, rosterKeterangan: "",
       employeeSignature: undefined,
     } as any);
     setIsLoadedFromQr(false);
@@ -756,6 +805,16 @@ export default function SidakFatigueForm() {
       toast({
         title: "Data tidak lengkap",
         description: "Mohon lengkapi nama, NIK, dan jabatan karyawan",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Kesesuaian roster wajib terisi (otomatis saat scan; manual bila cek roster gagal)
+    if (currentEmployee.rosterSesuai == null) {
+      toast({
+        title: "Kesesuaian roster belum terisi",
+        description: "Pilih Ya/Tidak pada kartu Roster Sesuai (terisi otomatis setelah scan QR)",
         variant: "destructive",
       });
       return;
@@ -1266,6 +1325,66 @@ export default function SidakFatigueForm() {
                 </div>
               </div>
 
+              {/* Kesesuaian Roster — terkunci sampai scan QR; diisi otomatis dari roster */}
+              <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">Roster Sesuai?</p>
+                    <p className="text-xs text-gray-500">
+                      {isLoadedFromQr
+                        ? "Hasil cek roster otomatis · otomatis tercatat sbg Sidak Roster"
+                        : "Terkunci — scan QR karyawan untuk cek roster otomatis"}
+                    </p>
+                  </div>
+                  <div className={cn(
+                    "h-6 w-6 rounded-full flex items-center justify-center",
+                    currentEmployee.rosterSesuai == null
+                      ? "bg-gray-100 text-gray-400"
+                      : currentEmployee.rosterSesuai ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                  )}>
+                    {currentEmployee.rosterSesuai == null
+                      ? <span className="text-xs font-bold">?</span>
+                      : currentEmployee.rosterSesuai ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    disabled={!isLoadedFromQr}
+                    onClick={() => setCurrentEmployee({ ...currentEmployee, rosterSesuai: true, rosterKeterangan: "" })}
+                    className={cn(
+                      "py-3 rounded-lg font-medium text-sm transition-all border",
+                      !isLoadedFromQr && "opacity-50 cursor-not-allowed",
+                      currentEmployee.rosterSesuai === true
+                        ? "bg-green-50 border-green-500 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                        : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700"
+                    )}
+                  >
+                    Ya
+                  </button>
+                  <button
+                    disabled={!isLoadedFromQr}
+                    onClick={() => setCurrentEmployee({ ...currentEmployee, rosterSesuai: false })}
+                    className={cn(
+                      "py-3 rounded-lg font-medium text-sm transition-all border",
+                      !isLoadedFromQr && "opacity-50 cursor-not-allowed",
+                      currentEmployee.rosterSesuai === false
+                        ? "bg-red-50 border-red-500 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                        : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700"
+                    )}
+                  >
+                    Tidak
+                  </button>
+                </div>
+                {currentEmployee.rosterSesuai === false && (
+                  <Input
+                    className="mt-3"
+                    placeholder="Keterangan (mis. seharusnya cuti, masih bekerja)"
+                    value={currentEmployee.rosterKeterangan || ""}
+                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, rosterKeterangan: e.target.value })}
+                  />
+                )}
+              </div>
+
               {/* Checklist Questions */}
               <div className="space-y-4">
                 <h3 className="font-bold text-gray-900 dark:text-white px-1">Pemeriksaan Kondisi</h3>
@@ -1492,7 +1611,12 @@ export default function SidakFatigueForm() {
                   <div key={emp.backendRecordId || i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-gray-50 dark:bg-gray-900/40">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{emp.nama} <span className="text-gray-400">· {emp.nik}</span></p>
-                      <p className="text-xs text-gray-500">Jam tidur: {emp.jamTidur} · {emp.fitUntukBekerja ? "Fit" : "Tidak Fit"}</p>
+                      <p className="text-xs text-gray-500">
+                        Jam tidur: {emp.jamTidur} · {emp.fitUntukBekerja ? "Fit" : "Tidak Fit"}
+                        {emp.rosterSesuai === false && (
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-red-600 bg-red-50 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full">Roster ✗</span>
+                        )}
+                      </p>
                     </div>
                     <div className="flex shrink-0">
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600" onClick={() => startEditEmployee(emp)}><Pencil className="h-4 w-4" /></Button>

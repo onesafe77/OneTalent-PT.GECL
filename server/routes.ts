@@ -5680,6 +5680,65 @@ Format sebagai bullet points singkat per insight.`;
   // ============================================
 
   // Create new Sidak Fatigue session
+  // Mirror otomatis Sidak Fatigue -> Sidak Roster: form fatigue memuat cek "roster sesuai",
+  // hasilnya dicerminkan ke tabel sidak_roster_* agar History/Rekap/PDF Roster jalan tanpa diubah.
+  // Full-rebuild (hapus sesi mirror lalu buat ulang, FK cascade) = idempoten & tahan edit/hapus.
+  // Serialisasi per sesi: sync beruntun antre, tak tumpang tindih (hindari duplikat mirror).
+  const rosterSyncChains = new Map<string, Promise<void>>();
+  function syncRosterFromFatigue(fatigueSessionId: string): Promise<void> {
+    const next = (rosterSyncChains.get(fatigueSessionId) ?? Promise.resolve())
+      .then(() => doSyncRosterFromFatigue(fatigueSessionId));
+    rosterSyncChains.set(fatigueSessionId, next);
+    return next;
+  }
+  async function doSyncRosterFromFatigue(fatigueSessionId: string) {
+    try {
+      const session = await storage.getSidakFatigueSession(fatigueSessionId);
+      if (!session) return;
+      const records = await storage.getSidakFatigueRecords(fatigueSessionId);
+      const existing = await storage.getSidakRosterSessionByFatigueId(fatigueSessionId);
+      if (existing) await storage.deleteSidakRosterSession(existing.id); // cascade: records + observers
+      if (!records.length) return;
+
+      const rosterSession = await storage.createSidakRosterSession({
+        tanggal: session.tanggal,
+        waktu: session.waktuMulai || session.waktu,
+        shift: session.shift,
+        perusahaan: "PT GECL",
+        departemen: session.departemen,
+        lokasi: session.lokasi,
+        activityPhotos: session.activityPhotos || [],
+        createdBy: session.createdBy,
+        sourceFatigueSessionId: fatigueSessionId,
+      });
+      for (const r of records) {
+        await storage.createSidakRosterRecord({
+          sessionId: rosterSession.id,
+          employeeId: r.employeeId,
+          nama: r.nama,
+          nik: r.nik,
+          nomorLambung: r.nomorLambung,
+          rosterSesuai: r.rosterSesuai ?? true,
+          keterangan: r.rosterKeterangan,
+        });
+      }
+      const observers = await storage.getSidakFatigueObservers(fatigueSessionId);
+      for (const o of observers) {
+        await storage.createSidakRosterObserver({
+          sessionId: rosterSession.id,
+          nama: o.nama,
+          nik: o.nik,
+          perusahaan: o.perusahaan,
+          jabatan: o.jabatan,
+          signatureDataUrl: o.signatureDataUrl,
+        });
+      }
+      await storage.updateSidakRosterSessionSampleCount(rosterSession.id);
+    } catch (e) {
+      console.error("syncRosterFromFatigue gagal:", e);
+    }
+  }
+
   app.post("/api/sidak-fatigue", async (req, res) => {
     try {
       const validatedData = insertSidakFatigueSessionSchema.parse(req.body);
@@ -5714,20 +5773,27 @@ Format sebagai bullet points singkat per insight.`;
         sessions = sessions.filter(s => s.createdBy === sessionUser.nik);
       }
 
-      // Add computed totalSampel (actual count from records) and observers to each session
-      const sessionsWithDetails = await Promise.all(
-        sessions.map(async (session) => {
-          const [records, observers] = await Promise.all([
-            storage.getSidakFatigueRecords(session.id),
-            storage.getSidakFatigueObservers(session.id)
-          ]);
-          return {
-            ...session,
-            totalSampel: records.length,
-            observers
-          };
-        })
-      );
+      // Add computed totalSampel (actual count from records) and observers to each session.
+      // Batch 2 query (inArray) — bukan 2 query per sesi (ratusan sesi = pool timeout / 500).
+      const ids = sessions.map(s => s.id);
+      const [recordCount, allObservers] = await Promise.all([
+        storage.countSidakFatigueRecordsBySessionIds(ids),
+        storage.getSidakFatigueObserversBySessionIds(ids),
+      ]);
+      const observersBySession = new Map<string, typeof allObservers>();
+      for (const o of allObservers) {
+        const arr = observersBySession.get(o.sessionId) || [];
+        arr.push(o);
+        observersBySession.set(o.sessionId, arr);
+      }
+
+      const sessionsWithDetails = sessions.map(session => ({
+        ...session,
+        totalSampel: recordCount.get(session.id) || 0,
+        // Tanpa signatureDataUrl (base64 besar) — list hanya butuh identitas observer;
+        // PDF/detail mengambil tanda tangan dari GET /api/sidak-fatigue/:id
+        observers: (observersBySession.get(session.id) || []).map(({ signatureDataUrl, ...o }) => o),
+      }));
 
       res.json(sessionsWithDetails);
     } catch (error) {
@@ -5903,6 +5969,8 @@ Format sebagai bullet points singkat per insight.`;
         tindakLanjut: record.catatanIntervensi,
         moduleLabel: "Sidak Fatigue"
       });
+
+      void syncRosterFromFatigue(id);
 
       res.json(record);
     } catch (error: any) {
@@ -6732,6 +6800,25 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error("Error fetching Sidak Roster sessions:", error);
       res.status(500).json({ message: "Gagal mengambil data sesi Sidak Roster" });
+    }
+  });
+
+  // Sesi Sidak Roster hasil mirror dari sesi Sidak Fatigue (utk lampiran halaman roster
+  // di download PDF/JPG fatigue). WAJIB terdaftar sebelum route "/:id".
+  app.get("/api/sidak-roster/by-fatigue/:fatigueId", async (req, res) => {
+    try {
+      const session = await storage.getSidakRosterSessionByFatigueId(req.params.fatigueId);
+      if (!session) {
+        return res.status(404).json({ message: "Tidak ada Sidak Roster tersambung" });
+      }
+      const [records, observers] = await Promise.all([
+        storage.getSidakRosterRecords(session.id),
+        storage.getSidakRosterObservers(session.id),
+      ]);
+      res.json({ ...session, records, observers });
+    } catch (error) {
+      console.error("Error fetching Sidak Roster by fatigue:", error);
+      res.status(500).json({ message: "Gagal mengambil Sidak Roster tersambung" });
     }
   });
 
@@ -11248,6 +11335,8 @@ Format sebagai bullet points singkat per insight.`;
       // Trigger sample count update
       await storage.updateSidakFatigueSessionSampleCount(id);
 
+      void syncRosterFromFatigue(id);
+
       res.json(observer);
     } catch (error: any) {
       console.error("Error adding Sidak Fatigue observer:", error);
@@ -11271,6 +11360,8 @@ Format sebagai bullet points singkat per insight.`;
         "pvtMeanRT",
         // Field data karyawan (dipakai fitur Edit di Step 4)
         "nama", "nik", "jabatan", "nomorLambung", "jamTidur", "employeeSignature",
+        // Kesesuaian roster (mirror ke Sidak Roster)
+        "rosterSesuai", "rosterKeterangan",
       ];
 
       const updateData: any = {};
@@ -11291,6 +11382,8 @@ Format sebagai bullet points singkat per insight.`;
       if (!updatedRecord) {
         return res.status(404).json({ message: "Record tidak ditemukan" });
       }
+
+      void syncRosterFromFatigue(updatedRecord.sessionId);
 
       res.json({
         ...updatedRecord,
@@ -11313,6 +11406,7 @@ Format sebagai bullet points singkat per insight.`;
       if (!Object.keys(updateData).length) return res.status(400).json({ message: "Tidak ada data yang diupdate" });
       const updated = await storage.updateSidakFatigueSession(id, updateData);
       if (!updated) return res.status(404).json({ message: "Sesi tidak ditemukan" });
+      void syncRosterFromFatigue(id);
       res.json(updated);
     } catch (error) {
       console.error("Error updating fatigue session:", error);
@@ -11327,7 +11421,10 @@ Format sebagai bullet points singkat per insight.`;
       const rec = await storage.getSidakFatigueRecord(id);
       if (!rec) return res.status(404).json({ message: "Record tidak ditemukan" });
       const ok = await storage.deleteSidakFatigueRecord(id);
-      if (rec.sessionId) await storage.updateSidakFatigueSessionSampleCount(rec.sessionId);
+      if (rec.sessionId) {
+        await storage.updateSidakFatigueSessionSampleCount(rec.sessionId);
+        void syncRosterFromFatigue(rec.sessionId);
+      }
       res.json({ ok });
     } catch (error) {
       console.error("Error deleting fatigue record:", error);
@@ -11464,6 +11561,9 @@ Format sebagai bullet points singkat per insight.`;
   app.delete("/api/sidak-fatigue/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      // Hapus juga sesi Sidak Roster hasil mirror (bila ada) agar tak jadi yatim
+      const mirror = await storage.getSidakRosterSessionByFatigueId(id);
+      if (mirror) await storage.deleteSidakRosterSession(mirror.id);
       const deleted = await storage.deleteSidakFatigueSession(id);
 
       if (!deleted) {

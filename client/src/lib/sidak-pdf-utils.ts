@@ -22,7 +22,7 @@ interface SidakFatigueData {
 }
 
 export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<jsPDF> {
-  const pdf = new jsPDF('landscape', 'mm', 'a4');
+  const pdf = new jsPDF('landscape', 'mm', 'a4', true);
   const pageWidth = pdf.internal.pageSize.width;
   const pageHeight = pdf.internal.pageSize.height;
   const margin = 10;
@@ -371,7 +371,7 @@ export async function generateSidakFatiguePdf(data: SidakFatigueData): Promise<j
 // JPG EXPORT FOR SIDAK FATIGUE
 // Using PDF.js with bundled worker (Vite-compatible approach)
 // ============================================
-export async function downloadSidakFatigueAsJpg(data: SidakFatigueData, filename: string): Promise<void> {
+export async function downloadSidakFatigueAsJpg(data: SidakFatigueData, filename: string, roster?: SidakRosterData): Promise<void> {
   // Guard against server-side execution (SSR/Node.js)
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     throw new Error('JPG download can only be executed in browser environment');
@@ -387,8 +387,9 @@ export async function downloadSidakFatigueAsJpg(data: SidakFatigueData, filename
     // Configure PDF.js to use bundled worker
     pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc.default;
 
-    // Generate the PDF
+    // Generate the PDF (+ halaman form Sidak Roster tersambung bila ada)
     const pdf = await generateSidakFatiguePdf(data);
+    if (roster) await generateSidakRosterPdf(roster, pdf);
 
     // Get PDF as array buffer
     const pdfArrayBuffer = pdf.output('arraybuffer');
@@ -474,15 +475,17 @@ export async function downloadSidakFatigueAsJpg(data: SidakFatigueData, filename
 // Form: GECL-HSE-PPO-F
 // ============================================
 
-interface SidakRosterData {
+export interface SidakRosterData {
   session: SidakRosterSession;
   records: SidakRosterRecord[];
   observers: SidakRosterObserver[];
 }
 
-export async function generateSidakRosterPdf(data: SidakRosterData): Promise<jsPDF> {
-  // Changed to landscape A4 (297mm x 210mm) to match template
-  const pdf = new jsPDF('landscape', 'mm', 'a4');
+export async function generateSidakRosterPdf(data: SidakRosterData, existingPdf?: jsPDF): Promise<jsPDF> {
+  // Landscape A4 (297mm x 210mm). Bila existingPdf diberikan (lampiran di PDF Fatigue),
+  // form roster digambar sebagai halaman baru di dokumen itu.
+  const pdf = existingPdf ?? new jsPDF('landscape', 'mm', 'a4', true);
+  if (existingPdf) pdf.addPage('a4', 'landscape');
   const pageWidth = pdf.internal.pageSize.width; // 297mm
   const pageHeight = pdf.internal.pageSize.height; // 210mm
   const margin = 10;
