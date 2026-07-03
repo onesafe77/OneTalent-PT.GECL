@@ -56,14 +56,26 @@ export function canonicalSafetyActivity(raw: string | null | undefined): string 
   return null;
 }
 
-// Aktivitas kanonik dari sebuah laporan: utamakan `kegiatan`, lalu jenis laporan, lalu temuan.
+// Judul laporan = baris non-kosong pertama rawMessage (tanpa karakter tak terlihat & markdown *).
+// Dipakai sbg fallback matching saat AI salah mengekstrak kegiatan/jenisLaporan/temuan.
+function reportTitle(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const clean = raw.replace(/[​‎‏﻿]/g, "");
+  const line = clean.split("\n").map(l => l.trim()).find(l => l.length > 0) || "";
+  return line.replace(/\*/g, "").trim();
+}
+
+// Aktivitas kanonik dari sebuah laporan: utamakan `kegiatan`, lalu jenis laporan, lalu temuan,
+// terakhir JUDUL rawMessage (baris pertama saja — bukan seluruh teks, agar tak over-match).
 // Dipakai pencocokan Pencapaian Job agar laporan dgn judul generik tetap terdeteksi.
 export function canonicalReportActivity(r: {
   kegiatan?: string | null; jenisLaporan?: string | null; temuan?: string | null;
+  rawMessage?: string | null;
 } | null | undefined): string | null {
   if (!r) return null;
   return canonicalSafetyActivity(r.kegiatan)
     || canonicalSafetyActivity(r.jenisLaporan)
     || canonicalSafetyActivity(r.temuan)
+    || canonicalSafetyActivity(reportTitle(r.rawMessage))
     || null;
 }
