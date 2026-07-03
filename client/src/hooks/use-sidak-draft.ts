@@ -32,6 +32,13 @@ export function useSidakDraft<T>({
   const [showRecoveryDialog, setShowRecoveryDialog] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Selama dialog pemulihan terbuka, autosave DILARANG menimpa draft lama —
+  // state form saat itu masih kosong (step 1) dan user belum memutuskan lanjut/hapus.
+  const recoveryOpenRef = useRef(false);
+  useEffect(() => {
+    recoveryOpenRef.current = showRecoveryDialog;
+  }, [showRecoveryDialog]);
+
   useEffect(() => {
     try {
       const savedDraft = localStorage.getItem(storageKey);
@@ -60,6 +67,7 @@ export function useSidakDraft<T>({
     
     saveTimeoutRef.current = setTimeout(() => {
       try {
+        if (recoveryOpenRef.current) return; // jangan timpa draft sebelum user menjawab dialog
         const hasData = JSON.stringify(data) !== JSON.stringify(initialData);
         if (hasData) {
           const iso = new Date().toISOString();
