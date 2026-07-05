@@ -27,6 +27,7 @@ const MAP: Record<string, { load: UtilThunk; fn: string }> = {
   Apar: { load: () => import("../../client/src/lib/sidak-apar-pdf-utils"), fn: "generateSidakAparPDF" },
   MesinLas: { load: () => import("../../client/src/lib/sidak-mesin-las-pdf-utils"), fn: "generateSidakMesinLasPDF" },
   MesinKompresor: { load: () => import("../../client/src/lib/sidak-mesin-kompresor-pdf-utils"), fn: "generateSidakMesinKompresorPDF" },
+  PemenuhanTyre: { load: () => import("../../client/src/lib/sidak-pemenuhan-tyre-pdf-utils"), fn: "generateSidakPemenuhanTyrePdf" },
   GerindaDuduk: { load: () => import("../../client/src/lib/sidak-gerinda-duduk-pdf-utils"), fn: "generateSidakGerindaDudukPDF" },
   FuelStorage: { load: () => import("../../client/src/lib/sidak-fuel-storage-pdf-utils"), fn: "generateSidakFuelStoragePDF" },
 };
@@ -34,7 +35,7 @@ const MAP: Record<string, { load: UtilThunk; fn: string }> = {
 /** Buffer PDF layout asli, atau null bila tipe tak terpetakan (caller pakai fallback generik). */
 export async function renderOriginalSidakPdf(
   type: string,
-  detail: { session: any; records?: any[]; observers?: any[] },
+  detail: { session: any; records?: any[]; observers?: any[]; record?: any },
 ): Promise<Buffer | null> {
   const entry = MAP[type];
   if (!entry) return null;
@@ -45,6 +46,8 @@ export async function renderOriginalSidakPdf(
     session: detail.session,
     records: detail.records || [],
     observers: detail.observers || [],
+    // Tipe checklist level-sesi (mis. PemenuhanTyre) memakai satu `record`
+    record: detail.record ?? (detail.records || [])[0] ?? null,
   });
   return Buffer.from(doc.output("arraybuffer"));
 }

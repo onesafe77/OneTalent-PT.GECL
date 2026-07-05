@@ -4427,6 +4427,56 @@ export type SidakMesinKompresorObserver = typeof sidakMesinKompresorObservers.$i
 export type InsertSidakMesinKompresorObserver = z.infer<typeof insertSidakMesinKompresorObserverSchema>;
 
 // ============================================
+// SIDAK PEMENUHAN TYRE (BIB-CLR-SKR-F-014-01)
+// Checklist 29 item level-sesi: 1 record berisi seluruh jawaban (S/TS per nomor item)
+// ============================================
+
+export const sidakPemenuhanTyreSessions = pgTable("sidak_pemenuhan_tyre_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tanggal: text("tanggal").notNull(),
+  waktu: varchar("waktu", { length: 20 }),
+  shift: varchar("shift", { length: 50 }),
+  lokasi: text("lokasi").notNull(),
+  namaPerusahaan: text("nama_perusahaan").notNull(),
+  namaPengawas: text("nama_pengawas").notNull(),
+  sampelNomorLambung: text("sampel_nomor_lambung").array(), // maks 5 unit DT random
+  totalItems: integer("total_items").default(29),
+  activityPhotos: text("activity_photos").array(),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_pemenuhan_tyre_sessions_created_by").on(table.createdBy)]);
+
+export const sidakPemenuhanTyreRecords = pgTable("sidak_pemenuhan_tyre_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakPemenuhanTyreSessions.id, { onDelete: "cascade" }),
+  inspectionResults: jsonb("inspection_results").notNull().default({}), // { "1".."29": "S" | "TS" }
+  tindakLanjutPerbaikan: jsonb("tindak_lanjut_perbaikan").notNull().default({}), // { no: teks }
+  dueDates: jsonb("due_dates").notNull().default({}), // { no: "YYYY-MM-DD" }
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_pemenuhan_tyre_records_session").on(table.sessionId)]);
+
+export const sidakPemenuhanTyreObservers = pgTable("sidak_pemenuhan_tyre_observers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sidakPemenuhanTyreSessions.id, { onDelete: "cascade" }),
+  ordinal: integer("ordinal").notNull(),
+  nama: text("nama").notNull(),
+  perusahaan: text("perusahaan"),
+  tandaTangan: text("tanda_tangan"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [index("IDX_pemenuhan_tyre_observers_session").on(table.sessionId)]);
+
+export const insertSidakPemenuhanTyreSessionSchema = createInsertSchema(sidakPemenuhanTyreSessions).omit({ id: true, createdAt: true, totalItems: true });
+export const insertSidakPemenuhanTyreRecordSchema = createInsertSchema(sidakPemenuhanTyreRecords).omit({ id: true, createdAt: true });
+export const insertSidakPemenuhanTyreObserverSchema = createInsertSchema(sidakPemenuhanTyreObservers).omit({ id: true, createdAt: true });
+
+export type SidakPemenuhanTyreSession = typeof sidakPemenuhanTyreSessions.$inferSelect;
+export type InsertSidakPemenuhanTyreSession = z.infer<typeof insertSidakPemenuhanTyreSessionSchema>;
+export type SidakPemenuhanTyreRecord = typeof sidakPemenuhanTyreRecords.$inferSelect;
+export type InsertSidakPemenuhanTyreRecord = z.infer<typeof insertSidakPemenuhanTyreRecordSchema>;
+export type SidakPemenuhanTyreObserver = typeof sidakPemenuhanTyreObservers.$inferSelect;
+export type InsertSidakPemenuhanTyreObserver = z.infer<typeof insertSidakPemenuhanTyreObserverSchema>;
+
+// ============================================
 // SPIP PERALATAN
 // ============================================
 

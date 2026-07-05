@@ -106,6 +106,7 @@ interface SupervisorStats {
   impact: number;
   mesinlas: number;
   mesinkompresor: number;
+  pemenuhantyre: number;
   gerindaduduk: number;
   fuelstorage: number;
   total: number;
@@ -136,6 +137,7 @@ interface RecapData {
     totalImpact: number;
     totalMesinLas: number;
     totalMesinKompresor: number;
+    totalPemenuhanTyre: number;
     totalGerindaDuduk: number;
     totalFuelStorage: number;
     totalKaryawanDiperiksa: number;
@@ -2131,6 +2133,7 @@ export default function SidakRecap() {
           { key: "totalImpact", label: "Impact", Icon: PenTool, chip: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400" },
           { key: "totalMesinLas", label: "Mesin Las", Icon: Building, chip: "bg-zinc-100 text-zinc-600 dark:bg-zinc-900/30 dark:text-zinc-400" },
           { key: "totalMesinKompresor", label: "Mesin Kompresor", Icon: Activity, chip: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400" },
+          { key: "totalPemenuhanTyre", label: "Pemenuhan Tyre", Icon: Activity, chip: "bg-slate-100 text-slate-600 dark:bg-slate-900/30 dark:text-slate-400" },
           { key: "totalGerindaDuduk", label: "Gerinda Duduk", Icon: PenTool, chip: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" },
           { key: "totalFuelStorage", label: "Fuel Storage", Icon: Building, chip: "bg-stone-100 text-stone-600 dark:bg-stone-900/30 dark:text-stone-400" },
         ];
@@ -2203,6 +2206,7 @@ export default function SidakRecap() {
                     { key: "impact", short: "IM", full: "Impact", cls: "bg-pink-50 text-pink-700" },
                     { key: "mesinlas", short: "ML", full: "Mesin Las", cls: "bg-zinc-50 text-zinc-700" },
                     { key: "mesinkompresor", short: "MK", full: "Mesin Kompresor", cls: "bg-zinc-50 text-zinc-700" },
+                    { key: "pemenuhantyre", short: "PT", full: "Pemenuhan Tyre", cls: "bg-slate-50 text-slate-700" },
                     { key: "gerindaduduk", short: "GD", full: "Gerinda Duduk", cls: "bg-zinc-50 text-zinc-700" },
                     { key: "fuelstorage", short: "FS", full: "Fuel Storage", cls: "bg-emerald-50 text-emerald-700" },
                   ];
@@ -2294,6 +2298,7 @@ export default function SidakRecap() {
                   <SelectItem value="Intercom">Intercom FMS</SelectItem>
                   <SelectItem value="ChargingStation">Charging Station</SelectItem>
                   <SelectItem value="SopKritis">Observasi SOP Kritis</SelectItem>
+                  <SelectItem value="PemenuhanTyre">Sidak Pemenuhan Tyre</SelectItem>
 
                 </SelectContent>
               </Select>
@@ -2603,14 +2608,14 @@ export default function SidakRecap() {
                         langkah={(detailData as any).langkah as any[]}
                         observers={detailData.observers}
                       />
-                    ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' ? (
+                    ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' || selectedSession?.type === 'PemenuhanTyre' ? (
                       <EquipmentFormPreview
                         session={detailData.session}
                         records={detailData.records as any[]}
                         observers={detailData.observers}
                       />
 
-                    ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' ? (
+                    ) : selectedSession?.type === 'StandJack' || selectedSession?.type === 'HydraulicJack' || selectedSession?.type === 'BottleJack' || selectedSession?.type === 'Impact' || selectedSession?.type === 'APAR' || selectedSession?.type === 'Apar' || selectedSession?.type === 'MesinLas' || selectedSession?.type === 'MesinKompresor' || selectedSession?.type === 'GerindaDuduk' || selectedSession?.type === 'FuelStorage' || selectedSession?.type === 'PemenuhanTyre' ? (
                       <Table>
                         <TableHeader>
                           <TableRow>

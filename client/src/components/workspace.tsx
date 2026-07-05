@@ -84,6 +84,8 @@ import SidakMesinLasForm from "@/pages/sidak-mesin-las-form";
 import SidakMesinLasHistory from "@/pages/sidak-mesin-las-history";
 import SidakMesinKompresorForm from "@/pages/sidak-mesin-kompresor-form";
 import SidakMesinKompresorHistory from "@/pages/sidak-mesin-kompresor-history";
+import SidakPemenuhanTyreForm from "@/pages/sidak-pemenuhan-tyre-form";
+import SidakPemenuhanTyreHistory from "@/pages/sidak-pemenuhan-tyre-history";
 import SidakGerindaDudukForm from "@/pages/sidak-gerinda-duduk-form";
 import SidakGerindaDudukHistory from "@/pages/sidak-gerinda-duduk-history";
 import { PeralatanFormPage, PeralatanViewPage } from "@/pages/hse/ko/spip/peralatan-detail";
@@ -213,6 +215,8 @@ const workspaceRoutes = [
   { path: "/workspace/sidak/mesin-las/history", component: SidakMesinLasHistory, title: "Riwayat Sidak Mesin Las" },
   { path: "/workspace/sidak/mesin-kompresor/new", component: SidakMesinKompresorForm, title: "Form Sidak Mesin Kompresor" },
   { path: "/workspace/sidak/mesin-kompresor/history", component: SidakMesinKompresorHistory, title: "Riwayat Sidak Mesin Kompresor" },
+  { path: "/workspace/sidak/pemenuhan-tyre/new", component: SidakPemenuhanTyreForm, title: "Form Sidak Pemenuhan Tyre" },
+  { path: "/workspace/sidak/pemenuhan-tyre/history", component: SidakPemenuhanTyreHistory, title: "Riwayat Sidak Pemenuhan Tyre" },
   { path: "/workspace/sidak/gerinda-duduk/new", component: SidakGerindaDudukForm, title: "Form Sidak Gerinda Duduk" },
   { path: "/workspace/sidak/gerinda-duduk/history", component: SidakGerindaDudukHistory, title: "Riwayat Sidak Gerinda Duduk" },
   { path: "/workspace/sidak/rekap", component: SidakRecap, title: "Rekap Kegiatan SIDAK" },
@@ -422,6 +426,8 @@ export function Workspace() {
               <Route path="/workspace/sidak/mesin-las/history" component={SidakMesinLasHistory} />
               <Route path="/workspace/sidak/mesin-kompresor/new" component={SidakMesinKompresorForm} />
               <Route path="/workspace/sidak/mesin-kompresor/history" component={SidakMesinKompresorHistory} />
+              <Route path="/workspace/sidak/pemenuhan-tyre/new" component={SidakPemenuhanTyreForm} />
+              <Route path="/workspace/sidak/pemenuhan-tyre/history" component={SidakPemenuhanTyreHistory} />
               <Route path="/workspace/sidak/gerinda-duduk/new" component={SidakGerindaDudukForm} />
               <Route path="/workspace/sidak/gerinda-duduk/history" component={SidakGerindaDudukHistory} />
               <Route path="/workspace/sidak/riwayat">

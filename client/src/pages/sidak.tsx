@@ -529,6 +529,26 @@ export default function SidakDashboard() {
             </Link>
           )}
 
+          {(searchQuery === "" || "sidak pemenuhan tyre ban standar tyre management".includes(searchQuery.toLowerCase())) && (
+            <Link href="/workspace/sidak/pemenuhan-tyre/new" data-testid="link-sidak-pemenuhan-tyre">
+              <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
+                <div className="h-16 w-16 rounded-xl bg-slate-100 dark:bg-slate-900/40 flex items-center justify-center text-slate-600 dark:text-slate-300 mr-4 flex-shrink-0">
+                  <Shield className="h-8 w-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-slate-600 transition-colors">Sidak Pemenuhan Tyre</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Checklist Standar Tyre Management Mitra Hauling</p>
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-900/40 dark:text-slate-300">
+                    29 Item Checklist
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-slate-200 group-hover:text-slate-600 transition-colors">
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+          )}
+
           {(searchQuery === "" || "sidak gerinda duduk inspeksi unit".includes(searchQuery.toLowerCase())) && (
             <Link href="/workspace/sidak/gerinda-duduk/new" data-testid="link-sidak-gerinda-duduk">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">

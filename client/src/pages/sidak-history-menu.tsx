@@ -386,6 +386,21 @@ export default function SidakHistoryMenu() {
                                 </div>
                             </Button>
                         </Link>
+                        <Link href="/workspace/sidak/pemenuhan-tyre/history" data-testid="link-pemenuhan-tyre-history">
+                            <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-slate-50 hover:text-slate-700 hover:border-slate-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
+                                <div className="absolute inset-0 bg-slate-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                                <div className="relative flex items-center w-full">
+                                    <div className="p-2 bg-slate-100 dark:bg-slate-900/30 rounded-xl mr-3 group-hover:scale-110 transition-transform">
+                                        <Shield className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+                                    </div>
+                                    <div className="text-left flex-1">
+                                        <div className="font-bold text-gray-900 dark:text-gray-100 group-hover:text-slate-700">Riwayat Pemenuhan Tyre</div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">Lihat data & PDF</div>
+                                    </div>
+                                    <div className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">→</div>
+                                </div>
+                            </Button>
+                        </Link>
                         <Link href="/workspace/sidak/gerinda-duduk/history" data-testid="link-gerinda-duduk-history">
                             <Button variant="outline" className="w-full justify-start h-16 text-sm hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border-gray-200 dark:border-gray-700 rounded-2xl transition-all group relative overflow-hidden">
                                 <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>

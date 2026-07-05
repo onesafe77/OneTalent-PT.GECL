@@ -187,6 +187,13 @@ const historyItems = [
         href: "/workspace/sidak/apar/history",
         icon: Shield,
         color: "red"
+    },
+    {
+        title: "Riwayat Pemenuhan Tyre",
+        subtitle: "Data Logs & PDF",
+        href: "/workspace/sidak/pemenuhan-tyre/history",
+        icon: Shield,
+        color: "sky"
     }
 ];
 

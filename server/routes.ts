@@ -146,6 +146,9 @@ import {
   insertSidakMesinKompresorSessionSchema,
   insertSidakMesinKompresorRecordSchema,
   insertSidakMesinKompresorObserverSchema,
+  insertSidakPemenuhanTyreSessionSchema,
+  insertSidakPemenuhanTyreRecordSchema,
+  insertSidakPemenuhanTyreObserverSchema,
   insertSidakMesinLasSessionSchema,
   insertSidakMesinLasRecordSchema,
   insertSidakMesinLasObserverSchema,
@@ -9347,6 +9350,150 @@ Format sebagai bullet points singkat per insight.`;
 
 
   // ============================================================================
+  // SIDAK PEMENUHAN TYRE (BIB-CLR-SKR-F-014-01) — checklist 29 item level-sesi
+  // ============================================================================
+  app.post("/api/sidak-pemenuhan-tyre", async (req, res) => {
+    try {
+      const data = insertSidakPemenuhanTyreSessionSchema.parse(req.body);
+      const sessionUser = (req.session as any).user;
+      const createdBy = sessionUser?.nik || null;
+      const session = await storage.createSidakPemenuhanTyreSession({ ...data, createdBy });
+      res.json(session);
+    } catch (error: any) {
+      console.error("Error creating Sidak Pemenuhan Tyre session:", error);
+      if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal membuat sesi" });
+    }
+  });
+
+  app.get("/api/sidak-pemenuhan-tyre/sessions", async (_req, res) => {
+    try {
+      const sessions = await storage.getSidakPemenuhanTyreSessions();
+      const ids = sessions.map(s => s.id);
+      const [observers, records] = await Promise.all([
+        storage.getSidakPemenuhanTyreObserversBySessionIds(ids),
+        storage.getSidakPemenuhanTyreRecordsBySessionIds(ids),
+      ]);
+      const bySession = new Map<string, typeof observers>();
+      for (const o of observers) {
+        const arr = bySession.get(o.sessionId) || [];
+        arr.push(o);
+        bySession.set(o.sessionId, arr);
+      }
+      const recordBySession = new Map(records.map(r => [r.sessionId, r]));
+      res.json(sessions.map(s => ({
+        ...s,
+        observers: bySession.get(s.id) || [],
+        record: recordBySession.get(s.id) || null,
+      })));
+    } catch (error) {
+      console.error("Error fetching Sidak Pemenuhan Tyre sessions:", error);
+      res.status(500).json({ message: "Gagal mengambil data" });
+    }
+  });
+
+  app.get("/api/sidak-pemenuhan-tyre/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const session = await storage.getSidakPemenuhanTyreSession(id);
+      if (!session) return res.status(404).json({ message: "Sesi tidak ditemukan" });
+      const record = await storage.getSidakPemenuhanTyreRecord(id);
+      const observers = await storage.getSidakPemenuhanTyreObservers(id);
+      res.json({ session, record: record || null, observers });
+    } catch (error) {
+      console.error("Error fetching Pemenuhan Tyre session details:", error);
+      res.status(500).json({ message: "Gagal mengambil detail" });
+    }
+  });
+
+  app.post("/api/sidak-pemenuhan-tyre/:id/records", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const validatedData = insertSidakPemenuhanTyreRecordSchema.parse({ ...req.body, sessionId: id });
+      const savedRecord = await storage.createSidakPemenuhanTyreRecord(validatedData);
+
+      // Auto-PICA creation (item TS = temuan perlu tindak lanjut)
+      PicaService.checkAndCreatePica({
+        moduleSource: "SIDAK_PEMENUHAN_TYRE",
+        referenceId: savedRecord.id,
+        sessionId: id,
+        inspectionResults: savedRecord.inspectionResults,
+        tindakLanjut: savedRecord.tindakLanjutPerbaikan,
+        moduleLabel: "Sidak Pemenuhan Tyre"
+      });
+
+      res.json(savedRecord);
+    } catch (error: any) {
+      console.error("Error adding Pemenuhan Tyre record:", error);
+      if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal menyimpan hasil pemeriksaan" });
+    }
+  });
+
+  app.post("/api/sidak-pemenuhan-tyre/:id/observers", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const observers = Array.isArray(req.body) ? req.body : [req.body];
+      const results = [];
+      for (const obsData of observers) {
+        const validatedData = insertSidakPemenuhanTyreObserverSchema.omit({ ordinal: true } as any).parse({ ...obsData, sessionId: id });
+        results.push(await storage.createSidakPemenuhanTyreObserver(validatedData));
+      }
+      res.json(results);
+    } catch (error: any) {
+      console.error("Error adding Pemenuhan Tyre observer:", error);
+      if (error.name === 'ZodError') return res.status(400).json({ message: "Data tidak valid", errors: error.errors });
+      res.status(500).json({ message: "Gagal menambahkan inspektor" });
+    }
+  });
+
+  app.post("/api/sidak-pemenuhan-tyre/:id/photos", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { photos } = req.body;
+      if (!photos || !Array.isArray(photos)) return res.status(400).json({ error: "Photos array is required" });
+      const session = await storage.getSidakPemenuhanTyreSession(id);
+      if (!session) return res.status(404).json({ error: "Sesi tidak ditemukan" });
+      const existingPhotos = session.activityPhotos || [];
+      if (existingPhotos.length + photos.length > 6) return res.status(400).json({ error: "Maksimal 6 foto" });
+      const allPhotos = [...existingPhotos, ...photos];
+      await storage.updateSidakPemenuhanTyreSessionPhotos(id, allPhotos);
+      res.json({ photos: allPhotos, message: "Foto berhasil diupload" });
+    } catch (error: any) {
+      console.error("Error uploading photos for Pemenuhan Tyre:", error);
+      res.status(500).json({ error: error.message || "Gagal mengupload foto" });
+    }
+  });
+
+  app.delete("/api/sidak-pemenuhan-tyre/:id/photos/:index", async (req, res) => {
+    try {
+      const { id, index } = req.params;
+      const photoIndex = parseInt(index, 10);
+      const session = await storage.getSidakPemenuhanTyreSession(id);
+      if (!session) return res.status(404).json({ error: "Sesi tidak ditemukan" });
+      const existingPhotos = session.activityPhotos || [];
+      if (photoIndex < 0 || photoIndex >= existingPhotos.length) return res.status(404).json({ error: "Index foto tidak valid" });
+      const updatedPhotos = existingPhotos.filter((_, idx) => idx !== photoIndex);
+      await storage.updateSidakPemenuhanTyreSessionPhotos(id, updatedPhotos);
+      res.json({ photos: updatedPhotos, message: "Foto berhasil dihapus" });
+    } catch (error: any) {
+      console.error("Error deleting photo for Pemenuhan Tyre:", error);
+      res.status(500).json({ error: error.message || "Gagal menghapus foto" });
+    }
+  });
+
+  app.delete("/api/sidak-pemenuhan-tyre/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteSidakPemenuhanTyreSession(req.params.id);
+      if (!deleted) return res.status(404).json({ message: "Sesi tidak ditemukan" });
+      res.json({ message: "Sesi berhasil dihapus" });
+    } catch (error) {
+      console.error("Error deleting Pemenuhan Tyre session:", error);
+      res.status(500).json({ message: "Gagal menghapus sesi" });
+    }
+  });
+
+  // ============================================================================
   // SIDAK GERINDA DUDUK
   // ============================================================================
   app.post("/api/sidak-gerinda-duduk", async (req, res) => {
@@ -9764,6 +9911,7 @@ Format sebagai bullet points singkat per insight.`;
           fetchSession('FuelStorage', storage.getSidakFuelStorageSessions()),
           fetchSession('ChargingStation', storage.getAllSidakChargingStationSessions()),
           fetchSession('SopKritis', storage.getAllSopKritisSessions()),
+          fetchSession('PemenuhanTyre', storage.getSidakPemenuhanTyreSessions()),
         ]);
 
         const [results1, results2, results3] = await Promise.all([batch1, batch2, batch3]);
@@ -9775,7 +9923,7 @@ Format sebagai bullet points singkat per insight.`;
         antrianFull, jarakFull, kecepatanFull, pencahayaanFull,
         lotoFull, digitalFull, workshopFull, behaviorFull,
         standJackFull, hydraulicJackFull, bottleJackFull, impactFull,
-        aparFull, mesinLasFull, mesinKompresorFull, gerindaDudukFull, fuelStorageFull, chargingStationFull, sopKritisFull
+        aparFull, mesinLasFull, mesinKompresorFull, gerindaDudukFull, fuelStorageFull, chargingStationFull, sopKritisFull, pemenuhanTyreFull
       ] = await fetchAllInBatches();
 
       // Omit large fields like activityPhotos for the recap list to save bandwidth and speed up JSON serialization.
@@ -9812,11 +9960,12 @@ Format sebagai bullet points singkat per insight.`;
       const fuelStorage = omitLargeFields(fuelStorageFull || []);
       const chargingStation = omitLargeFields(chargingStationFull || []);
       const sopKritis = omitLargeFields(sopKritisFull || []);
+      const pemenuhanTyre = omitLargeFields(pemenuhanTyreFull || []);
 
       const allSessionsCount = fatigue.length + roster.length + seatbelt.length + rambu.length +
         antrian.length + jarak.length + kecepatan.length + pencahayaan.length +
         loto.length + digital.length + workshop.length + behavior.length + standJack.length +
-        hydraulicJack.length + bottleJack.length + impact.length + apar.length + mesinLas.length + mesinKompresor.length + gerindaDuduk.length + fuelStorage.length + chargingStation.length + sopKritis.length;
+        hydraulicJack.length + bottleJack.length + impact.length + apar.length + mesinLas.length + mesinKompresor.length + gerindaDuduk.length + fuelStorage.length + chargingStation.length + sopKritis.length + pemenuhanTyre.length;
 
       // Extract all session IDs for targeted observer fetch
       const fatigueIds = fatigue.map(s => s.id).filter(id => !!id);
@@ -9898,7 +10047,8 @@ Format sebagai bullet points singkat per insight.`;
         ...gerindaDuduk.map((s: any) => mapSession(s, 'GerindaDuduk')),
         ...fuelStorage.map((s: any) => mapSession(s, 'FuelStorage')),
         ...chargingStation.map((s: any) => mapSession(s, 'ChargingStation')),
-        ...sopKritis.map((s: any) => mapSession(s, 'SopKritis'))
+        ...sopKritis.map((s: any) => mapSession(s, 'SopKritis')),
+        ...pemenuhanTyre.map((s: any) => mapSession(s, 'PemenuhanTyre'))
       ];
 
       // Optimization: Fetch only used employee names to avoid fetching thousands of unrelated records
@@ -10015,6 +10165,7 @@ Format sebagai bullet points singkat per insight.`;
         totalMesinKompresor: mesinKompresor.length,
         totalGerindaDuduk: gerindaDuduk.length,
         totalFuelStorage: fuelStorage.length,
+        totalPemenuhanTyre: pemenuhanTyre.length,
         totalKaryawanDiperiksa: finalSessions.reduce((acc, curr) => acc + (curr.totalSampel || 0), 0),
         supervisorStats: [] as any[]
       };
@@ -10029,7 +10180,7 @@ Format sebagai bullet points singkat per insight.`;
               fatigue: 0, roster: 0, seatbelt: 0, rambu: 0, antrian: 0,
               jarak: 0, kecepatan: 0, pencahayaan: 0, loto: 0, digital: 0, workshop: 0, behavior: 0,
               standjack: 0, hydraulicjack: 0, bottlejack: 0, apar: 0, impact: 0, mesinlas: 0,
-              mesinkompresor: 0, gerindaduduk: 0, fuelstorage: 0,
+              mesinkompresor: 0, gerindaduduk: 0, fuelstorage: 0, pemenuhantyre: 0,
               total: 0
             });
           }
@@ -10183,7 +10334,7 @@ Format sebagai bullet points singkat per insight.`;
         fatigue, roster, seatbelt, rambu, antrian, apd, jarak, kecepatan,
         pencahayaan, loto, digital, workshop, behavior, p3k, intercom,
         standJack, hydraulicJack, bottleJack, impact, apar,
-        mesinLas, mesinKompresor, gerindaDuduk, fuelStorage, chargingStation, sopKritis
+        mesinLas, mesinKompresor, gerindaDuduk, fuelStorage, chargingStation, sopKritis, pemenuhanTyre
       ] = await Promise.all([
         safe(storage.getAllSidakFatigueSessions()),
         safe(storage.getAllSidakRosterSessions()),
@@ -10211,6 +10362,7 @@ Format sebagai bullet points singkat per insight.`;
         safe(storage.getSidakFuelStorageSessions()),
         safe(storage.getAllSidakChargingStationSessions()),
         safe(storage.getAllSopKritisSessions()),
+        safe(storage.getSidakPemenuhanTyreSessions()),
       ]);
 
       const checkMonth = (sessions: any[]) => {
@@ -10248,6 +10400,7 @@ Format sebagai bullet points singkat per insight.`;
         { type: 'FuelStorage', label: 'Sidak Fuel Storage', ...checkMonth(fuelStorage) },
         { type: 'ChargingStation', label: 'Sidak Charging Station', ...checkMonth(chargingStation) },
         { type: 'SopKritis', label: 'Observasi SOP Kritis', ...checkMonth(sopKritis) },
+        { type: 'PemenuhanTyre', label: 'Sidak Pemenuhan Tyre', ...checkMonth(pemenuhanTyre) },
       ];
 
       res.json({ month, sidakTypes });
@@ -10807,6 +10960,28 @@ Format sebagai bullet points singkat per insight.`;
             photos: session.activityPhotos
           },
           records,
+          observers
+        });
+      }
+      if (type === 'PemenuhanTyre') {
+        const session = await storage.getSidakPemenuhanTyreSession(sessionId as string);
+        if (!session) return res.status(404).json({ message: 'Session not found' });
+        const record = await storage.getSidakPemenuhanTyreRecord(sessionId as string);
+        const observers = await storage.getSidakPemenuhanTyreObservers(sessionId as string);
+
+        const supervisorName = await resolveNikToName(session.createdBy);
+        return res.json({
+          session: {
+            ...session,
+            type: 'PemenuhanTyre',
+            tanggal: session.tanggal,
+            waktu: session.waktu,
+            departemen: '-',
+            supervisorName,
+            photos: session.activityPhotos
+          },
+          records: record ? [record] : [],
+          record: record || null,
           observers
         });
       }

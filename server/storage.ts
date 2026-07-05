@@ -376,6 +376,15 @@ import {
   sidakMesinKompresorSessions,
   sidakMesinKompresorRecords,
   sidakMesinKompresorObservers,
+  type SidakPemenuhanTyreSession,
+  type InsertSidakPemenuhanTyreSession,
+  type SidakPemenuhanTyreRecord,
+  type InsertSidakPemenuhanTyreRecord,
+  type SidakPemenuhanTyreObserver,
+  type InsertSidakPemenuhanTyreObserver,
+  sidakPemenuhanTyreSessions,
+  sidakPemenuhanTyreRecords,
+  sidakPemenuhanTyreObservers,
   type SidakImpactSession,
   type InsertSidakImpactSession,
   type SidakImpactRecord,
@@ -1012,6 +1021,19 @@ export interface IStorage {
   updateSidakMesinKompresorSessionEquipmentCount(sessionId: string): Promise<void>;
   updateSidakMesinKompresorSessionPhotos(id: string, photos: string[]): Promise<void>;
   deleteSidakMesinKompresorSession(id: string): Promise<boolean>;
+
+  // Sidak Pemenuhan Tyre (checklist 29 item level-sesi)
+  getSidakPemenuhanTyreSession(id: string): Promise<SidakPemenuhanTyreSession | undefined>;
+  getSidakPemenuhanTyreSessions(): Promise<SidakPemenuhanTyreSession[]>;
+  createSidakPemenuhanTyreSession(session: InsertSidakPemenuhanTyreSession & { createdBy?: string | null }): Promise<SidakPemenuhanTyreSession>;
+  updateSidakPemenuhanTyreSessionPhotos(id: string, photos: string[]): Promise<void>;
+  getSidakPemenuhanTyreRecord(sessionId: string): Promise<SidakPemenuhanTyreRecord | undefined>;
+  createSidakPemenuhanTyreRecord(record: InsertSidakPemenuhanTyreRecord): Promise<SidakPemenuhanTyreRecord>;
+  getSidakPemenuhanTyreObservers(sessionId: string): Promise<SidakPemenuhanTyreObserver[]>;
+  getSidakPemenuhanTyreRecordsBySessionIds(sessionIds: string[]): Promise<SidakPemenuhanTyreRecord[]>;
+  getSidakPemenuhanTyreObserversBySessionIds(sessionIds: string[]): Promise<SidakPemenuhanTyreObserver[]>;
+  createSidakPemenuhanTyreObserver(observer: Omit<InsertSidakPemenuhanTyreObserver, 'ordinal'>): Promise<SidakPemenuhanTyreObserver>;
+  deleteSidakPemenuhanTyreSession(id: string): Promise<boolean>;
 
   // Sidak Gerinda Duduk Methods
   getSidakGerindaDudukSession(id: string): Promise<SidakGerindaDudukSession | undefined>;
@@ -1797,6 +1819,19 @@ export class MemStorage implements IStorage {
 
   // Sidak Mesin Kompresor Methods (Stubs)
   async deleteSidakMesinKompresorSession(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
+
+  // Sidak Pemenuhan Tyre Methods (Stubs)
+  async getSidakPemenuhanTyreSession(id: string): Promise<SidakPemenuhanTyreSession | undefined> { throw new Error("Method not implemented."); }
+  async getSidakPemenuhanTyreSessions(): Promise<SidakPemenuhanTyreSession[]> { throw new Error("Method not implemented."); }
+  async createSidakPemenuhanTyreSession(session: InsertSidakPemenuhanTyreSession & { createdBy?: string | null }): Promise<SidakPemenuhanTyreSession> { throw new Error("Method not implemented."); }
+  async updateSidakPemenuhanTyreSessionPhotos(id: string, photos: string[]): Promise<void> { throw new Error("Method not implemented."); }
+  async getSidakPemenuhanTyreRecord(sessionId: string): Promise<SidakPemenuhanTyreRecord | undefined> { throw new Error("Method not implemented."); }
+  async createSidakPemenuhanTyreRecord(record: InsertSidakPemenuhanTyreRecord): Promise<SidakPemenuhanTyreRecord> { throw new Error("Method not implemented."); }
+  async getSidakPemenuhanTyreObservers(sessionId: string): Promise<SidakPemenuhanTyreObserver[]> { throw new Error("Method not implemented."); }
+  async getSidakPemenuhanTyreRecordsBySessionIds(sessionIds: string[]): Promise<SidakPemenuhanTyreRecord[]> { throw new Error("Method not implemented."); }
+  async getSidakPemenuhanTyreObserversBySessionIds(sessionIds: string[]): Promise<SidakPemenuhanTyreObserver[]> { throw new Error("Method not implemented."); }
+  async createSidakPemenuhanTyreObserver(observer: Omit<InsertSidakPemenuhanTyreObserver, 'ordinal'>): Promise<SidakPemenuhanTyreObserver> { throw new Error("Method not implemented."); }
+  async deleteSidakPemenuhanTyreSession(id: string): Promise<boolean> { throw new Error("Method not implemented."); }
 
   // Sidak Gerinda Duduk Methods (Stubs)
   async getSidakGerindaDudukSession(id: string): Promise<SidakGerindaDudukSession | undefined> { throw new Error("Method not implemented."); }
@@ -11810,6 +11845,75 @@ export class DrizzleStorage implements IStorage {
 
   async deleteSidakMesinKompresorSession(id: string): Promise<boolean> {
     const result = await this.db.delete(sidakMesinKompresorSessions).where(eq(sidakMesinKompresorSessions.id, id)).returning();
+    return result.length > 0;
+  }
+
+  // Sidak Pemenuhan Tyre Methods (checklist 29 item level-sesi: 1 record per sesi)
+  async getSidakPemenuhanTyreSession(id: string): Promise<SidakPemenuhanTyreSession | undefined> {
+    const [session] = await this.db.select().from(sidakPemenuhanTyreSessions).where(eq(sidakPemenuhanTyreSessions.id, id));
+    return session;
+  }
+
+  async getSidakPemenuhanTyreSessions(): Promise<SidakPemenuhanTyreSession[]> {
+    return await this.db.select().from(sidakPemenuhanTyreSessions).orderBy(desc(sidakPemenuhanTyreSessions.createdAt));
+  }
+
+  async createSidakPemenuhanTyreSession(session: InsertSidakPemenuhanTyreSession & { createdBy?: string | null }): Promise<SidakPemenuhanTyreSession> {
+    const [newSession] = await this.db.insert(sidakPemenuhanTyreSessions).values(session).returning();
+    return newSession;
+  }
+
+  async updateSidakPemenuhanTyreSessionPhotos(id: string, photos: string[]): Promise<void> {
+    await this.db.update(sidakPemenuhanTyreSessions).set({ activityPhotos: photos }).where(eq(sidakPemenuhanTyreSessions.id, id));
+  }
+
+  async getSidakPemenuhanTyreRecord(sessionId: string): Promise<SidakPemenuhanTyreRecord | undefined> {
+    const [record] = await this.db.select().from(sidakPemenuhanTyreRecords).where(eq(sidakPemenuhanTyreRecords.sessionId, sessionId));
+    return record;
+  }
+
+  async createSidakPemenuhanTyreRecord(record: InsertSidakPemenuhanTyreRecord): Promise<SidakPemenuhanTyreRecord> {
+    // 1 record per sesi: hapus yang lama bila ada (idempoten utk simpan-ulang)
+    await this.db.delete(sidakPemenuhanTyreRecords).where(eq(sidakPemenuhanTyreRecords.sessionId, record.sessionId));
+    const [newRecord] = await this.db.insert(sidakPemenuhanTyreRecords).values(record).returning();
+    return newRecord;
+  }
+
+  async getSidakPemenuhanTyreObservers(sessionId: string): Promise<SidakPemenuhanTyreObserver[]> {
+    return await this.db.select().from(sidakPemenuhanTyreObservers).where(eq(sidakPemenuhanTyreObservers.sessionId, sessionId)).orderBy(asc(sidakPemenuhanTyreObservers.ordinal));
+  }
+
+  async getSidakPemenuhanTyreRecordsBySessionIds(sessionIds: string[]): Promise<SidakPemenuhanTyreRecord[]> {
+    if (sessionIds.length === 0) return [];
+    return await this.db.select().from(sidakPemenuhanTyreRecords).where(inArray(sidakPemenuhanTyreRecords.sessionId, sessionIds));
+  }
+
+  async getSidakPemenuhanTyreObserversBySessionIds(sessionIds: string[]): Promise<SidakPemenuhanTyreObserver[]> {
+    if (sessionIds.length === 0) return [];
+    // Tanpa tandaTangan (base64 besar) — dipakai utk daftar history
+    return await this.db
+      .select({
+        id: sidakPemenuhanTyreObservers.id,
+        sessionId: sidakPemenuhanTyreObservers.sessionId,
+        ordinal: sidakPemenuhanTyreObservers.ordinal,
+        nama: sidakPemenuhanTyreObservers.nama,
+        perusahaan: sidakPemenuhanTyreObservers.perusahaan,
+        tandaTangan: sql<string>`''`,
+        createdAt: sidakPemenuhanTyreObservers.createdAt,
+      })
+      .from(sidakPemenuhanTyreObservers)
+      .where(inArray(sidakPemenuhanTyreObservers.sessionId, sessionIds))
+      .orderBy(asc(sidakPemenuhanTyreObservers.ordinal));
+  }
+
+  async createSidakPemenuhanTyreObserver(observer: Omit<InsertSidakPemenuhanTyreObserver, 'ordinal'>): Promise<SidakPemenuhanTyreObserver> {
+    const existing = await this.getSidakPemenuhanTyreObservers(observer.sessionId);
+    const [newObserver] = await this.db.insert(sidakPemenuhanTyreObservers).values({ ...observer, ordinal: existing.length + 1 } as InsertSidakPemenuhanTyreObserver).returning();
+    return newObserver;
+  }
+
+  async deleteSidakPemenuhanTyreSession(id: string): Promise<boolean> {
+    const result = await this.db.delete(sidakPemenuhanTyreSessions).where(eq(sidakPemenuhanTyreSessions.id, id)).returning();
     return result.length > 0;
   }
 
