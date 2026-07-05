@@ -1,7 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { ClipboardCheck, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Camera, Upload, Trash2, Lock, FileText, Image } from "lucide-react";
+import { ClipboardCheck, Download, Calendar, Clock, MapPin, ArrowLeft, ChevronDown, Camera, Upload, Trash2, Lock, FileText, Image, User } from "lucide-react";
 import { PhotoThumbnail, PhotoGalleryItem } from "@/components/ui/image-with-fallback";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -264,6 +264,17 @@ export default function SidakLotoHistory() {
                                             </div>
                                             <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{session.lokasi}</p>
                                         </div>
+                                        {session.observers && session.observers.length > 0 && (
+                                            <div>
+                                                <div className="flex items-center gap-1.5 text-red-600 dark:text-red-400 mb-0.5">
+                                                    <User className="h-3.5 w-3.5" />
+                                                    <span className="text-[10px] uppercase font-bold tracking-wider">Observer</span>
+                                                </div>
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate" title={session.observers.map(o => o.nama).join(", ")}>
+                                                    {session.observers.map(o => o.nama).join(", ")}
+                                                </p>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {session.activityPhotos && session.activityPhotos.length > 0 && (

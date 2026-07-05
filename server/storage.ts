@@ -6903,6 +6903,26 @@ export class DrizzleStorage implements IStorage {
       .orderBy(asc(sidakLotoObservers.ordinal));
   }
 
+  async getSidakLotoObserversBySessionIds(sessionIds: string[]): Promise<SidakLotoObserver[]> {
+    if (sessionIds.length === 0) return [];
+    // Tanpa tandaTangan (base64 besar) — dipakai utk daftar/list history;
+    // detail per-sesi tetap lewat getSidakLotoObservers.
+    return await this.db
+      .select({
+        id: sidakLotoObservers.id,
+        sessionId: sidakLotoObservers.sessionId,
+        ordinal: sidakLotoObservers.ordinal,
+        nama: sidakLotoObservers.nama,
+        nik: sidakLotoObservers.nik,
+        perusahaan: sidakLotoObservers.perusahaan,
+        tandaTangan: sql<string>`''`,
+        createdAt: sidakLotoObservers.createdAt,
+      })
+      .from(sidakLotoObservers)
+      .where(inArray(sidakLotoObservers.sessionId, sessionIds))
+      .orderBy(asc(sidakLotoObservers.ordinal));
+  }
+
   async createSidakLotoObserver(observer: Omit<InsertSidakLotoObserver, 'ordinal'>): Promise<SidakLotoObserver> {
     const existingObservers = await this.getSidakLotoObservers(observer.sessionId);
     const nextOrdinal = existingObservers.length + 1;

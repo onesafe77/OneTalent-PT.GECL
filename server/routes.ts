@@ -7748,26 +7748,26 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   // Get all sessions
-  app.get("/api/sidak-loto", async (req, res) => {
+  // List sesi LOTO + nama observer (batch 1 query, tanpa tanda tangan base64)
+  const listSidakLotoSessions = async (_req: any, res: any) => {
     try {
       const sessions = await storage.getAllSidakLotoSessions();
-      res.json(sessions);
+      const observers = await storage.getSidakLotoObserversBySessionIds(sessions.map(s => s.id));
+      const bySession = new Map<string, typeof observers>();
+      for (const o of observers) {
+        const arr = bySession.get(o.sessionId) || [];
+        arr.push(o);
+        bySession.set(o.sessionId, arr);
+      }
+      res.json(sessions.map(s => ({ ...s, observers: bySession.get(s.id) || [] })));
     } catch (error) {
       console.error("Error fetching Sidak LOTO sessions:", error);
       res.status(500).json({ message: "Gagal mengambil data" });
     }
-  });
-
+  };
+  app.get("/api/sidak-loto", listSidakLotoSessions);
   // NOTE: /sessions route MUST be before /:id to avoid matching "sessions" as ID
-  app.get("/api/sidak-loto/sessions", async (req, res) => {
-    try {
-      const sessions = await storage.getAllSidakLotoSessions();
-      res.json(sessions);
-    } catch (error) {
-      console.error("Error fetching Sidak LOTO sessions:", error);
-      res.status(500).json({ message: "Gagal mengambil data" });
-    }
-  });
+  app.get("/api/sidak-loto/sessions", listSidakLotoSessions);
 
   // Get single session
   app.get("/api/sidak-loto/:id", async (req, res) => {
