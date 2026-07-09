@@ -264,6 +264,43 @@ export default function FmsFatigueMonitoringDashboard() {
         enabled: !!selectedDriver && isModalOpen
     });
 
+    // Alert "belum lengkap" dalam jendela follow-up 7 hari — dimuat TERLEPAS dari filter tanggal
+    // dashboard, agar badge "Driver/Foto belum" selalu bisa dilunasi dari modal ini (alert di luar
+    // filter, mis. hasil backfill kemarin, tetap terlihat & bisa diisi).
+    const { data: pendingWindowAlerts } = useQuery<FmsViolation[]>({
+        queryKey: ['/api/fms/violations', 'pending-followup', selectedDriver?.vehicleNo],
+        queryFn: async () => {
+            if (!selectedDriver) return [];
+            const end = new Date();
+            const start = new Date();
+            start.setDate(start.getDate() - 7);
+            const fmt = (d: Date) => d.toISOString().split('T')[0];
+            const params = new URLSearchParams();
+            params.append('vehicleNo', selectedDriver.vehicleNo);
+            params.append('violationType', 'Mata Tertutup,Mengantuk,Kelelahan');
+            params.append('startDate', fmt(start));
+            params.append('endDate', fmt(end));
+            params.append('validationStatus', 'Valid');
+            const res = await fetch(`/api/fms/violations?${params.toString()}`);
+            if (!res.ok) return [];
+            return res.json();
+        },
+        enabled: !!selectedDriver && isModalOpen
+    });
+
+    const isPendingAlert = (v: FmsViolation) => {
+        const nm = (v.manualDriverName || "").trim();
+        const needsDriver = !nm || /^unknown/i.test(nm);
+        const ev = (v.evidenceUrl || "");
+        const needsPhoto = !(ev.startsWith("/api/uploads/") || ev.startsWith("/uploads/"));
+        return needsDriver || needsPhoto;
+    };
+    const shownIds = new Set((violationsDetail || []).map(v => v.id));
+    const pendingAlerts = (pendingWindowAlerts || []).filter(v => isPendingAlert(v) && !shownIds.has(v.id));
+    const pendingIds = new Set(pendingAlerts.map(v => v.id));
+    // Alert pending (di luar filter) ditaruh paling atas, ditandai kuning
+    const detailRows = [...pendingAlerts, ...(violationsDetail || [])];
+
     const filteredTableData = data?.allDrivers?.filter(driver =>
         driver.vehicleNo.toLowerCase().includes(searchQuery.toLowerCase())
     ) || [];
@@ -912,8 +949,16 @@ export default function FmsFatigueMonitoringDashboard() {
                                     <div className="space-y-4">
                                         {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-12 w-full" />)}
                                     </div>
-                                ) : violationsDetail && violationsDetail.length > 0 ? (
+                                ) : detailRows.length > 0 ? (
                                     <ScrollArea className="h-full pr-4">
+                                        {pendingAlerts.length > 0 && (
+                                            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                                                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                                <p className="text-xs text-amber-800">
+                                                    <b>{pendingAlerts.length} alert perlu dilengkapi</b> dari 7 hari terakhir (di luar filter tanggal) — ditandai kuning di bawah. Lengkapi driver &amp; foto agar penanda "belum" hilang.
+                                                </p>
+                                            </div>
+                                        )}
                                         <Table>
                                             <TableHeader className="bg-slate-50 sticky top-0 z-10">
                                                 <TableRow>
@@ -926,8 +971,8 @@ export default function FmsFatigueMonitoringDashboard() {
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {violationsDetail.map((v) => (
-                                                    <TableRow key={v.id}>
+                                                {detailRows.map((v) => (
+                                                    <TableRow key={v.id} className={pendingIds.has(v.id) ? "bg-amber-50/60" : undefined}>
                                                         <TableCell className="font-medium">
                                                             <div className="flex flex-col">
                                                                 <span className="text-sm">{v.violationDate}</span>
