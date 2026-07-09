@@ -5585,7 +5585,7 @@ Format sebagai bullet points singkat per insight.`;
       }
     },
     limits: {
-      fileSize: 10 * 1024 * 1024 // 10MB limit
+      fileSize: 60 * 1024 * 1024 // 60MB — file mentah Zero Harm harian bisa 18MB+ (FMS 100rb baris)
     }
   });
 

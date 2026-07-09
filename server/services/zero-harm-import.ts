@@ -16,9 +16,29 @@ function pick(row: Record<string, any>, ...names: string[]): string {
   }
   return "";
 }
+// Kriteria resmi penarikan data mentah Zero Harm (ketentuan user, Jul 2026):
+// hanya baris milik GECL yang diimpor — Hazard: Perusahaan Pelapor; Inspeksi: Perusahaan
+// Pelaksana; Observasi: Perusahaan Pelapor; OPK: Perusahaan Observer; Attendance: Perusahaan;
+// FMS: Company ("GECL"). Ejaan di iSafe: "PT Goden Energi Cemerlang Lestari" (toleran variasi).
+const isGeclCompany = (v: string) =>
+  /goden\s+energi\s+cemerlang/i.test(v) || lc(v) === "gecl" || lc(v) === "pt gecl" || lc(v) === "pt. gecl";
+
 const numOrNull = (v: string) => { const n = parseFloat(String(v).replace(/[^\d.-]/g, "")); return isNaN(n) ? null : n; };
 const intOrNull = (v: string) => { const n = numOrNull(v); return n === null ? null : Math.round(n); };
-const dateOrNull = (v: any) => { if (!v) return null; if (v instanceof Date) return v; const d = new Date(v); return isNaN(d.getTime()) ? null : d; };
+const dateOrNull = (v: any) => {
+  if (!v) return null;
+  let d: Date | null = null;
+  if (v instanceof Date) d = v;
+  else {
+    // Serial Excel (angka hari sejak 1900) — muncul bila sel tanggal tersimpan sbg angka polos
+    const n = typeof v === "number" ? v : (/^\d+(\.\d+)?$/.test(String(v).trim()) ? parseFloat(String(v).trim()) : NaN);
+    if (!isNaN(n) && n > 20000 && n < 80000) d = new Date(Date.UTC(1899, 11, 30) + n * 86400000);
+    else d = new Date(v);
+  }
+  if (!d || isNaN(d.getTime())) return null;
+  const y = d.getUTCFullYear();
+  return y < 2000 || y > 2100 ? null : d; // buang tanggal absurd agar tak menjebol DB
+};
 
 type Parsed = { hazard: any[]; inspeksi: any[]; observasi: any[]; opk: any[]; attendance: any[]; fms: any[] };
 
@@ -36,6 +56,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
   for (const r of sheet("Hazard")) {
     const hid = pick(r, "Hazard ID");
     if (!hid && !pick(r, "Judul Laporan")) continue;
+    if (!isGeclCompany(pick(r, "Perusahaan Pelapor"))) continue;
     rows.hazard.push({
       sourceKey: "HZ-" + hash(JSON.stringify(r)),
       hazardId: hid || null,
@@ -56,6 +77,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
   for (const r of sheet("Inspeksi")) {
     const id = pick(r, "ID Inspeksi");
     if (!id && !pick(r, "Judul Inspeksi")) continue;
+    if (!isGeclCompany(pick(r, "Perusahaan Pelaksana"))) continue;
     rows.inspeksi.push({
       sourceKey: "IN-" + hash(JSON.stringify(r)),
       idInspeksi: id || null,
@@ -78,6 +100,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
   for (const r of sheet("Observasi")) {
     const id = pick(r, "ID Observasi");
     if (!id && !pick(r, "Judul Observasi")) continue;
+    if (!isGeclCompany(pick(r, "Perusahaan Pelapor"))) continue;
     rows.observasi.push({
       sourceKey: "OB-" + hash(JSON.stringify(r)),
       idObservasi: id || null,
@@ -99,6 +122,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
   for (const r of sheet("OPK")) {
     const id = pick(r, "ID Observasi"); const item = pick(r, "Item Checklist");
     if (!id && !pick(r, "Judul Observasi")) continue;
+    if (!isGeclCompany(pick(r, "Perusahaan Observer"))) continue;
     rows.opk.push({
       sourceKey: "OP-" + hash(JSON.stringify(r)),
       idObservasi: id || null,
@@ -126,6 +150,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
   for (const r of sheet("Attendance")) {
     const ev = pick(r, "Nama Event"); const nik = pick(r, "NIK");
     if (!ev && !nik) continue;
+    if (!isGeclCompany(pick(r, "Perusahaan"))) continue;
     rows.attendance.push({
       sourceKey: "AT-" + hash(JSON.stringify(r)),
       namaEvent: ev || null,
@@ -146,6 +171,7 @@ export function parseZeroHarmWorkbook(buffer: Buffer): { rows: Parsed; counts: R
   for (const r of sheet("FMS")) {
     const veh = pick(r, "Vehicle No"); const date = pick(r, "Date");
     if (!veh && !date) continue;
+    if (!isGeclCompany(pick(r, "Company"))) continue;
     rows.fms.push({
       sourceKey: "FM-" + hash(JSON.stringify(r)),
       tanggal: dateOrNull(date),
