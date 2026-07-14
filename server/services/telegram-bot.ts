@@ -309,12 +309,14 @@ async function attachOrBufferPhotos(chatId: string, user: any, urls: string[]) {
 
 // ---------- Feedback target job (kegiatan yang kurang) ----------
 // Hitung progres petugas terhadap target briefing utk tanggal (+shift bila ada).
-async function computeJobProgress(officerName: string, tanggal: string, shift?: string):
+async function computeJobProgress(officerName: string, tanggal: string, shift?: string, reportDateTo?: string):
   Promise<{ team: string | null; shift: string; total: number; done: number; doneList: string[]; pending: string[] } | null> {
   const targets = await storage.getJobTargets(tanggal, shift);
   const t = targets.find((x: any) => String(x.officerName).toLowerCase() === officerName.toLowerCase());
   if (!t || !(t.activities || []).length) return null;
-  const reports = await storage.getSafetyPatrolReportsByDateRange(tanggal, tanggal);
+  // Rentang laporan: default = tanggal target. Untuk Shift 2 (lintas tengah malam) pemanggil
+  // memberi reportDateTo = hari berikutnya, agar laporan dini hari (00:00–06:00) ikut terhitung.
+  const reports = await storage.getSafetyPatrolReportsByDateRange(tanggal, reportDateTo || tanggal);
   const achieved = new Set(
     reports
       .filter((r: any) => (r.namaPelaksana || "").toLowerCase().includes(officerName.toLowerCase()))
@@ -339,31 +341,43 @@ async function jobFeedbackText(officerName: string, p: { team: string | null; sh
   );
 }
 
-// Pengingat akhir shift: kirim ringkasan sisa kegiatan ke chat asal briefing (per source_chat_id).
-export async function runJobReminders(): Promise<{ chats: number; sent: number }> {
-  const tgl = todayStr();
-  const targets = await storage.getJobTargets(tgl);
-  const byChat = new Map<string, any[]>();
-  for (const t of targets) {
-    if (!t.sourceChatId) continue;
-    const arr = byChat.get(t.sourceChatId) || []; arr.push(t); byChat.set(t.sourceChatId, arr);
+// Pengingat 1 jam sebelum shift tutup — kirim PERSONAL ke tiap petugas (Field Safety Officer):
+// sisa kegiatan yang belum masuk agar sempat dilengkapi. Dipanggil cron 17:00 (Shift 1, hari ini)
+// & 05:00 (Shift 2, tanggal briefing = kemarin; laporan dini hari ikut lewat reportDateTo).
+// Kirim ke chat pribadi petugas (dari telegram_safety_patrol_users by nama); fallback ke sourceChatId.
+export async function runJobReminders(shiftFilter?: string, dateStr?: string, reportDateTo?: string): Promise<{ officers: number; sent: number }> {
+  const tgl = dateStr || todayStr();
+  let targets = await storage.getJobTargets(tgl);
+  if (shiftFilter) targets = targets.filter((t: any) => String(t.shift || "").toLowerCase() === shiftFilter.toLowerCase());
+
+  // Peta nama petugas → chatId pribadi (untuk kirim langsung ke yang bersangkutan).
+  const tgUsers = await db.select().from(telegramSafetyPatrolUsers);
+  const chatByName = new Map<string, string>();
+  for (const u of tgUsers) {
+    if (u.namaPelaksana) chatByName.set(String(u.namaPelaksana).toLowerCase().trim(), u.chatId);
   }
+  const resolveChat = (officer: string, fallback?: string | null): string | null => {
+    const key = officer.toLowerCase().trim();
+    if (chatByName.has(key)) return chatByName.get(key)!;
+    for (const [nm, cid] of Array.from(chatByName.entries())) {
+      if (nm.includes(key) || key.includes(nm)) return cid;
+    }
+    return fallback || null;
+  };
+
   let sent = 0;
-  for (const [chatId, list] of Array.from(byChat.entries())) {
-    const lines: string[] = [];
-    for (const t of list) {
-      const prog = await computeJobProgress(t.officerName, tgl, t.shift);
-      if (prog && prog.pending.length) {
-        lines.push(`*${t.officerName}* (${t.shift}) — ${prog.done}/${prog.total}\nBelum: ${prog.pending.join(", ")}`);
-      }
-    }
-    if (lines.length) {
-      try { await tgSendMessage(chatId, `🔔 Pengingat akhir shift (${tgl}) — kegiatan yang masih kurang:\n\n${lines.join("\n\n")}\n\nMohon dilengkapi sebelum shift berakhir 🙏`); sent++; }
-      catch (e: any) { console.warn("[Telegram] job reminder error:", e?.message || e); }
-    }
+  for (const t of targets) {
+    const prog = await computeJobProgress(t.officerName, tgl, t.shift, reportDateTo);
+    if (!prog || !prog.pending.length) continue; // semua sudah masuk → tak perlu diingatkan
+    const chatId = resolveChat(t.officerName, t.sourceChatId);
+    if (!chatId) continue;
+    const pendingStr = prog.pending.map((x) => "• " + x).join("\n");
+    const msg = `🔔 *Pengingat ${t.shift}* — shift tinggal ±1 jam\n\nHalo ${t.officerName}, kegiatan yang sudah masuk: *${prog.done}/${prog.total}*.\nBelum masuk:\n${pendingStr}\n\nMasih sempat dilengkapi sebelum shift tutup ya 🙏`;
+    try { await tgSendMessage(chatId, msg); sent++; }
+    catch (e: any) { console.warn("[Telegram] job reminder error:", e?.message || e); }
   }
-  console.log(`[job-reminder] ${tgl}: ${byChat.size} chat, ${sent} pengingat terkirim`);
-  return { chats: byChat.size, sent };
+  console.log(`[job-reminder] ${tgl} ${shiftFilter || "semua shift"}: ${targets.length} target, ${sent} pengingat terkirim`);
+  return { officers: targets.length, sent };
 }
 
 // ---------- Simpan laporan ----------
@@ -512,10 +526,10 @@ async function processUpdate(update: any) {
     return;
   }
   if (text.startsWith("/help")) {
-    await tgSendMessage(chatId, "Kirim teks laporan patrol (boleh + foto). Bot akan merangkum & menyimpan. Bila ada data kurang, saya akan menanyakannya.\n\nPerintah: /nama <nama> · /progress (cek sisa kegiatan target hari ini).");
+    await tgSendMessage(chatId, "Kirim teks laporan patrol (boleh + foto). Bot akan merangkum & menyimpan. Bila ada data kurang, saya akan menanyakannya.\n\nPerintah: /nama <nama> · /pencapaian (cek kegiatan yang sudah masuk & yang belum hari ini).");
     return;
   }
-  if (text.startsWith("/progress")) {
+  if (text.startsWith("/progress") || text.startsWith("/pencapaian")) {
     const officer = matchGeclOfficer(user.namaPelaksana || from.first_name || "");
     if (!officer) { await tgSendMessage(chatId, "Belum bisa kenali nama petugas. Set dulu: /nama <nama Anda> (mis. /nama Renaldi)."); return; }
     const tgl = todayStr();

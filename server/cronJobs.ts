@@ -284,17 +284,32 @@ export function initializeCronJobs() {
     timezone: "Asia/Makassar"
   });
 
-  // Pengingat akhir shift Safety Patrol — 15:00 WITA: kirim sisa kegiatan target ke chat briefing.
-  cron.schedule('0 15 * * *', async () => {
-    console.log('[SafetyPatrol] Running job reminders...');
+  // Tanggal WITA (offset hari) — dipakai pengingat Safety Patrol per shift.
+  const witaDate = (offsetDays = 0) =>
+    new Date(Date.now() + offsetDays * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Makassar" });
+
+  // Pengingat SHIFT 1 (06:00–18:00) — 17:00 WITA, 1 jam sebelum tutup: sisa kegiatan HARI INI.
+  cron.schedule('0 17 * * *', async () => {
+    console.log('[SafetyPatrol] Pengingat Shift 1 (17:00 WITA)...');
     try {
       const { runJobReminders } = await import('./services/telegram-bot');
-      const r = await runJobReminders();
-      console.log(`[SafetyPatrol] job reminders: ${r.sent} terkirim ke ${r.chats} chat`);
+      const r = await runJobReminders('Shift 1', witaDate(0));
+      console.log(`[SafetyPatrol] pengingat Shift 1: ${r.sent} terkirim (${r.officers} target)`);
     } catch (error) {
-      console.error('❌ Error in Safety Patrol job reminder:', error);
+      console.error('❌ Error pengingat Shift 1:', error);
     }
-  }, {
-    timezone: "Asia/Makassar"
-  });
+  }, { timezone: "Asia/Makassar" });
+
+  // Pengingat SHIFT 2 (18:00–06:00) — 05:00 WITA, 1 jam sebelum tutup. Shift dimulai 18:00 KEMARIN,
+  // jadi target = tanggal kemarin; laporan dini hari (00:00–05:00) ikut lewat reportDateTo = hari ini.
+  cron.schedule('0 5 * * *', async () => {
+    console.log('[SafetyPatrol] Pengingat Shift 2 (05:00 WITA)...');
+    try {
+      const { runJobReminders } = await import('./services/telegram-bot');
+      const r = await runJobReminders('Shift 2', witaDate(-1), witaDate(0));
+      console.log(`[SafetyPatrol] pengingat Shift 2: ${r.sent} terkirim (${r.officers} target)`);
+    } catch (error) {
+      console.error('❌ Error pengingat Shift 2:', error);
+    }
+  }, { timezone: "Asia/Makassar" });
 }
