@@ -191,14 +191,18 @@ export default function FmsFatigueMonitoringDashboard() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['/api/fms/analytics'] });
             queryClient.invalidateQueries({ queryKey: ['/api/fms/violations'] });
-            // Penting: refresh badge "Driver/Foto belum" agar langsung akurat tanpa reload
+            // Penting: refresh badge "Driver/Foto belum" agar langsung akurat tanpa reload.
+            // Prefix ['/api/fms/violations'] juga mencakup query pending-followup (seksi "Perlu
+            // dilengkapi" di modal) sehingga alert yang baru diisi langsung hilang dari daftar.
             queryClient.invalidateQueries({ queryKey: ['/api/fms/follow-up'] });
-            toast({ title: "Berhasil", description: "Nama driver & evidence berhasil disimpan." });
+            toast({ title: "Berhasil", description: "Nama driver & evidence tersimpan. Alert lain yang belum lengkap tetap tampil di daftar." });
             setOverrideName("");
             setOverrideNik("");
             setEvidenceFile(null);
             setEvidencePreview(null);
-            setIsModalOpen(false);
+            // Modal SENGAJA dibiarkan terbuka: operator bisa langsung melunasi alert pending lain
+            // di unit yang sama tanpa buka-tutup. Badge & seksi pending menyusut real-time.
+            // Tutup manual lewat tombol X saat selesai.
         },
         onError: (err) => {
             toast({ title: "Gagal", description: err.message, variant: "destructive" });
