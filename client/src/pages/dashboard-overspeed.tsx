@@ -36,6 +36,7 @@ import {
 import {
     RefreshCw,
     AlertCircle,
+    Unplug,
     Clock,
     User,
     Truck,
@@ -76,6 +77,9 @@ import { Input } from "@/components/ui/input"; // Add Input component
 // --- Configuration ---
 const CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vTX9zYvZSIKyKXx-DfhyXZCdTMuqhPY_kXu_WxMWEZ-MHPR779_x_0NklR1VjDGN1e7aoloMaDf5jk9/pub?gid=1467622739&single=true&output=csv";
+// Saklar sambungan spreadsheet Dashboard Overspeed. Set true untuk menyambungkan kembali.
+// Dinonaktifkan sementara atas permintaan (data tidak ditarik dari Google Sheets).
+const SPREADSHEET_ENABLED = false;
 const COMPANY_FILTER_DEFAULT = "GEC";
 const DASHBOARD_ID = "overspeed";
 
@@ -258,6 +262,8 @@ export default function DashboardOverspeed() {
     };
 
     const fetchData = async () => {
+        // Sambungan spreadsheet dinonaktifkan sementara → jangan tarik data.
+        if (!SPREADSHEET_ENABLED) { setLoading(false); setError(null); return; }
         setLoading(true);
         setError(null);
         try {
@@ -526,6 +532,22 @@ export default function DashboardOverspeed() {
             });
         }
     };
+
+    // Sambungan spreadsheet dinonaktifkan sementara — tampilkan state netral (bukan error).
+    if (!SPREADSHEET_ENABLED) {
+        return (
+            <div className="flex h-[80vh] items-center justify-center flex-col gap-3 px-6 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-800">
+                    <Unplug className="h-8 w-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">Koneksi Spreadsheet Dinonaktifkan Sementara</h3>
+                <p className="max-w-md text-sm text-gray-500">
+                    Dashboard Overspeed untuk sementara tidak menarik data dari Google Sheets.
+                    Sambungan akan diaktifkan kembali saat diperlukan.
+                </p>
+            </div>
+        );
+    }
 
     if (loading && !rawData.length) {
         return (
