@@ -146,6 +146,36 @@ const parseDate = (dateStr: string) => {
 
 const washKey = (s?: string) => s?.toString().replace(/\s+/g, "").toUpperCase() || "";
 
+// Sheet Jarak Aman (SiCantik) memberi nama kolom perusahaan "Perusahaan", sedangkan sheet
+// Overspeed memakai "Company" — cari yang mana pun yang tersedia agar filter GEC tidak nihil.
+const findCol = (headers: string[], ...names: string[]) => {
+    for (const n of names) {
+        const i = headers.indexOf(n);
+        if (i > -1) return i;
+    }
+    return -1;
+};
+
+const isTargetCompany = (v?: string) =>
+    (v || "").trim().toUpperCase().startsWith(COMPANY_FILTER_DEFAULT);
+
+// Sheet ini tidak punya kolom "Durasi Close" / "Status Closed NC"; keduanya diturunkan dari
+// tanggal kejadian, tanggal pemenuhan, dan masa berlaku sanksi.
+const daysBetween = (from?: string, to?: string) => {
+    if (!from || !to) return "";
+    const a = parseDate(from), b = parseDate(to);
+    if (isNaN(a.getTime()) || isNaN(b.getTime())) return "";
+    const d = Math.round((b.getTime() - a.getTime()) / 86400000);
+    return d >= 0 ? String(d) : "";
+};
+
+const closedStatus = (pemenuhan?: string, masaBerlaku?: string) => {
+    if (!pemenuhan || !masaBerlaku) return "";
+    const p = parseDate(pemenuhan), m = parseDate(masaBerlaku);
+    if (isNaN(p.getTime()) || isNaN(m.getTime())) return "";
+    return p.getTime() <= m.getTime() ? "Closed Ontime" : "Closed Overdue";
+};
+
 const getMonthName = (monthIndex: number) => {
     const months = [
         "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -203,11 +233,12 @@ export default function DashboardJarak() {
         const iDate = headersTrimmed.indexOf("Date");
         const iTime = headersTrimmed.indexOf("Time");
         const iVehicle = headersTrimmed.indexOf("Vehicle No");
-        const iCompany = headersTrimmed.indexOf("Company");
+        const iCompany = findCol(headersTrimmed, "Company", "Perusahaan", "Firma");
         const iViolation = headersTrimmed.indexOf("Violation");
         const iLocation = headersTrimmed.indexOf("Location (KM)") > -1 ? headersTrimmed.indexOf("Location (KM)") : headersTrimmed.indexOf("Location SiCantik");
         const iDurasi = headersTrimmed.indexOf("Durasi Close");
         const iPemenuhan = headersTrimmed.indexOf("Tanggal Pemenuhan");
+        const iMasaBerlaku = headersTrimmed.indexOf("Masa Berlaku Sanksi");
         // Flexible matching for Status Closed NC column
         let iStatusClosedNC = headersTrimmed.indexOf("Status Closed NC");
         if (iStatusClosedNC === -1) iStatusClosedNC = headersTrimmed.findIndex(h => h.toLowerCase().includes("status closed"));
@@ -223,13 +254,15 @@ export default function DashboardJarak() {
         if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("Firma");
 
         return rows
-            .filter(r => r[iCompany]?.trim().toUpperCase() === COMPANY_FILTER_DEFAULT)
+            .filter(r => isTargetCompany(r[iCompany]))
             .map(r => {
                 const d = parseDate(r[iDate]);
                 let rawName = r[iKaryawan];
                 if (!rawName || rawName === "#N/A" || rawName.trim() === "-") {
                     rawName = r[iNIK] ? `${r[iNIK]} (NIK)` : "Unknown";
                 }
+                const pemenuhan = iPemenuhan > -1 ? r[iPemenuhan] : "";
+                const masaBerlaku = iMasaBerlaku > -1 ? r[iMasaBerlaku] : "";
                 return {
                     No: r[iNo],
                     Sumber: r[iSumber],
@@ -249,11 +282,11 @@ export default function DashboardJarak() {
                     Coordinat: "",
                     TicketStatus: r[iTicketStatus],
                     ValidationStatus: r[iValidationStatus],
-                    "Durasi Close": r[iDurasi],
-                    "Tanggal Pemenuhan": r[iPemenuhan],
-                    StatusClosedNC: r[iStatusClosedNC],
+                    "Durasi Close": (iDurasi > -1 ? r[iDurasi] : "") || daysBetween(r[iDate], pemenuhan),
+                    "Tanggal Pemenuhan": pemenuhan,
+                    StatusClosedNC: (iStatusClosedNC > -1 ? r[iStatusClosedNC] : "") || closedStatus(pemenuhan, masaBerlaku),
                     "Investor Group": r[iInvestorGroup] || r[iCompany] || "-",
-                    "Masa Berlaku Sanksi": r.find && typeof r.find === 'function' ? (headersTrimmed.indexOf("Masa Berlaku Sanksi") > -1 ? r[headersTrimmed.indexOf("Masa Berlaku Sanksi")] : "-") : "-", // Flexible indexing for API
+                    "Masa Berlaku Sanksi": masaBerlaku || "-",
                     _dateObj: d,
                     _year: d.getFullYear(),
                     _monthIndex: d.getMonth(),
@@ -314,75 +347,8 @@ export default function DashboardJarak() {
             complete: (results) => {
                 if (results.data && results.data.length > 0) {
                     const rows = results.data as string[][];
-                    const headers = rows[0];
-                    const headersTrimmed = headers.map(h => h ? h.trim() : "");
-
-                    const iNo = headersTrimmed.indexOf("No");
-                    const iSumber = headersTrimmed.indexOf("Sumber") > -1 ? headersTrimmed.indexOf("Sumber") : headersTrimmed.indexOf("Type");
-                    const iEksekutor = headersTrimmed.indexOf("Nama Eksekutor");
-                    let iKaryawan = headersTrimmed.indexOf("Nama Karyawan");
-                    if (iKaryawan === -1) iKaryawan = headersTrimmed.indexOf("Slamet prihatin");
-                    if (iKaryawan === -1) {
-                        const iNIK = headersTrimmed.indexOf("NIK");
-                        if (iNIK > -1) iKaryawan = iNIK + 1;
-                    }
-                    const iDate = headersTrimmed.indexOf("Date");
-                    const iTime = headersTrimmed.indexOf("Time");
-                    const iVehicle = headersTrimmed.indexOf("Vehicle No");
-                    const iCompany = headersTrimmed.indexOf("Company");
-                    const iViolation = headersTrimmed.indexOf("Violation");
-                    const iLocation = headersTrimmed.indexOf("Location (KM)") > -1 ? headersTrimmed.indexOf("Location (KM)") : headersTrimmed.indexOf("Location SiCantik");
-                    const iDurasi = headersTrimmed.indexOf("Durasi Close");
-                    const iPemenuhan = headersTrimmed.indexOf("Tanggal Pemenuhan");
-                    const iStatusClosedNC = headersTrimmed.indexOf("Status Closed NC");
-                    const iWeek = headersTrimmed.indexOf("Week");
-                    const iMonth = headersTrimmed.indexOf("Month");
-                    const iNIK = headersTrimmed.indexOf("NIK");
-                    const iTicketStatus = headersTrimmed.indexOf("Status");
-                    let iValidationStatus = headersTrimmed.indexOf("Status Pelanggaran");
-                    if (iValidationStatus === -1) iValidationStatus = headersTrimmed.indexOf("Verifikasi");
-                    let iInvestorGroup = headersTrimmed.indexOf("Investor Group");
-                    if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("InvestorGroup");
-                    if (iInvestorGroup === -1) iInvestorGroup = headersTrimmed.indexOf("Firma");
-
-                    const processedData = rows.slice(1)
-                        .filter(r => r[iCompany]?.trim().toUpperCase() === COMPANY_FILTER_DEFAULT)
-                        .map(r => {
-                            const d = parseDate(r[iDate]);
-                            let rawName = r[iKaryawan];
-                            if (!rawName || rawName === "#N/A" || rawName.trim() === "-") {
-                                rawName = r[iNIK] ? `${r[iNIK]} (NIK)` : "Unknown";
-                            }
-                            return {
-                                No: r[iNo],
-                                Sumber: r[iSumber],
-                                "Nama Eksekutor": r[iEksekutor],
-                                "Nama Karyawan": rawName,
-                                Date: r[iDate],
-                                Time: r[iTime],
-                                "Vehicle No": r[iVehicle],
-                                Company: r[iCompany],
-                                Violation: r[iViolation],
-                                "Location (KM)": r[iLocation],
-                                "Date Opr": "",
-                                Jalur: "",
-                                Week: r[iWeek],
-                                Month: r[iMonth],
-                                Jalur2: "",
-                                Coordinat: "",
-                                TicketStatus: r[iTicketStatus],
-                                ValidationStatus: iValidationStatus !== -1 ? r[iValidationStatus] : "",
-                                "Durasi Close": r[iDurasi],
-                                "Tanggal Pemenuhan": r[iPemenuhan],
-                                StatusClosedNC: r[iStatusClosedNC],
-                                "Investor Group": r[iInvestorGroup] || r[iCompany] || "-",
-                                "Masa Berlaku Sanksi": headersTrimmed.indexOf("Masa Berlaku Sanksi") > -1 ? r[headersTrimmed.indexOf("Masa Berlaku Sanksi")] : "-",
-                                // Helpers
-                                _dateObj: d,
-                                _year: d.getFullYear(),
-                                _monthIndex: d.getMonth()
-                            } as OverspeedData;
-                        });
+                    // pemetaan kolom dipakai bersama dengan jalur Google Sheets API
+                    const processedData = processRows(rows.slice(1), rows[0]);
 
                     setRawData(processedData);
                     setFilteredData(processedData);

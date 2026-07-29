@@ -77,9 +77,8 @@ import { Input } from "@/components/ui/input"; // Add Input component
 // --- Configuration ---
 const CSV_URL =
     "https://docs.google.com/spreadsheets/d/e/2PACX-1vTX9zYvZSIKyKXx-DfhyXZCdTMuqhPY_kXu_WxMWEZ-MHPR779_x_0NklR1VjDGN1e7aoloMaDf5jk9/pub?gid=1467622739&single=true&output=csv";
-// Saklar sambungan spreadsheet Dashboard Overspeed. Set true untuk menyambungkan kembali.
-// Dinonaktifkan sementara atas permintaan (data tidak ditarik dari Google Sheets).
-const SPREADSHEET_ENABLED = false;
+// Saklar sambungan spreadsheet Dashboard Overspeed. Set false untuk memutus sambungan sementara.
+const SPREADSHEET_ENABLED = true;
 const COMPANY_FILTER_DEFAULT = "GEC";
 const DASHBOARD_ID = "overspeed";
 
