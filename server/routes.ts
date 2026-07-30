@@ -17993,6 +17993,11 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Kriteria alert yang dipakai halaman Evaluasi Driver Fatigue (tabel, detail, & level).
+  // Hanya "Mata Tertutup" dan "Kelelahan" — "Mengantuk" TIDAK dihitung (permintaan HSE, Jul 2026).
+  const FATIGUE_EVAL_TYPES = ["Mata Tertutup", "Kelelahan"];
+  const FATIGUE_EVAL_TYPES_CSV = FATIGUE_EVAL_TYPES.join(",");
+
   // 1.6b. Get violations by driver name
   app.get("/api/fms/driver-violations", async (req, res) => {
     try {
@@ -18007,9 +18012,11 @@ Format sebagai bullet points singkat per insight.`;
         .from(fmsViolations)
         .where(
           and(
-            ilike(fmsViolations.manualDriverName, String(driverName).trim()),
+            // TRIM kedua sisi: sebagian nama tersimpan dengan spasi di ujung, sehingga
+            // ilike polos membuat detail lebih sedikit daripada hitungan di tabel.
+            sql`UPPER(TRIM(${fmsViolations.manualDriverName})) = UPPER(TRIM(${String(driverName)}))`,
             eq(fmsViolations.validationStatus, 'Valid'),
-            sql`${fmsViolations.violationType} IN ('Mata Tertutup', 'Mengantuk', 'Kelelahan')`
+            inArray(fmsViolations.violationType, FATIGUE_EVAL_TYPES)
           )
         )
         .orderBy(sql`${fmsViolations.violationDate} DESC, ${fmsViolations.violationTime} DESC`);
@@ -18054,7 +18061,7 @@ Format sebagai bullet points singkat per insight.`;
 
       const violations = await storage.getFmsViolations({
         driverName: driverName as string,
-        violationType: 'Mata Tertutup,Mengantuk,Kelelahan',
+        violationType: FATIGUE_EVAL_TYPES_CSV,
         validationStatus: 'Valid',
         startDate: histStart.toISOString().slice(0, 10),
         endDate: new Date().toISOString().slice(0, 10),
@@ -18318,7 +18325,7 @@ Format sebagai bullet points singkat per insight.`;
 
       // Get all violations that have manual driver name
       const violations = await storage.getFmsViolations({
-        violationType: typeof violationType === 'string' ? violationType : 'Mata Tertutup,Mengantuk,Kelelahan',
+        violationType: typeof violationType === 'string' ? violationType : FATIGUE_EVAL_TYPES_CSV,
         month: typeof month === 'string' ? month : undefined,
         week: typeof week === 'string' ? week : undefined,
         startDate: typeof startDate === 'string' ? startDate : undefined,
@@ -18343,7 +18350,6 @@ Format sebagai bullet points singkat per insight.`;
             vehicleNos: new Set<string>(),
             totalAlert: 0,
             mataTertutup: 0,
-            mengantuk: 0,
             kelelahan: 0,
           });
         }
@@ -18351,7 +18357,6 @@ Format sebagai bullet points singkat per insight.`;
         stat.vehicleNos.add(v.vehicleNo);
         stat.totalAlert++;
         if (v.violationType === 'Mata Tertutup') stat.mataTertutup++;
-        else if (v.violationType === 'Mengantuk') stat.mengantuk++;
         else if (v.violationType === 'Kelelahan') stat.kelelahan++;
       }
 
@@ -18416,7 +18421,6 @@ Format sebagai bullet points singkat per insight.`;
             vehicleNos: Array.from(stat.vehicleNos).join(', '),
             totalAlert: stat.totalAlert,
             mataTertutup: stat.mataTertutup,
-            mengantuk: stat.mengantuk,
             kelelahan: stat.kelelahan,
             sidakCount: sidak,
             pvtAvgRT: pvt.avgRT,

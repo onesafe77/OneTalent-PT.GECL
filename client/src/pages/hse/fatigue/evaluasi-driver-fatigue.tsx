@@ -55,7 +55,6 @@ interface DriverEvaluation {
     vehicleNos: string;
     totalAlert: number;
     mataTertutup: number;
-    mengantuk: number;
     kelelahan: number;
     sidakCount: number;
     pvtAvgRT: number | null;
@@ -269,7 +268,6 @@ export default function EvaluasiDriverFatigue() {
                 'No Lambung': d.vehicleNos,
                 'Total Alert': d.totalAlert,
                 'Mata Tertutup': d.mataTertutup,
-                'Mengantuk': d.mengantuk,
                 'Kelelahan': d.kelelahan,
                 'Sidak Fatigue': d.sidakCount,
                 'PVT Avg RT (ms)': d.pvtAvgRT || '-',
@@ -525,7 +523,6 @@ export default function EvaluasiDriverFatigue() {
                                     <TableHead>No Lambung</TableHead>
                                     <TableHead className="text-center text-red-600 font-semibold">Alert</TableHead>
                                     <TableHead className="text-center">Mata Tertutup</TableHead>
-                                    <TableHead className="text-center">Mengantuk</TableHead>
                                     <TableHead className="text-center">Kelelahan</TableHead>
                                     <TableHead className="text-center bg-blue-50/50">Sidak</TableHead>
                                     <TableHead className="text-center bg-indigo-50/50">PVT (ms)</TableHead>
@@ -558,7 +555,6 @@ export default function EvaluasiDriverFatigue() {
                                             <TableCell className="text-sm">{d.vehicleNos}</TableCell>
                                             <TableCell className="text-center font-bold text-red-600 bg-red-50/30">{d.totalAlert}</TableCell>
                                             <TableCell className="text-center">{d.mataTertutup}</TableCell>
-                                            <TableCell className="text-center">{d.mengantuk}</TableCell>
                                             <TableCell className="text-center">{d.kelelahan}</TableCell>
                                             <TableCell className="text-center bg-blue-50/20">
                                                 <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
