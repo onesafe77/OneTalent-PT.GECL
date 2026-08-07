@@ -11,6 +11,8 @@ import {
   isLikelyPatrolReport,
   isValidParsedReport,
   analyzeReportContent,
+  resolveReportDate,
+  type ResolvedReportDate,
 } from "../gemini-parser";
 import { storage } from "../storage";
 import { canonicalSafetyActivity, canonicalReportActivity, shiftFromTime, isGenericName } from "../lib/safety-activity";
@@ -216,13 +218,18 @@ async function hermes(system: string, user: string, fallback: string): Promise<s
 
 const SYS_BOT = "Kamu asisten Safety Patrol HSE PT Borneo Indobara di Telegram. Jawab singkat (maks 3 kalimat), sopan, ramah, Bahasa Indonesia. Jangan mengarang data.";
 
-async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos: boolean = false, reportDate?: string, dateFromText: boolean = true) {
+async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos: boolean = false, reportDate?: string, dateInfo?: ResolvedReportDate) {
   // Tanggal tercatat = tanggal final yang DISIMPAN (bukan sekadar hasil parse).
   const recordedDate = reportDate || parsed.tanggal || todayStr();
-  // Peringatan laporan susulan: tanggal tak terbaca → masuk ke HARI INI.
-  const backdateNote = !dateFromText
-    ? `\n\n⚠️ Tanggal tidak terbaca dari laporan, jadi dicatat untuk *HARI INI* (${recordedDate}).\nKalau ini laporan susulan, tambahkan baris *Tanggal: 28/06/2026* (sesuai tanggal kejadian) lalu kirim ulang.`
-    : "";
+  const source = dateInfo?.source ?? "text";
+  const dateFromText = source === "text" || source === "text-susulan";
+  // Peringatan tanggal: tak terbaca, atau tanggal teks janggal sehingga dikoreksi.
+  const backdateNote =
+    source === "today-no-date"
+      ? `\n\n⚠️ Tanggal tidak terbaca dari laporan, jadi dicatat untuk *HARI INI* (${recordedDate}).\nKalau ini laporan susulan, tambahkan baris *Tanggal: 28/06/2026* (sesuai tanggal kejadian) lalu kirim ulang.`
+      : source === "today-far" || source === "today-dayname"
+        ? `\n\n⚠️ Di teks tertulis tanggal *${dateInfo?.textDate}*, tapi laporan ini dicatat untuk *${recordedDate}*.\nSepertinya template lama yang tanggalnya belum diganti. Kalau memang laporan susulan, tulis kata *susulan* di laporan lalu kirim ulang.`
+        : "";
   const ringkas = JSON.stringify({
     jenis: parsed.jenisLaporan, kegiatan: parsed.kegiatan, tanggalTercatat: recordedDate,
     tanggalDariTeks: dateFromText, shift: parsed.shift, waktu: parsed.waktuPelaksanaan, lokasi: parsed.lokasi,
@@ -242,7 +249,11 @@ async function replyConfirm(chatId: string, nama: string, parsed: any, hasPhotos
   const text = await hermes(
     SYS_BOT,
     `Laporan dari ${nama} sudah TERSIMPAN ke rekap untuk tanggal ${recordedDate}. Buat konfirmasi ramah + RINGKASAN isi laporan (kegiatan, TERCATAT UNTUK TANGGAL ${recordedDate}, shift, waktu, lokasi, pelaksana, temuan). ` +
-    (!dateFromText ? `PENTING: tanggal tidak terbaca dari teks sehingga dicatat untuk HARI INI — ingatkan bila ini laporan susulan agar menambahkan baris "Tanggal: <tgl kejadian>" lalu kirim ulang. ` : "") +
+    (source === "today-no-date"
+      ? `PENTING: tanggal tidak terbaca dari teks sehingga dicatat untuk HARI INI — ingatkan bila ini laporan susulan agar menambahkan baris "Tanggal: <tgl kejadian>" lalu kirim ulang. `
+      : (source === "today-far" || source === "today-dayname")
+        ? `PENTING: di teks tertulis tanggal ${dateInfo?.textDate} yang janggal (kemungkinan template lama belum diganti), jadi laporan dicatat untuk ${recordedDate}. Ingatkan petugas memperbarui tanggal di template, dan bila ini memang laporan susulan agar menulis kata "susulan". `
+        : "") +
     `${hasPhotos ? "" : "Akhiri dengan ajakan singkat mengirim foto kegiatan. "}Data: ${ringkas}`,
     fallback
   );
@@ -383,8 +394,12 @@ export async function runJobReminders(shiftFilter?: string, dateStr?: string, re
 // ---------- Simpan laporan ----------
 async function saveReport(chatId: string, user: any, text: string, photos: string[]) {
   const parsed: any = await parseReportWithGemini(text);
-  const dateFromText = !!parsed.tanggal; // tanggal terbaca dari isi laporan? (utk laporan susulan)
-  const reportDate = parsed.tanggal || todayStr();
+  // Tanggal teks dipakai bila masuk akal; template basi / salah ketik nama hari → tanggal kirim.
+  const dateInfo = resolveReportDate(parsed.tanggal, text, todayStr());
+  const reportDate = dateInfo.date;
+  if (dateInfo.textDate && dateInfo.textDate !== reportDate) {
+    console.warn(`[Telegram] tanggal teks ${dateInfo.textDate} diabaikan (${dateInfo.source}) → dicatat ${reportDate}`);
+  }
   const d = new Date(reportDate);
   let aiAnalysis: string | null = null;
   try { aiAnalysis = await analyzeReportContent(text); } catch { aiAnalysis = null; }
@@ -410,8 +425,10 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
 
   const report = await storage.createSafetyPatrolReport({
     tanggal: reportDate,
-    bulan: parsed.bulan || bulanIndo(d),
-    week: parsed.week || weekOfMonth(d),
+    // bulan & week SELALU diturunkan dari tanggal final — bila tanggal teks dikoreksi,
+    // hasil AI (yang mengikuti tanggal lama) tidak boleh ikut tersimpan.
+    bulan: bulanIndo(d),
+    week: weekOfMonth(d),
     waktuPelaksanaan: parsed.waktuPelaksanaan || null,
     jenisLaporan: parsed.jenisLaporan || "Laporan Patrol",
     kegiatan: parsed.kegiatan || null,
@@ -454,7 +471,7 @@ async function saveReport(chatId: string, user: any, text: string, photos: strin
     } catch (e: any) { console.error("[Telegram] attendance error:", e?.message || e); }
   }
 
-  await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed, allPhotos.length > 0, reportDate, dateFromText);
+  await replyConfirm(chatId, user.namaPelaksana || user.firstName || "Pak/Bu", parsed, allPhotos.length > 0, reportDate, dateInfo);
 
   // Feedback target job: bila petugas punya target hari ini → kirim progres + sisa kegiatan.
   try {

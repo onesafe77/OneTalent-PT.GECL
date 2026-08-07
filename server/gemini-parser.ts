@@ -62,6 +62,77 @@ function normalizeTanggal(raw: string): string | undefined {
   if (m) return m[0];
   return undefined;
 }
+// ---- Penjaga kewajaran tanggal laporan ----
+// Petugas kerap menyalin template laporan lama tanpa mengganti tanggalnya, sehingga laporan
+// mendarat berbulan-bulan di masa lalu dan tak pernah tercentang di Pencapaian Job hari itu
+// (audit Agu 2026: 12,5% laporan meleset >2 hari, ada yang sampai ~3 tahun).
+// Aturan: tanggal teks dipakai bila masih masuk akal; bila janggal → pakai tanggal kirim.
+const ID_DAYS: Record<string, number> = {
+  minggu: 0, ahad: 0, senin: 1, selasa: 2, rabu: 3, kamis: 4,
+  jumat: 5, "jum'at": 5, sabtu: 6,
+};
+// Toleransi laporan susulan yang wajar (hari). Lebih dari ini dianggap template basi,
+// kecuali petugas menulis kata "susulan" secara eksplisit.
+const BACKDATE_TOLERANCE_DAYS = 3;
+
+export type ReportDateSource =
+  | "text"           // tanggal dari teks dipakai apa adanya
+  | "text-susulan"   // tanggal jauh tapi ditandai "susulan" → dihormati
+  | "today-no-date"  // teks tak memuat tanggal
+  | "today-far"      // tanggal teks terlalu jauh dari hari kirim
+  | "today-dayname"; // nama hari di teks bertentangan dgn tanggal angkanya
+
+export interface ResolvedReportDate {
+  date: string;             // tanggal final yang dipakai (YYYY-MM-DD)
+  source: ReportDateSource;
+  textDate?: string;        // tanggal yang tertulis di teks (bila ada) — utk pesan peringatan
+}
+
+function weekdayOf(iso: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return isNaN(d.getTime()) ? null : d.getDay();
+}
+
+/** Nama hari pertama yang disebut di teks (mis. "Senin") → 0-6, atau null. */
+function dayNameIn(text: string): number | null {
+  const m = stripInvisible(text || "").match(/\b(minggu|ahad|senin|selasa|rabu|kamis|jum'?at|sabtu)\b/i);
+  if (!m) return null;
+  const key = m[1].toLowerCase().replace("jum'at", "jumat");
+  return ID_DAYS[key] ?? ID_DAYS[m[1].toLowerCase()] ?? null;
+}
+
+/**
+ * Tentukan tanggal laporan yang benar dari tanggal-teks + konteks.
+ * `today` = tanggal kirim (YYYY-MM-DD, zona WITA).
+ */
+export function resolveReportDate(textDate: string | undefined, rawText: string, today: string): ResolvedReportDate {
+  if (!textDate) return { date: today, source: "today-no-date" };
+
+  const diffDays = Math.round(
+    (new Date(today + "T00:00:00").getTime() - new Date(textDate + "T00:00:00").getTime()) / 86400000
+  );
+
+  // Nama hari di teks bertentangan dgn tanggal angkanya (mis. "Senin 03/07/2026" —
+  // 3 Juli 2026 jatuh Jumat): angka tanggalnya yang salah ketik. Pakai tanggal kirim
+  // bila nama harinya justru cocok dengan hari kirim.
+  const dayName = dayNameIn(rawText);
+  const textWd = weekdayOf(textDate);
+  const todayWd = weekdayOf(today);
+  if (dayName != null && textWd != null && dayName !== textWd && dayName === todayWd) {
+    return { date: today, source: "today-dayname", textDate };
+  }
+
+  if (Math.abs(diffDays) <= BACKDATE_TOLERANCE_DAYS) return { date: textDate, source: "text", textDate };
+
+  // Jauh dari hari kirim: hormati hanya bila petugas menandainya laporan susulan.
+  if (/\bsusulan\b/i.test(stripInvisible(rawText || ""))) {
+    return { date: textDate, source: "text-susulan", textDate };
+  }
+  return { date: today, source: "today-far", textDate };
+}
+
 // Buang karakter tak terlihat (LRM/RLM/ZWSP/BOM) yang sering muncul di laporan dari iPhone/WhatsApp.
 function stripInvisible(s: string): string {
   return (s || "").replace(/[​‌‍‎‏﻿]/g, "");
