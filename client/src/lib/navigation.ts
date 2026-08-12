@@ -16,12 +16,12 @@ import {
     TrendingUp,
     AlertTriangle,
     Megaphone,
-    Newspaper,
     FolderOpen,
     HardHat,
     Settings,
     Activity,
-    Lock,
+    HeartPulse,
+    Wrench,
     Bot,
     MessageSquare,
     Database,
@@ -59,7 +59,6 @@ export const navigationGroups: NavGroup[] = [
     {
         title: "Utama",
         items: [
-            { name: "Berita", href: "/workspace/news-feed", icon: Newspaper },
             { name: "Dashboard", href: "/workspace/dashboard", icon: BarChart3, requiredPermissions: [Permission.VIEW_DASHBOARD] },
             {
                 name: "Mystic AI",
@@ -139,7 +138,6 @@ export const navigationGroups: NavGroup[] = [
                                     { name: "Evaluasi Data PVT", href: "/workspace/hse/evaluasi-pvt", icon: Zap, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Safety Patrol", href: "/workspace/safety-patrol", icon: Shield, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Pengumuman", href: "/workspace/announcements", icon: Megaphone, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
-                                    { name: "Kelola Berita", href: "/workspace/news", icon: Newspaper, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
                                     { name: "Induksi", href: "/workspace/hse/induction-admin", icon: BookOpen, requiredPermissions: [Permission.VIEW_SIDAK] },
                                     { name: "Rekaman Pengawas", href: "/workspace/hse/supervisor-recordings", icon: Video, requiredPermissions: [Permission.MANAGE_SIDAK] },
                                     { name: "Reminder Inspeksi", href: "/workspace/sidak/reminder-inspeksi", icon: Bell, requiredPermissions: [Permission.MANAGE_EMPLOYEES] },
@@ -166,6 +164,18 @@ export const navigationGroups: NavGroup[] = [
                                         href: "/workspace/hse/mcu",
                                     },
                                     {
+                                        name: "Profil Kesehatan",
+                                        icon: HeartPulse,
+                                        href: "/workspace/hse/profil-kesehatan",
+                                        requiredPermissions: [Permission.VIEW_HEALTH_PROFILE],
+                                    },
+                                    {
+                                        name: "Indikator Kesehatan",
+                                        icon: TrendingUp,
+                                        href: "/workspace/hse/indikator-kesehatan",
+                                        requiredPermissions: [Permission.VIEW_HEALTH_PROFILE],
+                                    },
+                                    {
                                         name: "Ijin Sakit",
                                         icon: ClipboardList,
                                         href: "/workspace/hse/sick-leave",
@@ -188,7 +198,7 @@ export const navigationGroups: NavGroup[] = [
                                         children: [
                                             { name: "Peralatan Bergerak (HE)", href: "/workspace/hse/ko/spip/peralatan", icon: Car },
                                             { name: "Peralatan Bergerak", href: "/workspace/hse/ko/spip/peralatan/bergerak", icon: Settings },
-                                            { name: "Peralatan Tidak Bergerak (Coming Soon)", icon: Lock },
+                                            { name: "Peralatan Tidak Bergerak", href: "/workspace/hse/ko/spip/peralatan/tidak-bergerak", icon: Wrench },
                                         ]
                                     },
                                     { name: "Sarana & Prasarana", href: "/workspace/hse/ko/spip/prasarana", icon: Building2 },

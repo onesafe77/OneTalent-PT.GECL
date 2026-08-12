@@ -3689,6 +3689,136 @@ export const insertMcuRecordSchema = createInsertSchema(mcuRecords).omit({
 export type McuRecord = typeof mcuRecords.$inferSelect;
 export type InsertMcuRecord = z.infer<typeof insertMcuRecordSchema>;
 
+// ============================================================================
+// PROFIL KESEHATAN — MAPPING TEMUAN MCU
+// Sumber: "Database & Mapping profil Kesehatan Karyawan PT GECL.xlsx" (14 sheet
+// penyakit: HT, DM, Gout, Spirometri, dst). SATU tabel untuk semua kategori —
+// bentuk 14 sheet itu seragam, cuma kolom nilainya berbeda, jadi nilai pemeriksaan
+// disimpan sebagai jsonb agar tidak lahir 14 tabel baru.
+// AKSES TERBATAS: hanya dept HSE, HRGA, dan PJO (lihat canAccessHealthProfile).
+// ============================================================================
+
+// Koersi tanggal: terima "", null, string, atau Date (dipakai schema di bawah).
+// Didefinisikan lokal karena spipOptionalDate baru ada jauh di bawah berkas ini.
+const mcuOptionalDate = z.preprocess((v) => (v === "" ? null : v), z.coerce.date().nullable().optional());
+
+export const mcuHealthMapping = pgTable("mcu_health_mapping", {
+  id: uuid("id").primaryKey().defaultRandom(),
+
+  kategori: text("kategori").notNull(),          // HT, DM, GOUT, SPIROMETRI, ...
+  bulan: text("bulan"),                          // "Juni"
+  tahun: integer("tahun"),                       // 2025
+  periode: date("periode"),                      // tgl-1 bulan tsb, utk urut & grafik tren
+
+  // Identitas apa adanya dari Excel (tetap disimpan walau sudah tertaut ke HR,
+  // supaya jejak sumbernya tidak hilang bila data karyawan berubah).
+  nama: text("nama").notNull(),
+  jenisKelamin: text("jenis_kelamin"),
+  tanggalLahir: date("tanggal_lahir"),
+  departemenSumber: text("departemen_sumber"),
+  posisiSumber: text("posisi_sumber"),
+
+  // Penautan ke master karyawan (HR)
+  employeeId: varchar("employee_id").references(() => employees.id),
+  statusTaut: text("status_taut").notNull().default("BELUM"), // OTOMATIS | PERLU_KONFIRMASI | MANUAL | BELUM
+
+  nilai: jsonb("nilai").$type<Record<string, string>>(),      // {"Tekanan darah Sistolik":"140", ...}
+  kesimpulan: text("kesimpulan"),
+  tindakLanjut: text("tindak_lanjut"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_mcu_health_kategori").on(table.kategori),
+  index("IDX_mcu_health_periode").on(table.periode),
+  index("IDX_mcu_health_employee").on(table.employeeId),
+  // Kunci idempoten impor: satu orang, satu kategori, satu periode = satu baris.
+  uniqueIndex("UQ_mcu_health_baris").on(table.kategori, table.nama, table.periode),
+]);
+
+export const insertMcuHealthMappingSchema = createInsertSchema(mcuHealthMapping, {
+  tanggalLahir: mcuOptionalDate,
+  periode: mcuOptionalDate,
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type McuHealthMapping = typeof mcuHealthMapping.$inferSelect;
+export type InsertMcuHealthMapping = z.infer<typeof insertMcuHealthMappingSchema>;
+
+// ============================================================================
+// INDIKATOR KESEHATAN K3 (MFR / SSR / ASR / CMR)
+// Sumber: "Database Indikator Kesehatan GECL.xlsx" — register kejadian sakit
+// per driver + man-hours bulanan, indikator dihitung otomatis.
+// ============================================================================
+
+export const healthSickRegister = pgTable("health_sick_register", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tanggal: date("tanggal").notNull(),          // tanggal kejadian
+  bulan: integer("bulan"),                     // 1-12, diturunkan dari tanggal
+  tahun: integer("tahun"),
+
+  employeeId: varchar("employee_id").references(() => employees.id),
+  namaDriver: text("nama_driver").notNull(),
+  nik: text("nik"),
+  unitPool: text("unit_pool"),
+
+  jenisKejadian: text("jenis_kejadian").notNull(),   // Sakit Biasa | PAK | Kecelakaan Kerja
+  diagnosa: text("diagnosa"),
+  tglMulaiTidakMasuk: date("tgl_mulai_tidak_masuk"),
+  tglMasukKembali: date("tgl_masuk_kembali"),
+  hariHilang: integer("hari_hilang").default(0),
+  statusPerawatan: text("status_perawatan"),
+  tindakLanjut: text("tindak_lanjut"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("IDX_sick_register_periode").on(table.tahun, table.bulan),
+  index("IDX_sick_register_jenis").on(table.jenisKejadian),
+  index("IDX_sick_register_employee").on(table.employeeId),
+]);
+
+export const insertHealthSickRegisterSchema = createInsertSchema(healthSickRegister, {
+  tanggal: mcuOptionalDate,
+  tglMulaiTidakMasuk: mcuOptionalDate,
+  tglMasukKembali: mcuOptionalDate,
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export type HealthSickRegister = typeof healthSickRegister.$inferSelect;
+export type InsertHealthSickRegister = z.infer<typeof insertHealthSickRegisterSchema>;
+
+// Jam kerja & jumlah tenaga kerja per bulan — penyebut semua indikator.
+export const healthManhours = pgTable("health_manhours", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tahun: integer("tahun").notNull(),
+  bulan: integer("bulan").notNull(),                 // 1-12
+  totalJamKerja: doublePrecision("total_jam_kerja").default(0),
+  jumlahTenagaKerja: integer("jumlah_tenaga_kerja").default(0),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("UQ_health_manhours_periode").on(table.tahun, table.bulan),
+]);
+
+export const insertHealthManhoursSchema = createInsertSchema(healthManhours).omit({ id: true, updatedAt: true });
+export type HealthManhours = typeof healthManhours.$inferSelect;
+
+// Faktor pengali & ambang batas per tahun (di Excel masih placeholder yg bisa diubah).
+export const healthIndicatorSetting = pgTable("health_indicator_setting", {
+  tahun: integer("tahun").primaryKey(),
+  faktorPengali: doublePrecision("faktor_pengali").notNull().default(1000000),
+  thresholdMfr: doublePrecision("threshold_mfr").default(80),
+  thresholdSsr: doublePrecision("threshold_ssr").default(80),
+  thresholdAsr: doublePrecision("threshold_asr").default(80),
+  thresholdCmr: doublePrecision("threshold_cmr").default(0.8),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertHealthIndicatorSettingSchema = createInsertSchema(healthIndicatorSetting).omit({ updatedAt: true });
+export type HealthIndicatorSetting = typeof healthIndicatorSetting.$inferSelect;
+
 export const simperEvHistory = pgTable("simper_ev_history", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   nikSimper: text("nik_simper").notNull(), // Foreign Key logical (linked to simper_ev_monitoring.nikSimper)
@@ -4678,6 +4808,49 @@ export const insertSpipPeralatanWorkshopSchema = createInsertSchema(spipPeralata
 
 export type SpipPeralatanWorkshop = typeof spipPeralatanWorkshop.$inferSelect;
 export type InsertSpipPeralatanWorkshop = z.infer<typeof insertSpipPeralatanWorkshopSchema>;
+
+// ============================================================================
+// SPIP PERALATAN TIDAK BERGERAK
+// Sumber awal: "Database Peralatan 2026.xlsx" (73 alat workshop: jack, compressor,
+// impact, gerinda, dll). SWL disimpan utuh sbg teks + dipecah angka/satuan agar
+// bisa disortir & difilter. Evidence diisi belakangan lewat halaman (upload foto).
+// ============================================================================
+
+export const spipPeralatanTidakBergerak = pgTable("spip_peralatan_tidak_bergerak", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  no: integer("no"),
+
+  jenisAlat: text("jenis_alat").notNull(),
+  noRegistrasi: text("no_registrasi").notNull().unique(),
+  pic: text("pic"),
+  areaLokasi: text("area_lokasi"),
+
+  swl: text("swl"),                                  // teks asli, mis. "200 Psi"
+  nilaiSwl: doublePrecision("nilai_swl"),            // 200
+  satuanSwl: text("satuan_swl"),                     // "Psi"
+
+  tglSertifikat: timestamp("tgl_sertifikat"),
+  expSertifikat: timestamp("exp_sertifikat"),
+
+  evidenceUrl: text("evidence_url"),
+  keterangan: text("keterangan"),
+  statusAlat: text("status_alat").notNull().default("AKTIF"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSpipPeralatanTidakBergerakSchema = createInsertSchema(spipPeralatanTidakBergerak, {
+  tglSertifikat: spipOptionalDate,
+  expSertifikat: spipOptionalDate,
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type SpipPeralatanTidakBergerak = typeof spipPeralatanTidakBergerak.$inferSelect;
+export type InsertSpipPeralatanTidakBergerak = z.infer<typeof insertSpipPeralatanTidakBergerakSchema>;
 
 // ============================================================================
 // SIDAK GERINDA DUDUK

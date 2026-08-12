@@ -157,6 +157,14 @@ import {
   insertSidakGerindaDudukObserverSchema,
   spipPeralatanWorkshop,
   insertSpipPeralatanWorkshopSchema,
+  spipPeralatanTidakBergerak,
+  insertSpipPeralatanTidakBergerakSchema,
+  mcuHealthMapping,
+  insertMcuHealthMappingSchema,
+  healthSickRegister,
+  insertHealthSickRegisterSchema,
+  healthManhours,
+  healthIndicatorSetting,
   smkpClauses,
   checklistTemplates,
   monthlyChecklists,
@@ -172,7 +180,7 @@ import * as whatsappService from "./services/whatsapp-service";
 import { buildRAGPrompt, searchSimilarChunks, generateEmbedding } from "./services/rag-service";
 import { db } from "./db";
 import { PushNotificationService } from "./push-notification";
-import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition } from "@shared/rbac";
+import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition, canAccessHealthProfile } from "@shared/rbac";
 import { inductionAiService } from "./services/induction-ai-service";
 import { canonicalSafetyActivity as canonicalActivityLib, canonicalReportActivity, shiftFromTime, isGenericName } from "./lib/safety-activity";
 import { parseSickLeaveWithGemini } from "./gemini-parser";
@@ -13192,172 +13200,6 @@ Format sebagai bullet points singkat per insight.`;
 
   // ================== NEWS API ==================
 
-  // Upload news image
-  const newsImageUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: function (req, file, cb) {
-      const allowedTypes = /jpeg|jpg|png|gif/;
-      const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-      const mimetype = allowedTypes.test(file.mimetype);
-      if (mimetype && extname) { return cb(null, true); }
-      cb(new Error('Only .png, .jpg, .jpeg and .gif format allowed!'));
-    }
-  });
-
-  app.post("/api/news/upload-image", newsImageUpload.single('image'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "Tidak ada file yang diupload" });
-      }
-      const { url: imageUrl } = await dbStorage.uploadFile(req.file);
-      res.json({ url: imageUrl, fileName: req.file.originalname });
-    } catch (error) {
-      console.error("Error uploading news image:", error);
-      res.status(500).json({ message: "Gagal mengupload gambar" });
-    }
-  });
-
-  // Get all news (for admin)
-  app.get("/api/news", async (req, res) => {
-    try {
-      const allNews = await storage.getAllNews();
-      res.json(allNews);
-    } catch (error) {
-      console.error("Error fetching news:", error);
-      res.status(500).json({ message: "Gagal mengambil berita" });
-    }
-  });
-
-  // Get active news (for all users)
-  app.get("/api/news/active", async (req, res) => {
-    try {
-      const activeNews = await storage.getActiveNews();
-      res.json(activeNews);
-    } catch (error) {
-      console.error("Error fetching active news:", error);
-      res.status(500).json({ message: "Gagal mengambil berita aktif" });
-    }
-  });
-
-  // Get single news
-  // Generic File Upload (for Certificates, etc.)
-  const certificateUpload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 10 * 1024 * 1024 },
-    fileFilter: function (req, file, cb) {
-      const allowedTypes = /pdf|jpg|jpeg|png|doc|docx/;
-      if (allowedTypes.test(path.extname(file.originalname).toLowerCase())) { return cb(null, true); }
-      cb(new Error('Only PDF, Word, and Images are allowed!'));
-    }
-  });
-
-  app.post("/api/upload", certificateUpload.single('file'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
-      }
-      // Reject empty / suspiciously tiny payloads (e.g. selfie capture sebelum
-      // video stream ready). 100 bytes adalah ambang aman untuk image apapun.
-      if (!req.file.buffer || req.file.buffer.length < 100) {
-        return res.status(400).json({ message: "File kosong atau terlalu kecil (kemungkinan capture gagal)" });
-      }
-      const { url: fileUrl } = await dbStorage.uploadFile(req.file);
-      res.json({ url: fileUrl, fileName: req.file.originalname });
-    } catch (error) {
-      console.error("Upload error:", error);
-      res.status(500).json({ message: "File upload failed" });
-    }
-  });
-
-  app.get("/api/news/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const newsItem = await storage.getNews(id);
-      if (!newsItem) {
-        return res.status(404).json({ message: "Berita tidak ditemukan" });
-      }
-      res.json(newsItem);
-    } catch (error) {
-      console.error("Error fetching news:", error);
-      res.status(500).json({ message: "Gagal mengambil berita" });
-    }
-  });
-
-  // Create news (Admin only)
-  app.post("/api/news", async (req, res) => {
-    try {
-      const validatedData = insertNewsSchema.parse(req.body);
-      const newsItem = await storage.createNews(validatedData);
-
-      // Send push notification for important news
-      if (validatedData.isImportant) {
-        try {
-          const subscriptions = await storage.getActivePushSubscriptions();
-          const pushService = new PushNotificationService();
-
-          for (const sub of subscriptions) {
-            try {
-              await pushService.sendNotification(
-                {
-                  endpoint: sub.endpoint,
-                  keys: { p256dh: sub.p256dh, auth: sub.auth }
-                },
-                {
-                  title: "Berita Penting",
-                  body: validatedData.title,
-                  icon: "/icons/icon-192x192.png",
-                  badge: "/icons/icon-72x72.png",
-                  data: { url: "/workspace/news-feed", newsId: newsItem.id }
-                }
-              );
-            } catch (pushError) {
-              console.error("Error sending push to subscription:", sub.id, pushError);
-            }
-          }
-        } catch (pushError) {
-          console.error("Error sending news push notifications:", pushError);
-        }
-      }
-
-      res.status(201).json(newsItem);
-    } catch (error) {
-      console.error("Error creating news:", error);
-      res.status(500).json({ message: "Gagal membuat berita" });
-    }
-  });
-
-  // Update news (Admin only)
-  app.patch("/api/news/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updateData = req.body;
-
-      const newsItem = await storage.updateNews(id, updateData);
-      if (!newsItem) {
-        return res.status(404).json({ message: "Berita tidak ditemukan" });
-      }
-      res.json(newsItem);
-    } catch (error) {
-      console.error("Error updating news:", error);
-      res.status(500).json({ message: "Gagal memperbarui berita" });
-    }
-  });
-
-  // Delete news (Admin only)
-  app.delete("/api/news/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const deleted = await storage.deleteNews(id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Berita tidak ditemukan" });
-      }
-      res.json({ message: "Berita berhasil dihapus" });
-    } catch (error) {
-      console.error("Error deleting news:", error);
-      res.status(500).json({ message: "Gagal menghapus berita" });
-    }
-  });
 
   // ================== PUSH SUBSCRIPTION API ==================
 
@@ -21647,9 +21489,12 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Nama sub-resource di bawah /api/spip/peralatan — jangan diperlakukan sebagai :id.
+  // Tambahkan di sini setiap kali ada sub-halaman baru, agar tidak tertelan route :id.
+  const PERALATAN_SUBPATHS = new Set(["workshop", "tidak-bergerak", "export", "import"]);
+
   app.get("/api/spip/peralatan/:id", async (req, res, next) => {
-    // Pass sub-resource paths (e.g. /workshop) to their own routes
-    if (req.params.id === "workshop") return next();
+    if (PERALATAN_SUBPATHS.has(req.params.id)) return next();
     try {
       const { id } = req.params;
       const unit = await db.select().from(spipPeralatan).where(eq(spipPeralatan.id, id)).limit(1);
@@ -21661,7 +21506,7 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   app.put("/api/spip/peralatan/:id", async (req, res, next) => {
-    if (req.params.id === "workshop") return next();
+    if (PERALATAN_SUBPATHS.has(req.params.id)) return next();
     try {
       const { id } = req.params;
       // Validasi + koersi tanggal (string -> Date) via schema, agar Drizzle timestamp tidak error
@@ -21680,7 +21525,7 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   app.delete("/api/spip/peralatan/:id", async (req, res, next) => {
-    if (req.params.id === "workshop") return next();
+    if (PERALATAN_SUBPATHS.has(req.params.id)) return next();
     try {
       const { id } = req.params;
       const deleted = await db.delete(spipPeralatan).where(eq(spipPeralatan.id, id)).returning();
@@ -22400,7 +22245,8 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const items = await db.select().from(spipPeralatanWorkshop).orderBy(asc(spipPeralatanWorkshop.jenisUnit), asc(spipPeralatanWorkshop.noLambung));
 
-      const ExcelJS = await import("exceljs");
+      // exceljs = modul CommonJS: kelasnya ada di .default, bukan di namespace.
+      const ExcelJS = (await import("exceljs")).default as any;
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("PERALATAN 2");
 
@@ -22503,6 +22349,848 @@ Format sebagai bullet points singkat per insight.`;
   app.delete("/api/spip/peralatan/workshop/:id", async (req, res) => {
     try {
       const [deleted] = await db.delete(spipPeralatanWorkshop).where(eq(spipPeralatanWorkshop.id, req.params.id)).returning();
+      if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json({ message: "Berhasil dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // ============================================================
+  // PROFIL KESEHATAN — MAPPING TEMUAN MCU (data medis, akses terbatas)
+  // ============================================================
+
+  // Penjaga akses. Data medis → dikunci di SERVER sejak awal, tidak menunggu
+  // pengamanan API menyeluruh. Hanya dept HSE, HRGA, dan PJO yang boleh lewat.
+  const wajibIzinKesehatan = (req: any, res: any, next: any) => {
+    const u = (req.session as any)?.user;
+    if (!u) return res.status(401).json({ error: "Harus login" });
+    if (!canAccessHealthProfile(u.position, u.department)) {
+      console.warn(`[health-profile] AKSES DITOLAK: ${u.name} (${u.position} / ${u.department})`);
+      return res.status(403).json({ error: "Anda tidak memiliki akses ke data profil kesehatan" });
+    }
+    next();
+  };
+
+  // Upsert per (kategori, nama, periode) → impor ulang memperbarui, tidak menggandakan.
+  // employeeId & statusTaut TIDAK ditimpa agar penautan manual petugas tidak hilang.
+  async function simpanBarisKesehatan(baris: any[]): Promise<number> {
+    let n = 0;
+    for (const b of baris) {
+      const set: any = { ...b, updatedAt: new Date() };
+      delete set.employeeId; delete set.statusTaut;
+      await db.insert(mcuHealthMapping).values(b).onConflictDoUpdate({
+        target: [mcuHealthMapping.kategori, mcuHealthMapping.nama, mcuHealthMapping.periode],
+        set,
+      });
+      n++;
+    }
+    return n;
+  }
+
+  const BULAN_ID_URUT = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+  app.get("/api/mcu/health-mapping", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { kategori, tahun, bulan, search, status_taut } = req.query;
+      const cond: any[] = [];
+      if (kategori && kategori !== "all") cond.push(eq(mcuHealthMapping.kategori, kategori as string));
+      if (tahun && tahun !== "all") cond.push(eq(mcuHealthMapping.tahun, parseInt(tahun as string)));
+      if (bulan && bulan !== "all") cond.push(eq(mcuHealthMapping.bulan, bulan as string));
+      if (status_taut && status_taut !== "all") cond.push(eq(mcuHealthMapping.statusTaut, status_taut as string));
+      if (search) {
+        cond.push(or(
+          ilike(mcuHealthMapping.nama, `%${search}%`),
+          ilike(mcuHealthMapping.kesimpulan, `%${search}%`),
+          ilike(mcuHealthMapping.posisiSumber, `%${search}%`),
+        ));
+      }
+      const where = cond.length ? and(...cond) : undefined;
+
+      // Identitas ditampilkan dari master karyawan bila sudah tertaut (lebih tepercaya
+      // daripada kolom Excel yang banyak berisi "-"), selain itu pakai data Excel.
+      const rows = await db.select({
+        id: mcuHealthMapping.id,
+        kategori: mcuHealthMapping.kategori,
+        bulan: mcuHealthMapping.bulan,
+        tahun: mcuHealthMapping.tahun,
+        periode: mcuHealthMapping.periode,
+        nama: mcuHealthMapping.nama,
+        jenisKelamin: mcuHealthMapping.jenisKelamin,
+        tanggalLahir: mcuHealthMapping.tanggalLahir,
+        nilai: mcuHealthMapping.nilai,
+        kesimpulan: mcuHealthMapping.kesimpulan,
+        tindakLanjut: mcuHealthMapping.tindakLanjut,
+        statusTaut: mcuHealthMapping.statusTaut,
+        employeeId: mcuHealthMapping.employeeId,
+        empNama: employees.name,
+        empNik: employees.id,
+        empFoto: employees.photoUrl,
+        empDept: employees.department,
+        empPosisi: employees.position,
+        departemenSumber: mcuHealthMapping.departemenSumber,
+        posisiSumber: mcuHealthMapping.posisiSumber,
+      })
+        .from(mcuHealthMapping)
+        .leftJoin(employees, eq(employees.id, mcuHealthMapping.employeeId))
+        .where(where)
+        .orderBy(desc(mcuHealthMapping.periode), asc(mcuHealthMapping.nama))
+        .limit(3000);
+
+      res.json({ data: rows, total: rows.length });
+    } catch (error) {
+      console.error("Error health-mapping list:", error);
+      res.status(500).json({ error: "Gagal mengambil data profil kesehatan" });
+    }
+  });
+
+  app.get("/api/mcu/health-mapping/summary", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { tahun } = req.query;
+      const filterTahun = tahun && tahun !== "all" ? eq(mcuHealthMapping.tahun, parseInt(tahun as string)) : undefined;
+
+      const perKategori = await db.select({
+        kategori: mcuHealthMapping.kategori,
+        jumlah: sql<number>`count(*)`,
+        orang: sql<number>`count(distinct ${mcuHealthMapping.nama})`,
+      }).from(mcuHealthMapping).where(filterTahun).groupBy(mcuHealthMapping.kategori);
+
+      const tren = await db.select({
+        tahun: mcuHealthMapping.tahun,
+        bulan: mcuHealthMapping.bulan,
+        periode: mcuHealthMapping.periode,
+        jumlah: sql<number>`count(*)`,
+      }).from(mcuHealthMapping).where(filterTahun)
+        .groupBy(mcuHealthMapping.tahun, mcuHealthMapping.bulan, mcuHealthMapping.periode)
+        .orderBy(asc(mcuHealthMapping.periode));
+
+      const taut = await db.select({
+        status: mcuHealthMapping.statusTaut,
+        jumlah: sql<number>`count(*)`,
+      }).from(mcuHealthMapping).groupBy(mcuHealthMapping.statusTaut);
+
+      const tahunAda = await db.selectDistinct({ tahun: mcuHealthMapping.tahun }).from(mcuHealthMapping);
+
+      res.json({
+        perKategori: perKategori.map(k => ({ ...k, jumlah: Number(k.jumlah), orang: Number(k.orang) }))
+          .sort((a, b) => b.jumlah - a.jumlah),
+        tren: tren.map(t => ({ ...t, jumlah: Number(t.jumlah), label: `${(t.bulan || "").slice(0, 3)} ${t.tahun}` })),
+        taut: Object.fromEntries(taut.map(t => [t.status, Number(t.jumlah)])),
+        tahunTersedia: tahunAda.map(t => t.tahun).filter(Boolean).sort(),
+      });
+    } catch (error) {
+      console.error("Error health-mapping summary:", error);
+      res.status(500).json({ error: "Gagal mengambil ringkasan" });
+    }
+  });
+
+  // Daftar orang yang belum tertaut ke master karyawan + saran nama mirip.
+  app.get("/api/mcu/health-mapping/unlinked", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const belum = await db.select({
+        nama: mcuHealthMapping.nama,
+        tanggalLahir: mcuHealthMapping.tanggalLahir,
+        posisiSumber: mcuHealthMapping.posisiSumber,
+        jumlah: sql<number>`count(*)`,
+      }).from(mcuHealthMapping)
+        .where(inArray(mcuHealthMapping.statusTaut, ["BELUM", "PERLU_KONFIRMASI"]))
+        .groupBy(mcuHealthMapping.nama, mcuHealthMapping.tanggalLahir, mcuHealthMapping.posisiSumber)
+        .orderBy(asc(mcuHealthMapping.nama));
+
+      const semuaKaryawan = await storage.getAllEmployees();
+      const potong = (s: string) => String(s || "").toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter(Boolean);
+
+      const hasil = belum.map(b => {
+        const kataB = potong(b.nama);
+        // Saran = karyawan dgn kata nama yang beririsan paling banyak (tanpa menebak otomatis).
+        const saran = semuaKaryawan.map((e: any) => {
+          const kataE = potong(e.name);
+          const sama = kataB.filter(w => kataE.some(x => x === w || (w.length > 3 && x.startsWith(w.slice(0, 4))))).length;
+          return { id: e.id, nama: e.name, posisi: e.position, dept: e.department, skor: sama };
+        }).filter(s => s.skor > 0).sort((a, b2) => b2.skor - a.skor).slice(0, 5);
+        return { ...b, jumlah: Number(b.jumlah), saran };
+      });
+
+      res.json({ data: hasil, total: hasil.length });
+    } catch (error) {
+      console.error("Error health-mapping unlinked:", error);
+      res.status(500).json({ error: "Gagal mengambil daftar belum tertaut" });
+    }
+  });
+
+  // Impor 14 sheet mapping penyakit sekaligus. Logika baca+taut ada di
+  // server/lib/mcu-health-import.ts agar bisa diuji terpisah dari HTTP.
+  app.post("/api/mcu/health-mapping/import", wajibIzinKesehatan, upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "Tidak ada file yang diupload" });
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const wb = XLSX.readFile(req.file.path, { cellDates: true });
+
+      const { bacaWorkbookKesehatan } = await import("./lib/mcu-health-import");
+      const karyawan = await storage.getAllEmployees();
+      const { baris, perKategori, sheetDilewati } = bacaWorkbookKesehatan(XLSX, wb, karyawan as any[]);
+
+      const masuk = await simpanBarisKesehatan(baris);
+      fs.unlink(req.file.path, () => { });
+      res.json({ success: true, imported: masuk, perKategori, sheetDilewati });
+    } catch (error: any) {
+      console.error("Import health-mapping error:", error);
+      res.status(500).json({ error: "Gagal memproses file: " + error.message });
+    }
+  });
+
+  // Export ke Excel dengan bentuk yang SAMA dengan file sumber: satu sheet per
+  // kategori, baris judul "DATABASE & MAPPING", lalu header
+  // No. | Bulan | Tahun | Nama | JK | TTL | Department | Posisi | <nilai...> | KESIMPULAN | Tindak Lanjut
+  app.get("/api/mcu/health-mapping/export", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { tahun } = req.query;
+      const filter = tahun && tahun !== "all" ? eq(mcuHealthMapping.tahun, parseInt(tahun as string)) : undefined;
+
+      const semua = await db.select({
+        kategori: mcuHealthMapping.kategori, bulan: mcuHealthMapping.bulan, tahun: mcuHealthMapping.tahun,
+        periode: mcuHealthMapping.periode, nama: mcuHealthMapping.nama,
+        jenisKelamin: mcuHealthMapping.jenisKelamin, tanggalLahir: mcuHealthMapping.tanggalLahir,
+        departemenSumber: mcuHealthMapping.departemenSumber, posisiSumber: mcuHealthMapping.posisiSumber,
+        nilai: mcuHealthMapping.nilai, kesimpulan: mcuHealthMapping.kesimpulan,
+        tindakLanjut: mcuHealthMapping.tindakLanjut,
+        empNama: employees.name, empDept: employees.department, empPosisi: employees.position,
+      })
+        .from(mcuHealthMapping)
+        .leftJoin(employees, eq(employees.id, mcuHealthMapping.employeeId))
+        .where(filter)
+        .orderBy(asc(mcuHealthMapping.kategori), asc(mcuHealthMapping.periode), asc(mcuHealthMapping.nama));
+
+      const ExcelJS = (await import("exceljs")).default as any;
+      const { buatWorkbookKesehatan } = await import("./lib/mcu-health-export");
+      const wb = await buatWorkbookKesehatan(ExcelJS, semua as any[]);
+
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition",
+        `attachment; filename="Database_Mapping_Profil_Kesehatan_${new Date().toISOString().slice(0, 10)}.xlsx"`);
+      res.send(Buffer.from(buf));
+    } catch (error: any) {
+      console.error("Export health-mapping error:", error);
+      res.status(500).json({ error: "Gagal mengekspor data" });
+    }
+  });
+
+  // Nama-nama kolom nilai yang sudah pernah dipakai per kategori — dipakai form
+  // "Tambah Catatan" agar isiannya sesuai kategori (HT minta sistol/diastol, DM minta HbA1c, dst).
+  app.get("/api/mcu/health-mapping/fields", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const rows = await db.select({ kategori: mcuHealthMapping.kategori, nilai: mcuHealthMapping.nilai })
+        .from(mcuHealthMapping).where(isNotNull(mcuHealthMapping.nilai)).limit(3000);
+      const peta: Record<string, string[]> = {};
+      for (const r of rows) {
+        const set = (peta[r.kategori] ||= []);
+        for (const k of Object.keys(r.nilai || {})) if (!set.includes(k)) set.push(k);
+      }
+      res.json(peta);
+    } catch (error) {
+      res.status(500).json({ error: "Gagal mengambil daftar field" });
+    }
+  });
+
+  // Riwayat kesehatan lengkap satu karyawan (lintas kategori & periode).
+  app.get("/api/mcu/health-mapping/riwayat", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { employeeId, nama } = req.query;
+      if (!employeeId && !nama) return res.status(400).json({ error: "employeeId atau nama wajib" });
+
+      const rows = await db.select().from(mcuHealthMapping)
+        .where(employeeId
+          ? eq(mcuHealthMapping.employeeId, employeeId as string)
+          : eq(mcuHealthMapping.nama, nama as string))
+        .orderBy(desc(mcuHealthMapping.periode));
+
+      let karyawan: any = null;
+      if (employeeId) {
+        const [e] = await db.select().from(employees).where(eq(employees.id, employeeId as string)).limit(1);
+        if (e) karyawan = {
+          id: e.id, nama: e.name, posisi: e.position, departemen: e.department,
+          foto: e.photoUrl, dob: e.dob, noLambung: e.nomorLambung, status: e.status,
+        };
+      }
+      const kategoriUnik = Array.from(new Set(rows.map(r => r.kategori)));
+      res.json({ karyawan, namaSumber: rows[0]?.nama ?? nama, data: rows, kategori: kategoriUnik, total: rows.length });
+    } catch (error) {
+      console.error("Error health riwayat:", error);
+      res.status(500).json({ error: "Gagal mengambil riwayat kesehatan" });
+    }
+  });
+
+  app.post("/api/mcu/health-mapping", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const data = insertMcuHealthMappingSchema.parse(req.body);
+      // periode diturunkan dari bulan+tahun agar konsisten dgn data hasil impor
+      const bulanIdx = BULAN_ID_URUT.findIndex(b => b.toLowerCase() === String(data.bulan || "").toLowerCase());
+      const periode = (data.tahun && bulanIdx > -1) ? new Date(Date.UTC(data.tahun, bulanIdx, 1)) : (data.periode ?? null);
+      const [created] = await db.insert(mcuHealthMapping)
+        .values({ ...data, periode } as any).returning();
+      res.status(201).json(created);
+    } catch (error: any) {
+      if (String(error?.message || "").includes("UQ_mcu_health_baris")) {
+        return res.status(409).json({ error: "Catatan untuk orang, kategori, dan periode ini sudah ada" });
+      }
+      res.status(400).json({ error: error.message || "Data tidak valid" });
+    }
+  });
+
+  app.put("/api/mcu/health-mapping/:id", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const data = insertMcuHealthMappingSchema.partial().parse(req.body);
+      const [updated] = await db.update(mcuHealthMapping)
+        .set({ ...data, updatedAt: new Date() } as any)
+        .where(eq(mcuHealthMapping.id, req.params.id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Data tidak valid" });
+    }
+  });
+
+  app.delete("/api/mcu/health-mapping/:id", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const [d] = await db.delete(mcuHealthMapping)
+        .where(eq(mcuHealthMapping.id, req.params.id)).returning();
+      if (!d) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json({ message: "Catatan dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal menghapus" });
+    }
+  });
+
+  // Tautkan manual: SEMUA baris atas nama tsb ditautkan sekaligus (satu orang bisa
+  // muncul di banyak kategori & periode).
+  app.post("/api/mcu/health-mapping/link", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { nama, employeeId } = req.body || {};
+      if (!nama || !employeeId) return res.status(400).json({ error: "nama & employeeId wajib" });
+      const [emp] = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
+      if (!emp) return res.status(404).json({ error: "Karyawan tidak ditemukan" });
+
+      const hasil = await db.update(mcuHealthMapping)
+        .set({ employeeId, statusTaut: "MANUAL", updatedAt: new Date() })
+        .where(eq(mcuHealthMapping.nama, nama)).returning({ id: mcuHealthMapping.id });
+      res.json({ message: `${hasil.length} catatan ditautkan ke ${emp.name}`, jumlah: hasil.length });
+    } catch (error) {
+      console.error("Error health-mapping link:", error);
+      res.status(500).json({ error: "Gagal menautkan" });
+    }
+  });
+
+  // ============================================================
+  // INDIKATOR KESEHATAN K3 — register kejadian sakit + MFR/SSR/ASR/CMR
+  // Akses memakai penjaga yang sama dengan Profil Kesehatan.
+  // ============================================================
+
+  // Ambil setting tahun (buat default bila belum ada) — faktor & threshold.
+  async function settingTahun(tahun: number) {
+    const [ada] = await db.select().from(healthIndicatorSetting)
+      .where(eq(healthIndicatorSetting.tahun, tahun)).limit(1);
+    if (ada) return ada;
+    const [baru] = await db.insert(healthIndicatorSetting).values({ tahun }).returning();
+    return baru;
+  }
+
+  app.get("/api/health/sick-register", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { tahun, bulan, jenis, search } = req.query;
+      const cond: any[] = [];
+      if (tahun && tahun !== "all") cond.push(eq(healthSickRegister.tahun, parseInt(tahun as string)));
+      if (bulan && bulan !== "all") cond.push(eq(healthSickRegister.bulan, parseInt(bulan as string)));
+      if (jenis && jenis !== "all") cond.push(eq(healthSickRegister.jenisKejadian, jenis as string));
+      if (search) {
+        cond.push(or(
+          ilike(healthSickRegister.namaDriver, `%${search}%`),
+          ilike(healthSickRegister.diagnosa, `%${search}%`),
+          ilike(healthSickRegister.nik, `%${search}%`),
+        ));
+      }
+      const rows = await db.select({
+        id: healthSickRegister.id, tanggal: healthSickRegister.tanggal,
+        bulan: healthSickRegister.bulan, tahun: healthSickRegister.tahun,
+        employeeId: healthSickRegister.employeeId, namaDriver: healthSickRegister.namaDriver,
+        nik: healthSickRegister.nik, unitPool: healthSickRegister.unitPool,
+        jenisKejadian: healthSickRegister.jenisKejadian, diagnosa: healthSickRegister.diagnosa,
+        tglMulaiTidakMasuk: healthSickRegister.tglMulaiTidakMasuk,
+        tglMasukKembali: healthSickRegister.tglMasukKembali,
+        hariHilang: healthSickRegister.hariHilang, statusPerawatan: healthSickRegister.statusPerawatan,
+        tindakLanjut: healthSickRegister.tindakLanjut,
+        empFoto: employees.photoUrl, empPosisi: employees.position,
+      })
+        .from(healthSickRegister)
+        .leftJoin(employees, eq(employees.id, healthSickRegister.employeeId))
+        .where(cond.length ? and(...cond) : undefined)
+        .orderBy(desc(healthSickRegister.tanggal))
+        .limit(2000);
+      res.json({ data: rows, total: rows.length });
+    } catch (error) {
+      console.error("Error sick-register list:", error);
+      res.status(500).json({ error: "Gagal mengambil register" });
+    }
+  });
+
+  // Turunkan bulan/tahun dari tanggal kejadian — di template Excel kolom "Bln"
+  // salah hitung (Januari tercatat sebagai Juli), jadi TIDAK ditiru.
+  const periodeDariTanggal = (t: any) => {
+    const d = t ? new Date(t) : null;
+    return d && !isNaN(d.getTime())
+      ? { bulan: d.getUTCMonth() + 1, tahun: d.getUTCFullYear() }
+      : { bulan: null, tahun: null };
+  };
+
+  app.post("/api/health/sick-register", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const data = insertHealthSickRegisterSchema.parse(req.body);
+      const p = periodeDariTanggal(data.tanggal);
+      const [created] = await db.insert(healthSickRegister)
+        .values({ ...data, bulan: p.bulan, tahun: p.tahun } as any).returning();
+      res.status(201).json(created);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Data tidak valid" });
+    }
+  });
+
+  app.put("/api/health/sick-register/:id", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const data = insertHealthSickRegisterSchema.partial().parse(req.body);
+      const patch: any = { ...data, updatedAt: new Date() };
+      if (data.tanggal) {
+        const p = periodeDariTanggal(data.tanggal);
+        patch.bulan = p.bulan; patch.tahun = p.tahun;
+      }
+      const [updated] = await db.update(healthSickRegister).set(patch)
+        .where(eq(healthSickRegister.id, req.params.id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Data tidak valid" });
+    }
+  });
+
+  app.delete("/api/health/sick-register/:id", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const [d] = await db.delete(healthSickRegister)
+        .where(eq(healthSickRegister.id, req.params.id)).returning();
+      if (!d) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json({ message: "Kejadian dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal menghapus" });
+    }
+  });
+
+  // Papan indikator: hitungan per bulan + YTD, mengikuti rumus di Excel sumber.
+  app.get("/api/health/indicators", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const tahun = parseInt(String(req.query.tahun || new Date().getFullYear()));
+      const { hitungIndikator, isKecelakaan } = await import("@shared/health-ref");
+
+      const setting = await settingTahun(tahun);
+      const mh = await db.select().from(healthManhours).where(eq(healthManhours.tahun, tahun));
+      const kejadian = await db.select().from(healthSickRegister).where(eq(healthSickRegister.tahun, tahun));
+
+      const perBulan = Array.from({ length: 12 }, (_, i) => {
+        const bln = i + 1;
+        const isi = kejadian.filter(k => k.bulan === bln);
+        const sakit = isi.filter(k => !isKecelakaan(k.jenisKejadian));
+        const kecelakaan = isi.filter(k => isKecelakaan(k.jenisKejadian));
+        const jam = mh.find(m => m.bulan === bln);
+        const dasar = {
+          kasusSakit: sakit.length,
+          hariHilangSakit: sakit.reduce((a, k) => a + (k.hariHilang || 0), 0),
+          hariHilangKecelakaan: kecelakaan.reduce((a, k) => a + (k.hariHilang || 0), 0),
+          jamKerja: jam?.totalJamKerja || 0,
+          tenagaKerja: jam?.jumlahTenagaKerja || 0,
+          faktor: setting.faktorPengali,
+        };
+        return { bulan: bln, ...dasar, ...hitungIndikator(dasar) };
+      });
+
+      // YTD memakai TOTAL kasus & TOTAL jam kerja setahun (bukan rata-rata bulanan),
+      // sama seperti kolom YTD di Excel.
+      const totalDasar = {
+        kasusSakit: perBulan.reduce((a, b) => a + b.kasusSakit, 0),
+        hariHilangSakit: perBulan.reduce((a, b) => a + b.hariHilangSakit, 0),
+        hariHilangKecelakaan: perBulan.reduce((a, b) => a + b.hariHilangKecelakaan, 0),
+        jamKerja: perBulan.reduce((a, b) => a + b.jamKerja, 0),
+        // Tenaga kerja YTD = angka terakhir yang terisi (jumlah orang, bukan akumulasi).
+        tenagaKerja: [...perBulan].reverse().find(b => b.tenagaKerja > 0)?.tenagaKerja || 0,
+        faktor: setting.faktorPengali,
+      };
+      const ytd = { ...totalDasar, ...hitungIndikator(totalDasar) };
+
+      const tahunAda = await db.selectDistinct({ tahun: healthSickRegister.tahun }).from(healthSickRegister);
+      res.json({
+        tahun, setting, perBulan, ytd,
+        tahunTersedia: Array.from(new Set([...tahunAda.map(t => t.tahun).filter(Boolean), tahun])).sort(),
+      });
+    } catch (error) {
+      console.error("Error indicators:", error);
+      res.status(500).json({ error: "Gagal menghitung indikator" });
+    }
+  });
+
+  app.put("/api/health/indicators/setting", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { tahun, faktorPengali, thresholdMfr, thresholdSsr, thresholdAsr, thresholdCmr } = req.body || {};
+      if (!tahun) return res.status(400).json({ error: "tahun wajib" });
+      await settingTahun(parseInt(tahun));
+      const [updated] = await db.update(healthIndicatorSetting).set({
+        ...(faktorPengali != null ? { faktorPengali: Number(faktorPengali) } : {}),
+        ...(thresholdMfr != null ? { thresholdMfr: Number(thresholdMfr) } : {}),
+        ...(thresholdSsr != null ? { thresholdSsr: Number(thresholdSsr) } : {}),
+        ...(thresholdAsr != null ? { thresholdAsr: Number(thresholdAsr) } : {}),
+        ...(thresholdCmr != null ? { thresholdCmr: Number(thresholdCmr) } : {}),
+        updatedAt: new Date(),
+      }).where(eq(healthIndicatorSetting.tahun, parseInt(tahun))).returning();
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Gagal menyimpan setting" });
+    }
+  });
+
+  // Simpan man-hours sekaligus 12 bulan.
+  app.put("/api/health/manhours", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { tahun, data } = req.body || {};
+      if (!tahun || !Array.isArray(data)) return res.status(400).json({ error: "tahun & data wajib" });
+      for (const d of data) {
+        const bulan = parseInt(d.bulan);
+        if (!bulan || bulan < 1 || bulan > 12) continue;
+        const nilai = {
+          tahun: parseInt(tahun), bulan,
+          totalJamKerja: Number(d.totalJamKerja) || 0,
+          jumlahTenagaKerja: parseInt(d.jumlahTenagaKerja) || 0,
+          updatedAt: new Date(),
+        };
+        await db.insert(healthManhours).values(nilai).onConflictDoUpdate({
+          target: [healthManhours.tahun, healthManhours.bulan],
+          set: { totalJamKerja: nilai.totalJamKerja, jumlahTenagaKerja: nilai.jumlahTenagaKerja, updatedAt: new Date() },
+        });
+      }
+      const hasil = await db.select().from(healthManhours)
+        .where(eq(healthManhours.tahun, parseInt(tahun))).orderBy(asc(healthManhours.bulan));
+      res.json({ message: "Man-hours tersimpan", data: hasil });
+    } catch (error: any) {
+      console.error("Error manhours:", error);
+      res.status(500).json({ error: "Gagal menyimpan man-hours" });
+    }
+  });
+
+  // Rekap diagnosa (top diseases) YTD.
+  app.get("/api/health/diagnosa", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const tahun = parseInt(String(req.query.tahun || new Date().getFullYear()));
+      const rows = await db.select({
+        diagnosa: healthSickRegister.diagnosa, jumlah: sql<number>`count(*)`,
+      }).from(healthSickRegister)
+        .where(and(eq(healthSickRegister.tahun, tahun), isNotNull(healthSickRegister.diagnosa)))
+        .groupBy(healthSickRegister.diagnosa);
+
+      const { DAFTAR_DIAGNOSA } = await import("@shared/health-ref");
+      const peta = new Map(rows.map(r => [String(r.diagnosa), Number(r.jumlah)]));
+      // Tampilkan seluruh daftar referensi (walau 0) + diagnosa lain yg muncul di data.
+      const daftar = [
+        ...DAFTAR_DIAGNOSA.map(d => ({ diagnosa: d, jumlah: peta.get(d) || 0 })),
+        ...rows.filter(r => !DAFTAR_DIAGNOSA.includes(String(r.diagnosa) as any))
+          .map(r => ({ diagnosa: String(r.diagnosa), jumlah: Number(r.jumlah) })),
+      ];
+      res.json({ data: daftar, total: daftar.reduce((a, d) => a + d.jumlah, 0) });
+    } catch (error) {
+      console.error("Error rekap diagnosa:", error);
+      res.status(500).json({ error: "Gagal mengambil rekap diagnosa" });
+    }
+  });
+
+  // ============================================================
+  // SPIP — PERALATAN TIDAK BERGERAK (jack, compressor, impact, dll)
+  // ============================================================
+
+  // Pecah SWL "200 Psi" → { nilai: 200, satuan: "Psi" } agar bisa disortir/difilter.
+  const parseSwl = (val: any): { nilai: number | null; satuan: string | null } => {
+    const s = val == null ? "" : String(val).trim();
+    if (!s) return { nilai: null, satuan: null };
+    const m = s.match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+    if (!m) return { nilai: null, satuan: s };
+    return { nilai: parseFloat(m[1].replace(",", ".")), satuan: m[2].trim() || null };
+  };
+
+  app.get("/api/spip/peralatan/tidak-bergerak", async (req, res) => {
+    try {
+      const { search, jenis_alat, area_lokasi, status, page = "1", limit = "1000" } = req.query;
+      const pageNum = Math.max(1, parseInt(page as string) || 1);
+      const limitNum = Math.min(2000, Math.max(1, parseInt(limit as string) || 1000));
+
+      const conditions: any[] = [];
+      if (search) {
+        conditions.push(or(
+          ilike(spipPeralatanTidakBergerak.noRegistrasi, `%${search}%`),
+          ilike(spipPeralatanTidakBergerak.jenisAlat, `%${search}%`),
+          ilike(spipPeralatanTidakBergerak.areaLokasi, `%${search}%`),
+          ilike(spipPeralatanTidakBergerak.pic, `%${search}%`),
+        ));
+      }
+      if (jenis_alat && jenis_alat !== "all") conditions.push(eq(spipPeralatanTidakBergerak.jenisAlat, jenis_alat as string));
+      if (area_lokasi && area_lokasi !== "all") conditions.push(eq(spipPeralatanTidakBergerak.areaLokasi, area_lokasi as string));
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (status === "EXPIRED") {
+        conditions.push(or(isNull(spipPeralatanTidakBergerak.expSertifikat), lt(spipPeralatanTidakBergerak.expSertifikat, today)));
+      } else if (status === "AKTIF") {
+        conditions.push(and(isNotNull(spipPeralatanTidakBergerak.expSertifikat), gte(spipPeralatanTidakBergerak.expSertifikat, today)));
+      }
+      const where = conditions.length ? and(...conditions) : undefined;
+
+      const items = await db.select().from(spipPeralatanTidakBergerak)
+        .where(where)
+        .limit(limitNum).offset((pageNum - 1) * limitNum)
+        .orderBy(asc(spipPeralatanTidakBergerak.jenisAlat), asc(spipPeralatanTidakBergerak.noRegistrasi));
+
+      const totalRes = await db.select({ count: sql<number>`count(*)` }).from(spipPeralatanTidakBergerak).where(where);
+      const total = Number(totalRes[0]?.count || 0);
+
+      // Opsi filter (seluruh tabel, bukan hanya halaman ini)
+      const opsi = await db.selectDistinct({ jenis: spipPeralatanTidakBergerak.jenisAlat, area: spipPeralatanTidakBergerak.areaLokasi })
+        .from(spipPeralatanTidakBergerak);
+
+      res.json({
+        data: items,
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        filters: {
+          jenisAlat: Array.from(new Set(opsi.map(o => o.jenis).filter(Boolean))).sort(),
+          areaLokasi: Array.from(new Set(opsi.map(o => o.area).filter(Boolean))).sort(),
+        },
+      });
+    } catch (error) {
+      console.error("Error fetching SPIP peralatan tidak bergerak:", error);
+      res.status(500).json({ error: "Gagal mengambil data peralatan tidak bergerak" });
+    }
+  });
+
+  app.get("/api/spip/peralatan/tidak-bergerak/export", async (req, res) => {
+    try {
+      const items = await db.select().from(spipPeralatanTidakBergerak)
+        .orderBy(asc(spipPeralatanTidakBergerak.jenisAlat), asc(spipPeralatanTidakBergerak.noRegistrasi));
+
+      // exceljs = modul CommonJS: kelasnya ada di .default, bukan di namespace.
+      const ExcelJS = (await import("exceljs")).default as any;
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("PERALATAN TDK BERGERAK");
+      ws.columns = [
+        { header: "NO", key: "no", width: 6 },
+        { header: "JENIS", key: "jenisAlat", width: 22 },
+        { header: "No. Reg", key: "noRegistrasi", width: 14 },
+        { header: "PIC", key: "pic", width: 30 },
+        { header: "AREA", key: "areaLokasi", width: 20 },
+        { header: "SWL", key: "swl", width: 14 },
+        { header: "TANGGAL SERTIFIKASI", key: "tglSertifikat", width: 20 },
+        { header: "EXPIRED SERTIFIKASI", key: "expSertifikat", width: 20 },
+        { header: "EVIDENCE", key: "evidenceUrl", width: 30 },
+        { header: "KETERANGAN", key: "keterangan", width: 24 },
+      ];
+      ws.getRow(1).font = { bold: true };
+      const tgl = (d: any) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+      items.forEach((it, i) => ws.addRow({
+        ...it, no: it.no ?? i + 1,
+        tglSertifikat: tgl(it.tglSertifikat), expSertifikat: tgl(it.expSertifikat),
+      }));
+
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="Peralatan_Tidak_Bergerak_${new Date().toISOString().slice(0, 10)}.xlsx"`);
+      res.send(Buffer.from(buf));
+    } catch (error: any) {
+      console.error("Export peralatan tidak bergerak error:", error);
+      res.status(500).json({ error: "Gagal mengekspor data" });
+    }
+  });
+
+  app.post("/api/spip/peralatan/tidak-bergerak/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "Tidak ada file yang diupload" });
+
+      const xlsxModule = await import("xlsx");
+      const XLSX = xlsxModule.default || xlsxModule;
+      const workbook = XLSX.readFile(req.file.path);
+      const sheetName = workbook.SheetNames.find(n => n.toUpperCase().includes("PERALATAN")) || workbook.SheetNames[0];
+      const rows: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+
+      // Header dicari (bukan diasumsikan di baris tertentu) — file asli memakai baris 5.
+      const norm = (v: any) => String(v ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+      const headerIdx = rows.findIndex(r => Array.isArray(r) && r.some(c => norm(c) === "JENIS") && r.some(c => norm(c).startsWith("NO. REG")));
+      if (headerIdx === -1) {
+        fs.unlink(req.file.path, () => { });
+        return res.status(400).json({ error: "Header tidak ditemukan (butuh kolom JENIS dan No. Reg)" });
+      }
+      const header = rows[headerIdx].map(norm);
+      const col = (...names: string[]) => header.findIndex((h: string) => names.some(n => h === n || h.startsWith(n)));
+      const iNo = col("NO"), iJenis = col("JENIS"), iReg = col("NO. REG"), iPic = col("PIC"),
+        iArea = col("AREA"), iSwl = col("SWL"), iTgl = col("TANGGAL SERTIFIKASI"), iExp = col("EXPIRED SERTIFIKASI"),
+        iKet = col("KETERANGAN");
+
+      // Tanggal di file ini bisa berupa: serial Excel, objek tanggal, "25/12/2025",
+      // atau TEKS berbahasa Indonesia ("25 Des 2025") — yang terakhir gagal di new Date().
+      const BULAN_ID: Record<string, number> = {
+        jan: 1, feb: 2, peb: 2, mar: 3, apr: 4, mei: 5, jun: 6, jul: 7,
+        agu: 8, ags: 8, agt: 8, sep: 9, okt: 10, nov: 11, des: 12,
+      };
+      const parseDate = (val: any): Date | null => {
+        if (val == null || val === "" || val === "-") return null;
+        if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+        if (typeof val === "number") return new Date(Math.round((val - 25569) * 86400 * 1000));
+        const s = String(val).trim();
+        // Pakai UTC (bukan waktu lokal) agar sama dgn tanggal bawaan Excel — kalau
+        // tidak, tanggal bergeser mundur 1 hari saat disimpan.
+        let m = s.match(/^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})$/);           // 25 Des 2025
+        if (m) {
+          const bln = BULAN_ID[m[2].slice(0, 3).toLowerCase()];
+          if (bln) return new Date(Date.UTC(+m[3], bln - 1, +m[1]));
+        }
+        m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);              // 25/12/2025
+        if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+        const d = new Date(s);
+        return isNaN(d.getTime()) ? null : d;
+      };
+
+      const parsed: any[] = [];
+      let dilewati = 0;
+      for (const row of rows.slice(headerIdx + 1)) {
+        const reg = String(row[iReg] ?? "").trim();
+        const jenis = String(row[iJenis] ?? "").trim();
+        if (!reg || !jenis) { dilewati++; continue; }
+        const swlRaw = iSwl > -1 ? String(row[iSwl] ?? "").trim() : "";
+        const swl = parseSwl(swlRaw);
+        parsed.push({
+          no: parseInt(row[iNo]) || null,
+          jenisAlat: jenis,
+          noRegistrasi: reg,
+          pic: iPic > -1 ? String(row[iPic] ?? "").trim() || null : null,
+          areaLokasi: iArea > -1 ? String(row[iArea] ?? "").trim() || null : null,
+          swl: swlRaw || null,
+          nilaiSwl: swl.nilai,
+          satuanSwl: swl.satuan,
+          tglSertifikat: iTgl > -1 ? parseDate(row[iTgl]) : null,
+          expSertifikat: iExp > -1 ? parseDate(row[iExp]) : null,
+          keterangan: iKet > -1 ? String(row[iKet] ?? "").trim() || null : null,
+        });
+      }
+
+      // Upsert per no registrasi — impor ulang memperbarui, tidak menggandakan.
+      // evidenceUrl TIDAK disentuh agar foto yang sudah diunggah tak terhapus impor.
+      for (const row of parsed) {
+        await db.insert(spipPeralatanTidakBergerak).values(row).onConflictDoUpdate({
+          target: spipPeralatanTidakBergerak.noRegistrasi,
+          set: { ...row, updatedAt: new Date() },
+        });
+      }
+
+      fs.unlink(req.file.path, () => { });
+      res.json({ success: true, imported: parsed.length, skipped: dilewati });
+    } catch (error: any) {
+      console.error("Import peralatan tidak bergerak error:", error);
+      res.status(500).json({ error: "Gagal memproses file: " + error.message });
+    }
+  });
+
+  // Unggah foto evidence → disimpan di Postgres (tabel uploaded_files) seperti foto
+  // lain di aplikasi; yang tersimpan di kolom evidence_url hanyalah "/api/uploads/{id}".
+  const evidenceUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (/^image\//.test(file.mimetype)) return cb(null, true);
+      cb(new Error("Hanya file gambar yang diperbolehkan"));
+    },
+  });
+
+  app.post("/api/spip/peralatan/tidak-bergerak/:id/evidence", evidenceUpload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "Tidak ada foto yang diupload" });
+      const [alat] = await db.select().from(spipPeralatanTidakBergerak)
+        .where(eq(spipPeralatanTidakBergerak.id, req.params.id)).limit(1);
+      if (!alat) return res.status(404).json({ error: "Data tidak ditemukan" });
+
+      const { url } = await dbStorage.uploadFile(req.file);
+      const [updated] = await db.update(spipPeralatanTidakBergerak)
+        .set({ evidenceUrl: url, updatedAt: new Date() })
+        .where(eq(spipPeralatanTidakBergerak.id, req.params.id)).returning();
+      res.json({ evidenceUrl: url, item: updated });
+    } catch (error: any) {
+      console.error("Upload evidence peralatan tidak bergerak error:", error);
+      res.status(500).json({ error: error.message || "Gagal mengunggah foto" });
+    }
+  });
+
+  app.delete("/api/spip/peralatan/tidak-bergerak/:id/evidence", async (req, res) => {
+    try {
+      const [updated] = await db.update(spipPeralatanTidakBergerak)
+        .set({ evidenceUrl: null, updatedAt: new Date() })
+        .where(eq(spipPeralatanTidakBergerak.id, req.params.id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json({ message: "Foto evidence dihapus" });
+    } catch (error) {
+      res.status(500).json({ error: "Gagal menghapus foto" });
+    }
+  });
+
+  app.post("/api/spip/peralatan/tidak-bergerak", async (req, res) => {
+    try {
+      const { evidenceUrl: _abaikan, ...body } = req.body || {};
+      const data = insertSpipPeralatanTidakBergerakSchema.parse(body);
+      const swl = parseSwl((data as any).swl);
+      const [created] = await db.insert(spipPeralatanTidakBergerak)
+        .values({ ...data, nilaiSwl: swl.nilai, satuanSwl: swl.satuan }).returning();
+      res.status(201).json(created);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Data tidak valid" });
+    }
+  });
+
+  app.get("/api/spip/peralatan/tidak-bergerak/:id", async (req, res) => {
+    try {
+      const [item] = await db.select().from(spipPeralatanTidakBergerak)
+        .where(eq(spipPeralatanTidakBergerak.id, req.params.id)).limit(1);
+      if (!item) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(item);
+    } catch (error) {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.put("/api/spip/peralatan/tidak-bergerak/:id", async (req, res) => {
+    try {
+      // evidenceUrl SENGAJA diabaikan di sini — foto hanya boleh diubah lewat
+      // POST/DELETE .../:id/evidence. Tanpa ini, form yang memuat data basi bisa
+      // mengirim evidenceUrl kosong dan menghapus foto yang sudah diunggah.
+      const { evidenceUrl: _abaikan, ...body } = req.body || {};
+      const data = insertSpipPeralatanTidakBergerakSchema.partial().parse(body);
+      const patch: any = { ...data, updatedAt: new Date() };
+      if (data.swl !== undefined) {
+        const swl = parseSwl(data.swl);
+        patch.nilaiSwl = swl.nilai;
+        patch.satuanSwl = swl.satuan;
+      }
+      const [updated] = await db.update(spipPeralatanTidakBergerak).set(patch)
+        .where(eq(spipPeralatanTidakBergerak.id, req.params.id)).returning();
+      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Data tidak valid" });
+    }
+  });
+
+  app.delete("/api/spip/peralatan/tidak-bergerak/:id", async (req, res) => {
+    try {
+      const [deleted] = await db.delete(spipPeralatanTidakBergerak)
+        .where(eq(spipPeralatanTidakBergerak.id, req.params.id)).returning();
       if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
       res.json({ message: "Berhasil dihapus" });
     } catch (error) {

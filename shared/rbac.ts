@@ -59,6 +59,9 @@ export enum Permission {
   // Documents
   VIEW_DOCUMENTS = "VIEW_DOCUMENTS",
   MANAGE_DOCUMENTS = "MANAGE_DOCUMENTS",
+
+  // Profil Kesehatan (data medis MCU) — akses TERBATAS, lihat canAccessHealthProfile()
+  VIEW_HEALTH_PROFILE = "VIEW_HEALTH_PROFILE",
 }
 
 // Role to permissions mapping
@@ -168,9 +171,22 @@ export function getRoleFromPosition(position: string | null | undefined, departm
 }
 
 // Get permissions from position
+// Akses PROFIL KESEHATAN (data medis MCU: riwayat penyakit, hasil lab).
+// Sengaja TIDAK memakai Role — kalau ikut Role.ADMIN, Section Head Produksi/Plant
+// dan Admin HR ikut bisa membuka data medis. Hanya tiga pihak yang berhak
+// (keputusan pemilik data, Agu 2026): departemen HSE, departemen HRGA, dan PJO.
+const HEALTH_PROFILE_POSITIONS = ["project manager"]; // PJO
+export function canAccessHealthProfile(position?: string | null, department?: string | null): boolean {
+  const dept = (department || "").toUpperCase();
+  if (dept.includes("HSE") || dept.includes("HRGA")) return true;
+  return HEALTH_PROFILE_POSITIONS.includes((position || "").toLowerCase().trim());
+}
+
 export function getPermissionsFromPosition(position: string | null | undefined, department?: string | null): Permission[] {
   const role = getRoleFromPosition(position, department);
-  return ROLE_PERMISSIONS[role];
+  const izin = [...ROLE_PERMISSIONS[role]];
+  if (canAccessHealthProfile(position, department)) izin.push(Permission.VIEW_HEALTH_PROFILE);
+  return izin;
 }
 
 // Check if a role has a specific permission
@@ -197,7 +213,7 @@ export interface UserWithRole {
 // Create user with role from basic user data
 export function createUserWithRole(nik: string, name: string, position: string | null, department?: string | null): UserWithRole {
   const role = getRoleFromPosition(position, department);
-  const permissions = ROLE_PERMISSIONS[role];
+  const permissions = getPermissionsFromPosition(position, department);
 
   return {
     nik,

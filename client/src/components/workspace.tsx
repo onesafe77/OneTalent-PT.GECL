@@ -128,8 +128,6 @@ import SiAsefAdminPage from "@/pages/si-asef-admin";
 import SiAsefProjectsPage from "@/pages/si-asef-projects";
 import SiAsefArtifactsPage from "@/pages/si-asef-artifacts";
 import Announcements from "@/pages/announcements";
-import News from "@/pages/news";
-import NewsFeed from "@/pages/news-feed";
 import Documents from "@/pages/documents";
 import UsignDashboardPage from "@/pages/usign/DashboardPage";
 import UsignRequestPage from "@/pages/usign/RequestPage";
@@ -144,6 +142,8 @@ import BlastWhatsApp from "@/pages/blast-whatsapp";
 import ActivityCalendar from "@/pages/activity-calendar";
 import FmsDashboard from "@/pages/fms-dashboard";
 import McuPage from "@/pages/hse/mcu-page";
+import ProfilKesehatan from "@/pages/hse/profil-kesehatan";
+import IndikatorKesehatan from "@/pages/hse/indikator-kesehatan";
 import InductionAdmin from "@/pages/hse/induction-admin";
 import InductionQuiz from "@/pages/hse/induction-quiz";
 import SPIPPeralatan from "@/pages/hse/ko/spip/peralatan";
@@ -151,6 +151,7 @@ import SPIPPrasarana from "@/pages/hse/ko/spip/prasarana-list";
 import SPIPInstalasi from "@/pages/hse/ko/spip/instalasi-list";
 import { InstalasiFormPage, InstalasiViewPage } from "@/pages/hse/ko/spip/instalasi-detail-page";
 import SPIPPeralatanWorkshop from "@/pages/hse/ko/spip/peralatan-workshop-list";
+import SPIPPeralatanTidakBergerak from "@/pages/hse/ko/spip/peralatan-tidak-bergerak-list";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { MysticWidget } from "@/components/mystic/MysticWidget";
 import InvestorEvaluationPage from "@/pages/hse/investor-evaluation";
@@ -232,14 +233,14 @@ const workspaceRoutes = [
   { path: "/workspace/zero-harm/attendance-kpi", component: ZeroHarmAttendanceKpi, title: "Zero Harm — KPI Kehadiran" },
   { path: "/workspace/zero-harm/workbook", component: ZeroHarmWorkbook, title: "Zero Harm — Workbook (Excel)" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
+  { path: "/workspace/hse/profil-kesehatan", component: ProfilKesehatan, title: "Profil Kesehatan Karyawan" },
+  { path: "/workspace/hse/indikator-kesehatan", component: IndikatorKesehatan, title: "Indikator Kesehatan K3" },
   { path: "/workspace/evaluasi-driver", component: EvaluasiDriver, title: "Evaluasi Driver SIDAK Fatigue" },
   { path: "/workspace/hse/evaluasi-driver-fatigue", component: EvaluasiDriverFatigue, title: "Evaluasi Driver Fatigue" },
   { path: "/workspace/hse/evaluasi-roster", component: EvaluasiRoster, title: "Evaluasi SIDAK Roster" },
   { path: "/workspace/hse/supervisor-recordings", component: SupervisorRecordings, title: "Rekaman Pengawas SIDAK" },
   { path: "/workspace/hse/evaluasi-pvt", component: EvaluasiPvt, title: "Evaluasi Data PVT (Reaction Time)" },
   { path: "/workspace/announcements", component: Announcements, title: "Kelola Pengumuman" },
-  { path: "/workspace/news", component: News, title: "Kelola Berita" },
-  { path: "/workspace/news-feed", component: NewsFeed, title: "Berita Perusahaan" },
   { path: "/workspace/documents", component: Documents, title: "Dokumen Perusahaan" },
   { path: "/workspace/documents/kebijakan-kplh", component: Documents, title: "Dokumen - Kebijakan KPLH" },
   { path: "/workspace/documents/dept-hse", component: Documents, title: "Dokumen - Dept HSE" },
@@ -272,6 +273,7 @@ const workspaceRoutes = [
   { path: "/workspace/hse/ko/spip/prasarana", component: SPIPPrasarana, title: "SPIP - Sarana & Prasarana" },
   { path: "/workspace/hse/ko/spip/instalasi", component: SPIPInstalasi, title: "SPIP - Instalasi" },
   { path: "/workspace/hse/ko/spip/peralatan/bergerak", component: SPIPPeralatanWorkshop, title: "SPIP - Peralatan Bergerak" },
+  { path: "/workspace/hse/ko/spip/peralatan/tidak-bergerak", component: SPIPPeralatanTidakBergerak, title: "SPIP - Peralatan Tidak Bergerak" },
   { path: "/workspace/hse/investor-evaluation", component: InvestorEvaluationPage, title: "Evaluasi Investor Group" },
 
   // Restrukturisasi Document Control K3
@@ -507,12 +509,6 @@ export function Workspace() {
                   <Announcements />
                 </PermissionGuard>
               </Route>
-              <Route path="/workspace/news">
-                <PermissionGuard requiredPermissions={[Permission.MANAGE_EMPLOYEES]}>
-                  <News />
-                </PermissionGuard>
-              </Route>
-              <Route path="/workspace/news-feed" component={NewsFeed} />
               <Route path="/workspace/documents" component={Documents} />
               <Route path="/workspace/documents/:category" component={Documents} />
               <Route path="/workspace/driver-view" component={DriverView} />
@@ -585,10 +581,13 @@ export function Workspace() {
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/hse/mcu" component={McuPage} />
+              <Route path="/workspace/hse/profil-kesehatan" component={ProfilKesehatan} />
+              <Route path="/workspace/hse/indikator-kesehatan" component={IndikatorKesehatan} />
               <Route path="/workspace/hse/investor-evaluation" component={InvestorEvaluationPage} />
 
               <Route path="/workspace/hse/ko/spip/peralatan/tambah" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/bergerak" component={SPIPPeralatanWorkshop} />
+              <Route path="/workspace/hse/ko/spip/peralatan/tidak-bergerak" component={SPIPPeralatanTidakBergerak} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id/edit" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id" component={PeralatanViewPage} />
               <Route path="/workspace/hse/ko/spip/peralatan" component={SPIPPeralatan} />
