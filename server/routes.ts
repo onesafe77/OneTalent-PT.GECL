@@ -527,6 +527,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Unggah berkas umum. DIPAKAI halaman PUBLIK "Absensi Induksi" (petugas mengisi
+  // tanpa login), jadi sengaja tidak di balik penjaga sesi.
+  // Endpoint ini pernah hilang saat refactor — akibatnya POST /api/upload jatuh ke
+  // halaman SPA, membalas HTML 200, dan res.json() di sisi klien gagal dgn pesan
+  // membingungkan ("The string did not match the expected pattern" di Safari/iOS).
+  // Disimpan ke Postgres (bukan folder /uploads) karena disk Railway hilang tiap deploy.
+  const unggahUmum = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      const boleh = /^(image\/|application\/pdf)/.test(file.mimetype);
+      if (boleh) return cb(null, true);
+      cb(new Error("Hanya gambar atau PDF yang diperbolehkan"));
+    },
+  });
+
+  app.post("/api/upload", (req, res) => {
+    unggahUmum.single("file")(req, res, async (err: any) => {
+      // Error multer (ukuran/tipe) HARUS dibalas JSON — bukan dilempar ke handler
+      // error bawaan yang bisa mengembalikan HTML.
+      if (err) {
+        const pesan = err.code === "LIMIT_FILE_SIZE"
+          ? "Ukuran berkas melebihi 15 MB"
+          : err.message || "Berkas ditolak";
+        return res.status(400).json({ message: pesan });
+      }
+      try {
+        if (!req.file) return res.status(400).json({ message: "Tidak ada berkas yang diunggah" });
+        const { url } = await dbStorage.uploadFile(req.file);
+        res.json({ url, fileName: req.file.originalname });
+      } catch (error: any) {
+        console.error("Upload umum error:", error?.message || error);
+        res.status(500).json({ message: "Gagal menyimpan berkas" });
+      }
+    });
+  });
+
   // Serve uploaded files statically with absolute path
   app.use('/uploads', express.static(uploadsDir));
 

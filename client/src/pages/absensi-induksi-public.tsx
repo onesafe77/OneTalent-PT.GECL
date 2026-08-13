@@ -109,13 +109,37 @@ export default function AbsensiInduksiPublic() {
         },
     });
 
+    // Ubah data URL → Blob TANPA fetch(). Safari/iOS bermasalah mem-fetch data URL
+    // berukuran besar (selfie kamera bisa beberapa MB), jadi diurai manual.
+    const dataUrlKeBlob = (dataUrl: string): Blob => {
+        const pisah = dataUrl.indexOf(",");
+        if (pisah < 0) throw new Error("Format foto tidak dikenali, silakan foto ulang");
+        const kepala = dataUrl.slice(0, pisah);
+        const isi = dataUrl.slice(pisah + 1);
+        const mime = /:(.*?)[;,]/.exec(kepala)?.[1] || "application/octet-stream";
+        const biner = kepala.includes(";base64") ? atob(isi) : decodeURIComponent(isi);
+        const buf = new Uint8Array(biner.length);
+        for (let i = 0; i < biner.length; i++) buf[i] = biner.charCodeAt(i);
+        return new Blob([buf], { type: mime });
+    };
+
     const uploadDataUrl = async (dataUrl: string, fileName: string): Promise<string> => {
-        const blob = await (await fetch(dataUrl)).blob();
+        const blob = dataUrlKeBlob(dataUrl);
         const fd = new FormData();
         fd.append("file", blob, fileName);
+
         const res = await fetch("/api/upload", { method: "POST", body: fd });
-        if (!res.ok) throw new Error("Upload gagal");
-        const json = await res.json();
+        // Balasan bisa saja BUKAN JSON (mis. endpoint hilang → server membalas halaman
+        // HTML dgn status 200). Tanpa penjagaan ini, res.json() gagal dan Safari
+        // memunculkan pesan "The string did not match the expected pattern".
+        const tipe = res.headers.get("content-type") || "";
+        if (!tipe.includes("application/json")) {
+            throw new Error(`Server tidak merespons dengan benar (${res.status}). Coba lagi atau hubungi tim HSE.`);
+        }
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.url) {
+            throw new Error(json?.message || "Foto gagal diunggah, silakan coba lagi");
+        }
         return json.url as string;
     };
 
