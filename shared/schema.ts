@@ -1203,6 +1203,10 @@ export const safetyPatrolRawMessages = pgTable("safety_patrol_raw_messages", {
   rawPayload: jsonb("raw_payload"), // Full webhook payload
   messageTimestamp: timestamp("message_timestamp"), // WhatsApp message timestamp (from unixTimestamp)
   processed: boolean("processed").notNull().default(false),
+  // Alasan gagal bila pemrosesan melempar error. Webhook Telegram SELALU dibalas 200
+  // (agar Telegram tidak timeout), jadi tanpa kolom ini kegagalan hilang tanpa jejak
+  // dan pesan petugas lenyap permanen — persis kejadian 12-19 Agustus 2026.
+  errorMessage: text("error_message"),
   reportId: varchar("report_id").references(() => safetyPatrolReports.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [

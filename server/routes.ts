@@ -159,6 +159,7 @@ import {
   insertSpipPeralatanWorkshopSchema,
   spipPeralatanTidakBergerak,
   insertSpipPeralatanTidakBergerakSchema,
+  safetyPatrolRawMessages,
   mcuHealthMapping,
   insertMcuHealthMappingSchema,
   healthSickRegister,
@@ -13520,6 +13521,55 @@ Format sebagai bullet points singkat per insight.`;
     import("./services/telegram-bot")
       .then((m) => m.processTelegramUpdate(update))
       .catch((e) => console.error("[TelegramWebhook] process error:", e?.message || e));
+  });
+
+  // Pantau kesehatan penerimaan pesan Telegram: berapa masuk, berapa gagal, kapan terakhir.
+  // Dibuat setelah insiden 12-19 Agustus 2026 (8 hari laporan hilang tanpa jejak).
+  app.get("/api/safety-patrol/telegram-log", async (req, res) => {
+    try {
+      const hari = Math.min(90, Math.max(1, parseInt(String(req.query.days || "14"))));
+      const sejak = new Date(Date.now() - hari * 86400000);
+      const perHari = await db.select({
+        hari: sql<string>`to_char(${safetyPatrolRawMessages.createdAt} + interval '8 hour', 'YYYY-MM-DD')`,
+        masuk: sql<number>`count(*)`,
+        jadiLaporan: sql<number>`count(*) filter (where ${safetyPatrolRawMessages.reportId} is not null)`,
+        gagal: sql<number>`count(*) filter (where ${safetyPatrolRawMessages.errorMessage} is not null)`,
+      }).from(safetyPatrolRawMessages)
+        .where(gte(safetyPatrolRawMessages.createdAt, sejak))
+        .groupBy(sql`1`).orderBy(sql`1`);
+
+      const gagal = await db.select({
+        id: safetyPatrolRawMessages.id, senderName: safetyPatrolRawMessages.senderName,
+        content: safetyPatrolRawMessages.content, errorMessage: safetyPatrolRawMessages.errorMessage,
+        createdAt: safetyPatrolRawMessages.createdAt,
+      }).from(safetyPatrolRawMessages)
+        .where(and(gte(safetyPatrolRawMessages.createdAt, sejak), isNotNull(safetyPatrolRawMessages.errorMessage)))
+        .orderBy(desc(safetyPatrolRawMessages.createdAt)).limit(50);
+
+      const [terakhir] = await db.select({ createdAt: safetyPatrolRawMessages.createdAt })
+        .from(safetyPatrolRawMessages).orderBy(desc(safetyPatrolRawMessages.createdAt)).limit(1);
+
+      res.json({
+        perHari: perHari.map(h => ({ ...h, masuk: Number(h.masuk), jadiLaporan: Number(h.jadiLaporan), gagal: Number(h.gagal) })),
+        gagal, pesanTerakhir: terakhir?.createdAt ?? null,
+      });
+    } catch (error: any) {
+      console.error("Error telegram-log:", error?.message || error);
+      res.status(500).json({ error: "Gagal mengambil log Telegram" });
+    }
+  });
+
+  // Proses ulang pesan yang GAGAL — memulihkan laporan yang sempat hilang.
+  app.post("/api/safety-patrol/telegram-replay", async (req, res) => {
+    try {
+      const hari = Math.min(90, Math.max(1, parseInt(String(req.body?.days || "7"))));
+      const { ulangiUpdateGagal } = await import("./services/telegram-bot");
+      const hasil = await ulangiUpdateGagal(new Date(Date.now() - hari * 86400000));
+      res.json({ ok: true, ...hasil });
+    } catch (error: any) {
+      console.error("Error telegram-replay:", error?.message || error);
+      res.status(500).json({ error: error?.message || "Gagal memproses ulang" });
+    }
   });
 
   app.post("/api/webhook/whatsapp", async (req, res) => {

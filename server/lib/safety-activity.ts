@@ -65,17 +65,23 @@ function reportTitle(raw: string | null | undefined): string {
   return line.replace(/\*/g, "").trim();
 }
 
-// Aktivitas kanonik dari sebuah laporan: utamakan `kegiatan`, lalu jenis laporan, lalu temuan,
-// terakhir JUDUL rawMessage (baris pertama saja — bukan seluruh teks, agar tak over-match).
-// Dipakai pencocokan Pencapaian Job agar laporan dgn judul generik tetap terdeteksi.
+// Aktivitas kanonik dari sebuah laporan.
+// JUDUL laporan (baris pertama) DIDAHULUKAN — di sanalah petugas menyebutkan kegiatannya
+// secara eksplisit. Field `kegiatan` hasil AI sering terisi potongan tanda tangan/footer
+// ("OHS Hauling", "Team Alpha", "Pelaksana", "Note", "Phase 7", "Safety Patrol") yang
+// menyesatkan: mis. "OHS Hauling" memuat kata "hauling" sehingga jatuh ke jaring terakhir
+// "Inspeksi Jalan", padahal laporannya tentang Jarak Aman Beriringan — akibatnya target
+// job tsb tak pernah tercentang di Pencapaian Job.
+// Diuji atas 752 laporan (sejak Jun 2026): 42 berubah, SELURUHNYA koreksi.
+// Judul dipakai HANYA baris pertama (bukan seluruh teks) agar tidak over-match.
 export function canonicalReportActivity(r: {
   kegiatan?: string | null; jenisLaporan?: string | null; temuan?: string | null;
   rawMessage?: string | null;
 } | null | undefined): string | null {
   if (!r) return null;
-  return canonicalSafetyActivity(r.kegiatan)
+  return canonicalSafetyActivity(reportTitle(r.rawMessage))
+    || canonicalSafetyActivity(r.kegiatan)
     || canonicalSafetyActivity(r.jenisLaporan)
     || canonicalSafetyActivity(r.temuan)
-    || canonicalSafetyActivity(reportTitle(r.rawMessage))
     || null;
 }

@@ -4,7 +4,7 @@
 // Pipeline WhatsApp TIDAK disentuh.
 
 import { db } from "../db";
-import { telegramSafetyPatrolUsers } from "@shared/schema";
+import { telegramSafetyPatrolUsers, safetyPatrolRawMessages } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import {
   parseReportWithGemini,
@@ -665,8 +665,82 @@ async function poll() {
 }
 
 // Dipakai oleh route webhook (/api/webhook/telegram) untuk memproses 1 update.
+/**
+ * Catat SETIAP update masuk sebelum diproses.
+ * Webhook Telegram sengaja membalas 200 lebih dulu agar tidak timeout — konsekuensinya
+ * Telegram tak pernah mengirim ulang bila pemrosesan gagal. Tanpa jejak ini, kegagalan
+ * hilang tanpa bekas dan laporan petugas lenyap permanen (kejadian 12-19 Agustus 2026:
+ * 8 hari tanpa satu pun laporan padahal tim mengirim, dan tak ada apa pun yang bisa ditelusuri).
+ */
+async function catatUpdateMasuk(update: any): Promise<string | null> {
+  try {
+    const msg = update?.message;
+    if (!msg?.chat) return null;
+    const [row] = await db.insert(safetyPatrolRawMessages).values({
+      messageId: String(msg.message_id ?? ""),
+      senderPhone: `tg:${msg.chat.id}`,
+      senderName: msg.from?.first_name || msg.from?.username || null,
+      messageType: msg.photo ? "image" : msg.document ? "document" : "text",
+      content: (msg.text || msg.caption || "").slice(0, 8000) || null,
+      rawPayload: update,
+      messageTimestamp: msg.date ? new Date(msg.date * 1000) : new Date(),
+      processed: false,
+    } as any).returning({ id: safetyPatrolRawMessages.id });
+    return row?.id ?? null;
+  } catch (e: any) {
+    // Pencatatan TIDAK boleh menggagalkan pemrosesan laporan.
+    console.warn("[TelegramLog] gagal mencatat update:", e?.message || e);
+    return null;
+  }
+}
+
+async function tandaiJejak(id: string | null, ok: boolean, pesanError?: string, reportId?: string) {
+  if (!id) return;
+  try {
+    await db.update(safetyPatrolRawMessages)
+      .set({
+        processed: ok,
+        errorMessage: ok ? null : (pesanError || "").slice(0, 1000),
+        ...(reportId ? { reportId } : {}),
+      })
+      .where(eq(safetyPatrolRawMessages.id, id));
+  } catch { /* diabaikan */ }
+}
+
 export async function processTelegramUpdate(update: any) {
-  return processUpdate(update);
+  const jejak = await catatUpdateMasuk(update);
+  const chatId = String(update?.message?.chat?.id ?? "");
+  // Bandingkan laporan terakhir SEBELUM & SESUDAH: kalau berubah, pesan ini benar-benar
+  // menjadi laporan. Tanpa ini, log hanya tahu "tidak error" — padahal pesan bisa saja
+  // diabaikan karena dianggap bukan laporan, dan itu terlihat sama saja.
+  const sebelum = lastReportByChat.get(chatId)?.reportId;
+  try {
+    const hasil = await processUpdate(update);
+    const sesudah = lastReportByChat.get(chatId)?.reportId;
+    const jadiLaporan = !!sesudah && sesudah !== sebelum;
+    await tandaiJejak(jejak, true, undefined, jadiLaporan ? sesudah : undefined);
+    return hasil;
+  } catch (e: any) {
+    await tandaiJejak(jejak, false, e?.message || String(e));
+    throw e;
+  }
+}
+
+/** Proses ulang update yang GAGAL — pemulihan laporan yang sempat hilang. */
+export async function ulangiUpdateGagal(sejak: Date): Promise<{ dicoba: number; berhasil: number; gagal: number }> {
+  const { and, gte, eq: sama, isNotNull } = await import("drizzle-orm");
+  const antre = await db.select().from(safetyPatrolRawMessages)
+    .where(and(
+      sama(safetyPatrolRawMessages.processed, false),
+      isNotNull(safetyPatrolRawMessages.errorMessage),
+      gte(safetyPatrolRawMessages.createdAt, sejak),
+    ));
+  let berhasil = 0, gagal = 0;
+  for (const row of antre) {
+    try { await processUpdate(row.rawPayload as any); await tandaiJejak(row.id, true); berhasil++; }
+    catch (e: any) { await tandaiJejak(row.id, false, e?.message || String(e)); gagal++; }
+  }
+  return { dicoba: antre.length, berhasil, gagal };
 }
 
 export async function startTelegramBot() {
