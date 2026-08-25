@@ -197,7 +197,6 @@ export const navigationGroups: NavGroup[] = [
                                         icon: LayoutGrid,
                                         children: [
                                             { name: "Peralatan Bergerak (HE)", href: "/workspace/hse/ko/spip/peralatan", icon: Car },
-                                            { name: "Peralatan Bergerak", href: "/workspace/hse/ko/spip/peralatan/bergerak", icon: Settings },
                                             { name: "Peralatan Tidak Bergerak", href: "/workspace/hse/ko/spip/peralatan/tidak-bergerak", icon: Wrench },
                                         ]
                                     },

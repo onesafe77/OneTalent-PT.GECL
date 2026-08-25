@@ -155,8 +155,6 @@ import {
   insertSidakGerindaDudukSessionSchema,
   insertSidakGerindaDudukRecordSchema,
   insertSidakGerindaDudukObserverSchema,
-  spipPeralatanWorkshop,
-  insertSpipPeralatanWorkshopSchema,
   spipPeralatanTidakBergerak,
   insertSpipPeralatanTidakBergerakSchema,
   safetyPatrolRawMessages,
@@ -21294,7 +21292,8 @@ Format sebagai bullet points singkat per insight.`;
 
   app.get("/api/spip/peralatan", async (req, res) => {
     try {
-      const { search, jenis_unit, merk, status_unit, status_bib, page = "1", limit = "15" } = req.query;
+      const { search, jenis_unit, merk, status_unit, status_bib, page = "1", limit = "15",
+        sort_by = "lambung", sort_dir = "asc", lambung_min, lambung_max } = req.query;
 
       const pageNum = parseInt(page as string);
       const limitNum = parseInt(limit as string);
@@ -21344,6 +21343,13 @@ Format sebagai bullet points singkat per insight.`;
         }
       }
 
+      // Saring berdasarkan ANGKA lambung ("DT GECL 9103" → 9103), bukan teksnya.
+      const angkaLambung = sql`NULLIF(regexp_replace(${spipPeralatan.noLambung}, '\\D', '', 'g'), '')::bigint`;
+      const min = parseInt(String(lambung_min ?? ""));
+      const max = parseInt(String(lambung_max ?? ""));
+      if (!isNaN(min)) conditions.push(sql`${angkaLambung} >= ${min}`);
+      if (!isNaN(max)) conditions.push(sql`${angkaLambung} <= ${max}`);
+
       if (conditions.length > 0) {
         baseQuery = baseQuery.where(and(...conditions));
       }
@@ -21351,10 +21357,23 @@ Format sebagai bullet points singkat per insight.`;
       const totalResult = await db.select({ count: sql<number>`count(*)` }).from(spipPeralatan).where(conditions.length > 0 ? and(...conditions) : undefined);
       const total = Number(totalResult[0]?.count || 0);
 
+      // Pengurutan DI SERVER — halaman ini berhalaman (15 baris), kalau diurut di layar
+      // hanya baris yang sedang tampil yang rapi, halaman berikutnya tetap acak.
+      // Lambung diurut sbg ANGKA agar tahan bila nanti ada 3 atau 5 digit.
+      const naik = String(sort_dir).toLowerCase() !== "desc";
+      const arah = (kolom: any) => (naik ? asc(kolom) : desc(kolom));
+      const urutan =
+        sort_by === "expired_bib" ? arah(spipPeralatan.expiredBib)
+          : sort_by === "expired_tia" ? arah(spipPeralatan.expiredTia)
+            : sort_by === "jenis" ? arah(spipPeralatan.jenisUnit)
+              : sort_by === "tahun" ? arah(spipPeralatan.tahunPembuatan)
+                : sort_by === "terbaru" ? desc(spipPeralatan.createdAt)
+                  : (naik ? sql`${angkaLambung} ASC NULLS LAST` : sql`${angkaLambung} DESC NULLS LAST`);
+
       const items = await baseQuery
         .limit(limitNum)
         .offset(offset)
-        .orderBy(desc(spipPeralatan.createdAt));
+        .orderBy(urutan as any);
 
       res.json({
         data: items,
@@ -21578,7 +21597,7 @@ Format sebagai bullet points singkat per insight.`;
 
   // Nama sub-resource di bawah /api/spip/peralatan — jangan diperlakukan sebagai :id.
   // Tambahkan di sini setiap kali ada sub-halaman baru, agar tidak tertelan route :id.
-  const PERALATAN_SUBPATHS = new Set(["workshop", "tidak-bergerak", "export", "import"]);
+  const PERALATAN_SUBPATHS = new Set(["tidak-bergerak", "export", "import"]);
 
   app.get("/api/spip/peralatan/:id", async (req, res, next) => {
     if (PERALATAN_SUBPATHS.has(req.params.id)) return next();
@@ -21681,7 +21700,9 @@ Format sebagai bullet points singkat per insight.`;
       const items = await baseQuery
         .limit(limitNum)
         .offset(offset)
-        .orderBy(desc(spipPrasarana.createdAt));
+        // Urut alami berdasarkan angka pada No Lambung (bukan urut waktu input,
+        // yang membuat daftar terlihat acak). NULL/tanpa angka ditaruh di akhir.
+        .orderBy(sql`NULLIF(regexp_replace(COALESCE(${spipPrasarana.noLambung}, ''), '\\D', '', 'g'), '')::bigint ASC NULLS LAST`, asc(spipPrasarana.noLambung));
 
       res.json({
         data: items,
@@ -21948,7 +21969,8 @@ Format sebagai bullet points singkat per insight.`;
       const items = await baseQuery
         .limit(limitNum)
         .offset(offset)
-        .orderBy(desc(spipInstalasi.createdAt));
+        // Urut alami berdasarkan angka pada Nomor Register.
+        .orderBy(sql`NULLIF(regexp_replace(COALESCE(${spipInstalasi.nomorRegister}, ''), '\\D', '', 'g'), '')::bigint ASC NULLS LAST`, asc(spipInstalasi.nomorRegister));
 
       res.json({
         data: items,
@@ -22162,286 +22184,6 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  // ============================================
-  // SPIP PERALATAN WORKSHOP (ALAT BENGKEL)
-  // ============================================
-
-  app.get("/api/spip/peralatan/workshop", async (req, res) => {
-    try {
-      const { search, jenis_unit, area_lokasi, status, page = "1", limit = "1000" } = req.query;
-
-      const pageNum = parseInt(page as string);
-      const limitNum = parseInt(limit as string);
-      const offset = (pageNum - 1) * limitNum;
-
-      let baseQuery = db.select().from(spipPeralatanWorkshop).$dynamic();
-      let conditions = [];
-
-      if (search) {
-        conditions.push(
-          or(
-            ilike(spipPeralatanWorkshop.noLambung, `%${search}%`),
-            ilike(spipPeralatanWorkshop.jenisUnit, `%${search}%`),
-            ilike(spipPeralatanWorkshop.areaLokasi, `%${search}%`)
-          )
-        );
-      }
-
-      if (jenis_unit && jenis_unit !== 'all') conditions.push(eq(spipPeralatanWorkshop.jenisUnit, jenis_unit as string));
-      if (area_lokasi && area_lokasi !== 'all') conditions.push(eq(spipPeralatanWorkshop.areaLokasi, area_lokasi as string));
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (status) {
-        if (status === 'EXPIRED') {
-          conditions.push(or(
-            isNull(spipPeralatanWorkshop.expSertifikat),
-            lt(spipPeralatanWorkshop.expSertifikat, today)
-          ));
-        } else if (status === 'AKTIF') {
-          conditions.push(and(
-            isNotNull(spipPeralatanWorkshop.expSertifikat),
-            gte(spipPeralatanWorkshop.expSertifikat, today)
-          ));
-        }
-      }
-
-      if (conditions.length > 0) {
-        baseQuery = baseQuery.where(and(...conditions));
-      }
-
-      const items = await baseQuery
-        .limit(limitNum)
-        .offset(offset)
-        .orderBy(asc(spipPeralatanWorkshop.jenisUnit), asc(spipPeralatanWorkshop.noLambung));
-
-      const totalResult = await db.select({ count: sql<number>`count(*)` }).from(spipPeralatanWorkshop).where(conditions.length > 0 ? and(...conditions) : undefined);
-      const total = Number(totalResult[0]?.count || 0);
-
-      res.json({
-        data: items,
-        total,
-        page: pageNum,
-        totalPages: Math.ceil(total / limitNum)
-      });
-    } catch (error) {
-      console.error("Error fetching SPIP Workshop Tools:", error);
-      res.status(500).json({ error: "Gagal mengambil data peralatan workshop" });
-    }
-  });
-
-  app.post("/api/spip/peralatan/workshop/import", upload.single("file"), async (req, res) => {
-    try {
-      if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-      const xlsxModule = await import("xlsx");
-      const XLSX = xlsxModule.default || xlsxModule;
-      const workbook = XLSX.readFile(req.file.path);
-      const sheetName = workbook.SheetNames.find(n => n.includes("PERALATAN 2")) || workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const rawData: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-
-      if (rawData.length < 7) {
-        return res.status(400).json({ error: "Format Excel tidak sesuai (data minimal mulai baris 7)" });
-      }
-
-      const dataRows = rawData.slice(6); // Row 7 onwards
-      const headerRow = rawData[5]; // Row 6 (Header mapping)
-
-      const getColIndex = (name: string) => headerRow.findIndex((h: string) => h && h.trim().toUpperCase() === name.toUpperCase());
-
-      const indices = {
-        no: getColIndex("NO"),
-        jenisUnit: getColIndex("Jenis Unit"),
-        noLambung: getColIndex("No Lambung"),
-        kapasitas: getColIndex("Kapasitas"),
-        areaLokasi: getColIndex("Area/Lokasi"),
-        komisioner: getColIndex("Komisioner"),
-        noSertifikat: getColIndex("No. Sertifikat"),
-        tglSertifikat: getColIndex("Tgl Sertifikat"),
-        exp: getColIndex("EXP"),
-        keterangan: getColIndex("Keterangan")
-      };
-
-      const parseDate = (val: any): Date | null => {
-        if (!val || val === "" || val === "-" || val === "EXPIRED") return null;
-        if (typeof val === 'number') {
-          return new Date(Math.round((val - 25569) * 86400 * 1000));
-        }
-        const d = new Date(val);
-        return isNaN(d.getTime()) ? null : d;
-      };
-
-      const parseKapasitas = (val: string) => {
-        if (!val) return { nilai: null, satuan: null };
-        const match = val.toString().match(/^(\d+[\.\,]?\d*)\s*(.*)$/);
-        if (match) {
-          return {
-            nilai: parseFloat(match[1].replace(',', '.')),
-            satuan: match[2].trim()
-          };
-        }
-        return { nilai: null, satuan: val.toString() };
-      };
-
-      const parsedRows = [];
-      let skipped = 0;
-
-      for (const row of dataRows) {
-        const noLambung = row[indices.noLambung]?.toString().trim();
-        if (!noLambung || noLambung === "No Lambung") { skipped++; continue; }
-
-        const cap = parseKapasitas(row[indices.kapasitas]);
-
-        parsedRows.push({
-          no: parseInt(row[indices.no]) || null,
-          jenisUnit: row[indices.jenisUnit]?.toString() || "Unknown",
-          noLambung: noLambung,
-          kapasitas: row[indices.kapasitas]?.toString() || null,
-          nilaiKapasitas: cap.nilai,
-          satuanKapasitas: cap.satuan,
-          areaLokasi: row[indices.areaLokasi]?.toString() || null,
-          komisioner: row[indices.komisioner]?.toString() || null,
-          noSertifikat: row[indices.noSertifikat]?.toString() || null,
-          tglSertifikat: parseDate(row[indices.tglSertifikat]),
-          expSertifikat: parseDate(row[indices.exp]),
-          keterangan: row[indices.keterangan]?.toString() || null,
-          jenisSpip: "PERALATAN",
-          subKategori: "BERGERAK",
-          statusUnit: "AKTIF"
-        });
-      }
-
-      for (const row of parsedRows) {
-        await db.insert(spipPeralatanWorkshop).values(row).onConflictDoUpdate({
-          target: spipPeralatanWorkshop.noLambung,
-          set: { ...row, updatedAt: new Date() }
-        });
-      }
-
-      fs.unlink(req.file.path, () => { });
-      res.json({ success: true, imported: parsedRows.length, skipped });
-    } catch (error: any) {
-      console.error("Import error:", error);
-      res.status(500).json({ error: "Gagal memproses file: " + error.message });
-    }
-  });
-
-  app.get("/api/spip/peralatan/workshop/export", async (req, res) => {
-    try {
-      const items = await db.select().from(spipPeralatanWorkshop).orderBy(asc(spipPeralatanWorkshop.jenisUnit), asc(spipPeralatanWorkshop.noLambung));
-
-      // exceljs = modul CommonJS: kelasnya ada di .default, bukan di namespace.
-      const ExcelJS = (await import("exceljs")).default as any;
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("PERALATAN 2");
-
-      // Setup Headers (Basic for now to match the user's reference)
-      worksheet.columns = [
-        { header: 'No', key: 'no', width: 5 },
-        { header: 'Jenis Unit', key: 'jenisUnit', width: 25 },
-        { header: 'No Lambung', key: 'noLambung', width: 20 },
-        { header: 'Kapasitas', key: 'kapasitas', width: 15 },
-        { header: 'Area/Lokasi', key: 'areaLokasi', width: 25 },
-        { header: 'Komisioner', key: 'komisioner', width: 15 },
-        { header: 'No. Sertifikat', key: 'noSertifikat', width: 20 },
-        { header: 'Tgl Sertifikat', key: 'tglSertifikat', width: 15 },
-        { header: 'EXP', key: 'expSertifikat', width: 15 },
-        { header: 'Status', key: 'status', width: 20 },
-        { header: 'Keterangan', key: 'keterangan', width: 30 }
-      ];
-
-      items.forEach((item, idx) => {
-        const row = worksheet.addRow({
-          no: item.no || (idx + 1),
-          jenisUnit: item.jenisUnit,
-          noLambung: item.noLambung,
-          kapasitas: item.kapasitas,
-          areaLokasi: item.areaLokasi,
-          komisioner: item.komisioner,
-          noSertifikat: item.noSertifikat,
-          tglSertifikat: item.tglSertifikat ? format(new Date(item.tglSertifikat), "dd MMM yyyy") : "-",
-          expSertifikat: item.expSertifikat ? format(new Date(item.expSertifikat), "dd MMM yyyy") : "-",
-          status: "", // To be calculated or colored
-          keterangan: item.keterangan || ""
-        });
-
-        const isExpired = !item.expSertifikat || new Date(item.expSertifikat) <= new Date();
-        const statusCell = row.getCell('status');
-
-        if (isExpired) {
-          statusCell.value = "EXPIRED";
-          statusCell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFF0000' } // Red
-          };
-          statusCell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
-        } else {
-          // Calculate countdown
-          const remaining = new Date(item.expSertifikat!).getTime() - new Date().getTime();
-          const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-          const months = Math.floor(days / 30);
-          const years = Math.floor(months / 12);
-          statusCell.value = `${years} Thn, ${months % 12} Bln, ${days % 30} Hari`;
-          statusCell.font = { color: { argb: 'FF008000' }, bold: true }; // Green
-        }
-      });
-
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=SPIP_Peralatan_Workshop.xlsx');
-      await workbook.xlsx.write(res);
-      res.end();
-    } catch (error) {
-      console.error("Error exporting SPIP Workshop:", error);
-      res.status(500).json({ error: "Gagal me-export data" });
-    }
-  });
-
-  app.post("/api/spip/peralatan/workshop", async (req, res) => {
-    try {
-      const data = insertSpipPeralatanWorkshopSchema.parse(req.body);
-      const [newUnit] = await db.insert(spipPeralatanWorkshop).values(data).returning();
-      res.status(201).json(newUnit);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message || "Invalid data" });
-    }
-  });
-
-  app.get("/api/spip/peralatan/workshop/:id", async (req, res) => {
-    try {
-      const [unit] = await db.select().from(spipPeralatanWorkshop).where(eq(spipPeralatanWorkshop.id, req.params.id)).limit(1);
-      if (!unit) return res.status(404).json({ error: "Data tidak ditemukan" });
-      res.json(unit);
-    } catch (error) {
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  app.put("/api/spip/peralatan/workshop/:id", async (req, res) => {
-    try {
-      const data = insertSpipPeralatanWorkshopSchema.partial().parse(req.body);
-      const [updated] = await db.update(spipPeralatanWorkshop).set({
-        ...data,
-        updatedAt: new Date()
-      }).where(eq(spipPeralatanWorkshop.id, req.params.id)).returning();
-      if (!updated) return res.status(404).json({ error: "Data tidak ditemukan" });
-      res.json(updated);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message || "Invalid data" });
-    }
-  });
-
-  app.delete("/api/spip/peralatan/workshop/:id", async (req, res) => {
-    try {
-      const [deleted] = await db.delete(spipPeralatanWorkshop).where(eq(spipPeralatanWorkshop.id, req.params.id)).returning();
-      if (!deleted) return res.status(404).json({ error: "Data tidak ditemukan" });
-      res.json({ message: "Berhasil dihapus" });
-    } catch (error) {
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
 
   // ============================================================
   // PROFIL KESEHATAN — MAPPING TEMUAN MCU (data medis, akses terbatas)
@@ -23037,7 +22779,9 @@ Format sebagai bullet points singkat per insight.`;
       const items = await db.select().from(spipPeralatanTidakBergerak)
         .where(where)
         .limit(limitNum).offset((pageNum - 1) * limitNum)
-        .orderBy(asc(spipPeralatanTidakBergerak.jenisAlat), asc(spipPeralatanTidakBergerak.noRegistrasi));
+        // Jenis dulu, lalu angka registrasi secara alami (HJ-2 sebelum HJ-10).
+        .orderBy(asc(spipPeralatanTidakBergerak.jenisAlat),
+          sql`NULLIF(regexp_replace(${spipPeralatanTidakBergerak.noRegistrasi}, '\\D', '', 'g'), '')::bigint ASC NULLS LAST`);
 
       const totalRes = await db.select({ count: sql<number>`count(*)` }).from(spipPeralatanTidakBergerak).where(where);
       const total = Number(totalRes[0]?.count || 0);

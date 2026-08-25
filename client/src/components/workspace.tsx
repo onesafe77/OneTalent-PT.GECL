@@ -150,7 +150,6 @@ import SPIPPeralatan from "@/pages/hse/ko/spip/peralatan";
 import SPIPPrasarana from "@/pages/hse/ko/spip/prasarana-list";
 import SPIPInstalasi from "@/pages/hse/ko/spip/instalasi-list";
 import { InstalasiFormPage, InstalasiViewPage } from "@/pages/hse/ko/spip/instalasi-detail-page";
-import SPIPPeralatanWorkshop from "@/pages/hse/ko/spip/peralatan-workshop-list";
 import SPIPPeralatanTidakBergerak from "@/pages/hse/ko/spip/peralatan-tidak-bergerak-list";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { MysticWidget } from "@/components/mystic/MysticWidget";
@@ -272,7 +271,6 @@ const workspaceRoutes = [
   { path: "/workspace/hse/ko/spip/peralatan", component: SPIPPeralatan, title: "SPIP - Peralatan" },
   { path: "/workspace/hse/ko/spip/prasarana", component: SPIPPrasarana, title: "SPIP - Sarana & Prasarana" },
   { path: "/workspace/hse/ko/spip/instalasi", component: SPIPInstalasi, title: "SPIP - Instalasi" },
-  { path: "/workspace/hse/ko/spip/peralatan/bergerak", component: SPIPPeralatanWorkshop, title: "SPIP - Peralatan Bergerak" },
   { path: "/workspace/hse/ko/spip/peralatan/tidak-bergerak", component: SPIPPeralatanTidakBergerak, title: "SPIP - Peralatan Tidak Bergerak" },
   { path: "/workspace/hse/investor-evaluation", component: InvestorEvaluationPage, title: "Evaluasi Investor Group" },
 
@@ -586,7 +584,6 @@ export function Workspace() {
               <Route path="/workspace/hse/investor-evaluation" component={InvestorEvaluationPage} />
 
               <Route path="/workspace/hse/ko/spip/peralatan/tambah" component={PeralatanFormPage} />
-              <Route path="/workspace/hse/ko/spip/peralatan/bergerak" component={SPIPPeralatanWorkshop} />
               <Route path="/workspace/hse/ko/spip/peralatan/tidak-bergerak" component={SPIPPeralatanTidakBergerak} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id/edit" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id" component={PeralatanViewPage} />

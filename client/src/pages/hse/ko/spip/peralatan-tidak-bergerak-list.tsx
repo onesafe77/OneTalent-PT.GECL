@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, differenceInDays } from "date-fns";
 import {
     Search, Plus, Upload, Download, AlertTriangle, Edit, Trash2,
-    LayoutGrid, List, ChevronDown, ChevronRight, Wrench, Loader2,
+    LayoutGrid, List, ChevronDown, ChevronRight, Wrench, Loader2, Eye,
     Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export default function SPIPPeralatanTidakBergerakList() {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
     const [hapusTarget, setHapusTarget] = useState<any>(null);
+    const [lihat, setLihat] = useState<any>(null);
     const [importOpen, setImportOpen] = useState(false);
 
     const params = new URLSearchParams({
@@ -202,24 +203,25 @@ export default function SPIPPeralatanTidakBergerakList() {
                                 <TableHead>Area</TableHead>
                                 <TableHead>PIC</TableHead>
                                 <TableHead>Exp Sertifikat</TableHead>
+                                <TableHead className="text-center">Status</TableHead>
                                 <TableHead className="text-center">Sisa Masa Berlaku</TableHead>
                                 <TableHead className="text-center">Aksi</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
-                                <TableRow><TableCell colSpan={9} className="text-center py-10 text-gray-500">Memuat data peralatan...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={10} className="text-center py-10 text-gray-500">Memuat data peralatan...</TableCell></TableRow>
                             ) : items.length === 0 ? (
-                                <TableRow><TableCell colSpan={9} className="text-center py-10 text-gray-500">Tidak ada data ditemukan.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={10} className="text-center py-10 text-gray-500">Tidak ada data ditemukan.</TableCell></TableRow>
                             ) : isGrouped ? (
                                 Object.entries(grouped!).map(([nama, isi]) => (
                                     <BarisGrup key={nama} nama={nama} items={isi} statusText={statusText}
-                                        onEdit={(u: any) => { setEditing(u); setFormOpen(true); }} onHapus={setHapusTarget} />
+                                        onEdit={(u: any) => { setEditing(u); setFormOpen(true); }} onHapus={setHapusTarget} onLihat={setLihat} />
                                 ))
                             ) : (
                                 items.map((item: any, i: number) => (
                                     <BarisAlat key={item.id} item={item} idx={i + 1} statusText={statusText}
-                                        onEdit={(u: any) => { setEditing(u); setFormOpen(true); }} onHapus={setHapusTarget} />
+                                        onEdit={(u: any) => { setEditing(u); setFormOpen(true); }} onHapus={setHapusTarget} onLihat={setLihat} />
                                 ))
                             )}
                         </TableBody>
@@ -227,6 +229,14 @@ export default function SPIPPeralatanTidakBergerakList() {
                 </div>
             </Card>
 
+            {lihat && (
+                <DialogLihatAlat
+                    item={lihat}
+                    statusText={statusText}
+                    onClose={() => setLihat(null)}
+                    onUbah={() => { setEditing(lihat); setLihat(null); setFormOpen(true); }}
+                />
+            )}
             {formOpen && (
                 <DialogForm
                     item={editing}
@@ -257,6 +267,93 @@ export default function SPIPPeralatanTidakBergerakList() {
     );
 }
 
+/* ——— Lihat: detail lengkap + foto evidence + status sertifikat ——— */
+function DialogLihatAlat({ item, statusText, onClose, onUbah }: any) {
+    const teks = statusText(item);
+    const merah = teks === "EXPIRED" || teks === "BELUM ADA";
+    const tgl = (d: any) => (d ? format(new Date(d), "dd MMMM yyyy") : "—");
+    const identitas: Array<[string, any]> = [
+        ["No. Registrasi", item.noRegistrasi],
+        ["Jenis Alat", item.jenisAlat],
+        ["SWL", item.swl || "—"],
+        ["Area", item.areaLokasi || "—"],
+        ["PIC", item.pic || "—"],
+        ["Keterangan", item.keterangan || "—"],
+    ];
+
+    return (
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        {item.noRegistrasi}
+                        <span className="text-sm font-normal text-slate-400">· {item.jenisAlat}</span>
+                    </DialogTitle>
+                    <DialogDescription>Detail peralatan, status sertifikat, dan foto evidence.</DialogDescription>
+                </DialogHeader>
+
+                {/* Status sertifikat — bagian yang paling dicari */}
+                <div className={`rounded-xl border p-4 ${merah ? "border-red-200 bg-red-50/60" : "border-emerald-200 bg-emerald-50/50"}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Status Sertifikat</p>
+                            <p className={`text-lg font-bold ${merah ? "text-red-700" : "text-emerald-700"}`}>
+                                {merah ? teks : "AKTIF"}
+                            </p>
+                            {!merah && <p className="text-[12px] text-emerald-700">Sisa masa berlaku {teks}</p>}
+                        </div>
+                        <div className="flex gap-5 text-right">
+                            <div>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400">Tgl Sertifikasi</p>
+                                <p className="text-[13px] font-semibold tabular-nums text-slate-800">{tgl(item.tglSertifikat)}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400">Expired</p>
+                                <p className={`text-[13px] font-semibold tabular-nums ${merah ? "text-red-700" : "text-slate-800"}`}>
+                                    {tgl(item.expSertifikat)}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                    {identitas.map(([k, v]) => (
+                        <div key={k} className="flex justify-between gap-3 border-b border-dashed border-slate-100 py-1.5">
+                            <span className="text-[12px] text-slate-400">{k}</span>
+                            <span className="text-right text-[12px] font-medium text-slate-800">{v}</span>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="space-y-2">
+                    <h4 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Foto Evidence</h4>
+                    {item.evidenceUrl ? (
+                        <a href={item.evidenceUrl} target="_blank" rel="noreferrer" className="block">
+                            <img src={item.evidenceUrl} alt={`Evidence ${item.noRegistrasi}`}
+                                className="max-h-[340px] w-full rounded-xl border object-contain bg-slate-50 transition-opacity hover:opacity-90" />
+                            <p className="mt-1 text-center text-[11px] text-slate-400">Klik gambar untuk membuka ukuran penuh</p>
+                        </a>
+                    ) : (
+                        <div className="rounded-xl border border-dashed p-6 text-center">
+                            <ImageIcon className="mx-auto mb-1 h-6 w-6 text-slate-300" />
+                            <p className="text-[12px] text-slate-500">Belum ada foto evidence.</p>
+                            <p className="text-[11px] text-slate-400">Unggah lewat tombol Ubah.</p>
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose}>Tutup</Button>
+                    <Button onClick={onUbah} className="bg-red-600 hover:bg-red-700">
+                        <Edit className="mr-2 h-4 w-4" />{item.evidenceUrl ? "Ubah" : "Unggah Evidence"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function KartuStat({ label, nilai, warna, tekanan }: any) {
     return (
         <Card className={tekanan ? "border-red-200" : ""}>
@@ -268,7 +365,7 @@ function KartuStat({ label, nilai, warna, tekanan }: any) {
     );
 }
 
-function BarisAlat({ item, idx, statusText, onEdit, onHapus }: any) {
+function BarisAlat({ item, idx, statusText, onEdit, onHapus, onLihat }: any) {
     const teks = statusText(item);
     const merah = teks === "EXPIRED" || teks === "BELUM ADA";
     return (
@@ -282,6 +379,18 @@ function BarisAlat({ item, idx, statusText, onEdit, onHapus }: any) {
             <TableCell className="text-slate-600 text-xs">
                 {item.expSertifikat ? format(new Date(item.expSertifikat), "dd MMM yyyy") : "-"}
             </TableCell>
+            {/* Status sertifikat sbg lencana — selaras dgn penyaring "Semua Status" di atas.
+                Kolom "Sisa Masa Berlaku" di sebelahnya menjelaskan berapa lama lagi. */}
+            <TableCell className="text-center">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                    teks === "EXPIRED" ? "bg-red-100 text-red-700"
+                        : teks === "BELUM ADA" ? "bg-slate-100 text-slate-600"
+                            : "bg-emerald-100 text-emerald-700"}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${
+                        teks === "EXPIRED" ? "bg-red-600" : teks === "BELUM ADA" ? "bg-slate-400" : "bg-emerald-600"}`} />
+                    {teks === "EXPIRED" ? "EXPIRED" : teks === "BELUM ADA" ? "BELUM ADA" : "AKTIF"}
+                </span>
+            </TableCell>
             <TableCell className="p-0">
                 <div className={`flex items-center justify-center p-2 min-h-[40px] text-xs font-bold ${merah ? "bg-red-600 text-white" : "text-emerald-600"}`}>
                     {teks}
@@ -289,20 +398,25 @@ function BarisAlat({ item, idx, statusText, onEdit, onHapus }: any) {
             </TableCell>
             <TableCell className="text-center">
                 <div className="flex justify-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => onEdit(item)} className="h-8 w-8 text-amber-600"><Edit className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => onHapus(item)} className="h-8 w-8 text-red-600"><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Lihat detail & evidence" onClick={() => onLihat(item)}
+                        className="h-8 w-8 text-slate-500 hover:text-slate-900">
+                        <Eye className="h-4 w-4" />
+                        {item.evidenceUrl && <span className="absolute mt-4 ml-4 h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                    </Button>
+                    <Button variant="ghost" size="icon" title="Ubah" onClick={() => onEdit(item)} className="h-8 w-8 text-amber-600"><Edit className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Hapus" onClick={() => onHapus(item)} className="h-8 w-8 text-red-600"><Trash2 className="h-4 w-4" /></Button>
                 </div>
             </TableCell>
         </TableRow>
     );
 }
 
-function BarisGrup({ nama, items, statusText, onEdit, onHapus }: any) {
+function BarisGrup({ nama, items, statusText, onEdit, onHapus, onLihat }: any) {
     const [buka, setBuka] = useState(true);
     return (
         <>
             <TableRow className="bg-slate-100 hover:bg-slate-200 cursor-pointer" onClick={() => setBuka(!buka)}>
-                <TableCell colSpan={9} className="py-2 px-4">
+                <TableCell colSpan={10} className="py-2 px-4">
                     <div className="flex items-center gap-2 font-bold text-slate-700">
                         {buka ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         <Wrench className="w-4 h-4 text-slate-500" />
@@ -312,7 +426,7 @@ function BarisGrup({ nama, items, statusText, onEdit, onHapus }: any) {
                 </TableCell>
             </TableRow>
             {buka && items.map((item: any) => (
-                <BarisAlat key={item.id} item={item} statusText={statusText} onEdit={onEdit} onHapus={onHapus} />
+                <BarisAlat key={item.id} item={item} statusText={statusText} onEdit={onEdit} onHapus={onHapus} onLihat={onLihat} />
             ))}
         </>
     );

@@ -26,7 +26,8 @@ import {
     X,
     FileSpreadsheet,
     CheckCircle,
-    Clock
+    Clock,
+    ArrowUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -146,6 +147,12 @@ export default function SPIPPeralatan() {
     const [merk, setMerk] = useState<string>("all");
     const [statusUnit, setStatusUnit] = useState<string>("all");
     const [statusBib, setStatusBib] = useState<string>("all");
+    // Urutan bawaan: nomor lambung menaik (9002 → 9156). Sebelumnya urut waktu input
+    // sehingga daftar terlihat acak dan sulit dicek kelengkapannya.
+    const [sortBy, setSortBy] = useState<string>("lambung");
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+    const [lambungMin, setLambungMin] = useState<string>("");
+    const [lambungMax, setLambungMax] = useState<string>("");
 
     // View States
     const [isImportOpen, setIsImportOpen] = useState(false);
@@ -161,6 +168,10 @@ export default function SPIPPeralatan() {
         ...(merk !== "all" ? { merk } : {}),
         ...(statusUnit !== "all" ? { status_unit: statusUnit } : {}),
         ...(statusBib !== "all" ? { status_bib: statusBib } : {}),
+        sort_by: sortBy,
+        sort_dir: sortDir,
+        ...(lambungMin.trim() ? { lambung_min: lambungMin.trim() } : {}),
+        ...(lambungMax.trim() ? { lambung_max: lambungMax.trim() } : {}),
     });
 
     const { data: qData, isLoading, refetch } = useQuery({
@@ -411,6 +422,38 @@ export default function SPIPPeralatan() {
                                     <SelectItem value="EXPIRED">Stiker: Expired</SelectItem>
                                 </SelectContent>
                             </Select>
+
+                            {/* Rentang nomor lambung — disaring dari ANGKA-nya, jadi 9090-9110
+                                mengambil tepat unit di rentang itu berapa pun panjang teksnya. */}
+                            <div className="flex items-center gap-1 rounded-md border px-2 h-10">
+                                <span className="text-xs text-gray-400 whitespace-nowrap">Lambung</span>
+                                <Input type="number" placeholder="9000" value={lambungMin}
+                                    onChange={(e) => { setLambungMin(e.target.value); setPage(1); }}
+                                    className="h-7 w-[74px] border-0 px-1 text-xs shadow-none focus-visible:ring-0" />
+                                <span className="text-gray-300">–</span>
+                                <Input type="number" placeholder="9999" value={lambungMax}
+                                    onChange={(e) => { setLambungMax(e.target.value); setPage(1); }}
+                                    className="h-7 w-[74px] border-0 px-1 text-xs shadow-none focus-visible:ring-0" />
+                                {(lambungMin || lambungMax) && (
+                                    <button type="button" title="Hapus rentang"
+                                        onClick={() => { setLambungMin(""); setLambungMax(""); setPage(1); }}
+                                        className="text-gray-400 hover:text-gray-700"><X className="h-3.5 w-3.5" /></button>
+                                )}
+                            </div>
+
+                            <Select value={`${sortBy}:${sortDir}`}
+                                onValueChange={(v) => { const [b, d] = v.split(":"); setSortBy(b); setSortDir(d as "asc" | "desc"); setPage(1); }}>
+                                <SelectTrigger className="w-[185px]"><SelectValue placeholder="Urutkan" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="lambung:asc">Lambung terkecil → besar</SelectItem>
+                                    <SelectItem value="lambung:desc">Lambung terbesar → kecil</SelectItem>
+                                    <SelectItem value="expired_bib:asc">BIB paling dekat expired</SelectItem>
+                                    <SelectItem value="expired_tia:asc">TIA paling dekat expired</SelectItem>
+                                    <SelectItem value="tahun:desc">Tahun terbaru</SelectItem>
+                                    <SelectItem value="jenis:asc">Jenis unit (A-Z)</SelectItem>
+                                    <SelectItem value="terbaru:desc">Terakhir ditambahkan</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="flex items-center gap-2 w-full lg:w-auto">
@@ -438,7 +481,14 @@ export default function SPIPPeralatan() {
                         <TableHeader>
                             <TableRow className="bg-gray-50/50">
                                 <TableHead className="w-12 text-center">No</TableHead>
-                                <TableHead className="w-32">No Lambung</TableHead>
+                                <TableHead className="w-[140px] whitespace-nowrap">
+                                    <button type="button"
+                                        onClick={() => { setSortBy("lambung"); setSortDir(sortBy === "lambung" && sortDir === "asc" ? "desc" : "asc"); setPage(1); }}
+                                        className="inline-flex items-center gap-1 font-medium transition-colors hover:text-gray-900">
+                                        No Lambung
+                                        <ArrowUpDown className={`h-3 w-3 ${sortBy === "lambung" ? "text-gray-900" : "text-gray-300"}`} />
+                                    </button>
+                                </TableHead>
                                 <TableHead>Jenis Unit</TableHead>
                                 <TableHead>Merk / Type</TableHead>
                                 <TableHead className="text-center">Tahun</TableHead>
@@ -463,7 +513,7 @@ export default function SPIPPeralatan() {
                                     return (
                                         <TableRow key={item.id} className={`hover:bg-gray-50 ${isExpired ? 'bg-red-50/30' : ''}`}>
                                             <TableCell className="text-center">{(page - 1) * limit + index + 1}</TableCell>
-                                            <TableCell className="font-semibold text-gray-900">{item.noLambung}</TableCell>
+                                            <TableCell className="whitespace-nowrap font-semibold text-gray-900">{item.noLambung}</TableCell>
                                             <TableCell className="text-xs text-gray-600">{item.jenisUnit}</TableCell>
                                             <TableCell className="text-xs text-gray-600">{item.merk}<br />{item.type}</TableCell>
                                             <TableCell className="text-center text-gray-600">{item.tahunPembuatan || "-"}</TableCell>
