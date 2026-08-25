@@ -224,9 +224,13 @@ export default function EmployeeDetail() {
         return years;
     }, [watchDoh]);
 
-    // Reset form when data loads
+    // Isi form sekali per karyawan. Tanpa penjaga ini, refetch setelah simpan
+    // (invalidateQueries `/api/employees/:id`) me-reset form dan menghapus
+    // perubahan yang belum sempat tersimpan.
+    const sudahIsiUntukId = useRef<string | null>(null);
     useEffect(() => {
-        if (employee) {
+        if (employee && sudahIsiUntukId.current !== employee.id) {
+            sudahIsiUntukId.current = employee.id;
             form.reset({
                 id: employee.id,
                 name: employee.name,

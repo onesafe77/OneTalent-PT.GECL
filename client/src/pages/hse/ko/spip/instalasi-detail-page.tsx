@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -78,8 +78,12 @@ export function InstalasiFormPage({ id }: { id?: string }) {
         }
     });
 
+    // Isi form sekali per unit saja; refetch setelah Simpan tidak boleh
+    // menimpa ketikan user yang belum tersimpan.
+    const sudahIsiUntukId = useRef<string | null>(null);
     useEffect(() => {
-        if (unitData && isEdit) {
+        if (unitData && isEdit && sudahIsiUntukId.current !== unitData.id) {
+            sudahIsiUntukId.current = unitData.id;
             form.reset({
                 ...unitData,
                 tglSertifikat: unitData.tglSertifikat ? new Date(unitData.tglSertifikat).toISOString().split('T')[0] : "",
@@ -129,7 +133,7 @@ export function InstalasiFormPage({ id }: { id?: string }) {
                 </div>
             </div>
 
-            <form id="instalasi-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+            <form id="instalasi-form" onSubmit={form.handleSubmit(onSubmit, (e: any) => { const k = Object.keys(e)[0]; toast({ title: "Data belum lengkap", description: `Periksa kolom "${k}": ${e[k]?.message || "wajib diisi"}.`, variant: "destructive" }); })} className="space-y-8">
                 <Tabs defaultValue="identitas" className="w-full">
                     <TabsList className="grid w-full grid-cols-2 bg-gray-100">
                         <TabsTrigger value="identitas">Identitas Sistem</TabsTrigger>

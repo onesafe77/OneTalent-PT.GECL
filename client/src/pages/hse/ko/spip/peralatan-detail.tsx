@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -123,8 +123,13 @@ export function PeralatanFormPage() {
         }
     });
 
+    // Hanya isi ulang form sekali per unit. Tanpa penjaga ini, refetch setelah
+    // Simpan (akibat invalidateQueries) memicu reset dan menghapus ketikan user
+    // yang belum tersimpan — inilah sebab "harus refresh dulu baru bisa simpan".
+    const sudahIsiUntukId = useRef<string | null>(null);
     useEffect(() => {
-        if (unitData && !unitData.error && isEdit) {
+        if (unitData && !unitData.error && isEdit && sudahIsiUntukId.current !== unitData.id) {
+            sudahIsiUntukId.current = unitData.id;
             form.reset({
                 ...unitData,
                 tglPengajuanBib: unitData.tglPengajuanBib ? new Date(unitData.tglPengajuanBib).toISOString().split('T')[0] : "",
@@ -139,6 +144,11 @@ export function PeralatanFormPage() {
     const watchExpiredTia = form.watch("expiredTia");
 
     useEffect(() => {
+        // Hanya hitung ulang bila user benar-benar mengubah tanggalnya.
+        // Sebelumnya efek ini jalan saat form di-reset, sehingga statusBib
+        // pilihan user (mis. CLOSE) tertimpa jadi EXPIRED tanpa disadari.
+        const d = form.formState.dirtyFields;
+        if (isEdit && !d.expiredBib && !d.tglPengajuanBib) return;
         if (watchExpiredBib) {
             const expDate = new Date(watchExpiredBib);
             const today = new Date();
@@ -159,6 +169,7 @@ export function PeralatanFormPage() {
     }, [watchExpiredBib, watchTglBib]);
 
     useEffect(() => {
+        if (isEdit && !form.formState.dirtyFields.expiredTia) return;
         if (watchExpiredTia) {
             const expDate = new Date(watchExpiredTia);
             const today = new Date();
@@ -197,7 +208,13 @@ export function PeralatanFormPage() {
             if (!payload.expiredBib) delete payload.expiredBib;
             if (!payload.expiredTia) delete payload.expiredTia;
 
-            await apiRequest(url, method, payload);
+            const hasil = await apiRequest(url, method, payload);
+            // Tandai form bersih dgn nilai yang BARU SAJA tersimpan, bukan hasil
+            // refetch, supaya tidak ada jeda di mana layar & server beda isi.
+            if (isEdit && hasil?.id) {
+                sudahIsiUntukId.current = hasil.id;
+                form.reset(form.getValues(), { keepValues: true });
+            }
             queryClient.invalidateQueries({ queryKey: ["/api/spip/peralatan"] });
             queryClient.invalidateQueries({ queryKey: ["/api/spip/peralatan/all"] });
             if (isEdit) {
@@ -210,6 +227,26 @@ export function PeralatanFormPage() {
         } catch (e: any) {
             toast({ title: "Gagal menyimpan", description: e.message, variant: "destructive" });
         }
+    };
+
+    // Tab tempat tiap field berada, agar error di tab tersembunyi bisa ditemukan.
+    const TAB_FIELD: Record<string, string> = {
+        jenisUnit: "identitas", merk: "identitas", type: "identitas", noLambung: "identitas",
+        noPolisi: "identitas", noRangka: "identitas", noMesin: "identitas",
+        tahunPembuatan: "identitas", gandar: "identitas", aebs: "identitas",
+        volumeVessel: "spesifikasi", tare: "spesifikasi",
+        tglPengajuanBib: "komisioning", expiredBib: "komisioning", statusBib: "komisioning",
+        expiredTia: "komisioning", statusTia: "komisioning", noTma: "komisioning", statusTma: "komisioning",
+    };
+
+    const onInvalid = (errors: any) => {
+        const field = Object.keys(errors)[0];
+        if (field && TAB_FIELD[field]) setActiveTab(TAB_FIELD[field]);
+        toast({
+            title: "Data belum lengkap",
+            description: `Periksa kembali kolom "${field}": ${errors[field]?.message || "wajib diisi"}.`,
+            variant: "destructive",
+        });
     };
 
     if (isLoading) return <div className="p-8 flex justify-center"><Loader2 className="animate-spin w-8 h-8 text-red-600" /></div>;
@@ -228,7 +265,7 @@ export function PeralatanFormPage() {
                 </div>
             </div>
 
-            <form id="peralatan-form" onSubmit={form.handleSubmit(onSubmit)}>
+            <form id="peralatan-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)}>
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <TabsList className="grid w-full grid-cols-4 bg-gray-100">
                         <TabsTrigger value="identitas">Identitas Unit</TabsTrigger>
@@ -468,7 +505,10 @@ export function PeralatanFormPage() {
 
                 <div className="flex gap-3">
                     <Button variant="outline" type="button" onClick={() => navigate("/workspace/hse/ko/spip/peralatan")}>Batal</Button>
-                    <Button form="peralatan-form" type="submit" className="bg-red-600 hover:bg-red-700">Simpan Data</Button>
+                    <Button form="peralatan-form" type="submit" disabled={form.formState.isSubmitting} className="bg-red-600 hover:bg-red-700">
+                        {form.formState.isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        {form.formState.isSubmitting ? "Menyimpan..." : "Simpan Data"}
+                    </Button>
                 </div>
             </div>
         </div>

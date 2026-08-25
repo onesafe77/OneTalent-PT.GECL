@@ -23,11 +23,19 @@ import {
     Download
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown, UserRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { McuRecord } from "@shared/schema";
 import * as XLSX from "xlsx";
 
@@ -42,6 +50,26 @@ export default function McuPage() {
 
     const { data: stats } = useQuery<{ total: number; fit: number; unfit: number; expiredSoon: number }>({
         queryKey: ["/api/hse/mcu/stats"],
+    });
+
+    const [formOpen, setFormOpen] = useState(false);
+    const [editing, setEditing] = useState<McuRecord | null>(null);
+
+    const simpanMutation = useMutation({
+        mutationFn: async (data: any) => {
+            const url = editing ? `/api/hse/mcu/${editing.id}` : "/api/hse/mcu";
+            return apiRequest(url, editing ? "PUT" : "POST", data);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["/api/hse/mcu"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/hse/mcu/stats"] });
+            toast({ title: editing ? "Data MCU diperbarui" : "Data MCU ditambahkan" });
+            setFormOpen(false);
+            setEditing(null);
+        },
+        onError: (e: any) => {
+            toast({ title: "Gagal menyimpan", description: e.message, variant: "destructive" });
+        },
     });
 
     const deleteMutation = useMutation({
@@ -67,9 +95,11 @@ export default function McuPage() {
     const handleExportExcel = () => {
         const worksheet = XLSX.utils.json_to_sheet(records.map((r, i) => ({
             No: i + 1,
+            NIK: (r as any).nik,
             Nama: r.nama,
+            Jabatan: r.posisi,
+            Departemen: (r as any).departemen,
             Perusahaan: r.perusahaan,
-            Posisi: r.posisi,
             Klinik: r.klinik,
             "MCU Baru": r.tanggalBaru ? format(new Date(r.tanggalBaru), "dd/MM/yyyy") : "-",
             "MCU Berkala": r.tanggalBerkala ? format(new Date(r.tanggalBerkala), "dd/MM/yyyy") : "-",
@@ -86,6 +116,8 @@ export default function McuPage() {
     const filteredRecords = records.filter(r =>
         r.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.perusahaan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r as any).nik?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (r as any).departemen?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         r.hasilKesimpulan?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
@@ -109,7 +141,7 @@ export default function McuPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export Excel
                     </Button>
-                    <Button>
+                    <Button onClick={() => { setEditing(null); setFormOpen(true); }}>
                         <Upload className="mr-2 h-4 w-4" />
                         Upload Manual
                     </Button>
@@ -168,7 +200,7 @@ export default function McuPage() {
                         <div className="relative w-64">
                             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Cari nama, PT, status..."
+                                placeholder="Cari nama, NIK, dept, PT, status..."
                                 className="pl-8"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -182,7 +214,10 @@ export default function McuPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[50px]">No</TableHead>
-                                    <TableHead className="min-w-[200px]">Nama / Posisi</TableHead>
+                                    <TableHead>NIK</TableHead>
+                                    <TableHead className="min-w-[180px]">Nama</TableHead>
+                                    <TableHead>Jabatan</TableHead>
+                                    <TableHead>Dept</TableHead>
                                     <TableHead>Perusahaan</TableHead>
                                     <TableHead>Klinik</TableHead>
                                     <TableHead>Tgl Baru</TableHead>
@@ -199,13 +234,13 @@ export default function McuPage() {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow>
-                                        <TableCell colSpan={13} className="h-24 text-center">
+                                        <TableCell colSpan={16} className="h-24 text-center">
                                             Memuat data...
                                         </TableCell>
                                     </TableRow>
                                 ) : filteredRecords.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={13} className="h-24 text-center">
+                                        <TableCell colSpan={16} className="h-24 text-center">
                                             Tidak ada data ditemukan.
                                         </TableCell>
                                     </TableRow>
@@ -213,10 +248,10 @@ export default function McuPage() {
                                     filteredRecords.map((record, index) => (
                                         <TableRow key={record.id}>
                                             <TableCell>{index + 1}</TableCell>
-                                            <TableCell className="font-medium">
-                                                <div>{record.nama}</div>
-                                                <div className="text-xs text-muted-foreground">{record.posisi || "-"}</div>
-                                            </TableCell>
+                                            <TableCell className="font-mono text-xs whitespace-nowrap">{(record as any).nik || "-"}</TableCell>
+                                            <TableCell className="font-medium">{record.nama}</TableCell>
+                                            <TableCell className="text-xs">{record.posisi || "-"}</TableCell>
+                                            <TableCell className="text-xs">{(record as any).departemen || "-"}</TableCell>
                                             <TableCell>{record.perusahaan || "-"}</TableCell>
                                             <TableCell>{record.klinik || "-"}</TableCell>
                                             <TableCell>
@@ -243,6 +278,9 @@ export default function McuPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">
+                                                    <Button variant="ghost" size="icon" title="Ubah" onClick={() => { setEditing(record); setFormOpen(true); }}>
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
                                                     <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(record.id)}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -256,6 +294,14 @@ export default function McuPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <DialogMcu
+                open={formOpen}
+                editing={editing}
+                menyimpan={simpanMutation.isPending}
+                onClose={() => { setFormOpen(false); setEditing(null); }}
+                onSimpan={(data) => simpanMutation.mutate(data)}
+            />
 
             <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
                 <CardContent className="pt-6">
@@ -293,5 +339,223 @@ export default function McuPage() {
                 <p>Tips: Kirim hasil MCU via WhatsApp ke bot dengan caption "MCU [Nama]" untuk input otomatis.</p>
             </div>
         </div>
+    );
+}
+
+const KOSONG = {
+    employeeId: null as string | null,
+    nama: "", nik: "", posisi: "", departemen: "", perusahaan: "", klinik: "",
+    tanggalBaru: "", tanggalBerkala: "", tanggalAkhir: "",
+    kesimpulanBerkala: "", kesimpulanAkhir: "",
+    hasilKesimpulan: "FIT TO WORK", verifikasiSaran: "", followUp: "",
+};
+
+const HASIL = ["FIT TO WORK", "FIT WITH NOTE", "TEMPORARY UNFIT", "UNFIT TO WORK"];
+
+function DialogMcu({ open, editing, menyimpan, onClose, onSimpan }: {
+    open: boolean; editing: McuRecord | null; menyimpan: boolean;
+    onClose: () => void; onSimpan: (d: any) => void;
+}) {
+    const [f, setF] = useState<any>(KOSONG);
+    const [galat, setGalat] = useState("");
+
+    // Isi ulang tiap kali dialog dibuka, bukan tiap render, agar ketikan tidak tertimpa.
+    useEffect(() => {
+        if (!open) return;
+        setGalat("");
+        if (!editing) { setF(KOSONG); return; }
+        const tgl = (v: any) => (v ? String(v).slice(0, 10) : "");
+        setF({
+            employeeId: (editing as any).employeeId || null,
+            nama: editing.nama || "", nik: (editing as any).nik || "",
+            posisi: editing.posisi || "", departemen: (editing as any).departemen || "",
+            perusahaan: editing.perusahaan || "", klinik: editing.klinik || "",
+            tanggalBaru: tgl(editing.tanggalBaru), tanggalBerkala: tgl(editing.tanggalBerkala),
+            tanggalAkhir: tgl(editing.tanggalAkhir),
+            kesimpulanBerkala: editing.kesimpulanBerkala || "",
+            kesimpulanAkhir: editing.kesimpulanAkhir || "",
+            hasilKesimpulan: editing.hasilKesimpulan || "FIT TO WORK",
+            verifikasiSaran: editing.verifikasiSaran || "", followUp: editing.followUp || "",
+        });
+    }, [open, editing]);
+
+    const set = (k: string) => (e: any) => setF((p: any) => ({ ...p, [k]: e.target.value }));
+
+    const kirim = () => {
+        if (!f.nama.trim()) { setGalat("Nama wajib diisi."); return; }
+        // Kolom tanggal di Postgres menolak string kosong — kirim null.
+        const bersih: any = { ...f, nama: f.nama.trim() };
+        for (const k of ["tanggalBaru", "tanggalBerkala", "tanggalAkhir"]) {
+            if (!bersih[k]) bersih[k] = null;
+        }
+        onSimpan(bersih);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{editing ? "Ubah Data MCU" : "Tambah Data MCU"}</DialogTitle>
+                </DialogHeader>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Nama <span className="text-destructive">*</span></Label>
+                        <PilihKaryawan
+                            nama={f.nama}
+                            onPilih={(k) => setF((p: any) => ({
+                                ...p,
+                                employeeId: k.id, nama: k.name, nik: k.id,
+                                posisi: k.position || "", departemen: k.department || "",
+                            }))}
+                            onKetik={(v) => setF((p: any) => ({ ...p, nama: v, employeeId: null, nik: "" }))}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Cari nama dari data manpower — NIK, jabatan, dan departemen terisi otomatis.
+                            Nama di luar daftar boleh diketik manual.
+                        </p>
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>NIK</Label>
+                        <Input value={f.nik} onChange={set("nik")} placeholder="mis. C-019066" />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Jabatan</Label>
+                        <Input value={f.posisi} onChange={set("posisi")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Departemen</Label>
+                        <Input value={f.departemen} onChange={set("departemen")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Perusahaan</Label>
+                        <Input value={f.perusahaan} onChange={set("perusahaan")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Klinik</Label>
+                        <Input value={f.klinik} onChange={set("klinik")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Tgl MCU Baru</Label>
+                        <Input type="date" value={f.tanggalBaru} onChange={set("tanggalBaru")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Tgl MCU Berkala</Label>
+                        <Input type="date" value={f.tanggalBerkala} onChange={set("tanggalBerkala")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Tgl MCU Akhir (masa berlaku)</Label>
+                        <Input type="date" value={f.tanggalAkhir} onChange={set("tanggalAkhir")} />
+                    </div>
+                    <div className="space-y-1.5">
+                        <Label>Hasil (Status)</Label>
+                        <Select value={f.hasilKesimpulan} onValueChange={(v) => setF((p: any) => ({ ...p, hasilKesimpulan: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {HASIL.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Kesimpulan Berkala</Label>
+                        <Textarea rows={2} value={f.kesimpulanBerkala} onChange={set("kesimpulanBerkala")} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Kesimpulan Akhir</Label>
+                        <Textarea rows={2} value={f.kesimpulanAkhir} onChange={set("kesimpulanAkhir")} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Verifikasi / Saran</Label>
+                        <Textarea rows={2} value={f.verifikasiSaran} onChange={set("verifikasiSaran")} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                        <Label>Follow Up</Label>
+                        <Textarea rows={2} value={f.followUp} onChange={set("followUp")} />
+                    </div>
+                </div>
+
+                {galat && <p className="text-sm text-destructive">{galat}</p>}
+
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose} disabled={menyimpan}>Batal</Button>
+                    <Button onClick={kirim} disabled={menyimpan}>
+                        {menyimpan ? "Menyimpan..." : "Simpan"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+type KaryawanRingkas = { id: string; name: string; position?: string | null; department?: string | null };
+
+function PilihKaryawan({ nama, onPilih, onKetik }: {
+    nama: string;
+    onPilih: (k: KaryawanRingkas) => void;
+    onKetik: (v: string) => void;
+}) {
+    const [buka, setBuka] = useState(false);
+    const [cari, setCari] = useState("");
+
+    const { data, isLoading } = useQuery<any>({ queryKey: ["/api/employees"], enabled: buka });
+    const semua: KaryawanRingkas[] = Array.isArray(data) ? data : (data?.data ?? []);
+
+    // Batasi yang dirender; 320 karyawan tanpa batas bikin daftar berat dibuka.
+    const cocok = semua.filter((k) => {
+        const q = cari.toLowerCase();
+        return !q || k.name?.toLowerCase().includes(q) || k.id?.toLowerCase().includes(q)
+            || k.department?.toLowerCase().includes(q);
+    }).slice(0, 50);
+
+    return (
+        <Popover open={buka} onOpenChange={setBuka}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={buka}
+                    className="w-full justify-between font-normal">
+                    <span className={cn("flex items-center gap-2 truncate", !nama && "text-muted-foreground")}>
+                        <UserRound className="h-4 w-4 shrink-0 opacity-50" />
+                        {nama || "Cari nama personil..."}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command shouldFilter={false}>
+                    <CommandInput placeholder="Ketik nama, NIK, atau dept..." value={cari} onValueChange={setCari} />
+                    <CommandList>
+                        {isLoading && <div className="py-6 text-center text-sm text-muted-foreground">Memuat data manpower...</div>}
+                        {!isLoading && cocok.length === 0 && (
+                            <CommandEmpty>
+                                <div className="px-2 py-3 text-sm">
+                                    <p className="text-muted-foreground">Tidak ada di data manpower.</p>
+                                    {cari.trim() && (
+                                        <Button variant="link" className="h-auto p-0 text-sm"
+                                            onClick={() => { onKetik(cari.trim()); setBuka(false); }}>
+                                            Pakai "{cari.trim()}" sebagai nama manual
+                                        </Button>
+                                    )}
+                                </div>
+                            </CommandEmpty>
+                        )}
+                        {cocok.length > 0 && (
+                            <CommandGroup>
+                                {cocok.map((k) => (
+                                    <CommandItem key={k.id} value={k.id}
+                                        onSelect={() => { onPilih(k); setBuka(false); setCari(""); }}>
+                                        <Check className={cn("mr-2 h-4 w-4", nama === k.name ? "opacity-100" : "opacity-0")} />
+                                        <div className="min-w-0">
+                                            <div className="truncate font-medium">{k.name}</div>
+                                            <div className="truncate text-xs text-muted-foreground">
+                                                {k.id}{k.position ? ` \u00b7 ${k.position}` : ""}{k.department ? ` \u00b7 ${k.department}` : ""}
+                                            </div>
+                                        </div>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        )}
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     );
 }

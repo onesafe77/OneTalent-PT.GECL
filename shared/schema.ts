@@ -3659,8 +3659,10 @@ export const mcuRecords = pgTable("mcu_records", {
   employeeId: varchar("employee_id").references(() => employees.id),
   no: integer("no"), // Nomor urut manual jika migrasi excel
   nama: text("nama").notNull(),
+  nik: text("nik"),              // = employees.id, diisi saat nama dipilih dari data manpower
   perusahaan: text("perusahaan"),
-  posisi: text("posisi"),
+  posisi: text("posisi"),        // jabatan
+  departemen: text("departemen"),
   klinik: text("klinik"),
 
   // Tanggal MCU
