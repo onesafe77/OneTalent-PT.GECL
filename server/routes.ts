@@ -13433,10 +13433,27 @@ Format sebagai bullet points singkat per insight.`;
 
 
   // ==========================================
+  // PENJAGA DATA KESEHATAN
+  // ==========================================
+  // Didefinisikan di sini (bukan dekat rute Profil Kesehatan) karena rute MCU
+  // dan Ijin Sakit di bawah ini terdaftar lebih dulu; const tidak ter-hoist,
+  // jadi definisi yang terlambat akan membuat server gagal start.
+  // Data medis: hanya dept HSE, HRGA, dan PJO.
+  const wajibIzinKesehatan = (req: any, res: any, next: any) => {
+    const u = (req.session as any)?.user;
+    if (!u) return res.status(401).json({ error: "Harus login" });
+    if (!canAccessHealthProfile(u.position, u.department)) {
+      console.warn(`[data-kesehatan] AKSES DITOLAK: ${u.name} (${u.position} / ${u.department}) -> ${req.method} ${req.originalUrl}`);
+      return res.status(403).json({ error: "Anda tidak memiliki akses ke data kesehatan" });
+    }
+    next();
+  };
+
+  // ==========================================
   // SICK LEAVE API
   // ==========================================
 
-  app.get("/api/hse/sick-leaves", async (req, res) => {
+  app.get("/api/hse/sick-leaves", wajibIzinKesehatan, async (req, res) => {
     try {
       const result = await storage.getSickLeaves();
       res.json(result);
@@ -13445,7 +13462,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.delete("/api/hse/sick-leaves/:id", async (req, res) => {
+  app.delete("/api/hse/sick-leaves/:id", wajibIzinKesehatan, async (req, res) => {
     try {
       const success = await storage.deleteSickLeave(req.params.id);
       if (success) {
@@ -13458,7 +13475,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.get("/api/hse/sick-leaves/stats", async (req, res) => {
+  app.get("/api/hse/sick-leaves/stats", wajibIzinKesehatan, async (req, res) => {
     try {
       const leaves = await storage.getSickLeaves();
       const stats = {
@@ -13479,7 +13496,7 @@ Format sebagai bullet points singkat per insight.`;
   });
 
   // Seed endpoint for inserting dummy sick leave data
-  app.post("/api/hse/sick-leaves/seed", async (req, res) => {
+  app.post("/api/hse/sick-leaves/seed", wajibIzinKesehatan, async (req, res) => {
     try {
       const { name, nik, position, employeeId, date, reason, status, attachmentUrl, attachmentType, aiConfidence, originalMessage, aiAnalysis } = req.body;
       if (!name || !date) {
@@ -19316,7 +19333,7 @@ Format sebagai bullet points singkat per insight.`;
   // MCU ENDPOINTS
   // ============================================
 
-  app.get("/api/hse/mcu", async (req, res) => {
+  app.get("/api/hse/mcu", wajibIzinKesehatan, async (req, res) => {
     try {
       const records = await storage.getMcuRecords();
       res.json(records);
@@ -19325,7 +19342,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.get("/api/hse/mcu/stats", async (req, res) => {
+  app.get("/api/hse/mcu/stats", wajibIzinKesehatan, async (req, res) => {
     try {
       const stats = await storage.getMcuStatistics();
       res.json(stats);
@@ -19334,7 +19351,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.get("/api/hse/mcu/:id", async (req, res) => {
+  app.get("/api/hse/mcu/:id", wajibIzinKesehatan, async (req, res) => {
     try {
       const record = await storage.getMcuRecord(req.params.id);
       if (!record) return res.status(404).json({ error: "MCU record not found" });
@@ -19344,7 +19361,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.post("/api/hse/mcu", async (req, res) => {
+  app.post("/api/hse/mcu", wajibIzinKesehatan, async (req, res) => {
     try {
       const record = await storage.createMcuRecord(req.body);
       res.status(201).json(record);
@@ -19354,7 +19371,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.put("/api/hse/mcu/:id", async (req, res) => {
+  app.put("/api/hse/mcu/:id", wajibIzinKesehatan, async (req, res) => {
     try {
       const record = await storage.updateMcuRecord(req.params.id, req.body);
       if (!record) return res.status(404).json({ error: "MCU record not found" });
@@ -19364,7 +19381,7 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
-  app.delete("/api/hse/mcu/:id", async (req, res) => {
+  app.delete("/api/hse/mcu/:id", wajibIzinKesehatan, async (req, res) => {
     try {
       const success = await storage.deleteMcuRecord(req.params.id);
       if (!success) return res.status(404).json({ error: "MCU record not found" });
@@ -22191,16 +22208,6 @@ Format sebagai bullet points singkat per insight.`;
 
   // Penjaga akses. Data medis → dikunci di SERVER sejak awal, tidak menunggu
   // pengamanan API menyeluruh. Hanya dept HSE, HRGA, dan PJO yang boleh lewat.
-  const wajibIzinKesehatan = (req: any, res: any, next: any) => {
-    const u = (req.session as any)?.user;
-    if (!u) return res.status(401).json({ error: "Harus login" });
-    if (!canAccessHealthProfile(u.position, u.department)) {
-      console.warn(`[health-profile] AKSES DITOLAK: ${u.name} (${u.position} / ${u.department})`);
-      return res.status(403).json({ error: "Anda tidak memiliki akses ke data profil kesehatan" });
-    }
-    next();
-  };
-
   // Upsert per (kategori, nama, periode) → impor ulang memperbarui, tidak menggandakan.
   // employeeId & statusTaut TIDAK ditimpa agar penautan manual petugas tidak hilang.
   async function simpanBarisKesehatan(baris: any[]): Promise<number> {
