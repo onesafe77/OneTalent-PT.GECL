@@ -142,6 +142,7 @@ import BlastWhatsApp from "@/pages/blast-whatsapp";
 import ActivityCalendar from "@/pages/activity-calendar";
 import FmsDashboard from "@/pages/fms-dashboard";
 import McuPage from "@/pages/hse/mcu-page";
+import RekapMcuPage from "@/pages/hse/rekap-mcu";
 import ProfilKesehatan from "@/pages/hse/profil-kesehatan";
 import IndikatorKesehatan from "@/pages/hse/indikator-kesehatan";
 import InductionAdmin from "@/pages/hse/induction-admin";
@@ -579,6 +580,7 @@ export function Workspace() {
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/hse/mcu" component={McuPage} />
+              <Route path="/workspace/hse/rekap-mcu" component={RekapMcuPage} />
               <Route path="/workspace/hse/profil-kesehatan" component={ProfilKesehatan} />
               <Route path="/workspace/hse/indikator-kesehatan" component={IndikatorKesehatan} />
               <Route path="/workspace/hse/investor-evaluation" component={InvestorEvaluationPage} />

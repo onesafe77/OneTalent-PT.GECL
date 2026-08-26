@@ -22216,7 +22216,9 @@ Format sebagai bullet points singkat per insight.`;
       const set: any = { ...b, updatedAt: new Date() };
       delete set.employeeId; delete set.statusTaut;
       await db.insert(mcuHealthMapping).values(b).onConflictDoUpdate({
-        target: [mcuHealthMapping.kategori, mcuHealthMapping.nama, mcuHealthMapping.periode],
+        // Kunci dedup = kunciBaris (No Reg bila ada, selain itu nama+TTL). Nama saja
+        // tidak cukup: ada dua orang berbeda bernama sama yang MCU di periode sama.
+        target: [mcuHealthMapping.kategori, mcuHealthMapping.kunciBaris, mcuHealthMapping.periode],
         set,
       });
       n++;
@@ -22231,7 +22233,10 @@ Format sebagai bullet points singkat per insight.`;
     try {
       const { kategori, tahun, bulan, search, status_taut } = req.query;
       const cond: any[] = [];
+      // Tanpa kategori tertentu (= halaman Profil Kesehatan), kategori Rekap dikecualikan.
+      // Halaman Rekap MCU selalu mengirim kategori, jadi tidak terpengaruh.
       if (kategori && kategori !== "all") cond.push(eq(mcuHealthMapping.kategori, kategori as string));
+      else cond.push(bukanRekap);
       if (tahun && tahun !== "all") cond.push(eq(mcuHealthMapping.tahun, parseInt(tahun as string)));
       if (bulan && bulan !== "all") cond.push(eq(mcuHealthMapping.bulan, bulan as string));
       if (status_taut && status_taut !== "all") cond.push(eq(mcuHealthMapping.statusTaut, status_taut as string));
@@ -22243,6 +22248,9 @@ Format sebagai bullet points singkat per insight.`;
         ));
       }
       const where = cond.length ? and(...cond) : undefined;
+
+      const batas = Math.min(parseInt(String(req.query.limit ?? "")) || 3000, 3000);
+      const mulai = Math.max(parseInt(String(req.query.offset ?? "")) || 0, 0);
 
       // Identitas ditampilkan dari master karyawan bila sudah tertaut (lebih tepercaya
       // daripada kolom Excel yang banyak berisi "-"), selain itu pakai data Excel.
@@ -22267,24 +22275,56 @@ Format sebagai bullet points singkat per insight.`;
         empPosisi: employees.position,
         departemenSumber: mcuHealthMapping.departemenSumber,
         posisiSumber: mcuHealthMapping.posisiSumber,
+        noReg: mcuHealthMapping.noReg,
       })
         .from(mcuHealthMapping)
         .leftJoin(employees, eq(employees.id, mcuHealthMapping.employeeId))
         .where(where)
         .orderBy(desc(mcuHealthMapping.periode), asc(mcuHealthMapping.nama))
-        .limit(3000);
+        .limit(batas).offset(mulai);
 
-      res.json({ data: rows, total: rows.length });
+      // Halaman Rekap MCU membawa ~150 kunci jsonb per baris, jadi selalu meminta
+      // `limit`. Pemanggil lama (Profil Kesehatan) tidak mengirim limit dan tetap
+      // mendapat perilaku sebelumnya.
+      let total = rows.length;
+      if (req.query.limit) {
+        const [c] = await db.select({ n: sql<number>`count(*)::int` })
+          .from(mcuHealthMapping).where(where);
+        total = c?.n ?? rows.length;
+      }
+
+      // Kunci `nilai` yang benar-benar terisi untuk kategori ini — dipakai halaman
+      // Rekap MCU untuk menyembunyikan kolom kosong. Dihitung di server supaya
+      // kolom tidak muncul-hilang saat pengguna berpindah halaman.
+      let kolomTerisi: string[] | undefined;
+      if (kategori && kategori !== "all") {
+        const k = await db.execute(sql`
+          SELECT DISTINCT jsonb_object_keys(nilai) AS kunci
+          FROM mcu_health_mapping
+          WHERE kategori = ${kategori as string} AND nilai IS NOT NULL`);
+        kolomTerisi = (k.rows as any[]).map((r) => r.kunci);
+      }
+
+      res.json({ data: rows, total, limit: batas, offset: mulai, kolomTerisi });
     } catch (error) {
       console.error("Error health-mapping list:", error);
       res.status(500).json({ error: "Gagal mengambil data profil kesehatan" });
     }
   });
 
+  // Halaman Profil Kesehatan menghitung TEMUAN penyakit. Tiga kategori "Rekap *"
+  // bukan temuan — itu catatan MCU lengkap semua orang, termasuk yang hasilnya
+  // normal, dan punya halamannya sendiri (Rekap MCU). Mencampurnya membuat angka
+  // "temuan MCU" salah baca: 996 catatan lengkap menenggelamkan 768 temuan asli.
+  // Dikecualikan dari statistik & daftar, TAPI tetap ikut di riwayat per orang dan
+  // di panel penautan — di sana justru berguna.
+  const bukanRekap = sql`${mcuHealthMapping.kategori} NOT LIKE 'Rekap %'`;
+
   app.get("/api/mcu/health-mapping/summary", wajibIzinKesehatan, async (req, res) => {
     try {
       const { tahun } = req.query;
-      const filterTahun = tahun && tahun !== "all" ? eq(mcuHealthMapping.tahun, parseInt(tahun as string)) : undefined;
+      const ft = tahun && tahun !== "all" ? eq(mcuHealthMapping.tahun, parseInt(tahun as string)) : undefined;
+      const filterTahun = ft ? and(ft, bukanRekap) : bukanRekap;
 
       const perKategori = await db.select({
         kategori: mcuHealthMapping.kategori,
@@ -22304,9 +22344,10 @@ Format sebagai bullet points singkat per insight.`;
       const taut = await db.select({
         status: mcuHealthMapping.statusTaut,
         jumlah: sql<number>`count(*)`,
-      }).from(mcuHealthMapping).groupBy(mcuHealthMapping.statusTaut);
+      }).from(mcuHealthMapping).where(bukanRekap).groupBy(mcuHealthMapping.statusTaut);
 
-      const tahunAda = await db.selectDistinct({ tahun: mcuHealthMapping.tahun }).from(mcuHealthMapping);
+      const tahunAda = await db.selectDistinct({ tahun: mcuHealthMapping.tahun })
+        .from(mcuHealthMapping).where(bukanRekap);
 
       res.json({
         perKategori: perKategori.map(k => ({ ...k, jumlah: Number(k.jumlah), orang: Number(k.orang) }))
@@ -22357,6 +22398,29 @@ Format sebagai bullet points singkat per insight.`;
 
   // Impor 14 sheet mapping penyakit sekaligus. Logika baca+taut ada di
   // server/lib/mcu-health-import.ts agar bisa diuji terpisah dari HTTP.
+  // Template Excel 17 sheet (3 Rekap + 14 penyakit) dengan nama & urutan kolom persis
+  // seperti file MCU asli, tapi tata letaknya dirapikan. Hasil unduhan bisa diisi lalu
+  // langsung diunggah kembali lewat endpoint /import. ?gaya=asli untuk bentuk mentah.
+  app.get("/api/mcu/health-mapping/template", wajibIzinKesehatan, async (req, res) => {
+    try {
+      const { buatTemplateRekap } = await import("./lib/mcu-rekap-template");
+      // lingkup: "semua" (17 sheet, bawaan) | "rekap" (3 sheet) | nama satu sheet
+      const lingkup = (req.query.lingkup ?? req.query.kategori) as string | undefined;
+      // gaya: "rapi" (bawaan) | "asli" = salin bentuk file sumber apa adanya
+      const gaya = req.query.gaya === "asli" ? "asli" : "rapi";
+      const buf = await buatTemplateRekap(lingkup, gaya);
+      const namaFile = !lingkup || lingkup === "semua"
+        ? "Template_MCU_PT_GECL.xlsx"
+        : `Template_${String(lingkup).replace(/[^A-Za-z0-9]+/g, "_")}.xlsx`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${namaFile}"`);
+      res.send(buf);
+    } catch (error: any) {
+      console.error("Template rekap MCU error:", error);
+      res.status(500).json({ error: "Gagal membuat template: " + error.message });
+    }
+  });
+
   app.post("/api/mcu/health-mapping/import", wajibIzinKesehatan, upload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ error: "Tidak ada file yang diupload" });
@@ -22365,12 +22429,20 @@ Format sebagai bullet points singkat per insight.`;
       const wb = XLSX.readFile(req.file.path, { cellDates: true });
 
       const { bacaWorkbookKesehatan } = await import("./lib/mcu-health-import");
+      const { bacaRekapMCU } = await import("./lib/mcu-rekap-import");
       const karyawan = await storage.getAllEmployees();
-      const { baris, perKategori, sheetDilewati } = bacaWorkbookKesehatan(XLSX, wb, karyawan as any[]);
+
+      // Satu unggahan memuat keduanya: 14 sheet penyakit + 3 sheet "Rekap *".
+      const penyakit = bacaWorkbookKesehatan(XLSX, wb, karyawan as any[]);
+      const rekap = bacaRekapMCU(XLSX, wb, karyawan as any[]);
+
+      const baris = [...penyakit.baris, ...rekap.baris];
+      const perKategori = { ...penyakit.perKategori, ...rekap.perKategori };
+      const sheetDilewati = [...penyakit.sheetDilewati, ...rekap.sheetDilewati];
 
       const masuk = await simpanBarisKesehatan(baris);
       fs.unlink(req.file.path, () => { });
-      res.json({ success: true, imported: masuk, perKategori, sheetDilewati });
+      res.json({ success: true, imported: masuk, perKategori, sheetDilewati, peringatan: rekap.peringatan });
     } catch (error: any) {
       console.error("Import health-mapping error:", error);
       res.status(500).json({ error: "Gagal memproses file: " + error.message });
@@ -22465,8 +22537,15 @@ Format sebagai bullet points singkat per insight.`;
       // periode diturunkan dari bulan+tahun agar konsisten dgn data hasil impor
       const bulanIdx = BULAN_ID_URUT.findIndex(b => b.toLowerCase() === String(data.bulan || "").toLowerCase());
       const periode = (data.tahun && bulanIdx > -1) ? new Date(Date.UTC(data.tahun, bulanIdx, 1)) : (data.periode ?? null);
+      // kunciBaris diturunkan di sini supaya form tidak perlu tahu aturannya, dan
+      // supaya baris yang ditambah manual memakai kunci dedup yang sama dgn hasil impor.
+      const { buatKunciBaris } = await import("./lib/mcu-health-import");
+      const kunciBaris = buatKunciBaris(
+        (data as any).noReg ?? null, data.nama,
+        data.tanggalLahir ? new Date(data.tanggalLahir as any) : null);
+
       const [created] = await db.insert(mcuHealthMapping)
-        .values({ ...data, periode } as any).returning();
+        .values({ ...data, periode, kunciBaris } as any).returning();
       res.status(201).json(created);
     } catch (error: any) {
       if (String(error?.message || "").includes("UQ_mcu_health_baris")) {

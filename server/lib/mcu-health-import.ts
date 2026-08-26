@@ -35,11 +35,99 @@ export function kunciNama(s: any): string {
     .map(w => ALIAS[w] ?? w).sort().join(" ");
 }
 
+/**
+ * Cari kolom identitas berdasarkan NAMA kolom, bukan posisi.
+ *
+ * Dulu fungsinya diasumsikan: iJK = ci+1, iTTL = ci+2, iDept = ci+3, iPosisi = ci+4.
+ * Asumsi itu salah untuk sheet yang susunannya beda, dan salahnya SENYAP:
+ *  - "Gg Faal Hepar" tidak punya kolom JK & TTL sama sekali (Nama|Department|Posisi|GOT|GPT),
+ *    sehingga nilai GOT/GPT tersimpan sebagai departemen & posisi, dan hilang dari `nilai`.
+ *  - 3 sheet "Rekap *" menyisipkan kolom Perusahaan setelah Nama, sehingga jenis kelamin
+ *    akan terisi "PT. GECL".
+ * Karena ini data medis, salah kolom lebih berbahaya daripada gagal impor.
+ *
+ * Offset posisi lama tetap dipakai sebagai jaring pengaman bila nama kolom tak ditemukan.
+ */
+/**
+ * Kunci dedup satu baris MCU.
+ *
+ * Nama saja TIDAK cukup: ada dua orang berbeda bernama "Wakidi" (lahir 1986-07-15 dan
+ * 1985-05-11) yang MCU di periode yang sama. Dengan kunci lama (kategori,nama,periode)
+ * hasil uji jantung salah satunya hilang tanpa pesan apa pun.
+ *
+ * Urutan: No Reg (paling tepat, hanya ada di sheet Rekap) -> nama+TTL -> nama.
+ */
+export function buatKunciBaris(noReg: string | null, nama: string, ttl: Date | null): string {
+  if (noReg && noReg !== "-") return noReg;
+  if (ttl && !isNaN(ttl.getTime())) {
+    const y = ttl.getFullYear(), m = String(ttl.getMonth() + 1).padStart(2, "0"), d = String(ttl.getDate()).padStart(2, "0");
+    return `${nama}|${y}-${m}-${d}`;
+  }
+  return nama;
+}
+
+export function cariKolomIdentitas(header: string[], ci: number, namaSheet = "") {
+  const cocok = (re: RegExp) => header.findIndex((h) => re.test(h.trim()));
+  const pilih = (re: RegExp, tebakanPosisi: number, label: string) => {
+    const byNama = cocok(re);
+    if (byNama > -1) {
+      if (byNama !== tebakanPosisi) {
+        console.warn(`[mcu-import] ${namaSheet}: kolom ${label} ada di ${byNama}, ` +
+          `bukan ${tebakanPosisi} spt tebakan posisi — pakai hasil pencarian nama.`);
+      }
+      return byNama;
+    }
+    // Tidak ketemu lewat nama. Jangan pakai tebakan posisi kalau kolomnya memang
+    // TIDAK ADA di sheet ini — itu justru sumber kerusakannya.
+    console.warn(`[mcu-import] ${namaSheet}: kolom ${label} tidak ada; dikosongkan.`);
+    return -1;
+  };
+
+  const iJK = pilih(/^(jk|jenis kelamin|l\/p)$/i, ci + 1, "JK");
+  const iTTL = pilih(/^(ttl|tanggal lahir|tgl lahir)$/i, ci + 2, "TTL");
+  const iDept = pilih(/^(department|departemen|dept)$/i, ci + 3, "Department");
+  const iPosisi = pilih(/^(posisi|jabatan|position)$/i, ci + 4, "Posisi");
+  const iNoReg = cocok(/^no\.?\s*(reg|lab)/i);
+
+  // Kolom nilai dimulai setelah kolom identitas TERAKHIR yang benar-benar ada.
+  const akhirIdentitas = Math.max(ci, iJK, iTTL, iDept, iPosisi, iNoReg);
+
+  return { iJK, iTTL, iDept, iPosisi, iNoReg, akhirIdentitas };
+}
+
+const BULAN_SINGKAT: Record<string, number> = {
+  jan: 1, feb: 2, peb: 2, mar: 3, apr: 4, mei: 5, may: 5, jun: 6,
+  jul: 7, agu: 8, ags: 8, agt: 8, aug: 8, sep: 9, okt: 10, oct: 10, nov: 11, des: 12, dec: 12,
+};
+
 export function tglExcel(v: any): Date | null {
   if (v == null || v === "" || v === "-") return null;
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
   if (typeof v === "number") return new Date(Math.round((v - 25569) * 86400 * 1000));
-  const d = new Date(String(v));
+
+  const str = String(v).trim();
+  if (!str || str === "-") return null;
+
+  // Urutan Indonesia: HARI dulu, baru BULAN. new Date("04/07/1999") bawaan JavaScript
+  // membacanya sebagai 7 April (gaya Amerika) dan "15/03/1995" langsung tidak sah —
+  // padahal tanggal lahir inilah yang dipakai menautkan ke data karyawan.
+  // Pakai Date.UTC agar tidak bergeser sehari seperti tanggal bawaan Excel.
+  let m = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) {
+    const hari = +m[1], bulan = +m[2];
+    if (hari >= 1 && hari <= 31 && bulan >= 1 && bulan <= 12) {
+      return new Date(Date.UTC(+m[3], bulan - 1, hari));
+    }
+  }
+  m = str.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);       // 1999-07-04
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  m = str.match(/^(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4})$/);            // 4 Juli 1999
+  if (m) {
+    const bulan = BULAN_SINGKAT[m[2].slice(0, 3).toLowerCase()];
+    if (bulan) return new Date(Date.UTC(+m[3], bulan - 1, +m[1]));
+  }
+
+  const d = new Date(str);
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -48,7 +136,8 @@ const selisihHari = (a: any, b: any) => Math.abs((new Date(a).getTime() - new Da
 
 export interface BarisKesehatan {
   kategori: string; bulan: string | null; tahun: number | null; periode: Date | null;
-  nama: string; jenisKelamin: string | null; tanggalLahir: Date | null;
+  nama: string; noReg: string | null; kunciBaris: string;
+  jenisKelamin: string | null; tanggalLahir: Date | null;
   departemenSumber: string | null; posisiSumber: string | null;
   employeeId: string | null; statusTaut: string;
   nilai: Record<string, string> | null; kesimpulan: string | null; tindakLanjut: string | null;
@@ -95,12 +184,12 @@ export function bacaWorkbookKesehatan(XLSX: any, wb: any, karyawan: any[]): Hasi
     const header: string[] = (grid[hr] || []).map((h: any) => String(h || "").trim());
     const kolom = (nm: string) => header.findIndex(h => h.toLowerCase() === nm.toLowerCase());
     const iBulan = kolom("Bulan"), iTahun = kolom("Tahun");
-    const iJK = ci + 1, iTTL = ci + 2, iDept = ci + 3, iPosisi = ci + 4;
+    const { iJK, iTTL, iDept, iPosisi, akhirIdentitas } = cariKolomIdentitas(header, ci, namaSheet);
     const iKesimpulan = header.findIndex(h => /^kesimpulan$/i.test(h));
     const iTL = header.findIndex(h => /^(tindak lanjut|tl)$/i.test(h));
 
     const kolomNilai: number[] = [];
-    for (let c = iPosisi + 1; c < header.length; c++) {
+    for (let c = akhirIdentitas + 1; c < header.length; c++) {
       if (!header[c] || c === iKesimpulan || c === iTL) continue;
       kolomNilai.push(c);
     }
@@ -116,7 +205,8 @@ export function bacaWorkbookKesehatan(XLSX: any, wb: any, karyawan: any[]): Hasi
       const bulanIdx = BULAN_ID_URUT.findIndex(b => b.toLowerCase() === bulan.toLowerCase());
       const periode = (!isNaN(tahun) && bulanIdx > -1) ? new Date(Date.UTC(tahun, bulanIdx, 1)) : null;
 
-      const ttl = tglExcel(row[iTTL]);
+      const ambil = (i: number) => (i > -1 ? String(row[i] ?? "").trim() : "");
+      const ttl = iTTL > -1 ? tglExcel(row[iTTL]) : null;
       const nilai: Record<string, string> = {};
       for (const c of kolomNilai) {
         const v = String(row[c] ?? "").trim();
@@ -134,9 +224,10 @@ export function bacaWorkbookKesehatan(XLSX: any, wb: any, karyawan: any[]): Hasi
 
       baris.push({
         kategori, bulan: bulan || null, tahun: isNaN(tahun) ? null : tahun, periode,
-        nama, jenisKelamin: String(row[iJK] || "").trim() || null, tanggalLahir: ttl,
-        departemenSumber: String(row[iDept] || "").trim() || null,
-        posisiSumber: String(row[iPosisi] || "").trim() || null,
+        noReg: null, kunciBaris: buatKunciBaris(null, nama, ttl),
+        nama, jenisKelamin: ambil(iJK) || null, tanggalLahir: ttl,
+        departemenSumber: ambil(iDept) || null,
+        posisiSumber: ambil(iPosisi) || null,
         employeeId, statusTaut,
         nilai: Object.keys(nilai).length ? nilai : null,
         kesimpulan: iKesimpulan > -1 ? String(row[iKesimpulan] || "").trim() || null : null,

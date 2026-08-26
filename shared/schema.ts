@@ -3719,6 +3719,11 @@ export const mcuHealthMapping = pgTable("mcu_health_mapping", {
   // Identitas apa adanya dari Excel (tetap disimpan walau sudah tertaut ke HR,
   // supaya jejak sumbernya tidak hilang bila data karyawan berubah).
   nama: text("nama").notNull(),
+  noReg: text("no_reg"),          // "No Reg/No Lab" — hanya ada di 3 sheet Rekap
+  // Kunci dedup sebenarnya: noReg bila ada, selain itu nama. Dibutuhkan karena ada
+  // dua orang berbeda bernama sama yang MCU di periode yang sama (mis. HENDRA Juni 2025,
+  // No Reg 100 vs 092) — kunci lama (kategori,nama,periode) akan menelan salah satunya.
+  kunciBaris: text("kunci_baris"),
   jenisKelamin: text("jenis_kelamin"),
   tanggalLahir: date("tanggal_lahir"),
   departemenSumber: text("departemen_sumber"),
@@ -3739,7 +3744,9 @@ export const mcuHealthMapping = pgTable("mcu_health_mapping", {
   index("IDX_mcu_health_periode").on(table.periode),
   index("IDX_mcu_health_employee").on(table.employeeId),
   // Kunci idempoten impor: satu orang, satu kategori, satu periode = satu baris.
-  uniqueIndex("UQ_mcu_health_baris").on(table.kategori, table.nama, table.periode),
+  // Dedup memakai kunciBaris (noReg bila ada, selain itu nama) — lihat komentar kolomnya.
+  uniqueIndex("UQ_mcu_health_baris2").on(table.kategori, table.kunciBaris, table.periode),
+  index("IDX_mcu_health_noreg").on(table.noReg),
 ]);
 
 export const insertMcuHealthMappingSchema = createInsertSchema(mcuHealthMapping, {

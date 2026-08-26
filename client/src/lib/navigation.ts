@@ -1,4 +1,4 @@
-import { LucideIcon } from "lucide-react";
+import { LucideIcon , TableProperties} from "lucide-react";
 import { Permission } from "@shared/rbac";
 import {
     Users,
@@ -162,6 +162,13 @@ export const navigationGroups: NavGroup[] = [
                                         name: "MCU",
                                         icon: Activity,
                                         href: "/workspace/hse/mcu",
+                                        requiredPermissions: [Permission.VIEW_HEALTH_PROFILE],
+                                    },
+                                    {
+                                        name: "Rekap MCU",
+                                        icon: TableProperties,
+                                        href: "/workspace/hse/rekap-mcu",
+                                        requiredPermissions: [Permission.VIEW_HEALTH_PROFILE],
                                     },
                                     {
                                         name: "Profil Kesehatan",
