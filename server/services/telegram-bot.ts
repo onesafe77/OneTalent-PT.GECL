@@ -115,19 +115,37 @@ function parseJobBriefing(text: string): { tanggal: string; shift: string; teams
   for (let k = 0; k < idxs.length; k++) {
     const start = idxs[k], end = k + 1 < idxs.length ? idxs[k + 1] : lines.length;
     const block = lines.slice(start, end);
-    const team = block[0].replace(/^\s*\d+\.\s*/, "").trim();
+    // Sebagian tim menulis judul & keterangan dalam satu baris:
+    // "1. Team Bravo Phase 4 Nama Mitra dan Personil Safety" -> ambil judulnya saja.
+    const team = block[0]
+      .replace(/^\s*\d+\.\s*/, "")
+      .replace(/\s*nama\s*mitra.*$/i, "")
+      .replace(/\s*nama\s*&?\s*personil.*$/i, "")
+      .trim();
     let lokasi: string | null = null, gecl: string | null = null;
     const raw: string[] = [];
-    for (const ln of block) {
+    block.forEach((ln, i) => {
       const lo = ln.toLowerCase();
       const locM = /standby\s*lokasi\s*:\s*(.+)/i.exec(ln);
       if (locM) lokasi = locM[1].trim();
       const gm = /\bgecl\s*:\s*(.+)/i.exec(ln);
       if (gm) gecl = matchGeclOfficer(gm[1].trim());
-      // baris kegiatan: diawali "- " atau "• "
+      if (i === 0) return;                       // baris judul tim
+
+      // Baris kegiatan boleh diawali "-" / "•" ATAU polos. Dulu hanya yang berawalan
+      // tanda hubung yang dihitung; ketika tim menulis briefing tanpa tanda hubung,
+      // daftar kegiatan kosong -> seluruh tim dilewati -> tidak ada target sama sekali,
+      // dan tanpa satu pun pesan galat. Itu yang terjadi pada 25-26 Agustus 2026.
+      // Baris identitas/lokasi/judul disaring di sini; sisanya disaring
+      // canonicalSafetyActivity() yang mengembalikan null untuk teks tak dikenal.
       const km = /^\s*[-•]\s*(.+)/.exec(ln);
-      if (km && !lo.includes("nama mitra") && !lo.includes("standby")) raw.push(km[1].trim());
-    }
+      const teks = (km ? km[1] : ln).trim();
+      if (!teks) return;
+      if (/^[A-Za-z][A-Za-z .]{0,14}\s*:/.test(teks)) return;   // "GECL : X", "AEK: Y", "Standby Lokasi : Z"
+      if (lo.includes("nama mitra") || lo.includes("personil") || lo.includes("standby")) return;
+      if (/^kegiatan\s*:?$/i.test(teks)) return;
+      raw.push(teks);
+    });
     const activities = Array.from(new Set(raw.map((r) => canonicalSafetyActivity(r)).filter(Boolean) as string[]));
     teams.push({ team, lokasi, gecl, activities, raw });
   }
