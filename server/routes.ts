@@ -13946,6 +13946,111 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Analisis Kegiatan: rekap per kegiatan (kanonik) + jumlah sampel yang diperiksa.
+  //
+  // "Sampel" tidak punya kolom sendiri — tim menuliskannya di kalimat temuan
+  // ("Dari 15 driver yang dilakukan ..."), jadi diekstrak dengan jumlahSampel().
+  // Karena itu SETIAP angka sampel selalu dikirim bersama cakupannya
+  // (berapa laporan yang benar-benar mencantumkan), supaya pembaca tahu
+  // total 210 dari 14 laporan tidak sama tepercayanya dengan 2.795 dari 187.
+  app.get("/api/safety-patrol/analisis", async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      const laporan = (startDate && endDate)
+        ? await storage.getSafetyPatrolReportsByDateRange(startDate as string, endDate as string)
+        : await storage.getAllSafetyPatrolReports();
+
+      const { canonicalSafetyActivity, jumlahSampel, SAFETY_ACTIVITIES } = await import("./lib/safety-activity");
+
+      type Ringkas = {
+        kegiatan: string; laporan: number; sampel: number; laporanBersampel: number;
+        petugas: Set<string>; contohMentah: Set<string>;
+        // per bulan: jumlah laporan, total sampel, dan berapa laporan yang mencantumkan
+        perBulan: Map<string, { laporan: number; sampel: number; bersampel: number }>;
+      };
+      const peta = new Map<string, Ringkas>();
+      const ambil = (k: string): Ringkas => {
+        if (!peta.has(k)) peta.set(k, {
+          kegiatan: k, laporan: 0, sampel: 0, laporanBersampel: 0,
+          petugas: new Set(), perBulan: new Map(), contohMentah: new Set(),
+        });
+        return peta.get(k)!;
+      };
+
+      let totalSampel = 0, totalBersampel = 0;
+      const bulanSet = new Set<string>();
+
+      for (const r of laporan as any[]) {
+        const kanon = canonicalSafetyActivity(r.kegiatan) || canonicalSafetyActivity(r.jenisLaporan);
+        const kunci = kanon || "Belum terklasifikasi";
+        const e = ambil(kunci);
+        e.laporan++;
+
+        const s = jumlahSampel(r.temuan, r.rawMessage);
+        if (s != null) { e.sampel += s; e.laporanBersampel++; totalSampel += s; totalBersampel++; }
+
+        for (const nama of String(r.namaPelaksana || "").split(/\s*,\s*/)) {
+          const n = nama.trim();
+          if (n && n.length <= 60) e.petugas.add(n);
+        }
+        const bln = String(r.tanggal || "").slice(0, 7);
+        if (/^\d{4}-\d{2}$/.test(bln)) {
+          const b = e.perBulan.get(bln) || { laporan: 0, sampel: 0, bersampel: 0 };
+          b.laporan++;
+          if (s != null) { b.sampel += s; b.bersampel++; }
+          e.perBulan.set(bln, b);
+          bulanSet.add(bln);
+        }
+        if (!kanon && r.kegiatan) e.contohMentah.add(String(r.kegiatan).slice(0, 60));
+      }
+
+      // Kegiatan resmi yang NOL laporan tetap dikirim — "tidak pernah dilakukan"
+      // adalah temuan, dan kalau barisnya hilang justru tak terlihat.
+      for (const k of SAFETY_ACTIVITIES) ambil(k);
+
+      const data = Array.from(peta.values())
+        .map((e) => ({
+          kegiatan: e.kegiatan,
+          laporan: e.laporan,
+          sampel: e.sampel,
+          laporanBersampel: e.laporanBersampel,
+          cakupan: e.laporan ? Math.round((e.laporanBersampel / e.laporan) * 100) : 0,
+          rataSampel: e.laporanBersampel ? Math.round((e.sampel / e.laporanBersampel) * 10) / 10 : 0,
+          jumlahPetugas: e.petugas.size,
+          resmi: (SAFETY_ACTIVITIES as readonly string[]).includes(e.kegiatan),
+          perBulan: Object.fromEntries(e.perBulan),
+          contohMentah: Array.from(e.contohMentah).slice(0, 8),
+        }))
+        .sort((a, b) => b.laporan - a.laporan || b.sampel - a.sampel);
+
+      const totalPerBulan: Record<string, { laporan: number; sampel: number; bersampel: number }> = {};
+      for (const e of peta.values()) {
+        for (const [bln, v] of e.perBulan) {
+          const t = totalPerBulan[bln] || { laporan: 0, sampel: 0, bersampel: 0 };
+          t.laporan += v.laporan; t.sampel += v.sampel; t.bersampel += v.bersampel;
+          totalPerBulan[bln] = t;
+        }
+      }
+
+      res.json({
+        data,
+        totalPerBulan,
+        ringkasan: {
+          totalLaporan: laporan.length,
+          totalSampel,
+          laporanBersampel: totalBersampel,
+          cakupanSampel: laporan.length ? Math.round((totalBersampel / laporan.length) * 100) : 0,
+          kegiatanTerpakai: data.filter((d) => d.laporan > 0).length,
+          kegiatanResmiKosong: data.filter((d) => d.resmi && d.laporan === 0).map((d) => d.kegiatan),
+          bulan: Array.from(bulanSet).sort(),
+        },
+      });
+    } catch (error) {
+      console.error("Error analisis safety patrol:", error);
+      res.status(500).json({ message: "Gagal menghitung analisis kegiatan" });
+    }
+  });
+
   // Pencapaian Job Harian: target dari briefing vs laporan masuk (checklist per petugas GECL).
   app.get("/api/safety-patrol/job-achievement", async (req, res) => {
     try {

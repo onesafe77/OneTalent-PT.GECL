@@ -66,6 +66,60 @@ function matchGeclOfficer(name: string): string | null {
   return null;
 }
 
+/**
+ * Ambil teks polos dari `rich_message` — format baru Telegram untuk pesan berformat.
+ *
+ * Telegram versi baru (terutama akun Premium) mengirim pesan bergaya sebagai
+ * `message.rich_message.blocks` dan MENGOSONGKAN `message.text`. Bot ini dulu hanya
+ * membaca `msg.text`, sehingga pesan seperti itu terlihat kosong dan diabaikan diam-diam —
+ * inilah sebab "kadang masuk kadang tidak": tergantung aplikasi/format pengirimnya.
+ *
+ * Bentuk blok yang ditangani:
+ *   { type:"paragraph", text: "..." | {text,type} | [ "..." , {text,type} ] }
+ *   { type:"list", items: [ { label:"•", blocks:[...] } ] }
+ * Item daftar sengaja diawali "- " supaya sama dengan cara tim menulis manual,
+ * dan terbaca oleh parser briefing maupun laporan.
+ */
+export function teksDariRichMessage(rich: any): string {
+  if (!rich) return "";
+
+  const dariText = (t: any): string => {
+    if (t == null) return "";
+    if (typeof t === "string") return t;
+    if (Array.isArray(t)) return t.map(dariText).join("");
+    if (typeof t === "object") return dariText(t.text);
+    return String(t);
+  };
+
+  const dariBlocks = (blocks: any[], awalan = ""): string[] => {
+    const baris: string[] = [];
+    for (const b of blocks || []) {
+      if (!b) continue;
+      if (b.type === "list" && Array.isArray(b.items)) {
+        for (const it of b.items) {
+          const isi = dariBlocks(it?.blocks || [], "");
+          // Satu butir daftar bisa berisi beberapa paragraf; tanda "-" hanya di baris pertama.
+          isi.forEach((t, i) => baris.push((i === 0 ? "- " : "  ") + t));
+        }
+        continue;
+      }
+      const t = dariText(b.text).trim();
+      if (t) baris.push(awalan + t);
+    }
+    return baris;
+  };
+
+  return dariBlocks(rich.blocks || []).join("\n").trim();
+}
+
+/** Teks pesan dari semua bentuk yang mungkin dikirim Telegram. */
+export function teksPesan(msg: any): string {
+  if (!msg) return "";
+  const langsung = (msg.text || msg.caption || "").trim();
+  if (langsung) return langsung;
+  return teksDariRichMessage(msg.rich_message).trim();
+}
+
 // ---------- Briefing pembagian JOB → target per petugas ----------
 // Deteksi pesan briefing (bukan laporan biasa).
 function isJobBriefing(text: string): boolean {
@@ -546,13 +600,15 @@ async function handleReportText(chatId: string, user: any, text: string, photos:
 }
 
 // ---------- Update handler ----------
-async function processUpdate(update: any) {
+async function processUpdate(update: any, jejak?: string | null) {
   const msg = update.message;
-  if (!msg || !msg.chat) return;
+  if (!msg || !msg.chat) { await catatAlasan(jejak, "update tanpa message/chat (mis. edited_message)"); return; }
   const chatId = String(msg.chat.id);
   const from = msg.from || {};
   const user = await upsertUser(chatId, from.username, from.first_name);
-  const text: string = (msg.text || msg.caption || "").trim();
+  const text: string = teksPesan(msg);
+
+
 
   // Commands
   if (text.startsWith("/start")) {
@@ -646,6 +702,10 @@ async function processUpdate(update: any) {
     if (awaitingCaption || isLikelyPatrolReport(text)) {
       await handleReportText(chatId, user, text, photoUrls);
     } else {
+      // Pesan berteks panjang yang DITOLAK penyaring: catat alasannya supaya tidak
+      // hilang tanpa jejak. Kalau ternyata itu laporan sungguhan yang salah tertolak,
+      // operator bisa melihatnya di log dan memprosesnya ulang.
+      await catatAlasan(jejak, `ditolak penyaring "bukan laporan" (${text.length} huruf): ${text.replace(/\s+/g, " ").slice(0, 110)}`);
       const r = await hermes(SYS_BOT, `Pelaksana menulis: "${text}". Ini bukan laporan patrol. Balas ramah & arahkan untuk mengirim laporan patrol (sebut contoh field: tanggal, kegiatan, shift, lokasi, temuan).`,
         "Halo! Kirimkan laporan patrol ya (tanggal, kegiatan, shift, lokasi, temuan) — boleh disertai foto. 🙏");
       await tgSendMessage(chatId, r);
@@ -699,7 +759,7 @@ async function catatUpdateMasuk(update: any): Promise<string | null> {
       senderPhone: `tg:${msg.chat.id}`,
       senderName: msg.from?.first_name || msg.from?.username || null,
       messageType: msg.photo ? "image" : msg.document ? "document" : "text",
-      content: (msg.text || msg.caption || "").slice(0, 8000) || null,
+      content: teksPesan(msg).slice(0, 8000) || null,
       rawPayload: update,
       messageTimestamp: msg.date ? new Date(msg.date * 1000) : new Date(),
       processed: false,
@@ -712,13 +772,31 @@ async function catatUpdateMasuk(update: any): Promise<string | null> {
   }
 }
 
+/**
+ * Catat ALASAN sebuah pesan sengaja tidak menjadi laporan.
+ *
+ * Tanpa ini, "pesan masuk tapi tidak jadi laporan" tidak bisa dibedakan dari
+ * "pesan hilang karena bug" — dan itulah yang membuat masalah rich_message baru
+ * ketahuan setelah 10 pesan terbuang. Alasannya disimpan di kolom error_message
+ * dengan awalan "DILEWATI:" supaya jelas ini bukan galat.
+ */
+async function catatAlasan(id: string | null | undefined, alasan: string) {
+  if (!id) return;
+  try {
+    await db.update(safetyPatrolRawMessages)
+      .set({ errorMessage: ("DILEWATI: " + alasan).slice(0, 1000) })
+      .where(eq(safetyPatrolRawMessages.id, id));
+  } catch { /* diabaikan */ }
+}
+
 async function tandaiJejak(id: string | null, ok: boolean, pesanError?: string, reportId?: string) {
   if (!id) return;
   try {
     await db.update(safetyPatrolRawMessages)
       .set({
         processed: ok,
-        errorMessage: ok ? null : (pesanError || "").slice(0, 1000),
+        // Alasan "DILEWATI:" yang sudah dicatat jangan ditimpa null saat sukses.
+        ...(ok && !pesanError ? {} : { errorMessage: (pesanError || "").slice(0, 1000) }),
         ...(reportId ? { reportId } : {}),
       })
       .where(eq(safetyPatrolRawMessages.id, id));
@@ -733,7 +811,7 @@ export async function processTelegramUpdate(update: any) {
   // diabaikan karena dianggap bukan laporan, dan itu terlihat sama saja.
   const sebelum = lastReportByChat.get(chatId)?.reportId;
   try {
-    const hasil = await processUpdate(update);
+    const hasil = await processUpdate(update, jejak);
     const sesudah = lastReportByChat.get(chatId)?.reportId;
     const jadiLaporan = !!sesudah && sesudah !== sebelum;
     await tandaiJejak(jejak, true, undefined, jadiLaporan ? sesudah : undefined);

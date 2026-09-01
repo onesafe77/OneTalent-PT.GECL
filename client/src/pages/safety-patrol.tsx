@@ -27,6 +27,7 @@ import {
   BarChart2,
   Loader2,
   ClipboardList,
+  BarChart3,
 } from "lucide-react";
 import SafetyPatrolTemplates from "@/components/safety-patrol-templates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import AnalisisTab from "@/pages/safety-patrol-analisis";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageWithFallback, PhotoThumbnail } from "@/components/ui/image-with-fallback";
@@ -392,7 +394,15 @@ export default function SafetyPatrol() {
               <CheckCircle className="h-4 w-4" />
               Pencapaian Job
             </TabsTrigger>
+            <TabsTrigger value="analisis" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+              <BarChart3 className="h-4 w-4" />
+              Analisis Kegiatan
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="analisis" className="mt-5">
+            <AnalisisTab />
+          </TabsContent>
 
           <TabsContent value="job" className="mt-5">
             <JobAchievementTab />

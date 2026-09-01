@@ -17,6 +17,9 @@ export const SAFETY_ACTIVITIES = [
   "Sidak kesesuaian roster",
   "Monitoring Area Charging Station",
   "Issue Kritikal",
+  "Koordinasi Pengawas Area",
+  "Safety Meeting",
+  "P2H Kendaraan",
 ] as const;
 
 // Tentukan shift dari jam pada string waktu (06:00–17:59 = Shift 1, selain itu Shift 2).
@@ -52,6 +55,12 @@ export function canonicalSafetyActivity(raw: string | null | undefined): string 
   if (s.includes("asses") || s.includes("assess")) return "Assesment (Conditional)";
   if (s.includes("issue") || s.includes("kritikal") || s.includes("kritis") || s.includes("hazard")) return "Issue Kritikal";
   if (s.includes("give way")) return "Observasi rambu";
+  // Tiga kegiatan di bawah nyata dilakukan tim tapi dulu tidak terpetakan, sehingga
+  // 153 laporan menumpuk di "Lainnya". Ditaruh SEBELUM penangkap "jalan/hauling"
+  // yang sangat luas; ejaan "kordinasi" ikut karena sering tertulis begitu.
+  if (s.includes("koordinasi") || s.includes("kordinasi")) return "Koordinasi Pengawas Area";
+  if (s.includes("meeting")) return "Safety Meeting";
+  if (s.includes("p2h")) return "P2H Kendaraan";
   if (s.includes("jalan") || s.includes("hauling") || s.includes("haul road")) return "Inspeksi Jalan";
   return null;
 }
@@ -84,4 +93,41 @@ export function canonicalReportActivity(r: {
     || canonicalSafetyActivity(r.jenisLaporan)
     || canonicalSafetyActivity(r.temuan)
     || null;
+}
+
+
+/**
+ * Ambil jumlah sampel yang diperiksa dari teks laporan.
+ * Tim menuliskannya sebagai kalimat, bukan kolom tersendiri:
+ *   "Dari 15 driver yang dilakukan Observasi wake up call ..."
+ *   "Dari 10 Unit Hauling yang dilakukan Observasi sidak kelengkapan ..."
+ *   "Dari 15 Sample Driver yang dilakukan Observasi Jarak Aman Beriringan ..."
+ *
+ * Sengaja KONSERVATIF: hanya angka yang jelas menempel pada kata benda sampel
+ * (driver/unit/sample/orang) yang diambil. Angka lain di teks — nomor lambung,
+ * jam, tanggal — tidak boleh ikut terhitung sebagai sampel.
+ * Mengembalikan null bila tidak ada, supaya pemanggil bisa membedakan
+ * "tidak mencantumkan" dari "nol sampel".
+ */
+export function jumlahSampel(...teks: (string | null | undefined)[]): number | null {
+  const POLA = [
+    /\bdari\s+(\d{1,4})\s*(?:\(\d+\)\s*)?(?:sample\s+|sampel\s+)?(?:driver|unit|orang|pengendara|karyawan|sample|sampel)/i,
+    /\bsebanyak\s+(\d{1,4})\s*(?:driver|unit|orang|pengendara|karyawan|sample|sampel)/i,
+    /\b(\d{1,4})\s+(?:sample|sampel)\b/i,
+    /\btotal\s+(?:sample|sampel)\s*:?\s*(\d{1,4})/i,
+  ];
+  for (const t of teks) {
+    const s = (t || "").replace(/\s+/g, " ");
+    if (!s) continue;
+    for (const p of POLA) {
+      const m = p.exec(s);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        // Batas atas 500: di atas itu hampir pasti bukan jumlah sampel
+        // (mis. nomor unit "DT 7050" atau angka jarak).
+        if (n > 0 && n <= 500) return n;
+      }
+    }
+  }
+  return null;
 }
