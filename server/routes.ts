@@ -8183,9 +8183,27 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // Sesi chat Mystic hanya boleh dibaca/dihapus/dilanjutkan PEMILIKNYA. Dulu GET & DELETE sesi tanpa
+  // login maupun cek pemilik (siapa pun yg tahu ID bisa membaca chat orang lain), dan POST chat
+  // menerima sessionId milik orang lain — yang kini ikut mengirim riwayatnya ke agen.
+  const idPenggunaChat = (req: any) => {
+    const u = req.session?.user;
+    return u ? String(u.id || u.nik || u.username) : null;
+  };
+  const sesiChatMilik = async (req: any, sessionId: string) => {
+    const pemilik = idPenggunaChat(req);
+    if (!pemilik || !sessionId) return null;
+    const [sesi] = await db.select().from(siAsefChatSessions)
+      .where(and(eq(siAsefChatSessions.id, sessionId), eq(siAsefChatSessions.userId, pemilik)));
+    return sesi || null;
+  };
+
   app.get("/api/si-asef/sessions/:id", async (req, res) => {
     try {
-      const messages = await storage.getChatMessages(req.params.id);
+      if (!idPenggunaChat(req)) return res.sendStatus(401);
+      if (!(await sesiChatMilik(req, req.params.id))) return res.sendStatus(404);   // 404: jangan bocorkan keberadaan sesi
+      const messages = await db.select().from(siAsefChatMessages)
+        .where(eq(siAsefChatMessages.sessionId, req.params.id)).orderBy(asc(siAsefChatMessages.createdAt));
       res.json(messages);
     } catch (error) {
       res.status(500).json({ error: "Internal server error" });
@@ -8194,7 +8212,8 @@ Format sebagai bullet points singkat per insight.`;
 
   app.delete("/api/si-asef/sessions/:id", async (req, res) => {
     try {
-      // Allow delete without strict session check for now
+      if (!idPenggunaChat(req)) return res.sendStatus(401);
+      if (!(await sesiChatMilik(req, req.params.id))) return res.sendStatus(404);
       await storage.deleteChatSession(req.params.id);
       res.sendStatus(200);
     } catch (error) {
@@ -17299,16 +17318,27 @@ Format sebagai bullet points singkat per insight.`;
   app.post("/api/si-asef/chat", async (req, res) => {
     try {
       if (!(req.session as any).user) return res.sendStatus(401);
-      const { message, sessionId } = req.body;
+      const { message, sessionId, stream } = req.body;
       const user = (req.session as any).user;
       const userId = String(user.id || user.nik || user.username);
+      if (typeof message !== "string" || !message.trim()) return res.status(400).json({ message: "Pesan kosong" });
+      if (sessionId && !(await sesiChatMilik(req, sessionId))) return res.sendStatus(404);
+
+      // Tampilan berpikir: bila stream=true, langkah agen dikirim sebagai Server-Sent Events.
+      const kirimLangkah = (ev: Record<string, any>) => { if (stream) res.write(`data: ${JSON.stringify(ev)}\n\n`); };
+      if (stream) {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("X-Accel-Buffering", "no");      // proksi jangan menahan potongan
+        res.flushHeaders?.();
+      }
 
       let currentSessionId = sessionId;
 
       // 1. Create session if not exists
       if (!currentSessionId) {
         const [newSession] = await db.insert(siAsefChatSessions).values({
-          title: message.substring(0, 50) + "...",
+          title: message.length > 60 ? message.substring(0, 57).trimEnd() + "…" : message,
           userId: userId,
         }).returning();
         currentSessionId = newSession.id;
@@ -17451,6 +17481,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
       reply = completion.choices[0].message.content;
       const toolCalls = completion.choices[0].message.tool_calls;
       if (!toolCalls?.length) break;
+      kirimLangkah({ tipe: "rencana", teks: reply || null, alat: toolCalls.map((t: any) => t.function.name) });
 
       // 6. Handle Tool Calls
       {
@@ -17469,6 +17500,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
               const { cariDokumen } = await import("./lib/pengetahuan/cari");
               const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
               const kueri = String(functionArgs.kueri || message).slice(0, 500);
+              kirimLangkah({ tipe: "cari", kueri });
               const [vek] = await embedderOpenRouter(String(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY))([kueri]);
               const hasil = await cariDokumen(db, kueri, vek, { k: 6 });
               const potongan = hasil.map((h) => {
@@ -17480,11 +17512,14 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
                 return { nomor: kunciPpo.get(h.id), kode: h.kodeDokumen, revisi: h.revisi, judul: h.judul, bagian: h.bagian, halaman: h.halamanAwal === h.halamanAkhir ? `${h.halamanAwal}` : `${h.halamanAwal}-${h.halamanAkhir}`, isi: h.teks };
               });
               functionResponse = JSON.stringify(potongan.length ? { potongan } : { potongan: [], catatan: "Tidak ada potongan PPO yang cocok." });
+              kirimLangkah({ tipe: "temu", kueri, jumlah: potongan.length,
+                dokumen: Array.from(new Set(potongan.map((x) => `${x.kode} R${String(x.revisi).padStart(2, "0")} — ${x.judul}`))) });
             } catch (e: any) {
               console.error("[Mystic] cari_ppo gagal:", e?.message || e);
               functionResponse = JSON.stringify({ success: false, error: "Pencarian PPO sedang tidak tersedia." });
             }
           } else if (functionName === "create_activity") {
+            kirimLangkah({ tipe: "alat", nama: "Membuat jadwal" });
             try {
               const startTime = new Date(`${functionArgs.date}T${functionArgs.time}:00`);
               const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 1 hour default
@@ -17526,6 +17561,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
               functionResponse = JSON.stringify({ success: false, error: e.message });
             }
           } else if (functionName === "get_activities") {
+            kirimLangkah({ tipe: "alat", nama: "Membaca jadwal" });
             try {
               // Logic to filter by date (using in-memory filtering for now as storage.getActivityEvents returns all)
               // TODO: Add date filtering to storage if performance becomes issue
@@ -17548,6 +17584,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
               functionResponse = JSON.stringify({ success: false, error: e.message });
             }
           } else if (functionName === "get_upcoming_leave") {
+            kirimLangkah({ tipe: "alat", nama: "Membaca data cuti" });
             try {
               const data = await storage.getAllLeaveRosterMonitoring();
               const upcoming = data.filter(d => d.status === 'Akan Cuti' || d.status === 'Sedang Cuti').map(d => ({
@@ -17560,6 +17597,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
               functionResponse = JSON.stringify({ success: false, error: e.message });
             }
           } else if (functionName === "get_roster_schedule") {
+            kirimLangkah({ tipe: "alat", nama: "Membaca roster" });
             try {
               const functionArgs = JSON.parse(toolCall.function.arguments);
               let schedules = [];
@@ -17608,6 +17646,9 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
         reply = akhir.choices[0].message.content;
       }
 
+      kirimLangkah({ tipe: "menyusun" });
+      await db.update(siAsefChatSessions).set({ updatedAt: new Date() }).where(eq(siAsefChatSessions.id, currentSessionId));
+
       // 8. Save Assistant Response
       await db.insert(siAsefChatMessages).values({
         sessionId: currentSessionId,
@@ -17616,14 +17657,17 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
         sources: sources,
       });
 
-      res.json({
+      const hasilAkhir = {
         sessionId: currentSessionId,
         message: reply,
         sources,   // hanya potongan PPO yang benar-benar diambil agen
-      });
+      };
+      if (stream) { kirimLangkah({ tipe: "selesai", ...hasilAkhir }); return res.end(); }
+      res.json(hasilAkhir);
 
     } catch (error: any) {
       console.error("Si Asef Chat Error (Full Trace):", error);
+      if (res.headersSent) { res.write(`data: ${JSON.stringify({ tipe: "galat", pesan: "Gagal memproses pertanyaan." })}\n\n`); return res.end(); }
       res.status(500).json({ message: error.message });
     }
   });
@@ -17635,10 +17679,16 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
     try {
       if (!(req.session as any).user) return res.sendStatus(401);
       const user = (req.session as any).user;
-      const sessions = await db.select()
+      const pemilik = String(user.id || user.nik || user.username);   // sama persis dgn saat sesi dibuat
+      const sessions = await db.select({
+          id: siAsefChatSessions.id, title: siAsefChatSessions.title,
+          createdAt: siAsefChatSessions.createdAt, updatedAt: siAsefChatSessions.updatedAt,
+        })
         .from(siAsefChatSessions)
-        .where(eq(siAsefChatSessions.userId, user.id || user.nik)) // Filter by user
-        .orderBy(desc(siAsefChatSessions.createdAt));
+        .where(and(eq(siAsefChatSessions.userId, pemilik),
+          sql`exists (select 1 from si_asef_chat_messages m where m.session_id = ${siAsefChatSessions.id})`))
+        .orderBy(desc(siAsefChatSessions.updatedAt))
+        .limit(60);
       res.json(sessions);
     } catch (error) {
       res.status(500).json({ message: "Error" });
