@@ -17328,6 +17328,20 @@ Format sebagai bullet points singkat per insight.`;
         {
           type: "function",
           function: {
+            name: "cari_ppo",
+            description: "Cari isi PPO (Prosedur Pengendalian Operasional) PT GECL yang BERLAKU: aturan keselamatan, fatigue, dump truck, hauling, dumping, P3K, LOTO, ijin kerja, limbah, roster, dll. WAJIB dipakai untuk setiap pertanyaan tentang prosedur, SOP, aturan, batas, atau kewajiban kerja. Boleh dipanggil lebih dari sekali dengan kata kunci berbeda.",
+            parameters: {
+              type: "object",
+              properties: {
+                kueri: { type: "string", description: "Pertanyaan/kata kunci pencarian dalam Bahasa Indonesia, sespesifik mungkin (mis. 'batas maksimal wake up call fatigue')" }
+              },
+              required: ["kueri"]
+            }
+          }
+        },
+        {
+          type: "function",
+          function: {
             name: "create_activity",
             description: "Schedule a new activity or event on the user's calendar.",
             parameters: {
@@ -17388,21 +17402,11 @@ Format sebagai bullet points singkat per insight.`;
         }
       ];
 
-      // 4. RAG Retrieval (Keep existing logic for regulations/general knowledge)
-      // Only do RAG if it looks like a question, OR just always do it as context?
-      // For now, let's keep it but maybe we can optimize to skip if it's clearly a command?
-      // Let's keep it simple and always fetch RAG context for now, the model can ignore it.
-      const t1 = Date.now();
-      const embedding = await generateEmbedding(message);
-
-      const allChunks = await db.select({
-        id: siAsefChunks.id,
-        content: siAsefChunks.content,
-        embedding: siAsefChunks.embedding,
-      }).from(siAsefChunks);
-
-      const relevantChunks = await searchSimilarChunks(embedding, allChunks as any);
-      const { prompt: ragPrompt, sources } = buildRAGPrompt(message, relevantChunks);
+      // 4. Pengetahuan: dulu SETIAP pertanyaan ditempeli konteks dari si_asef_chunks (hanya 1 dokumen),
+      // sehingga jawaban berbunyi "dokumen referensi tidak dapat diakses" + sumber "Unknown Document".
+      // Kini agen sendiri yang memanggil tool cari_ppo (koleksi pengetahuan_potongan).
+      const sources: any[] = [];
+      const kunciPpo = new Map<string, number>();   // id potongan → nomor sumber [n]
 
       // 5. Call AI with Tools (via OpenRouter, same client as other AI endpoints)
       if (!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)) {
@@ -17412,19 +17416,31 @@ Format sebagai bullet points singkat per insight.`;
         });
       }
 
+      // Riwayat singkat supaya pertanyaan lanjutan ("isinya apa?") punya konteks.
+      const riwayat = (await db.select({ role: siAsefChatMessages.role, content: siAsefChatMessages.content })
+        .from(siAsefChatMessages).where(eq(siAsefChatMessages.sessionId, currentSessionId))
+        .orderBy(desc(siAsefChatMessages.createdAt)).limit(9)).reverse().slice(0, -1);   // tanpa pesan yg baru disimpan
+
       const messages: any[] = [
         {
           role: "system",
-          content: `You are 'Mystic AI', a smart assistant for OneTalent. 
-              Current time: ${format(new Date(), "yyyy-MM-dd HH:mm")}.
-              You can help users with regulations (using provided context) AND manage their calendar.
-              If the user asks to schedule something, use the create_activity tool.
-              If they ask about their schedule, use get_activities.
-              Always be helpful and polite. Layout responses simply.`
+          content: `Kamu 'Mystic AI', asisten HSE OneTalent untuk PT Golden Energi Cemerlang Lestari (GECL), site PT Borneo Indobara.
+Waktu sekarang: ${format(new Date(), "yyyy-MM-dd HH:mm")} WITA. Jawab dalam Bahasa Indonesia yang ringkas dan jelas.
+
+ATURAN PROSEDUR (wajib):
+- Untuk setiap pertanyaan tentang prosedur, SOP, PPO, aturan keselamatan, batas/angka, atau kewajiban kerja: PANGGIL tool cari_ppo dulu. Jangan menjawab dari pengetahuan umum.
+- Istilah pengguna bisa berbeda dengan dokumen (mis. "fatiuge" = fatigue, "solar" = bahan bakar). Bila hasil pertama kurang relevan, panggil cari_ppo lagi dengan kata kunci lain.
+- Jawab HANYA berdasarkan potongan yang dikembalikan. Sebutkan sumbernya dengan nomor [n] sesuai hasil, dan sebut kode PPO + revisinya (mis. GECL-HSE-PPO-4.1.16 R10).
+- Bila tidak ada potongan yang menjawab, katakan terus terang bahwa tidak ditemukan di PPO yang berlaku. Jangan mengarang angka atau aturan.
+
+Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cuti/roster (get_upcoming_leave, get_roster_schedule).`
         },
-        { role: "user", content: ragPrompt } // The RAG prompt contains the user question + context
+        ...riwayat.map((r) => ({ role: r.role === "model" ? "assistant" : "user", content: r.content })),
+        { role: "user", content: message }
       ];
 
+      let reply: string | null = null;
+      for (let putaran = 0; putaran < 4; putaran++) {
       const completion = await openRouterClient.chat.completions.create({
         model: AI_MODELS.FAST_TEXT,
         messages: messages,
@@ -17432,11 +17448,12 @@ Format sebagai bullet points singkat per insight.`;
         tool_choice: "auto",
       });
 
-      let reply = completion.choices[0].message.content;
+      reply = completion.choices[0].message.content;
       const toolCalls = completion.choices[0].message.tool_calls;
+      if (!toolCalls?.length) break;
 
       // 6. Handle Tool Calls
-      if (toolCalls) {
+      {
         // Append the assistant's message with tool calls to history
         messages.push(completion.choices[0].message);
 
@@ -17447,7 +17464,27 @@ Format sebagai bullet points singkat per insight.`;
 
           console.log(`[Destiny AI] Calling tool: ${functionName}`, functionArgs);
 
-          if (functionName === "create_activity") {
+          if (functionName === "cari_ppo") {
+            try {
+              const { cariDokumen } = await import("./lib/pengetahuan/cari");
+              const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
+              const kueri = String(functionArgs.kueri || message).slice(0, 500);
+              const [vek] = await embedderOpenRouter(String(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY))([kueri]);
+              const hasil = await cariDokumen(db, kueri, vek, { k: 6 });
+              const potongan = hasil.map((h) => {
+                // Nomor sumber stabil lintas pemanggilan dalam satu jawaban.
+                if (!kunciPpo.has(h.id)) {
+                  kunciPpo.set(h.id, sources.length + 1);
+                  sources.push({ id: sources.length + 1, chunkId: h.id, documentName: `${h.kodeDokumen} R${String(h.revisi).padStart(2, "0")} — ${h.judul}`, pageNumber: h.halamanAwal, content: h.teks, score: h.skor });
+                }
+                return { nomor: kunciPpo.get(h.id), kode: h.kodeDokumen, revisi: h.revisi, judul: h.judul, bagian: h.bagian, halaman: h.halamanAwal === h.halamanAkhir ? `${h.halamanAwal}` : `${h.halamanAwal}-${h.halamanAkhir}`, isi: h.teks };
+              });
+              functionResponse = JSON.stringify(potongan.length ? { potongan } : { potongan: [], catatan: "Tidak ada potongan PPO yang cocok." });
+            } catch (e: any) {
+              console.error("[Mystic] cari_ppo gagal:", e?.message || e);
+              functionResponse = JSON.stringify({ success: false, error: "Pencarian PPO sedang tidak tersedia." });
+            }
+          } else if (functionName === "create_activity") {
             try {
               const startTime = new Date(`${functionArgs.date}T${functionArgs.time}:00`);
               const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // 1 hour default
@@ -17563,13 +17600,12 @@ Format sebagai bullet points singkat per insight.`;
           });
         }
 
-        // 7. Get final response after tool execution
-        const secondResponse = await openRouterClient.chat.completions.create({
-          model: AI_MODELS.FAST_TEXT,
-          messages: messages,
-        });
-
-        reply = secondResponse.choices[0].message.content;
+      }
+      }
+      // 7. Batas putaran habis tanpa jawaban teks → minta jawaban akhir tanpa tool.
+      if (!reply) {
+        const akhir = await openRouterClient.chat.completions.create({ model: AI_MODELS.FAST_TEXT, messages });
+        reply = akhir.choices[0].message.content;
       }
 
       // 8. Save Assistant Response
@@ -17583,7 +17619,7 @@ Format sebagai bullet points singkat per insight.`;
       res.json({
         sessionId: currentSessionId,
         message: reply,
-        sources: toolCalls ? [] : sources // Don't show sources if tool was used (usually) or keep them? Let's hide if tool used to avoid clutter.
+        sources,   // hanya potongan PPO yang benar-benar diambil agen
       });
 
     } catch (error: any) {
