@@ -294,7 +294,7 @@ export default function SidakLotoForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.observers.length === 0}
                 >
@@ -548,19 +548,19 @@ export default function SidakLotoForm() {
                                                 <p className="font-medium text-sm">{rec.nama}</p>
                                                 <p className="text-xs text-gray-500">{rec.nik} • {rec.perusahaan}</p>
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q1_gembokTagTerpasang ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q1_gembokTagTerpasang ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q1: {rec.q1_gembokTagTerpasang ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q2_dangerTagSesuai ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q2_dangerTagSesuai ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q2: {rec.q2_dangerTagSesuai ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q3_gembokSesuai ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q3_gembokSesuai ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q3: {rec.q3_gembokSesuai ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q4_kunciUnik ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q4_kunciUnik ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q4: {rec.q4_kunciUnik ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q5_haspBenar ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q5_haspBenar ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q5: {rec.q5_haspBenar ? '✓' : '✗'}
                                                     </span>
                                                 </div>
@@ -585,12 +585,12 @@ export default function SidakLotoForm() {
                             {draft.observers.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.observers.map((obs, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                                                 <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

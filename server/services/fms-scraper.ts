@@ -142,7 +142,10 @@ function mapAlarm(a: any): InsertFmsViolation | null {
   return {
     violationDate: date,
     violationTime: time,
-    violationTimestamp: new Date(`${date}T${time}`),
+    // Akhiran Z disengaja. Tanpa itu, string dibaca sebagai waktu mesin lalu ditulis
+    // sebagai UTC ke kolom timestamp-tanpa-zona, sehingga tergeser 8 jam dari WITA
+    // dan filter tanggal meleset. Kolom ini harus sama dgn violation_date + violation_time.
+    violationTimestamp: new Date(`${date}T${time}Z`),
     vehicleNo: String(a.hull || "-"),
     company: String(a.contractor || "GECL"),
     violationType: mapped.type,

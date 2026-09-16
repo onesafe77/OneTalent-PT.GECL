@@ -294,7 +294,7 @@ export default function SidakGerindaDudukHistory() {
                                 ))}
 
                                 {(selectedSession.activityPhotos?.length || 0) < 6 && (
-                                    <label className="flex flex-col items-center justify-center aspect-video rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer text-gray-400">
+                                    <label className="flex flex-col items-center justify-center aspect-video rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:bg-muted transition-colors cursor-pointer text-gray-400">
                                         <Camera className="h-6 w-6 mb-1" />
                                         <span className="text-[10px] font-bold uppercase">Tambah Foto</span>
                                         <input

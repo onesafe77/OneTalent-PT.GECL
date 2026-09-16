@@ -165,10 +165,10 @@ export default function EvaluasiRoster() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                    <h1 className="text-2xl font-bold text-foreground dark:text-white">
                         Evaluasi SIDAK Roster
                     </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-muted-foreground dark:text-muted-foreground">
                         Rekap kesesuaian gilir kerja per driver per bulan
                     </p>
                 </div>
@@ -253,7 +253,7 @@ export default function EvaluasiRoster() {
                         </Select>
 
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                             <Input
                                 placeholder="Cari nama/NIK..."
                                 value={searchQuery}
@@ -265,23 +265,23 @@ export default function EvaluasiRoster() {
 
                     {isLoading ? (
                         <div className="flex justify-center py-12">
-                            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+                            <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                         </div>
                     ) : summary ? (
                         <>
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                 <Card>
                                     <CardContent className="pt-4 text-center">
-                                        <Users className="w-6 h-6 mx-auto mb-2 text-blue-500" />
+                                        <Users className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
                                         <p className="text-2xl font-bold">{summary.totalDrivers}</p>
-                                        <p className="text-xs text-gray-500">Total Driver (bulan)</p>
+                                        <p className="text-xs text-muted-foreground">Total Driver (bulan)</p>
                                     </CardContent>
                                 </Card>
                                 <Card>
                                     <CardContent className="pt-4 text-center">
-                                        <CheckCircle className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                                        <p className="text-2xl font-bold text-green-600">{summary.sudahSidak}</p>
-                                        <p className="text-xs text-gray-500">
+                                        <CheckCircle className="w-6 h-6 mx-auto mb-2 text-foreground" />
+                                        <p className="text-2xl font-bold text-foreground">{summary.sudahSidak}</p>
+                                        <p className="text-xs text-muted-foreground">
                                             {weekFilter !== "all" ? `SIDAK di ${weekLabel}` : "Sudah SIDAK bulan ini"}
                                         </p>
                                     </CardContent>
@@ -289,15 +289,15 @@ export default function EvaluasiRoster() {
                                 <Card>
                                     <CardContent className="pt-4 text-center">
                                         <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-red-500" />
-                                        <p className="text-2xl font-bold text-red-600">{summary.belumSidak}</p>
-                                        <p className="text-xs text-gray-500">Belum SIDAK (bulan ini)</p>
+                                        <p className="text-2xl font-bold text-red-600 dark:text-red-400">{summary.belumSidak}</p>
+                                        <p className="text-xs text-muted-foreground">Belum SIDAK (bulan ini)</p>
                                     </CardContent>
                                 </Card>
                                 <Card>
                                     <CardContent className="pt-4 text-center">
-                                        <Calendar className="w-6 h-6 mx-auto mb-2 text-purple-500" />
+                                        <Calendar className="w-6 h-6 mx-auto mb-2 text-muted-foreground" />
                                         <p className="text-2xl font-bold">{completionPercent}%</p>
-                                        <p className="text-xs text-gray-500">Penyelesaian</p>
+                                        <p className="text-xs text-muted-foreground">Penyelesaian</p>
                                     </CardContent>
                                 </Card>
                             </div>
@@ -308,9 +308,9 @@ export default function EvaluasiRoster() {
                                         <span className="text-sm font-medium">Progress Evaluasi SIDAK Roster</span>
                                         <span className="text-sm font-medium">{completionPercent}%</span>
                                     </div>
-                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                    <div className="h-3 w-full rounded-full bg-muted">
                                         <div
-                                            className={`h-3 rounded-full transition-all ${completionPercent === 100 ? 'bg-green-500' : completionPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                            className={`h-3 rounded-full transition-all ${completionPercent === 100 ? 'bg-primary' : completionPercent >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
                                             style={{ width: `${completionPercent}%` }}
                                         />
                                     </div>
@@ -324,7 +324,7 @@ export default function EvaluasiRoster() {
                                             Daftar Driver ({filteredDrivers.length})
                                         </CardTitle>
                                         {weekFilter !== "all" && statusFilter === "belum" && (
-                                            <span className="text-xs text-gray-500">
+                                            <span className="text-xs text-muted-foreground">
                                                 Belum SIDAK • bekerja di {weekLabel}
                                             </span>
                                         )}
@@ -333,33 +333,33 @@ export default function EvaluasiRoster() {
                                 <CardContent>
                                     <ScrollArea className="h-[500px]">
                                         <table className="w-full">
-                                            <thead className="sticky top-0 bg-white dark:bg-gray-900">
+                                            <thead className="sticky top-0 bg-card">
                                                 <tr className="border-b">
-                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">No</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">NIK</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Nama</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Investor Group</th>
-                                                    <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Total SIDAK</th>
-                                                    <th className="text-center py-2 px-3 text-xs font-medium text-gray-500">Status</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">No</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">NIK</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Nama</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Investor Group</th>
+                                                    <th className="text-center py-2 px-3 text-xs font-medium text-muted-foreground">Total SIDAK</th>
+                                                    <th className="text-center py-2 px-3 text-xs font-medium text-muted-foreground">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y">
                                                 {filteredDrivers.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan={6} className="text-center py-8 text-gray-400 text-sm">
+                                                        <td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">
                                                             Tidak ada data driver ditemukan
                                                         </td>
                                                     </tr>
                                                 ) : filteredDrivers.map((driver, idx) => (
-                                                    <tr key={driver.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                                    <tr key={driver.id} className="hover:bg-muted/60">
                                                         <td className="py-2 px-3 text-sm">{idx + 1}</td>
                                                         <td className="py-2 px-3 text-sm font-mono">{driver.nik}</td>
                                                         <td className="py-2 px-3 text-sm">{driver.nama}</td>
-                                                        <td className="py-2 px-3 text-sm text-gray-600">{driver.investorGroup}</td>
+                                                        <td className="py-2 px-3 text-sm text-muted-foreground">{driver.investorGroup}</td>
                                                         <td className="py-2 px-3 text-center text-sm font-semibold">{driver.totalSidak}</td>
                                                         <td className="py-2 px-3 text-center">
                                                             <Badge className={driver.status === "Sudah SIDAK"
-                                                                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                                                ? "bg-muted text-foreground"
                                                                 : "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                                                             }>
                                                                 {driver.status}
@@ -383,33 +383,33 @@ export default function EvaluasiRoster() {
                         <Card className="border-red-200 bg-red-50 dark:bg-red-900/10">
                             <CardContent className="pt-4 text-center">
                                 <ShieldAlert className="w-6 h-6 mx-auto mb-2 text-red-500" />
-                                <p className="text-2xl font-bold text-red-600">{violations?.length ?? 0}</p>
-                                <p className="text-xs text-gray-500">Total Pelanggaran ({monthLabel})</p>
+                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{violations?.length ?? 0}</p>
+                                <p className="text-xs text-muted-foreground">Total Pelanggaran ({monthLabel})</p>
                             </CardContent>
                         </Card>
                         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/10">
                             <CardContent className="pt-4 text-center">
                                 <AlertTriangle className="w-6 h-6 mx-auto mb-2 text-orange-500" />
-                                <p className="text-2xl font-bold text-orange-600">
+                                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
                                     {violations?.filter(v => v.keterangan?.toLowerCase().includes("shift")).length ?? 0}
                                 </p>
-                                <p className="text-xs text-gray-500">Shift Tidak Sesuai</p>
+                                <p className="text-xs text-muted-foreground">Shift Tidak Sesuai</p>
                             </CardContent>
                         </Card>
                         <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
                             <CardContent className="pt-4 text-center">
                                 <Calendar className="w-6 h-6 mx-auto mb-2 text-yellow-500" />
-                                <p className="text-2xl font-bold text-yellow-600">
+                                <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                                     {violations?.filter(v => v.keterangan?.toLowerCase().includes("tidak terjadwal")).length ?? 0}
                                 </p>
-                                <p className="text-xs text-gray-500">Tidak Terjadwal</p>
+                                <p className="text-xs text-muted-foreground">Tidak Terjadwal</p>
                             </CardContent>
                         </Card>
                     </div>
 
                     {/* Search */}
                     <div className="relative max-w-xs">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                             placeholder="Cari nama/NIK/keterangan..."
                             value={violationSearch}
@@ -429,27 +429,27 @@ export default function EvaluasiRoster() {
                         <CardContent>
                             {violationsLoading ? (
                                 <div className="flex justify-center py-8">
-                                    <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+                                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                                 </div>
                             ) : (
                                 <ScrollArea className="h-[500px]">
                                     <table className="w-full">
-                                        <thead className="sticky top-0 bg-white dark:bg-gray-900">
+                                        <thead className="sticky top-0 bg-card">
                                             <tr className="border-b">
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">No</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Tanggal</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">NIK</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Nama</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Unit</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Shift SIDAK</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Keterangan</th>
-                                                <th className="text-left py-2 px-3 text-xs font-medium text-gray-500">Lokasi</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">No</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Tanggal</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">NIK</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Nama</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Unit</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Shift SIDAK</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Keterangan</th>
+                                                <th className="text-left py-2 px-3 text-xs font-medium text-muted-foreground">Lokasi</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y">
                                             {filteredViolations.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={8} className="text-center py-8 text-gray-400 text-sm">
+                                                    <td colSpan={8} className="text-center py-8 text-muted-foreground text-sm">
                                                         {violations?.length === 0
                                                             ? "Tidak ada ketidaksesuaian bulan ini"
                                                             : "Tidak ada hasil pencarian"}
@@ -461,7 +461,7 @@ export default function EvaluasiRoster() {
                                                     <td className="py-2 px-3 text-sm font-medium">{v.tanggal}</td>
                                                     <td className="py-2 px-3 text-sm font-mono">{v.nik}</td>
                                                     <td className="py-2 px-3 text-sm font-medium">{v.nama}</td>
-                                                    <td className="py-2 px-3 text-sm text-gray-600">{v.nomorLambung || "-"}</td>
+                                                    <td className="py-2 px-3 text-sm text-muted-foreground">{v.nomorLambung || "-"}</td>
                                                     <td className="py-2 px-3 text-sm">
                                                         <Badge variant="outline" className="text-xs">{v.shift || "-"}</Badge>
                                                     </td>
@@ -474,7 +474,7 @@ export default function EvaluasiRoster() {
                                                             {v.keterangan || "Tidak Sesuai"}
                                                         </Badge>
                                                     </td>
-                                                    <td className="py-2 px-3 text-sm text-gray-500">{v.lokasi || "-"}</td>
+                                                    <td className="py-2 px-3 text-sm text-muted-foreground">{v.lokasi || "-"}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

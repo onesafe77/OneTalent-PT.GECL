@@ -72,7 +72,7 @@ export default function RekapMcuPage() {
             </div>
 
             <Tabs value={tab} onValueChange={(v) => setTab(v as RekapKategori)}>
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList>
                     {REKAP_KATEGORI.map((k) => (
                         <TabsTrigger key={k} value={k} className="text-xs sm:text-sm">
                             {k.replace("Rekap ", "")}

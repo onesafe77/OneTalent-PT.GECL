@@ -377,7 +377,7 @@ export default function InductionAdmin() {
                                                     <div className="font-medium line-clamp-2">{q.questionText}</div>
                                                     <div className="text-xs text-muted-foreground mt-1">
                                                         {(q.options as string[]).map((o, i) => (
-                                                            <span key={i} className={i === q.correctAnswerIndex ? "text-green-600 font-bold mr-2" : "mr-2"}>
+                                                            <span key={i} className={i === q.correctAnswerIndex ? "text-foreground font-bold mr-2" : "mr-2"}>
                                                                 {String.fromCharCode(65 + i)}. {o}
                                                             </span>
                                                         ))}
@@ -386,7 +386,7 @@ export default function InductionAdmin() {
                                                 <TableCell>
                                                     {materials?.find(m => m.id === q.materialId)?.title || "-"}
                                                 </TableCell>
-                                                <TableCell className="font-bold text-green-600">
+                                                <TableCell className="font-bold text-foreground">
                                                     {String.fromCharCode(65 + (q.correctAnswerIndex || 0))}
                                                 </TableCell>
                                                 <TableCell>

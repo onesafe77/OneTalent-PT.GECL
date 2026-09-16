@@ -47,7 +47,7 @@ const statusColors: Record<string, string> = {
     "IN_REVIEW": "bg-amber-100 text-amber-700 border-amber-300",
     "APPROVED": "bg-blue-100 text-blue-700 border-blue-300",
     "ESIGN_PENDING": "bg-purple-100 text-purple-700 border-purple-300",
-    "SIGNED": "bg-green-100 text-green-700 border-green-300",
+    "SIGNED": "bg-muted text-foreground border-border",
     "PUBLISHED": "bg-teal-100 text-teal-700 border-teal-300",
     "ARCHIVED": "bg-slate-100 text-slate-700 border-slate-300",
     "OBSOLETE": "bg-red-100 text-red-700 border-red-300",
@@ -553,7 +553,7 @@ export default function DocumentDetailPage() {
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <span className="font-medium">v{v.version_number}.{v.revision_number}</span>
-                                                {i === 0 && <Badge className="bg-green-100 text-green-700">Current</Badge>}
+                                                {i === 0 && <Badge className="bg-muted text-foreground">Current</Badge>}
                                             </div>
                                             <p className="text-sm text-gray-500">{v.file_name}</p>
                                             <p className="text-xs text-gray-400">
@@ -629,7 +629,7 @@ export default function DocumentDetailPage() {
                                                             <div key={step.id} className="relative flex items-start gap-4">
                                                                 <div className={`
                                                                 w-8 h-8 rounded-full flex items-center justify-center border-2 shrink-0 bg-white
-                                                                ${isCompleted ? "border-green-500 text-green-500" :
+                                                                ${isCompleted ? "border-border text-foreground" :
                                                                         isRejected ? "border-red-500 text-red-500" :
                                                                             isCurrent ? "border-blue-500 text-blue-500 animate-ring" : "border-gray-300 text-gray-300"}
                                                             `}>
@@ -664,7 +664,7 @@ export default function DocumentDetailPage() {
                                                                                 </Button>
                                                                                 <Button
                                                                                     size="sm"
-                                                                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                                                                    className="bg-primary hover:bg-primary/90 text-white"
                                                                                     onClick={() => handleApprovalClick(approval.id, step.step_number, "APPROVED")}
                                                                                 >
                                                                                     Approve
@@ -706,8 +706,8 @@ export default function DocumentDetailPage() {
                                     <p className="text-2xl font-bold text-gray-900">{distributions.length}</p>
                                     <p className="text-xs text-gray-500">Total</p>
                                 </div>
-                                <div className="bg-green-50 rounded-lg p-3 text-center">
-                                    <p className="text-2xl font-bold text-green-600">
+                                <div className="bg-muted rounded-lg p-3 text-center">
+                                    <p className="text-2xl font-bold text-foreground">
                                         {(Array.isArray(distributions) ? distributions : []).filter((d: any) => d.status === "acknowledged").length}
                                     </p>
                                     <p className="text-xs text-gray-500">Sudah Baca</p>
@@ -743,12 +743,12 @@ export default function DocumentDetailPage() {
                                     </thead>
                                     <tbody>
                                         {distributions.map((d: any) => (
-                                            <tr key={d.id} className="border-b hover:bg-gray-50">
+                                            <tr key={d.id} className="border-b hover:bg-muted">
                                                 <td className="py-2 px-3">{d.recipient_name}</td>
                                                 <td className="py-2 px-3 text-gray-500">{d.recipient_department}</td>
                                                 <td className="py-2 px-3">
                                                     <Badge variant="outline" className={
-                                                        d.status === "acknowledged" ? "bg-green-100 text-green-700" :
+                                                        d.status === "acknowledged" ? "bg-muted text-foreground" :
                                                             "bg-gray-100 text-gray-700"
                                                     }>
                                                         {d.status === "acknowledged" ? "Sudah Baca" : "Belum"}
@@ -802,8 +802,8 @@ export default function DocumentDetailPage() {
                                     <p className="text-2xl font-bold text-blue-600">{approvals.length}</p>
                                     <p className="text-xs text-gray-500 mt-1">Approval Cycle</p>
                                 </div>
-                                <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-                                    <p className="text-2xl font-bold text-green-600">{distributions.length}</p>
+                                <div className="bg-muted rounded-lg p-4 border border-border">
+                                    <p className="text-2xl font-bold text-foreground">{distributions.length}</p>
                                     <p className="text-xs text-gray-500 mt-1">Distribusi</p>
                                 </div>
                                 <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
@@ -819,27 +819,27 @@ export default function DocumentDetailPage() {
                                 <h4 className="font-medium text-gray-900 mb-3">Evidence Pack Contents:</h4>
                                 <ul className="space-y-2 text-sm text-gray-600">
                                     <li className="flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-foreground" />
                                         Document metadata & identity
                                     </li>
                                     <li className="flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-foreground" />
                                         Version history ({versions.length} versions)
                                     </li>
                                     <li className="flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-foreground" />
                                         Approval timeline ({approvals.length} cycles)
                                     </li>
                                     <li className="flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-foreground" />
                                         Distribution list ({distributions.length} recipients)
                                     </li>
                                     <li className="flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-foreground" />
                                         Read receipts with timestamps
                                     </li>
                                     <li className="flex items-center gap-2">
-                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <CheckCircle className="w-4 h-4 text-foreground" />
                                         eSign status (if applicable)
                                     </li>
                                 </ul>
@@ -880,7 +880,7 @@ export default function DocumentDetailPage() {
                                         <button
                                             key={emp.id}
                                             onClick={() => addRecipient(emp)}
-                                            className="w-full px-3 py-2 text-left hover:bg-gray-50 text-sm flex items-center gap-2"
+                                            className="w-full px-3 py-2 text-left hover:bg-muted text-sm flex items-center gap-2"
                                         >
                                             <User className="w-4 h-4 text-gray-400" />
                                             <span>{emp.name}</span>
@@ -992,7 +992,7 @@ export default function DocumentDetailPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setApproveDialogOpen(false)}>Batal</Button>
                         <Button
-                            className={approvalAction === "APPROVED" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+                            className={approvalAction === "APPROVED" ? "bg-primary hover:bg-primary/90" : "bg-red-600 hover:bg-red-700"}
                             onClick={() => approveMutation.mutate()}
                             disabled={approveMutation.isPending}
                         >

@@ -39,12 +39,12 @@ const TOTAL_PLAN_PER_WEEK = WEEKLY_PLAN.reduce((s, v) => s + v.s1 + v.s2, 0); //
 // Color palette per person
 // ==============================
 const PERSON_COLORS: Record<string, { bg: string; text: string; border: string; chart: string }> = {
-  "Dimas Saputra": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", chart: "#3b82f6" },
-  "Renaldi":       { bg: "bg-green-50", text: "text-green-700", border: "border-green-200", chart: "#22c55e" },
+  "Dimas Saputra": { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", chart: "#757575" },
+  "Renaldi":       { bg: "bg-muted", text: "text-foreground", border: "border-border", chart: "#E15A61" },
   "Jumaidi":       { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200", chart: "#a855f7" },
 };
-const DEFAULT_COLORS = ["#f59e0b", "#ef4444", "#14b8a6", "#f97316", "#8b5cf6"];
-const PIE_COLORS = ["#3b82f6", "#22c55e", "#a855f7", "#f59e0b", "#ef4444", "#14b8a6", "#f97316", "#8b5cf6", "#ec4899", "#06b6d4"];
+const DEFAULT_COLORS = ["#f59e0b", "#df2a33", "#14b8a6", "#F59E0B", "#B01A21"];
+const PIE_COLORS = ["#757575", "#E15A61", "#a855f7", "#f59e0b", "#df2a33", "#14b8a6", "#F59E0B", "#B01A21", "#ec4899", "#B4B4B4"];
 
 interface PersonKPI {
   name: string;
@@ -75,7 +75,7 @@ function getChartColor(name: string, idx: number) {
 function KPIScoreGauge({ score, color }: { score: number; color: string }) {
   const clamped = Math.min(100, Math.max(0, score));
   const level = clamped >= 80 ? "Baik" : clamped >= 50 ? "Cukup" : "Rendah";
-  const levelColor = clamped >= 80 ? "bg-green-100 text-green-700" : clamped >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+  const levelColor = clamped >= 80 ? "bg-muted text-foreground" : clamped >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative w-20 h-20">
@@ -179,12 +179,12 @@ function PersonCard({ person, idx, weeksInRange }: { person: PersonKPI; idx: num
               <tbody>
                 {Object.entries(briefing.byActivity).sort((a, b) => b[1].plan - a[1].plan).map(([act, v]) => {
                   const pct = v.plan > 0 ? Math.round((v.done / v.plan) * 100) : 0;
-                  const pctColor = pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-500" : "text-red-500";
+                  const pctColor = pct >= 80 ? "text-foreground" : pct >= 50 ? "text-amber-500" : "text-red-500";
                   return (
                     <tr key={act} className="border-b border-gray-100">
                       <td className="py-1 px-1.5 text-gray-700">{act}</td>
                       <td className="py-1 px-1 text-center tabular-nums">
-                        <span className={v.done >= v.plan ? "text-green-600 font-semibold" : v.done > 0 ? "text-amber-600" : "text-gray-400"}>{v.done}/{v.plan}</span>
+                        <span className={v.done >= v.plan ? "text-foreground font-semibold" : v.done > 0 ? "text-amber-600" : "text-gray-400"}>{v.done}/{v.plan}</span>
                       </td>
                       <td className={`py-1 px-1 text-center font-semibold tabular-nums ${pctColor}`}>{pct}%</td>
                     </tr>
@@ -221,9 +221,9 @@ function PersonCard({ person, idx, weeksInRange }: { person: PersonKPI; idx: num
                   const planTot = planS1 + planS2;
                   const aktTot = act.s1 + act.s2;
                   const pct = planTot > 0 ? Math.round((aktTot / planTot) * 100) : 0;
-                  const pctColor = pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-500" : "text-red-500";
+                  const pctColor = pct >= 80 ? "text-foreground" : pct >= 50 ? "text-amber-500" : "text-red-500";
                   const cell = (akt: number, plan: number) => plan > 0
-                    ? <span className={akt >= plan ? "text-green-600 font-semibold" : akt > 0 ? "text-amber-600" : "text-gray-400"}>{akt}/{plan}</span>
+                    ? <span className={akt >= plan ? "text-foreground font-semibold" : akt > 0 ? "text-amber-600" : "text-gray-400"}>{akt}/{plan}</span>
                     : <span className="text-gray-300">–</span>;
                   return (
                     <tr key={w.name} className="border-b border-gray-100">
@@ -251,7 +251,7 @@ function PersonCard({ person, idx, weeksInRange }: { person: PersonKPI; idx: num
           <Badge variant="outline" className={`text-[11px] font-medium rounded-full tabular-nums ${colorSet?.text ?? ""} ${colorSet?.border ?? ""}`}>
             {briefing ? `Target briefing: ${briefing.totalTargets}` : `Plan: ${planTotal} laporan`}
           </Badge>
-          <Badge variant="outline" className={`text-[11px] font-medium rounded-full tabular-nums ${achievementPct >= 80 ? "text-green-700 border-green-300" : achievementPct >= 50 ? "text-amber-700 border-amber-300" : "text-red-700 border-red-300"}`}>
+          <Badge variant="outline" className={`text-[11px] font-medium rounded-full tabular-nums ${achievementPct >= 80 ? "text-foreground border-border" : achievementPct >= 50 ? "text-amber-700 border-amber-300" : "text-red-700 border-red-300"}`}>
             Capaian: {Math.round(achievementPct)}%
           </Badge>
           <Badge variant="outline" className="text-[11px] font-medium rounded-full tabular-nums text-orange-700 border-orange-300">
@@ -434,7 +434,7 @@ export default function SafetyPatrolKPI() {
                           <Cell key={index} fill={getChartColor(entry.fullName, index)} />
                         ))}
                       </Bar>
-                      <Bar dataKey="temuan" name="Temuan" fill="#f97316" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="temuan" name="Temuan" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -443,7 +443,7 @@ export default function SafetyPatrolKPI() {
               {/* Plan vs Actual per Activity */}
               <Card className="rounded-2xl border-gray-100">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight"><Target className="h-5 w-5 text-green-500" /> Capaian per Jenis Kegiatan (Plan vs Aktual)</CardTitle>
+                  <CardTitle className="flex items-center gap-2 text-base font-semibold tracking-tight"><Target className="h-5 w-5 text-foreground" /> Capaian per Jenis Kegiatan (Plan vs Aktual)</CardTitle>
                   <CardDescription>Berdasarkan Jadwal Pelaksanaan Sidak OHS Hauling — akumulasi semua pelaksana</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -460,13 +460,13 @@ export default function SafetyPatrolKPI() {
                       <Bar dataKey="plan" name="Target" fill="#e5e7eb" radius={[0, 4, 4, 0]} />
                       <Bar dataKey="actual" name="Aktual" radius={[0, 4, 4, 0]}>
                         {planActualData.map((entry, index) => (
-                          <Cell key={index} fill={entry.pct >= 80 ? "#22c55e" : entry.pct >= 50 ? "#f59e0b" : "#ef4444"} />
+                          <Cell key={index} fill={entry.pct >= 80 ? "#E15A61" : entry.pct >= 50 ? "#f59e0b" : "#df2a33"} />
                         ))}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="flex gap-4 mt-3 text-xs text-muted-foreground justify-center">
-                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block" /> ≥80% (Baik)</span>
+                    <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-primary inline-block" /> ≥80% (Baik)</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" /> 50–79% (Cukup)</span>
                     <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" /> &lt;50% (Rendah)</span>
                   </div>
@@ -596,7 +596,7 @@ export default function SafetyPatrolKPI() {
                           const pct = plan > 0 ? (p.total / plan) * 100 : 0;
                           const color = getChartColor(p.name, idx);
                           const status = pct >= 80 ? "Baik" : pct >= 50 ? "Cukup" : "Perlu Perhatian";
-                          const statusBg = pct >= 80 ? "bg-green-100 text-green-700" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+                          const statusBg = pct >= 80 ? "bg-muted text-foreground" : pct >= 50 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
                           return (
                             <tr key={p.name} className="border-b last:border-0 hover:bg-muted/30">
                               <td className="py-3 font-medium flex items-center gap-2">
@@ -606,7 +606,7 @@ export default function SafetyPatrolKPI() {
                               <td className="text-center py-3 text-muted-foreground">{plan}</td>
                               <td className="text-center py-3 font-semibold" style={{ color }}>{p.total}</td>
                               <td className="text-center py-3">
-                                <span className={`font-bold text-base ${pct >= 80 ? "text-green-600" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
+                                <span className={`font-bold text-base ${pct >= 80 ? "text-foreground" : pct >= 50 ? "text-amber-500" : "text-red-500"}`}>
                                   {Math.round(pct)}%
                                 </span>
                               </td>

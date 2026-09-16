@@ -210,7 +210,7 @@ export default function ZeroHarmWorkbook() {
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-slate-400 min-w-[90px] text-right">
             {!readOnly && autoStatus === "saving" && <span className="inline-flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> menyimpan…</span>}
-            {!readOnly && autoStatus === "saved" && <span className="inline-flex items-center gap-1 text-green-600"><Check className="w-3 h-3" /> tersimpan</span>}
+            {!readOnly && autoStatus === "saved" && <span className="inline-flex items-center gap-1 text-foreground"><Check className="w-3 h-3" /> tersimpan</span>}
           </span>
           <input ref={fileRef} type="file" accept=".xlsx" className="hidden" onChange={onUpload} />
           <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={busy || readOnly}><Upload className="w-4 h-4 mr-1" /> Upload Excel</Button>

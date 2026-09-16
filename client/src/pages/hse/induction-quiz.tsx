@@ -102,7 +102,7 @@ export default function InductionQuiz() {
             <div className="p-6 flex items-center justify-center min-h-[60vh]">
                 <Card className="max-w-md text-center">
                     <CardHeader>
-                        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                        <CheckCircle className="h-16 w-16 text-foreground mx-auto mb-4" />
                         <CardTitle>Tidak Ada Induksi Pending</CardTitle>
                         <CardDescription>
                             Anda tidak memiliki jadwal induksi yang perlu diselesaikan saat ini.
@@ -133,7 +133,7 @@ export default function InductionQuiz() {
                         ) : (
                             <AlertTriangle className="h-20 w-20 text-red-500 mx-auto mb-4" />
                         )}
-                        <CardTitle className={quizResult.passed ? "text-green-600" : "text-red-600"}>
+                        <CardTitle className={quizResult.passed ? "text-foreground" : "text-red-600"}>
                             {quizResult.passed ? "Selamat, Anda Lulus!" : "Maaf, Anda Belum Lulus"}
                         </CardTitle>
                         <CardDescription>
@@ -226,7 +226,7 @@ export default function InductionQuiz() {
                     <Button
                         onClick={handleSubmit}
                         disabled={!allAnswered || submitMutation.isPending}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-primary hover:bg-primary/90"
                     >
                         {submitMutation.isPending ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -252,7 +252,7 @@ export default function InductionQuiz() {
                             "w-10 h-10 rounded-full font-bold text-sm transition-all",
                             idx === currentQuestionIndex && "ring-2 ring-offset-2 ring-primary",
                             selectedAnswers[q.id] !== undefined
-                                ? "bg-green-500 text-white"
+                                ? "bg-primary text-white"
                                 : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                         )}
                     >

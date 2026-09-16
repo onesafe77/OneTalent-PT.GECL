@@ -372,7 +372,7 @@ export default function DashboardOverspeed() {
     if (loading && !rawData.length) {
         return (
             <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
-                <RefreshCw className="h-10 w-10 animate-spin text-green-600" />
+                <RefreshCw className="h-10 w-10 animate-spin text-foreground" />
                 <p className="text-gray-500 font-medium">Mengambil Data Pelanggaran...</p>
             </div>
         );
@@ -471,17 +471,17 @@ export default function DashboardOverspeed() {
                 </Card>
 
                 {/* 2. Status Breakdown */}
-                <Card className="border-none shadow-sm relative overflow-hidden bg-white border-l-4 border-l-emerald-500">
+                <Card className="border-none shadow-sm relative overflow-hidden bg-white border-l-4 border-l-primary">
                     <CardContent className="p-4">
                         <div className="flex justify-between items-start mb-2">
                             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">STATUS CASE</p>
-                            <div className="p-2 bg-emerald-50 rounded-lg">
-                                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                            <div className="p-2 bg-muted rounded-lg">
+                                <CheckCircle className="w-5 h-5 text-foreground" />
                             </div>
                         </div>
                         <div className="flex items-end gap-3">
                             <div>
-                                <span className="text-2xl font-bold text-emerald-600">{stats?.closedCount || 0}</span>
+                                <span className="text-2xl font-bold text-foreground">{stats?.closedCount || 0}</span>
                                 <span className="text-xs text-gray-400 ml-1">Closed</span>
                             </div>
                             <div className="h-4 w-px bg-gray-200"></div>
@@ -553,8 +553,8 @@ export default function DashboardOverspeed() {
                                     <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                     <YAxis hide />
                                     <Tooltip cursor={{ fill: '#f3f4f6' }} />
-                                    <Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={50}>
-                                        <LabelList dataKey="count" position="top" fill="#ef4444" fontSize={12} formatter={(val: number) => val > 0 ? val : ''} />
+                                    <Bar dataKey="count" fill="#df2a33" radius={[4, 4, 0, 0]} maxBarSize={50}>
+                                        <LabelList dataKey="count" position="top" fill="#df2a33" fontSize={12} formatter={(val: number) => val > 0 ? val : ''} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -575,8 +575,8 @@ export default function DashboardOverspeed() {
                                         <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                         <YAxis hide />
                                         <Tooltip />
-                                        <Bar dataKey="count" fill="#ef4444" radius={[4, 4, 0, 0]}>
-                                            <LabelList dataKey="count" position="top" fill="#ef4444" fontSize={11} />
+                                        <Bar dataKey="count" fill="#df2a33" radius={[4, 4, 0, 0]}>
+                                            <LabelList dataKey="count" position="top" fill="#df2a33" fontSize={11} />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -594,8 +594,8 @@ export default function DashboardOverspeed() {
                                         <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={3} axisLine={false} tickLine={false} />
                                         <YAxis hide />
                                         <Tooltip cursor={{ fill: 'transparent' }} />
-                                        <Bar dataKey="count" fill="#ef4444" radius={[2, 2, 0, 0]}>
-                                            <LabelList dataKey="count" position="top" fill="#ef4444" fontSize={10} formatter={(val: number) => val > 0 ? val : ''} />
+                                        <Bar dataKey="count" fill="#df2a33" radius={[2, 2, 0, 0]}>
+                                            <LabelList dataKey="count" position="top" fill="#df2a33" fontSize={10} formatter={(val: number) => val > 0 ? val : ''} />
                                         </Bar>
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -614,8 +614,8 @@ export default function DashboardOverspeed() {
                                     <XAxis type="number" hide />
                                     <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                                     <Tooltip />
-                                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={15}>
-                                        <LabelList dataKey="count" position="right" fill="#3b82f6" fontSize={11} />
+                                    <Bar dataKey="count" fill="#757575" radius={[0, 4, 4, 0]} barSize={15}>
+                                        <LabelList dataKey="count" position="right" fill="#757575" fontSize={11} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>

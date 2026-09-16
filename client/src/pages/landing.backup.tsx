@@ -33,7 +33,7 @@ const features = [
     icon: Scan,
     title: "QR Scanner",
     description: "Scan QR code untuk absensi real-time dengan validasi shift dan jam kerja",
-    color: "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400"
+    color: "bg-muted text-foreground"
   },
   {
     icon: Users,

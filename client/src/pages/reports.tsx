@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { StatTile } from "@/components/ui/stat-tile";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,382 +14,385 @@ import type { Employee, AttendanceRecord, LeaveRequest, RosterSchedule } from "@
 import { Download, FileText, Calendar, Users, TrendingUp, RefreshCw, CheckCircle, Upload, X, Camera } from "lucide-react";
 
 export default function Reports() {
-  console.log('🟢 Reports component loading...'); // Debug test
+ console.log('🟢 Reports component loading...'); // Debug test
   
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [reportType, setReportType] = useState("attendance");
-  const [format, setFormat] = useState("pdf");
-  const [shiftFilter, setShiftFilter] = useState("all");
-  const [isExporting, setIsExporting] = useState(false);
+ const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+ const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+ const [reportType, setReportType] = useState("attendance");
+ const [format, setFormat] = useState("pdf");
+ const [shiftFilter, setShiftFilter] = useState("all");
+ const [isExporting, setIsExporting] = useState(false);
   
   // Activity photos state
-  const [activityPhotos, setActivityPhotos] = useState<{ dataUrl: string; caption: string }[]>([]);
+ const [activityPhotos, setActivityPhotos] = useState<{ dataUrl: string; caption: string }[]>([]);
   
   // Form fields for report header
-  const [reportInfo, setReportInfo] = useState({
-    perusahaan: "PT Goden Energi Cemerlang Lestari",
-    namaPengawas: "",
-    hari: new Date().toLocaleDateString('id-ID', { weekday: 'long' }),
-    tanggal: new Date().toLocaleDateString('id-ID'),
-    waktu: "",
-    shift: "",
-    tempat: "",
-    diperiksaOleh: "",
-    catatan: "",
-    tandaTangan: null as File | string | null
+ const [reportInfo, setReportInfo] = useState({
+ perusahaan: "PT Goden Energi Cemerlang Lestari",
+ namaPengawas: "",
+ hari: new Date().toLocaleDateString('id-ID', { weekday: 'long' }),
+ tanggal: new Date().toLocaleDateString('id-ID'),
+ waktu: "",
+ shift: "",
+ tempat: "",
+ diperiksaOleh: "",
+ catatan: "",
+ tandaTangan: null as File | string | null
   });
-  const { toast } = useToast();
+ const { toast } = useToast();
   
   // Image compression function
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
+ const compressImage = (file: File): Promise<string> => {
+ return new Promise((resolve, reject) => {
+ const canvas = document.createElement('canvas');
+ const ctx = canvas.getContext('2d');
+ const img = new Image();
       
-      img.onload = () => {
+ img.onload = () => {
         // Calculate new dimensions (max 1600px)
-        const maxDimension = 1600;
-        let { width, height } = img;
+ const maxDimension = 1600;
+ let { width, height } = img;
         
-        if (width > height) {
-          if (width > maxDimension) {
-            height = (height * maxDimension) / width;
-            width = maxDimension;
+ if (width > height) {
+ if (width > maxDimension) {
+ height = (height * maxDimension) / width;
+ width = maxDimension;
           }
         } else {
-          if (height > maxDimension) {
-            width = (width * maxDimension) / height;
-            height = maxDimension;
+ if (height > maxDimension) {
+ width = (width * maxDimension) / height;
+ height = maxDimension;
           }
         }
         
-        canvas.width = width;
-        canvas.height = height;
+ canvas.width = width;
+ canvas.height = height;
         
         // Draw and compress
-        ctx?.drawImage(img, 0, 0, width, height);
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        resolve(compressedDataUrl);
+ ctx?.drawImage(img, 0, 0, width, height);
+ const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+ resolve(compressedDataUrl);
       };
       
-      img.onerror = () => reject(new Error('Failed to load image'));
-      img.src = URL.createObjectURL(file);
+ img.onerror = () => reject(new Error('Failed to load image'));
+ img.src = URL.createObjectURL(file);
     });
   };
   
   // Handle photo upload
-  const handlePhotoUpload = async (files: FileList | null) => {
-    if (!files) return;
+ const handlePhotoUpload = async (files: FileList | null) => {
+ if (!files) return;
     
-    const newPhotos: { dataUrl: string; caption: string }[] = [];
-    const maxPhotos = 4;
-    const maxFileSize = 1.5 * 1024 * 1024; // 1.5MB per file
+ const newPhotos: { dataUrl: string; caption: string }[] = [];
+ const maxPhotos = 4;
+ const maxFileSize = 1.5 * 1024 * 1024; // 1.5MB per file
     
-    for (let i = 0; i < Math.min(files.length, maxPhotos - activityPhotos.length); i++) {
-      const file = files[i];
+ for (let i = 0; i < Math.min(files.length, maxPhotos - activityPhotos.length); i++) {
+ const file = files[i];
       
       // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "File Tidak Valid",
-          description: `${file.name} bukan file gambar`,
-          variant: "destructive",
+ if (!file.type.startsWith('image/')) {
+ toast({
+ title: "File Tidak Valid",
+ description: `${file.name} bukan file gambar`,
+ variant: "destructive",
         });
-        continue;
+ continue;
       }
       
-      try {
-        const compressedDataUrl = await compressImage(file);
+ try {
+ const compressedDataUrl = await compressImage(file);
         
         // Check compressed file size (approximate byte length from base64)
-        const base64String = compressedDataUrl.split(',')[1];
-        const compressedSize = (base64String.length * 3) / 4; // Approximate bytes
+ const base64String = compressedDataUrl.split(',')[1];
+ const compressedSize = (base64String.length * 3) / 4; // Approximate bytes
         
-        if (compressedSize > maxFileSize) {
-          toast({
-            title: "File Terlalu Besar Setelah Kompresi",
-            description: `${file.name} masih lebih dari 1.5MB setelah dikompres`,
-            variant: "destructive",
+ if (compressedSize > maxFileSize) {
+ toast({
+ title: "File Terlalu Besar Setelah Kompresi",
+ description: `${file.name} masih lebih dari 1.5MB setelah dikompres`,
+ variant: "destructive",
           });
-          continue;
+ continue;
         }
         
-        newPhotos.push({ dataUrl: compressedDataUrl, caption: '' });
+ newPhotos.push({ dataUrl: compressedDataUrl, caption: '' });
       } catch (error) {
-        toast({
-          title: "Error Kompresi",
-          description: `Gagal memproses ${file.name}`,
-          variant: "destructive",
+ toast({
+ title: "Error Kompresi",
+ description: `Gagal memproses ${file.name}`,
+ variant: "destructive",
         });
       }
     }
     
-    if (newPhotos.length > 0) {
-      setActivityPhotos(prev => [...prev, ...newPhotos]);
-      toast({
-        title: "Foto Berhasil Diupload",
-        description: `${newPhotos.length} foto ditambahkan`,
+ if (newPhotos.length > 0) {
+ setActivityPhotos(prev => [...prev, ...newPhotos]);
+ toast({
+ title: "Foto Berhasil Diupload",
+ description: `${newPhotos.length} foto ditambahkan`,
       });
     }
   };
   
   // Remove photo
-  const removePhoto = (index: number) => {
-    setActivityPhotos(prev => prev.filter((_, i) => i !== index));
+ const removePhoto = (index: number) => {
+ setActivityPhotos(prev => prev.filter((_, i) => i !== index));
   };
   
   // Update photo caption
-  const updateCaption = (index: number, caption: string) => {
-    setActivityPhotos(prev => prev.map((photo, i) => 
-      i === index ? { ...photo, caption } : photo
+ const updateCaption = (index: number, caption: string) => {
+ setActivityPhotos(prev => prev.map((photo, i) => 
+ i === index ? { ...photo, caption } : photo
     ));
   };
 
   // Real-time data refresh listener
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+ useEffect(() => {
+ let intervalId: NodeJS.Timeout;
     
     // Enhanced auto-refresh for reports when roster data changes
-    const startAutoRefresh = () => {
-      intervalId = setInterval(async () => {
-        console.log("🔄 Auto-refreshing report data...");
-        const { queryClient } = await import("@/lib/queryClient");
+ const startAutoRefresh = () => {
+ intervalId = setInterval(async () => {
+ console.log("🔄 Auto-refreshing report data...");
+ const { queryClient } = await import("@/lib/queryClient");
         
         // Force refresh all report-related data
-        queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/roster"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/leave"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/leave-roster-monitoring"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/roster"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/leave"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/leave-roster-monitoring"] });
       }, 30000); // Every 30 seconds
     };
 
-    startAutoRefresh();
+ startAutoRefresh();
 
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+ return () => {
+ if (intervalId) {
+ clearInterval(intervalId);
       }
     };
   }, []);
 
   // Check for roster updates
-  const { data: updateStatus } = useQuery({
-    queryKey: ["/api/report-update-status"],
-    refetchInterval: 30000,
+ const { data: updateStatus } = useQuery({
+ queryKey: ["/api/report-update-status"],
+ refetchInterval: 30000,
   });
 
-  const handleExport = () => {
-    setIsExporting(true);
-    exportReport().finally(() => setIsExporting(false));
+ const handleExport = () => {
+ setIsExporting(true);
+ exportReport().finally(() => setIsExporting(false));
   };
 
   // Auto-refresh queries every 30 seconds for real-time report updates
-  const { data: employees = [] } = useQuery<Employee[]>({
-    queryKey: ["/api/employees"],
-    refetchInterval: 30000, // 30 seconds
-    refetchIntervalInBackground: true,
+ const { data: employees = [] } = useQuery<Employee[]>({
+ queryKey: ["/api/employees"],
+ refetchInterval: 30000, // 30 seconds
+ refetchIntervalInBackground: true,
+        // /api/employees mengembalikan {data,total}, bukan array. Tanpa select ini
+        // `employees.find(...)` melempar TypeError dan seluruh halaman jatuh.
+        select: (d: any) => (Array.isArray(d) ? d : d?.data ?? []),
   });
 
-  const { data: attendance = [] } = useQuery<AttendanceRecord[]>({
-    queryKey: ["/api/attendance", startDate],
-    queryFn: async () => {
-      const response = await fetch(`/api/attendance?date=${startDate}`);
-      if (!response.ok) throw new Error('Failed to fetch attendance');
-      return response.json();
+ const { data: attendance = [] } = useQuery<AttendanceRecord[]>({
+ queryKey: ["/api/attendance", startDate],
+ queryFn: async () => {
+ const response = await fetch(`/api/attendance?date=${startDate}`);
+ if (!response.ok) throw new Error('Failed to fetch attendance');
+ return response.json();
     },
-    enabled: reportType === "attendance",
-    refetchInterval: 30000, // 30 seconds
-    refetchIntervalInBackground: true,
+ enabled: reportType === "attendance",
+ refetchInterval: 30000, // 30 seconds
+ refetchIntervalInBackground: true,
   });
 
-  const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
-    queryKey: ["/api/leave"],
-    enabled: reportType === "leave",
-    refetchInterval: 30000, // 30 seconds
+ const { data: leaveRequests = [] } = useQuery<LeaveRequest[]>({
+ queryKey: ["/api/leave"],
+ enabled: reportType === "leave",
+ refetchInterval: 30000, // 30 seconds
   });
 
-  const { data: roster = [] } = useQuery<RosterSchedule[]>({
-    queryKey: ["/api/roster", startDate],
-    queryFn: async () => {
-      const response = await fetch(`/api/roster?date=${startDate}`);
-      if (!response.ok) throw new Error('Failed to fetch roster');
-      return response.json();
+ const { data: roster = [] } = useQuery<RosterSchedule[]>({
+ queryKey: ["/api/roster", startDate],
+ queryFn: async () => {
+ const response = await fetch(`/api/roster?date=${startDate}`);
+ if (!response.ok) throw new Error('Failed to fetch roster');
+ return response.json();
     },
-    enabled: reportType === "attendance",
-    refetchInterval: 30000, // 30 seconds
-    refetchIntervalInBackground: true,
+ enabled: reportType === "attendance",
+ refetchInterval: 30000, // 30 seconds
+ refetchIntervalInBackground: true,
   });
 
-  const exportReport = async () => {
-    if (!startDate || !endDate) {
-      toast({
-        title: "Error",
-        description: "Silakan pilih periode tanggal",
-        variant: "destructive",
+ const exportReport = async () => {
+ if (!startDate || !endDate) {
+ toast({
+ title: "Error",
+ description: "Silakan pilih periode tanggal",
+ variant: "destructive",
       });
-      return;
+ return;
     }
 
-    try {
-      if (reportType === "attendance") {
-        if (!employees || employees.length === 0) {
-          toast({
-            title: "Error",
-            description: "Data karyawan tidak tersedia",
-            variant: "destructive",
+ try {
+ if (reportType === "attendance") {
+ if (!employees || employees.length === 0) {
+ toast({
+ title: "Error",
+ description: "Data karyawan tidak tersedia",
+ variant: "destructive",
           });
-          return;
+ return;
         }
 
         // Force refresh data before generating report to ensure latest attendance data
-        const { queryClient } = await import("@/lib/queryClient");
+ const { queryClient } = await import("@/lib/queryClient");
         
-        console.log("Refreshing data before generating report...");
+ console.log("Refreshing data before generating report...");
         
         // Force refresh all data
-        await queryClient.refetchQueries({ queryKey: ["/api/attendance"] });
-        await queryClient.refetchQueries({ queryKey: ["/api/roster"] });
-        await queryClient.refetchQueries({ queryKey: ["/api/employees"] });
+ await queryClient.refetchQueries({ queryKey: ["/api/attendance"] });
+ await queryClient.refetchQueries({ queryKey: ["/api/roster"] });
+ await queryClient.refetchQueries({ queryKey: ["/api/employees"] });
         
         // Get fresh data directly from server including leave roster monitoring and employees
-        const [freshAttendance, freshRoster, freshLeaveMonitoring, freshEmployees] = await Promise.all([
-          fetch(`/api/attendance?date=${startDate}`).then(res => res.json()),
-          fetch(`/api/roster?date=${startDate}`).then(res => res.json()),
-          fetch(`/api/leave-roster-monitoring`).then(res => res.json()),
-          fetch(`/api/employees`).then(res => res.json())
+ const [freshAttendance, freshRoster, freshLeaveMonitoring, freshEmployees] = await Promise.all([
+ fetch(`/api/attendance?date=${startDate}`).then(res => res.json()),
+ fetch(`/api/roster?date=${startDate}`).then(res => res.json()),
+ fetch(`/api/leave-roster-monitoring`).then(res => res.json()),
+ fetch(`/api/employees`).then(res => res.json())
         ]);
 
-        console.log("Fresh attendance data:", freshAttendance);
-        console.log("Fresh roster data:", freshRoster);
-        console.log("Fresh employees data (for updated nomor lambung):", freshEmployees.filter((e: any) => e.nomorLambung !== 'SPARE').slice(0, 3));
+ console.log("Fresh attendance data:", freshAttendance);
+ console.log("Fresh roster data:", freshRoster);
+ console.log("Fresh employees data (for updated nomor lambung):", freshEmployees.filter((e: any) => e.nomorLambung !== 'SPARE').slice(0, 3));
 
-        const filteredAttendance = freshAttendance.filter((record: any) => {
-          return record.date >= startDate && record.date <= endDate;
+ const filteredAttendance = freshAttendance.filter((record: any) => {
+ return record.date >= startDate && record.date <= endDate;
         });
 
         // Validate required report information for PDF (both landscape and portrait)
-        if (format === "pdf" || format === "pdf-portrait") {
-          const requiredFields = [];
-          if (!reportInfo.namaPengawas.trim()) requiredFields.push("Nama Pengawas");
-          if (!reportInfo.waktu.trim()) requiredFields.push("Waktu");
-          if (!reportInfo.shift.trim()) requiredFields.push("Shift");
-          if (!reportInfo.tempat.trim()) requiredFields.push("Tempat");
-          if (!reportInfo.diperiksaOleh.trim()) requiredFields.push("Diperiksa Oleh");
+ if (format === "pdf" || format === "pdf-portrait") {
+ const requiredFields = [];
+ if (!reportInfo.namaPengawas.trim()) requiredFields.push("Nama Pengawas");
+ if (!reportInfo.waktu.trim()) requiredFields.push("Waktu");
+ if (!reportInfo.shift.trim()) requiredFields.push("Shift");
+ if (!reportInfo.tempat.trim()) requiredFields.push("Tempat");
+ if (!reportInfo.diperiksaOleh.trim()) requiredFields.push("Diperiksa Oleh");
           
-          if (requiredFields.length > 0) {
-            toast({
-              title: "Form Tidak Lengkap",
-              description: `Mohon isi field berikut: ${requiredFields.join(", ")}`,
-              variant: "destructive",
+ if (requiredFields.length > 0) {
+ toast({
+ title: "Form Tidak Lengkap",
+ description: `Mohon isi field berikut: ${requiredFields.join(", ")}`,
+ variant: "destructive",
             });
-            return;
+ return;
           }
 
           // Convert signature file to base64 jika ada
-          let processedReportInfo = { ...reportInfo };
-          if (reportInfo.tandaTangan && reportInfo.tandaTangan instanceof File) {
-            try {
-              const base64 = await new Promise<string>((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const result = reader.result as string;
+ let processedReportInfo = { ...reportInfo };
+ if (reportInfo.tandaTangan && reportInfo.tandaTangan instanceof File) {
+ try {
+ const base64 = await new Promise<string>((resolve, reject) => {
+ const reader = new FileReader();
+ reader.onload = () => {
+ const result = reader.result as string;
                   // Remove data URL prefix (data:image/jpeg;base64,)
-                  const base64String = result.split(',')[1];
-                  resolve(`data:image/jpeg;base64,${base64String}`);
+ const base64String = result.split(',')[1];
+ resolve(`data:image/jpeg;base64,${base64String}`);
                 };
-                reader.onerror = reject;
-                reader.readAsDataURL(reportInfo.tandaTangan as File);
+ reader.onerror = reject;
+ reader.readAsDataURL(reportInfo.tandaTangan as File);
               });
-              processedReportInfo.tandaTangan = base64;
+ processedReportInfo.tandaTangan = base64;
             } catch (error) {
-              console.error('Error converting signature to base64:', error);
+ console.error('Error converting signature to base64:', error);
               // Keep original if conversion fails
             }
           }
 
-          await generateAttendancePDF({
-            employees: freshEmployees, // Use fresh employee data to show updated nomor lambung
-            attendance: filteredAttendance,
-            roster: freshRoster,
-            leaveMonitoring: freshLeaveMonitoring,
-            startDate,
-            endDate,
-            reportType: "attendance",
-            shiftFilter,
-            reportInfo: processedReportInfo, // Use processed reportInfo with base64 signature
-            orientation: format === "pdf-portrait" ? "portrait" : "landscape", // Professional orientation
-            activityPhotos: activityPhotos.length > 0 ? activityPhotos : undefined // Include activity photos
+ await generateAttendancePDF({
+ employees: freshEmployees, // Use fresh employee data to show updated nomor lambung
+ attendance: filteredAttendance,
+ roster: freshRoster,
+ leaveMonitoring: freshLeaveMonitoring,
+ startDate,
+ endDate,
+ reportType: "attendance",
+ shiftFilter,
+ reportInfo: processedReportInfo, // Use processed reportInfo with base64 signature
+ orientation: format === "pdf-portrait" ? "portrait" : "landscape", // Professional orientation
+ activityPhotos: activityPhotos.length > 0 ? activityPhotos : undefined // Include activity photos
           });
           
-          const orientationText = format === "pdf-portrait" ? "A4 Portrait" : "Landscape";
-          toast({
-            title: "Berhasil",
-            description: `Laporan PDF ${orientationText} berhasil diunduh`,
+ const orientationText = format === "pdf-portrait" ? "A4 Portrait" : "Landscape";
+ toast({
+ title: "Berhasil",
+ description: `Laporan PDF ${orientationText} berhasil diunduh`,
           });
         } else {
-          exportAttendanceToCSV(filteredAttendance, freshEmployees); // Use fresh employee data
+ exportAttendanceToCSV(filteredAttendance, freshEmployees); // Use fresh employee data
           
-          toast({
-            title: "Berhasil",
-            description: "Laporan CSV berhasil diunduh",
+ toast({
+ title: "Berhasil",
+ description: "Laporan CSV berhasil diunduh",
           });
         }
       } else if (reportType === "leave") {
         // Get fresh employees for leave reports too
-        const freshEmployees = await fetch(`/api/employees`).then(res => res.json());
+ const freshEmployees = await fetch(`/api/employees`).then(res => res.json());
         
-        if (format === "csv") {
-          exportLeaveToCSV(leaveRequests, freshEmployees); // Use fresh employee data
+ if (format === "csv") {
+ exportLeaveToCSV(leaveRequests, freshEmployees); // Use fresh employee data
           
-          toast({
-            title: "Berhasil",
-            description: "Laporan cuti CSV berhasil diunduh",
+ toast({
+ title: "Berhasil",
+ description: "Laporan cuti CSV berhasil diunduh",
           });
         } else {
-          toast({
-            title: "Info",
-            description: "Laporan cuti dalam format PDF belum tersedia",
+ toast({
+ title: "Info",
+ description: "Laporan cuti dalam format PDF belum tersedia",
           });
         }
       } else if (reportType === "summary") {
         // Get fresh employees for summary reports too
-        const freshEmployees = await fetch(`/api/employees`).then(res => res.json());
+ const freshEmployees = await fetch(`/api/employees`).then(res => res.json());
         
-        if (format === "csv") {
-          exportEmployeesToCSV(freshEmployees); // Use fresh employee data
+ if (format === "csv") {
+ exportEmployeesToCSV(freshEmployees); // Use fresh employee data
           
-          toast({
-            title: "Berhasil",
-            description: "Laporan ringkasan CSV berhasil diunduh",
+ toast({
+ title: "Berhasil",
+ description: "Laporan ringkasan CSV berhasil diunduh",
           });
         } else {
-          toast({
-            title: "Info",
-            description: "Laporan ringkasan dalam format PDF belum tersedia",
+ toast({
+ title: "Info",
+ description: "Laporan ringkasan dalam format PDF belum tersedia",
           });
         }
       }
     } catch (error) {
-      console.error('Export error:', error);
-      toast({
-        title: "Error",
-        description: `Gagal mengunduh laporan: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive",
+ console.error('Export error:', error);
+ toast({
+ title: "Error",
+ description: `Gagal mengunduh laporan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+ variant: "destructive",
       });
     }
   };
 
   // Calculate statistics
-  const totalAttendance = attendance.length;
-  const presentCount = attendance.filter(r => r.status === 'present').length;
-  const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
-  const totalLeave = leaveRequests.filter(r => r.status === 'approved').length;
-  const pendingLeave = leaveRequests.filter(r => r.status === 'pending').length;
+ const totalAttendance = attendance.length;
+ const presentCount = attendance.filter(r => r.status === 'present').length;
+ const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
+ const totalLeave = leaveRequests.filter(r => r.status === 'approved').length;
+ const pendingLeave = leaveRequests.filter(r => r.status === 'pending').length;
 
-  return (
+ return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Export Options */}
       <Card>
@@ -402,16 +406,16 @@ export default function Reports() {
             </Label>
             <div className="grid grid-cols-2 gap-2">
               <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                data-testid="report-start-date"
+ type="date"
+ value={startDate}
+ onChange={(e) => setStartDate(e.target.value)}
+ data-testid="report-start-date"
               />
               <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                data-testid="report-end-date"
+ type="date"
+ value={endDate}
+ onChange={(e) => setEndDate(e.target.value)}
+ data-testid="report-end-date"
               />
             </div>
           </div>
@@ -459,10 +463,10 @@ export default function Reports() {
                 Perusahaan
               </Label>
               <Input
-                value={reportInfo.perusahaan}
-                onChange={(e) => setReportInfo(prev => ({...prev, perusahaan: e.target.value}))}
-                placeholder="Nama perusahaan"
-                data-testid="input-perusahaan"
+ value={reportInfo.perusahaan}
+ onChange={(e) => setReportInfo(prev => ({...prev, perusahaan: e.target.value}))}
+ placeholder="Nama perusahaan"
+ data-testid="input-perusahaan"
               />
             </div>
 
@@ -471,10 +475,10 @@ export default function Reports() {
                 Nama Pengawas
               </Label>
               <Input
-                value={reportInfo.namaPengawas}
-                onChange={(e) => setReportInfo(prev => ({...prev, namaPengawas: e.target.value}))}
-                placeholder="Nama pengawas"
-                data-testid="input-nama-pengawas"
+ value={reportInfo.namaPengawas}
+ onChange={(e) => setReportInfo(prev => ({...prev, namaPengawas: e.target.value}))}
+ placeholder="Nama pengawas"
+ data-testid="input-nama-pengawas"
               />
             </div>
 
@@ -484,10 +488,10 @@ export default function Reports() {
                   Waktu
                 </Label>
                 <Input
-                  value={reportInfo.waktu}
-                  onChange={(e) => setReportInfo(prev => ({...prev, waktu: e.target.value}))}
-                  placeholder="17:00 - 18:30"
-                  data-testid="input-waktu"
+ value={reportInfo.waktu}
+ onChange={(e) => setReportInfo(prev => ({...prev, waktu: e.target.value}))}
+ placeholder="17:00 - 18:30"
+ data-testid="input-waktu"
                 />
               </div>
               <div>
@@ -511,10 +515,10 @@ export default function Reports() {
                 Tempat
               </Label>
               <Input
-                value={reportInfo.tempat}
-                onChange={(e) => setReportInfo(prev => ({...prev, tempat: e.target.value}))}
-                placeholder="Titik Kumpul Workshop GECL"
-                data-testid="input-tempat"
+ value={reportInfo.tempat}
+ onChange={(e) => setReportInfo(prev => ({...prev, tempat: e.target.value}))}
+ placeholder="Titik Kumpul Workshop GECL"
+ data-testid="input-tempat"
               />
             </div>
 
@@ -523,10 +527,10 @@ export default function Reports() {
                 Diperiksa Oleh
               </Label>
               <Input
-                value={reportInfo.diperiksaOleh}
-                onChange={(e) => setReportInfo(prev => ({...prev, diperiksaOleh: e.target.value}))}
-                placeholder="Nama pengawas pool"
-                data-testid="input-diperiksa-oleh"
+ value={reportInfo.diperiksaOleh}
+ onChange={(e) => setReportInfo(prev => ({...prev, diperiksaOleh: e.target.value}))}
+ placeholder="Nama pengawas pool"
+ data-testid="input-diperiksa-oleh"
               />
             </div>
 
@@ -535,10 +539,10 @@ export default function Reports() {
                 Catatan
               </Label>
               <Input
-                value={reportInfo.catatan || ""}
-                onChange={(e) => setReportInfo(prev => ({...prev, catatan: e.target.value}))}
-                placeholder="Catatan tambahan (opsional)"
-                data-testid="input-catatan"
+ value={reportInfo.catatan || ""}
+ onChange={(e) => setReportInfo(prev => ({...prev, catatan: e.target.value}))}
+ placeholder="Catatan tambahan (opsional)"
+ data-testid="input-catatan"
               />
             </div>
 
@@ -547,16 +551,16 @@ export default function Reports() {
                 Upload Tanda Tangan
               </Label>
               <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  setReportInfo(prev => ({...prev, tandaTangan: file}));
+ type="file"
+ accept="image/*"
+ onChange={(e) => {
+ const file = e.target.files?.[0] || null;
+ setReportInfo(prev => ({...prev, tandaTangan: file}));
                 }}
-                data-testid="input-tanda-tangan"
+ data-testid="input-tanda-tangan"
               />
               {reportInfo.tandaTangan && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                <p className="text-xs text-foreground mt-1">
                   File dipilih: {typeof reportInfo.tandaTangan === 'string' ? 'Signature uploaded' : reportInfo.tandaTangan.name}
                 </p>
               )}
@@ -573,27 +577,27 @@ export default function Reports() {
               {/* Upload Button */}
               <div>
                 <Input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handlePhotoUpload(e.target.files)}
-                  className="hidden"
-                  id="activity-photos-input"
-                  data-testid="input-photos"
-                  disabled={activityPhotos.length >= 4}
+ type="file"
+ accept="image/*"
+ multiple
+ onChange={(e) => handlePhotoUpload(e.target.files)}
+ className="hidden"
+ id="activity-photos-input"
+ data-testid="input-photos"
+ disabled={activityPhotos.length >= 4}
                 />
                 <label
-                  htmlFor="activity-photos-input"
-                  className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
-                    activityPhotos.length >= 4 
+ htmlFor="activity-photos-input"
+ className={`flex items-center justify-center w-full p-4 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+ activityPhotos.length >= 4 
                       ? 'border-gray-300 bg-gray-100 cursor-not-allowed text-gray-500'
-                      : 'border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+ : 'border-blue-300 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                   }`}
                 >
                   <Upload className="w-5 h-5 mr-2" />
                   {activityPhotos.length >= 4 
                     ? 'Maksimal 4 foto tercapai'
-                    : `Pilih foto (${activityPhotos.length}/4)`
+ : `Pilih foto (${activityPhotos.length}/4)`
                   }
                 </label>
               </div>
@@ -603,24 +607,24 @@ export default function Reports() {
                 <div className="grid grid-cols-2 gap-3">
                   {activityPhotos.map((photo, index) => (
                     <div
-                      key={index}
-                      className="relative group"
-                      data-testid={`photo-preview-${index}`}
+ key={index}
+ className="relative group"
+ data-testid={`photo-preview-${index}`}
                     >
                       <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
                         <img
-                          src={photo.dataUrl}
-                          alt={`Foto kegiatan ${index + 1}`}
-                          className="w-full h-full object-cover"
-                          data-testid={`img-photo-preview-${index}`}
+ src={photo.dataUrl}
+ alt={`Foto kegiatan ${index + 1}`}
+ className="w-full h-full object-cover"
+ data-testid={`img-photo-preview-${index}`}
                         />
                       </div>
                       
                       {/* Remove button */}
                       <button
-                        onClick={() => removePhoto(index)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        data-testid={`button-remove-photo-${index}`}
+ onClick={() => removePhoto(index)}
+ className="absolute top-1 right-1 bg-gray-950 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+ data-testid={`button-remove-photo-${index}`}
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -628,12 +632,12 @@ export default function Reports() {
                       {/* Caption input */}
                       <div className="mt-1">
                         <Input
-                          type="text"
-                          placeholder="Keterangan foto (opsional)"
-                          value={photo.caption}
-                          onChange={(e) => updateCaption(index, e.target.value)}
-                          className="text-xs"
-                          data-testid={`input-caption-${index}`}
+ type="text"
+ placeholder="Keterangan foto (opsional)"
+ value={photo.caption}
+ onChange={(e) => updateCaption(index, e.target.value)}
+ className="text-xs"
+ data-testid={`input-caption-${index}`}
                         />
                       </div>
                     </div>
@@ -676,10 +680,10 @@ export default function Reports() {
           </div>
           
           <Button 
-            onClick={handleExport} 
-            className="w-full bg-green-600 hover:bg-green-700"
-            data-testid="download-report-button"
-            disabled={!startDate || !endDate || isExporting}
+ onClick={handleExport} 
+ className="w-full bg-primary hover:bg-primary/90"
+ data-testid="download-report-button"
+ disabled={!startDate || !endDate || isExporting}
           >
             <Download className="w-4 h-4 mr-2" />
             {isExporting ? "Mengunduh..." : "Download Laporan"}
@@ -694,57 +698,41 @@ export default function Reports() {
         </CardHeader>
         <CardContent>
           {/* Summary Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg" data-testid="stats-attendance-rate">
-              <TrendingUp className="w-6 h-6 mx-auto mb-2 text-blue-600 dark:text-blue-400" />
-              <p className="text-xl font-semibold text-gray-900 dark:text-white">{attendanceRate}%</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Tingkat Kehadiran</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg" data-testid="stats-total-attendance">
-              <Calendar className="w-6 h-6 mx-auto mb-2 text-green-600 dark:text-green-400" />
-              <p className="text-xl font-semibold text-gray-900 dark:text-white">{totalAttendance}</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Total Absensi</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg" data-testid="stats-total-employees">
-              <Users className="w-6 h-6 mx-auto mb-2 text-purple-600 dark:text-purple-400" />
-              <p className="text-xl font-semibold text-gray-900 dark:text-white">{employees.length}</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Total Karyawan</p>
-            </div>
-            <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg" data-testid="stats-total-leave">
-              <FileText className="w-6 h-6 mx-auto mb-2 text-yellow-600 dark:text-yellow-400" />
-              <p className="text-xl font-semibold text-gray-900 dark:text-white">{totalLeave}</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400">Total Cuti</p>
-            </div>
+          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile label="Tingkat Kehadiran" value={`${attendanceRate}%`} icon={TrendingUp} />
+            <StatTile label="Total Absensi" value={totalAttendance} icon={Calendar} />
+            <StatTile label="Total Karyawan" value={employees.length} icon={Users} />
+            <StatTile label="Total Cuti" value={totalLeave} icon={FileText} />
           </div>
-          
+
           {/* Recent Reports */}
           <div>
             <h4 className="font-medium text-gray-900 dark:text-white mb-3">Laporan Terbaru</h4>
             <div className="space-y-3">
               {[
                 {
-                  title: "Laporan Absensi Bulan Ini",
-                  description: "Dibuat hari ini",
-                  type: "attendance",
-                  icon: Calendar
+ title: "Laporan Absensi Bulan Ini",
+ description: "Dibuat hari ini",
+ type: "attendance",
+ icon: Calendar
                 },
                 {
-                  title: "Laporan Cuti Q4 2024",
-                  description: "Dibuat 2 hari yang lalu",
-                  type: "leave",
-                  icon: FileText
+ title: "Laporan Cuti Q4 2024",
+ description: "Dibuat 2 hari yang lalu",
+ type: "leave",
+ icon: FileText
                 },
                 {
-                  title: "Laporan Ringkasan Karyawan",
-                  description: "Dibuat 1 minggu yang lalu",
-                  type: "summary",
-                  icon: Users
+ title: "Laporan Ringkasan Karyawan",
+ description: "Dibuat 1 minggu yang lalu",
+ type: "summary",
+ icon: Users
                 }
               ].map((report, index) => (
                 <div 
-                  key={index} 
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                  data-testid={`recent-report-${report.type}`}
+ key={index} 
+ className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+ data-testid={`recent-report-${report.type}`}
                 >
                   <div className="flex items-center">
                     <report.icon className="w-5 h-5 text-gray-600 dark:text-gray-400 mr-3" />
@@ -754,10 +742,10 @@ export default function Reports() {
                     </div>
                   </div>
                   <Button 
-                    variant="ghost" 
-                    size="sm"
-                    className="text-primary-600 hover:text-primary-700"
-                    data-testid={`download-recent-${report.type}`}
+ variant="ghost" 
+ size="sm"
+ className="text-primary-600 hover:text-primary-700"
+ data-testid={`download-recent-${report.type}`}
                   >
                     <Download className="w-4 h-4 mr-1" />
                     Download

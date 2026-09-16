@@ -144,7 +144,7 @@ export default function PushNotificationInduction() {
                                 syncAndSendMutation.mutate();
                         }}
                         disabled={isAnyLoading}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-primary hover:bg-primary/90"
                     >
                         {syncAndSendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CalendarCheck className="h-4 w-4 mr-2" />}
                         Sinkron Roster & Kirim WA
@@ -177,7 +177,7 @@ export default function PushNotificationInduction() {
                             <div className="space-y-1">
                                 {syncResult.drivers.map((d: any, i: number) => (
                                     <div key={i} className="text-xs text-blue-700 flex gap-2 items-center">
-                                        <Badge variant="outline" className={d.action === 'created' ? 'border-green-400 text-green-700 bg-green-50' : 'border-gray-300 text-gray-600'}>
+                                        <Badge variant="outline" className={d.action === 'created' ? 'border-border text-foreground bg-muted' : 'border-gray-300 text-gray-600'}>
                                             {d.action === 'created' ? 'Baru' : 'Sudah Ada'}
                                         </Badge>
                                         <span>ID: {d.employeeId} — Cuti {d.consecutiveLeaveDays} hari berturut — Kerja besok {d.scheduledDate}</span>
@@ -222,7 +222,7 @@ export default function PushNotificationInduction() {
                                         <TableCell>{new Date(s.scheduledDate).toLocaleDateString("id-ID")}</TableCell>
                                         <TableCell>
                                             {s.notifiedAt ? (
-                                                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                                <Badge variant="outline" className="bg-muted text-foreground border-border">
                                                     Terkirim: {new Date(s.notifiedAt).toLocaleDateString()}
                                                 </Badge>
                                             ) : (

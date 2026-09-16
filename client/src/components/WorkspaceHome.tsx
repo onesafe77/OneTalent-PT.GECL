@@ -4,7 +4,6 @@ import { navigationGroups, NavItem } from "@/lib/navigation";
 import { ChevronRight, Search, Bell, User as UserIcon, CheckCircle, AlertOctagon, ArrowRight, Bot, Loader2, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import Dashboard from "@/pages/dashboard";
 import { useState, useEffect, useCallback } from "react";
 
 interface SafetyInsight {
@@ -143,7 +142,7 @@ export function WorkspaceHome() {
   const MobileHome = () => (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 pb-24">
       {/* Mobile Header */}
-      <div className="bg-red-600 dark:bg-red-900 pt-8 pb-16 px-6 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
+      <div className="bg-gray-950 dark:bg-gray-900 pt-8 pb-16 px-6 rounded-b-[2.5rem] shadow-lg relative overflow-hidden">
         {/* Decorative background elements */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none" />
@@ -153,7 +152,7 @@ export function WorkspaceHome() {
             <p className="text-red-100 text-sm font-medium mb-1">Selamat Pagi,</p>
             <h1 className="text-2xl font-bold text-white tracking-tight">{user?.name || 'Karyawan'}</h1>
             <div className="inline-flex items-center mt-2 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/10">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 mr-2 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-muted mr-2 animate-pulse" />
               <span className="text-[10px] uppercase font-bold text-white tracking-wider">
                 {user?.position || 'Personnel'}
               </span>
@@ -178,7 +177,7 @@ export function WorkspaceHome() {
         {/* Search Bar */}
         <div className="relative z-10">
           <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-gray-600 transition-colors" />
             <Input
               placeholder="Cari menu, laporan, atau rekan..."
               className="pl-11 h-12 rounded-2xl bg-white text-gray-900 border-0 focus-visible:ring-2 focus-visible:ring-white/50 shadow-lg shadow-red-900/20"
@@ -232,7 +231,7 @@ export function WorkspaceHome() {
                 {/* Dynamic Insight Visual */}
                 <div className="w-full bg-gray-800/50 p-3 rounded-xl mb-4 border border-white/5">
                   <div className="flex items-center gap-3">
-                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                    <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
                     <span className="text-xs font-medium text-gray-300">
                       {safetyInsight?.condition || 'Kondisi: Normal'}
                     </span>
@@ -242,7 +241,7 @@ export function WorkspaceHome() {
             )}
 
             <div className="flex gap-3">
-              <Link href="/workspace/si-asef">
+              <Link href="/workspace/dashboard">
                 <Button size="sm" className="bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl px-5 font-semibold text-xs h-10 border-0">
                   Tanya Mystic
                 </Button>
@@ -258,7 +257,7 @@ export function WorkspaceHome() {
         <div>
           <div className="flex justify-between items-center mb-4 px-1">
             <h3 className="font-bold text-gray-900 dark:text-white text-base">Overview Hari Ini</h3>
-            <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-md">Updated 5m ago</span>
+            <span className="text-xs text-foreground font-medium bg-muted px-2 py-1 rounded-md">Updated 5m ago</span>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -266,7 +265,7 @@ export function WorkspaceHome() {
               <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2">My Tasks</p>
               <div className="flex items-end justify-between">
                 <span className="text-2xl font-bold text-gray-900 dark:text-white">8<span className="text-sm text-gray-400 font-normal">/10</span></span>
-                <CheckCircle className="w-5 h-5 text-green-500 mb-1" />
+                <CheckCircle className="w-5 h-5 text-foreground mb-1" />
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -286,7 +285,7 @@ export function WorkspaceHome() {
               <h4 className="text-gray-900 dark:text-white font-bold text-lg tracking-tight">Mulai Inspeksi</h4>
               <p className="text-gray-500 text-xs mt-0.5">Buat form inspeksi baru</p>
             </div>
-            <div className="w-11 h-11 bg-gradient-to-tr from-red-600 to-red-500 rounded-2xl flex items-center justify-center shadow-lg transition-transform duration-150 ease-out group-active:scale-95">
+            <div className="w-11 h-11 bg-gradient-to-tr from-gray-600 to-gray-500 rounded-2xl flex items-center justify-center shadow-lg transition-transform duration-150 ease-out group-active:scale-95">
               <ArrowRight className="w-5 h-5 text-white" />
             </div>
           </div>
@@ -331,23 +330,18 @@ export function WorkspaceHome() {
   );
 
   return (
-    <>
-      {/* Mobile View - Visible only on small screens */}
-      <div className="block lg:hidden w-full">
-        <MobileHome />
-      </div>
-
-      {/* Desktop View - Dashboard Layout */}
-      <div className="hidden lg:block min-h-screen">
-        <Dashboard />
-      </div>
-    </>
+    /* Command Center dihapus 14 Sep 2026 atas permintaan HSE. Beranda kini
+       memakai satu tampilan untuk semua ukuran layar; di layar lebar isinya
+       dibatasi lebarnya supaya tidak melar. */
+    <div className="mx-auto w-full max-w-5xl">
+      <MobileHome />
+    </div>
   );
 }
 
 // Aksen chip per KELOMPOK menu (konsisten dalam satu seksi — bukan pelangi per item).
 const GROUP_ACCENTS: Record<string, string> = {
-  Utama: "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400",
+  Utama: "bg-gray-50 text-gray-950 dark:bg-gray-800 dark:text-gray-400",
   Divisi: "bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400",
   SIMANTIK: "bg-amber-50 text-amber-600 dark:bg-amber-900/25 dark:text-amber-400",
   Other: "bg-violet-50 text-violet-600 dark:bg-violet-900/25 dark:text-violet-400",
@@ -379,15 +373,15 @@ function MenuCard({ item, category }: { item: NavItem, category: string }) {
 
   return (
     <Link href={item.href}>
-      <div className="group relative flex flex-col justify-between h-full p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-red-100 dark:hover:border-gray-600 transition-all duration-200 cursor-pointer overflow-hidden">
+      <div className="group relative flex flex-col justify-between h-full p-6 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-200 cursor-pointer overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-          {Icon && <Icon className="w-16 h-16 text-red-600 dark:text-red-400 transform rotate-12 group-hover:scale-110 transition-transform" />}
+          {Icon && <Icon className="w-16 h-16 text-gray-950 dark:text-gray-400 transform rotate-12 group-hover:scale-110 transition-transform" />}
         </div>
 
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl group-hover:bg-red-100 dark:group-hover:bg-red-900/30 transition-colors">
-              {Icon && <Icon className="w-6 h-6 text-red-600 dark:text-red-400" />}
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl group-hover:bg-muted dark:group-hover:bg-gray-700 transition-colors">
+              {Icon && <Icon className="w-6 h-6 text-gray-950 dark:text-gray-400" />}
             </div>
             {category && (
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-50 dark:bg-gray-700 px-2 py-1 rounded-md">
@@ -396,7 +390,7 @@ function MenuCard({ item, category }: { item: NavItem, category: string }) {
             )}
           </div>
 
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-red-600 dark:group-hover:text-red-400 transition-colors">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-gray-950 dark:group-hover:text-gray-400 transition-colors">
             {item.name}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
@@ -404,7 +398,7 @@ function MenuCard({ item, category }: { item: NavItem, category: string }) {
           </p>
         </div>
 
-        <div className="relative z-10 mt-6 flex items-center text-sm font-medium text-red-600 dark:text-red-400 group-hover:translate-x-1 transition-transform">
+        <div className="relative z-10 mt-6 flex items-center text-sm font-medium text-gray-950 dark:text-gray-400 group-hover:translate-x-1 transition-transform">
           Buka
           <ChevronRight className="w-4 h-4 ml-1" />
         </div>

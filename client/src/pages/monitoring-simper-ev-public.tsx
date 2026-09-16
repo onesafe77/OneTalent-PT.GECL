@@ -75,7 +75,7 @@ export default function MonitoringSimperEvPublic() {
     const getStatusStyle = (status: string) => {
         if (!status) return { bg: "bg-gray-100", text: "text-gray-600", border: "border-gray-200", icon: null };
         const s = status.toLowerCase();
-        if (s.includes("selesai") || s.includes("sudah")) return { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
+        if (s.includes("selesai") || s.includes("sudah")) return { bg: "bg-muted", text: "text-foreground", border: "border-border", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
         if (s.includes("proses") || s.includes("pengajuan")) return { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200", icon: <Clock className="w-3 h-3 mr-1" /> };
         if (s.includes("tolak")) return { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", icon: <AlertCircle className="w-3 h-3 mr-1" /> };
         return { bg: "bg-gray-100", text: "text-gray-700", border: "border-gray-200", icon: null };
@@ -113,7 +113,7 @@ export default function MonitoringSimperEvPublic() {
                             </p>
                         </div>
                         <div className="hidden md:block">
-                            <div className="w-20 h-20 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl shadow-xl flex items-center justify-center transform rotate-3">
+                            <div className="w-20 h-20 bg-gradient-to-tr from-[#DF2A33] to-[#96161C] rounded-2xl shadow-xl flex items-center justify-center transform rotate-3">
                                 <span className="text-white font-bold text-2xl">EV</span>
                             </div>
                         </div>
@@ -252,7 +252,7 @@ export default function MonitoringSimperEvPublic() {
                                         <div className="bg-slate-50/50 border-t border-slate-100 p-4 flex justify-center text-center">
                                             <div className="w-full text-center">
                                                 <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1">Permanen</p>
-                                                <p className={`text-sm font-semibold ${item.simperPermanen === 'Sudah' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                                                <p className={`text-sm font-semibold ${item.simperPermanen === 'Sudah' ? 'text-foreground' : 'text-slate-500'}`}>
                                                     {item.simperPermanen || "-"}
                                                 </p>
                                             </div>
@@ -301,7 +301,7 @@ export default function MonitoringSimperEvPublic() {
             {/* Tracker Flow Dialog */}
             <Dialog open={!!activeEmployee} onOpenChange={(open) => !open && setSelectedEmployeeId(null)}>
                 <DialogContent className="max-w-xl p-0 overflow-hidden border-none rounded-2xl shadow-2xl">
-                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white relative">
+                    <div className="bg-gradient-to-r from-[#DF2A33] to-[#96161C] p-6 text-white relative">
                         <DialogHeader>
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl shadow-inner border border-white/10">
@@ -336,7 +336,7 @@ export default function MonitoringSimperEvPublic() {
                             </div>
                         )}
 
-                        <div className="space-y-8 relative before:absolute before:inset-y-0 before:left-[17px] before:w-0.5 before:bg-gradient-to-b before:from-blue-200 before:to-slate-100 before:z-0 px-1">
+                        <div className="space-y-8 relative before:absolute before:inset-y-0 before:left-[17px] before:w-0.5 before:bg-gradient-to-b before:from-[#DF2A33] before:to-slate-100 before:z-0 px-1">
                             {isLoadingHistory ? (
                                 <div className="flex flex-col items-center justify-center py-10 text-slate-400">
                                     <Loader2 className="w-8 h-8 animate-spin mb-3 text-blue-500" />
@@ -357,7 +357,7 @@ export default function MonitoringSimperEvPublic() {
                                         return (
                                             <div key={log.id} className="relative z-10 pl-10">
                                                 <div className={`absolute left-1 top-0 w-6 h-6 rounded-full border-4 border-white shadow-lg flex items-center justify-center ${isApproved || idx === 0
-                                                    ? 'bg-emerald-500 ring-4 ring-emerald-50'
+                                                    ? 'bg-primary ring-4 ring-primary'
                                                     : 'bg-slate-200'
                                                     }`}>
                                                     {isApproved ? (
@@ -403,7 +403,7 @@ export default function MonitoringSimperEvPublic() {
                                                             </p>
                                                             <div className="ml-auto">
                                                                 <Badge className={`${log.status === 'APPROVED'
-                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                                                    ? 'bg-muted text-foreground border-border'
                                                                     : 'bg-amber-50 text-amber-700 border-amber-100'
                                                                     } border text-[10px] font-extrabold px-2 flex items-center gap-1`}>
                                                                     {log.status === 'APPROVED' && <CheckCircle2 className="w-3 h-3" />}

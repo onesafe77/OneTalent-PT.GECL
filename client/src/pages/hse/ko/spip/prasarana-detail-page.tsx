@@ -196,7 +196,7 @@ export function PrasaranaFormPage({ id }: { id?: string }) {
 
             <form id="prasarana-form" onSubmit={form.handleSubmit(onSubmit, (e: any) => { const k = Object.keys(e)[0]; toast({ title: "Data belum lengkap", description: `Periksa kolom "${k}": ${e[k]?.message || "wajib diisi"}.`, variant: "destructive" }); })} className="space-y-8">
                 <Tabs defaultValue="identitas" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 bg-gray-100">
+                    <TabsList>
                         <TabsTrigger value="identitas">Identitas Fasilitas</TabsTrigger>
                         <TabsTrigger value="sertifikasi">Sertifikasi & Pengujian</TabsTrigger>
                         <TabsTrigger value="perawatan">Jadwal Perawatan</TabsTrigger>
@@ -271,7 +271,7 @@ export function PrasaranaFormPage({ id }: { id?: string }) {
                                     ) : (form.watch("expSertifikat") && new Date(form.watch("expSertifikat") as string) <= new Date()) ? (
                                         <Badge variant="outline" className="text-red-700 bg-red-100 px-4 py-1">EXPIRED</Badge>
                                     ) : (
-                                        <Badge variant="outline" className="text-green-700 bg-green-100 px-4 py-1">AKTIF</Badge>
+                                        <Badge variant="outline" className="text-foreground bg-muted px-4 py-1">AKTIF</Badge>
                                     )}
                                 </div>
                             </div>
@@ -371,7 +371,7 @@ export function PrasaranaViewPage({ id }: { id: string }) {
                     <div>
                         <div className="flex items-center gap-3">
                             <h1 className="text-3xl font-extrabold text-gray-900">{unit.noLambung}</h1>
-                            <Badge className={`${isExpired ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'} px-3 py-1 font-bold`}>
+                            <Badge className={`${isExpired ? 'bg-red-100 text-red-700 border-red-200' : 'bg-muted text-foreground border-border'} px-3 py-1 font-bold`}>
                                 {isExpired ? "EXPIRED" : "AKTIF"}
                             </Badge>
                         </div>
@@ -430,7 +430,7 @@ export function PrasaranaViewPage({ id }: { id: string }) {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Tgl Terbit</p><p className="font-bold">{unit.tglSertifikat ? format(new Date(unit.tglSertifikat as string), "dd MMMM yyyy", { locale: localeId }) : "-"}</p></div>
-                                <div><p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Expired</p><p className={`font-bold ${isExpired ? 'text-red-600' : 'text-green-600'}`}>{unit.expSertifikat ? format(new Date(unit.expSertifikat as string), "dd MMMM yyyy", { locale: localeId }) : "-"}</p></div>
+                                <div><p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Expired</p><p className={`font-bold ${isExpired ? 'text-red-600' : 'text-foreground'}`}>{unit.expSertifikat ? format(new Date(unit.expSertifikat as string), "dd MMMM yyyy", { locale: localeId }) : "-"}</p></div>
                             </div>
                         </CardContent>
                     </Card>
@@ -448,7 +448,7 @@ export function PrasaranaViewPage({ id }: { id: string }) {
                                     <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Semester 1</p>
                                     <p className="font-bold text-gray-900">{unit.jadwalPerawatanS1 ? format(new Date(unit.jadwalPerawatanS1), "dd/MM/yyyy") : "Belum Dijadwalkan"}</p>
                                 </div>
-                                <Badge className={`${unit.statusPerawatanS1 === 'DONE' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'} font-bold px-3 py-1`}>
+                                <Badge className={`${unit.statusPerawatanS1 === 'DONE' ? 'bg-muted text-foreground' : 'bg-orange-100 text-orange-700'} font-bold px-3 py-1`}>
                                     {unit.statusPerawatanS1 || "PENDING"}
                                 </Badge>
                             </div>
@@ -457,7 +457,7 @@ export function PrasaranaViewPage({ id }: { id: string }) {
                                     <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Semester 2</p>
                                     <p className="font-bold text-gray-900">{unit.jadwalPerawatanS2 ? format(new Date(unit.jadwalPerawatanS2), "dd/MM/yyyy") : "Belum Dijadwalkan"}</p>
                                 </div>
-                                <Badge className={`${unit.statusPerawatanS2 === 'DONE' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'} font-bold px-3 py-1`}>
+                                <Badge className={`${unit.statusPerawatanS2 === 'DONE' ? 'bg-muted text-foreground' : 'bg-orange-100 text-orange-700'} font-bold px-3 py-1`}>
                                     {unit.statusPerawatanS2 || "PENDING"}
                                 </Badge>
                             </div>

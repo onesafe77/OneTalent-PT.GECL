@@ -382,7 +382,7 @@ export default function SidakChargingStationForm() {
         if (step === 4) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold"
                     onClick={handleFinish}
                 >
                     Selesai & Kirim Data
@@ -418,7 +418,7 @@ export default function SidakChargingStationForm() {
                                 { n: 4, label: "Selesai" },
                             ].map((s) => (
                                 <div key={s.n} className={cn("flex flex-col items-center", step >= s.n ? "opacity-100" : "opacity-40")}>
-                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > s.n ? "bg-green-500 text-white" : "bg-blue-600 text-white")}>
+                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > s.n ? "bg-primary text-white" : "bg-blue-600 text-white")}>
                                         {step > s.n ? <Check className="w-4 h-4" /> : s.n}
                                     </div>
                                     <span className="text-[10px] font-medium">{s.label}</span>
@@ -504,14 +504,14 @@ export default function SidakChargingStationForm() {
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <div className={`rounded-full p-1.5 ${records.length >= 10 ? 'bg-green-500' : 'bg-blue-500'}`}>
+                                        <div className={`rounded-full p-1.5 ${records.length >= 10 ? 'bg-primary' : 'bg-blue-500'}`}>
                                             <Car className="w-4 h-4 text-white" />
                                         </div>
                                         <div>
                                             <CardTitle className="text-base">Data Driver</CardTitle>
                                             <CardDescription className="text-xs">
                                                 {records.length}/10 sampel driver
-                                                {records.length >= 10 && <span className="ml-1 text-green-600 font-bold">✓ Lengkap</span>}
+                                                {records.length >= 10 && <span className="ml-1 text-foreground font-bold">✓ Lengkap</span>}
                                             </CardDescription>
                                         </div>
                                     </div>
@@ -591,7 +591,7 @@ export default function SidakChargingStationForm() {
                                         onChange={(e) => setCurrentRecord({ ...currentRecord, nomorLambung: e.target.value })}
                                         onBlur={(e) => lookupByLambung(e.target.value)}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); lookupByLambung((e.target as HTMLInputElement).value); } }}
-                                        className={currentRecord.nomorLambung ? "bg-green-50 border-green-200" : ""}
+                                        className={currentRecord.nomorLambung ? "bg-muted border-border" : ""}
                                     />
                                     {showLambungPicker && lambungMatches.length > 0 && (
                                         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
@@ -620,7 +620,7 @@ export default function SidakChargingStationForm() {
                                             placeholder="Auto dari nomor lambung"
                                             value={currentRecord.namaDriver}
                                             onChange={(e) => setCurrentRecord({ ...currentRecord, namaDriver: e.target.value })}
-                                            className={currentRecord.namaDriver ? "bg-green-50 border-green-200" : ""}
+                                            className={currentRecord.namaDriver ? "bg-muted border-border" : ""}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -629,7 +629,7 @@ export default function SidakChargingStationForm() {
                                             placeholder="Auto dari nomor lambung"
                                             value={currentRecord.nik}
                                             onChange={(e) => setCurrentRecord({ ...currentRecord, nik: e.target.value })}
-                                            className={currentRecord.nik ? "bg-green-50 border-green-200" : ""}
+                                            className={currentRecord.nik ? "bg-muted border-border" : ""}
                                         />
                                     </div>
                                 </div>
@@ -657,7 +657,7 @@ export default function SidakChargingStationForm() {
                                                             className={cn(
                                                                 "h-9 rounded-lg text-sm font-bold border-2 transition-colors",
                                                                 value
-                                                                    ? "bg-green-500 border-green-500 text-white"
+                                                                    ? "bg-primary border-border text-white"
                                                                     : "bg-white border-gray-200 text-gray-500"
                                                             )}
                                                         >
@@ -722,7 +722,7 @@ export default function SidakChargingStationForm() {
                                                 </button>
                                             </div>
                                         ) : (
-                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors group">
+                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-muted transition-colors group">
                                                 <Camera className="h-8 w-8 text-gray-400 group-hover:text-amber-500 mb-2 transition-colors" />
                                                 <span className="text-sm text-gray-600 font-medium">Klik untuk Unggah / Ambil Foto</span>
                                                 <span className="text-xs text-gray-400 text-center mt-1">Bukti temuan (jika ada)</span>
@@ -753,7 +753,7 @@ export default function SidakChargingStationForm() {
                                             <p className="font-bold text-sm">{obs.nama}</p>
                                             <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                                         </div>
-                                        <Check className="text-green-600 w-5 h-5" />
+                                        <Check className="text-foreground w-5 h-5" />
                                     </div>
                                 ))}
 
@@ -814,9 +814,9 @@ export default function SidakChargingStationForm() {
                 {step === 4 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
                         <Card>
-                            <CardHeader className="bg-green-600 text-white rounded-t-lg">
+                            <CardHeader className="bg-primary text-white rounded-t-lg">
                                 <CardTitle>Ringkasan Observasi</CardTitle>
-                                <CardDescription className="text-green-100">Review data sebelum diselesaikan</CardDescription>
+                                <CardDescription className="text-muted-foreground">Review data sebelum diselesaikan</CardDescription>
                             </CardHeader>
                             <CardContent className="pt-6 space-y-4">
                                 <div className="bg-gray-50 p-4 rounded-lg space-y-2">
@@ -848,7 +848,7 @@ export default function SidakChargingStationForm() {
                                                         <span>{r.namaDriver}{r.nik ? ` (${r.nik})` : ''}</span>
                                                         <span>{r.nomorLambung}</span>
                                                     </div>
-                                                    <div className={cn("italic", tidak > 0 ? "text-red-600" : "text-green-600")}>
+                                                    <div className={cn("italic", tidak > 0 ? "text-red-600" : "text-foreground")}>
                                                         {tidak > 0 ? `${tidak} item tidak patuh` : "Patuh sepenuhnya"}
                                                     </div>
                                                     {r.keterangan && (

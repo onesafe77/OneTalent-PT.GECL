@@ -29,7 +29,7 @@ export function BouncingLoader({
     purple: "bg-purple-500",
     red: "bg-red-500",
     blue: "bg-blue-500",
-    green: "bg-green-500",
+    green: "bg-primary",
     gray: "bg-gray-500",
   };
 
@@ -37,7 +37,7 @@ export function BouncingLoader({
     purple: "bg-purple-300/50",
     red: "bg-red-300/50",
     blue: "bg-blue-300/50",
-    green: "bg-green-300/50",
+    green: "bg-muted",
     gray: "bg-gray-300/50",
   };
 

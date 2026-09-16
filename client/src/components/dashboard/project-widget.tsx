@@ -6,7 +6,7 @@ import { FolderOpen, ArrowRight, Star } from "lucide-react";
 
 export function ProjectWidget() {
     return (
-        <Card className="h-full border-none shadow-sm bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex flex-col hover:shadow-md transition-all duration-200">
+        <Card className="h-full border-none shadow-sm bg-gradient-to-br from-[#DF2A33] to-[#96161C] text-white flex flex-col hover:shadow-md transition-all duration-200">
             <CardContent className="flex-1 flex flex-col justify-between p-5">
                 <div className="flex justify-between items-start">
                     <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-sm">

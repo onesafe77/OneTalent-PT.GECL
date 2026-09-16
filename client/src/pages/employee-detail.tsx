@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -14,7 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Employee, InsertEmployee, EmployeeFamilyMember, InsertEmployeeFamilyMember } from "@shared/schema";
-import { ArrowLeft, Save, Trash2, User, Building2, Briefcase, MapPin, Car, Upload, Calendar, Users, Plus } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ArrowLeft, Save, Trash2, User, Building2, Briefcase, MapPin, Car, Upload, Calendar, Users, Plus, Edit } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { z } from "zod";
@@ -71,6 +72,10 @@ export default function EmployeeDetail() {
     const { toast } = useToast();
     const employeeId = params?.id;
     const isNew = employeeId === 'new';
+    // ?view=1 -> halaman yang sama, tapi baca-saja. Dipakai tombol mata di List
+    // Karyawan: membuka data TIDAK boleh berarti masuk mode ubah.
+    const kueri = useSearch();
+    const hanyaLihat = !isNew && new URLSearchParams(kueri).get("view") === "1";
 
     const { data: employee, isLoading } = useQuery<Employee>({
         queryKey: [`/api/employees/${employeeId}`],
@@ -172,7 +177,8 @@ export default function EmployeeDetail() {
     // Auto-save to localStorage on every form change (instant backup)
     const formValues = form.watch();
     useEffect(() => {
-        if (!isNew && employeeId && formValues.id) {
+        // Mode lihat tidak boleh menulis apa pun — baik ke draft lokal maupun server.
+        if (!hanyaLihat && !isNew && employeeId && formValues.id) {
             // Save to localStorage immediately
             localStorage.setItem(draftKey, JSON.stringify({ data: formValues, timestamp: Date.now() }));
 
@@ -198,7 +204,7 @@ export default function EmployeeDetail() {
         return () => {
             if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         };
-    }, [JSON.stringify(formValues), employeeId, isNew, draftKey]);
+    }, [JSON.stringify(formValues), employeeId, isNew, draftKey, hanyaLihat]);
 
     // Calculate age and service years
     const watchDob = form.watch("dob");
@@ -348,18 +354,17 @@ export default function EmployeeDetail() {
         }
     };
 
-    const handleDelete = () => {
-        if (confirm("Apakah Anda yakin ingin menghapus karyawan ini?")) {
-            if (employeeId) deleteMutation.mutate(employeeId);
-        }
-    };
+    // Dialog, bukan confirm() bawaan browser: yang dihapus perlu disebut namanya.
+    const [konfirmasiHapus, setKonfirmasiHapus] = useState(false);
+    const handleDelete = () => setKonfirmasiHapus(true);
+    const [hapusKeluarga, setHapusKeluarga] = useState<{ id: string; nama: string } | null>(null);
 
     if (isLoading) return <LoadingScreen isLoading={true} />;
 
     const watchStatusKaryawan = form.watch("statusKaryawan");
 
     return (
-        <div className="max-w-5xl mx-auto space-y-6 pb-12 animate-in fade-in duration-500">
+        <div className="w-full space-y-6 p-6 pb-12 md:p-8">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -367,33 +372,48 @@ export default function EmployeeDetail() {
                         <ArrowLeft className="w-5 h-5" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold">{isNew ? "Tambah Karyawan" : "Detail Karyawan"}</h1>
+                        <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-foreground">{isNew ? "Tambah Karyawan" : hanyaLihat ? "Data Karyawan" : "Detail Karyawan"}</h1>
                         <p className="text-sm text-muted-foreground flex items-center gap-2">
-                            {isNew ? "Tambah karyawan baru" : `Kelola informasi karyawan ${employee?.name || ""}`}
-                            {!isNew && autoSaveStatus === 'saving' && <span className="text-amber-500 animate-pulse">● Menyimpan...</span>}
-                            {!isNew && autoSaveStatus === 'saved' && <span className="text-emerald-500">✓ Tersimpan otomatis</span>}
-                            {!isNew && autoSaveStatus === 'error' && <span className="text-red-500">✗ Gagal menyimpan</span>}
+                            {isNew ? "Tambah karyawan baru" : hanyaLihat ? employee?.name || "" : `Kelola informasi karyawan ${employee?.name || ""}`}
+                            {!isNew && !hanyaLihat && autoSaveStatus === 'saving' && <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Menyimpan…</span>}
+                            {!isNew && !hanyaLihat && autoSaveStatus === 'saved' && <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-foreground">Tersimpan</span>}
+                            {!isNew && !hanyaLihat && autoSaveStatus === 'error' && <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-red-600 dark:text-red-500">Gagal menyimpan</span>}
                         </p>
                     </div>
                 </div>
                 <div className="flex gap-2">
-                    {!isNew && <Button variant="destructive" onClick={handleDelete}><Trash2 className="w-4 h-4 mr-2" />Hapus</Button>}
-                    <Button onClick={form.handleSubmit(onSubmit)} disabled={createMutation.isPending || updateMutation.isPending}>
-                        <Save className="w-4 h-4 mr-2" />{isNew ? "Simpan" : "Simpan Perubahan"}
-                    </Button>
+                    {hanyaLihat ? (
+                        <Button onClick={() => setLocation(`/workspace/employees/${employeeId}`)}>
+                            <Edit className="w-4 h-4 mr-2" />Ubah Data
+                        </Button>
+                    ) : (
+                        <>
+                            {!isNew && <Button variant="outline" onClick={handleDelete}
+                                className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950">
+                                <Trash2 className="w-4 h-4 mr-2" />Hapus
+                            </Button>}
+                            <Button onClick={form.handleSubmit(onSubmit)} disabled={createMutation.isPending || updateMutation.isPending}>
+                                <Save className="w-4 h-4 mr-2" />{isNew ? "Simpan" : "Simpan Perubahan"}
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
 
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    {/* fieldset disabled mematikan SEMUA kontrol di dalamnya sekaligus —
+                        input, select, tombol unggah, tombol tambah keluarga — jadi tidak
+                        ada satu pun jalur ubah yang terlewat. */}
+                    <fieldset disabled={hanyaLihat} className="space-y-6 disabled:opacity-100">
                     {/* Photo + Basic Info */}
                     <Card>
-                        <CardHeader><CardTitle className="flex items-center gap-2"><User className="w-5 h-5" /> Identitas Karyawan</CardTitle></CardHeader>
+                        <CardHeader><CardTitle className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground"><User className="h-3.5 w-3.5" /> Identitas Karyawan</CardTitle></CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex flex-col md:flex-row gap-6">
                                 {/* Photo */}
                                 <div className="flex flex-col items-center gap-2">
-                                    <div className="w-32 h-32 rounded-full overflow-hidden bg-muted flex items-center justify-center border-2 border-dashed">
+                                    <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-border bg-muted">
                                         {photoPreview && !photoLoadError ? (
                                             <img
                                                 src={photoPreview}
@@ -405,14 +425,14 @@ export default function EmployeeDetail() {
                                             <User className="w-12 h-12 text-muted-foreground" />
                                         )}
                                     </div>
-                                    <label className="cursor-pointer text-sm text-primary hover:underline flex items-center gap-1">
+                                    <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground">
                                         <Upload className="w-4 h-4" /> Upload Foto
                                         <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
                                     </label>
                                 </div>
 
                                 {/* Basic fields */}
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="flex-1 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                     <FormField control={form.control} name="id" render={({ field }) => (
                                         <FormItem><FormLabel>NIK</FormLabel><FormControl><Input {...field} disabled={!isNew} /></FormControl><FormMessage /></FormItem>
                                     )} />
@@ -451,8 +471,8 @@ export default function EmployeeDetail() {
 
                     {/* Kepegawaian */}
                     <Card>
-                        <CardHeader><CardTitle className="flex items-center gap-2"><Briefcase className="w-5 h-5" /> Kepegawaian</CardTitle></CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <CardHeader><CardTitle className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground"><Briefcase className="h-3.5 w-3.5" /> Kepegawaian</CardTitle></CardHeader>
+                        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             <FormField control={form.control} name="department" render={({ field }) => (
                                 <FormItem><FormLabel>Departemen</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
@@ -498,9 +518,9 @@ export default function EmployeeDetail() {
 
                     {/* Resign Section - Conditional */}
                     {watchStatusKaryawan === "Resign" && (
-                        <Card className="border-red-200 bg-red-50/50">
-                            <CardHeader><CardTitle className="flex items-center gap-2 text-red-700"><Calendar className="w-5 h-5" /> Informasi Resign</CardTitle></CardHeader>
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="border-red-200 dark:border-red-900/50">
+                            <CardHeader><CardTitle className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-red-700 dark:text-red-400"><Calendar className="h-3.5 w-3.5" /> Informasi Resign</CardTitle></CardHeader>
+                            <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                 <FormField control={form.control} name="tanggalResign" render={({ field }) => (
                                     <FormItem><FormLabel>Tanggal Resign *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
                                 )} />
@@ -513,10 +533,10 @@ export default function EmployeeDetail() {
 
                     {/* SIM & SIMPER with Auto Status */}
                     <Card>
-                        <CardHeader><CardTitle className="flex items-center gap-2"><Car className="w-5 h-5" /> SIM & SIMPER</CardTitle></CardHeader>
+                        <CardHeader><CardTitle className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground"><Car className="h-3.5 w-3.5" /> SIM & SIMPER</CardTitle></CardHeader>
                         <CardContent className="space-y-6">
                             {/* Basic SIM Info */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-4">
                                 <FormField control={form.control} name="typeSim" render={({ field }) => (
                                     <FormItem><FormLabel>Jenis SIM</FormLabel><FormControl><Input {...field} placeholder="A, B1, B2, C" /></FormControl><FormMessage /></FormItem>
                                 )} />
@@ -526,7 +546,7 @@ export default function EmployeeDetail() {
                             </div>
 
                             {/* SIMPOL with Status Badge */}
-                            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 border">
+                            <div className="rounded-xl border border-border bg-muted p-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-sm">SIMPOL</h4>
                                     {(() => {
@@ -545,7 +565,7 @@ export default function EmployeeDetail() {
                             </div>
 
                             {/* SIMPER BIB with Status Badge */}
-                            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 border">
+                            <div className="rounded-xl border border-border bg-muted p-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-sm">SIMPER BIB</h4>
                                     {(() => {
@@ -558,7 +578,7 @@ export default function EmployeeDetail() {
                                         );
                                     })()}
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <FormField control={form.control} name="expiredSimperBib" render={({ field }) => (
                                         <FormItem><FormLabel>Tanggal Expired</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
@@ -569,7 +589,7 @@ export default function EmployeeDetail() {
                             </div>
 
                             {/* SIMPER TIA with Status Badge */}
-                            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 border">
+                            <div className="rounded-xl border border-border bg-muted p-4">
                                 <div className="flex items-center justify-between mb-3">
                                     <h4 className="font-medium text-sm">SIMPER TIA</h4>
                                     {(() => {
@@ -582,7 +602,7 @@ export default function EmployeeDetail() {
                                         );
                                     })()}
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                                     <FormField control={form.control} name="expiredSimperTia" render={({ field }) => (
                                         <FormItem><FormLabel>Tanggal Expired</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
@@ -596,8 +616,8 @@ export default function EmployeeDetail() {
 
                     {/* Alamat */}
                     <Card>
-                        <CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="w-5 h-5" /> Alamat</CardTitle></CardHeader>
-                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <CardHeader><CardTitle className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground"><MapPin className="h-3.5 w-3.5" /> Alamat</CardTitle></CardHeader>
+                        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                             <FormField control={form.control} name="address" render={({ field }) => (
                                 <FormItem className="md:col-span-2"><FormLabel>Alamat Lengkap</FormLabel><FormControl><Textarea {...field} rows={2} /></FormControl><FormMessage /></FormItem>
                             )} />
@@ -619,7 +639,7 @@ export default function EmployeeDetail() {
                     {!isNew && (
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between">
-                                <CardTitle className="flex items-center gap-2"><Users className="w-5 h-5" /> Keluarga</CardTitle>
+                                <CardTitle className="flex items-center gap-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground"><Users className="h-3.5 w-3.5" /> Keluarga</CardTitle>
                                 <Button type="button" size="sm" onClick={() => openFamilyDialog()}>
                                     <Plus className="w-4 h-4 mr-1" /> Tambah
                                 </Button>
@@ -651,7 +671,9 @@ export default function EmployeeDetail() {
                                                     <TableCell>{m.kontakDarurat || "-"}</TableCell>
                                                     <TableCell className="text-right">
                                                         <Button type="button" variant="ghost" size="icon" onClick={() => openFamilyDialog(m)}><Save className="w-4 h-4" /></Button>
-                                                        <Button type="button" variant="ghost" size="icon" className="text-red-600" onClick={() => { if (confirm(`Hapus data ${m.nama}?`)) deleteFamilyMutation.mutate(m.id); }}><Trash2 className="w-4 h-4" /></Button>
+                                                        <Button type="button" variant="ghost" size="icon"
+                                                            className="text-muted-foreground hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-400"
+                                                            onClick={() => setHapusKeluarga({ id: m.id, nama: m.nama })}><Trash2 className="w-4 h-4" /></Button>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -662,6 +684,7 @@ export default function EmployeeDetail() {
                         </Card>
                     )}
 
+                    </fieldset>
                 </form>
             </Form>
 
@@ -670,7 +693,7 @@ export default function EmployeeDetail() {
                     <DialogHeader>
                         <DialogTitle>{editingFamilyId ? "Edit Keluarga" : "Tambah Keluarga"}</DialogTitle>
                     </DialogHeader>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                         <div className="md:col-span-2">
                             <label className="text-sm font-medium">Hubungan *</label>
                             <Select value={familyForm.hubungan || ""} onValueChange={(v) => setFamilyForm(f => ({ ...f, hubungan: v }))}>
@@ -726,6 +749,48 @@ export default function EmployeeDetail() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <AlertDialog open={konfirmasiHapus} onOpenChange={setKonfirmasiHapus}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Hapus karyawan ini?</AlertDialogTitle>
+                        <AlertDialogDescription asChild>
+                            <div className="space-y-3">
+                                <div className="rounded-lg border border-border bg-muted p-3">
+                                    <p className="text-[15px] font-medium text-foreground">{employee?.name}</p>
+                                    <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{employeeId}</p>
+                                </div>
+                                <p>Data karyawan ini akan dihapus permanen dan <strong>tidak bisa dikembalikan</strong>.</p>
+                            </div>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600"
+                            onClick={() => { if (employeeId) deleteMutation.mutate(employeeId); }}>
+                            Ya, hapus
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={!!hapusKeluarga} onOpenChange={(o) => !o && setHapusKeluarga(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Hapus anggota keluarga?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Data <strong className="text-foreground">{hapusKeluarga?.nama}</strong> akan dihapus permanen.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                        <AlertDialogAction className="bg-red-600 text-white hover:bg-red-700 focus:ring-red-600"
+                            onClick={() => { if (hapusKeluarga) deleteFamilyMutation.mutate(hapusKeluarga.id); setHapusKeluarga(null); }}>
+                            Ya, hapus
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

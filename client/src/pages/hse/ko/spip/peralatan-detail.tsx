@@ -20,16 +20,16 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 
 const statusUnitColors: Record<string, string> = {
-    "ACTIVE": "bg-green-100 text-green-700",
+    "ACTIVE": "bg-muted text-foreground",
     "SPARE": "bg-yellow-100 text-yellow-700",
     "DISMANTLED": "bg-gray-100 text-gray-700",
 };
 
 const statusCommColors: Record<string, string> = {
-    "ACTIVE": "bg-green-100 text-green-700",
+    "ACTIVE": "bg-muted text-foreground",
     "NEAR EXPIRED": "bg-yellow-100 text-yellow-700",
     "EXPIRED": "bg-red-100 text-red-700",
-    "CLOSE": "bg-green-100 text-green-700",
+    "CLOSE": "bg-muted text-foreground",
     "OPEN": "bg-orange-100 text-orange-700",
 };
 
@@ -267,7 +267,7 @@ export function PeralatanFormPage() {
 
             <form id="peralatan-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)}>
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <TabsList className="grid w-full grid-cols-4 bg-gray-100">
+                    <TabsList>
                         <TabsTrigger value="identitas">Identitas Unit</TabsTrigger>
                         <TabsTrigger value="spesifikasi">Spesifikasi Vessel</TabsTrigger>
                         <TabsTrigger value="komisioning">Komisioning</TabsTrigger>

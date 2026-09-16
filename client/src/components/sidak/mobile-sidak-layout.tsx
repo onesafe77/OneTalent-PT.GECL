@@ -109,7 +109,7 @@ export function MobileSidakLayout({
 
                 {/* Penanda terakhir disimpan */}
                 {lastSavedLabel && (
-                    <div className="mt-1.5 flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400">
+                    <div className="mt-1.5 flex items-center gap-1 text-[11px] text-foreground">
                         <Check className="h-3 w-3" />
                         <span>Terakhir disimpan {lastSavedLabel} · Langkah {step}</span>
                     </div>

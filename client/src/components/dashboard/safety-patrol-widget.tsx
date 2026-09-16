@@ -55,7 +55,7 @@ export function SafetyPatrolWidget() {
             </CardHeader>
             <CardContent className="p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                    <div className="p-3 bg-gray-50 rounded-xl border border-gray-200">
                         <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-red-600 font-medium">Temuan</span>
                             <AlertTriangle className="w-3 h-3 text-red-500" />
@@ -80,7 +80,7 @@ export function SafetyPatrolWidget() {
                     {recentReports?.length ? (
                         <div className="space-y-2">
                             {recentReports.map(report => (
-                                <div key={report.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors border border-transparent hover:border-gray-100">
+                                <div key={report.id} className="flex items-center justify-between p-2 hover:bg-muted rounded-lg transition-colors border border-transparent hover:border-gray-100">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-normal bg-white">
@@ -96,7 +96,7 @@ export function SafetyPatrolWidget() {
                                     </div>
                                     <div className="shrink-0 ml-2">
                                         {report.status === 'processed' ? (
-                                            <CheckCircle className="w-4 h-4 text-green-500" />
+                                            <CheckCircle className="w-4 h-4 text-foreground" />
                                         ) : (
                                             <Clock className="w-4 h-4 text-yellow-500" />
                                         )}

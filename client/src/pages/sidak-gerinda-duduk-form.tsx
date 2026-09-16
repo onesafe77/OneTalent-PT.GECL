@@ -346,7 +346,7 @@ export default function SidakGerindaDudukForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.inspectors.length === 0}
                 >
@@ -501,7 +501,7 @@ export default function SidakGerindaDudukForm() {
                                                         <Button
                                                             size="sm"
                                                             variant={currentRecord.inspectionResults[item.id] === "S" ? "default" : "outline"}
-                                                            className={cn("h-8 flex-1 text-xs", currentRecord.inspectionResults[item.id] === "S" && "bg-green-600 hover:bg-green-700 text-white")}
+                                                            className={cn("h-8 flex-1 text-xs", currentRecord.inspectionResults[item.id] === "S" && "bg-primary hover:bg-primary/90 text-white")}
                                                             onClick={() => updateInspectionResult(item.id, "S")}
                                                         >
                                                             Sesuai (S)
@@ -561,12 +561,12 @@ export default function SidakGerindaDudukForm() {
                             {draft.inspectors.length > 0 && (
                                 <div className="space-y-2">
                                     {draft.inspectors.map((ins, idx) => (
-                                        <div key={idx} className="p-3 bg-green-50 rounded-xl border border-green-100 flex items-center justify-between">
+                                        <div key={idx} className="p-3 bg-muted rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-bold text-sm">{ins.nama}</p>
                                                 <p className="text-[10px] text-gray-500">{ins.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>
@@ -628,7 +628,7 @@ export default function SidakGerindaDudukForm() {
                                         </div>
                                     ))}
                                     {activityPhotos.length < 6 && (
-                                        <Label className="flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                        <Label className="flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-muted transition-colors">
                                             <Camera className="w-6 h-6 text-gray-400 mb-2" />
                                             <span className="text-[10px] font-bold text-gray-500">TAMBAH FOTO</span>
                                             <Input 

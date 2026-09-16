@@ -235,7 +235,7 @@ export default function SidakChargingStationHistory() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-[#96161C] dark:from-gray-900 dark:to-gray-800">
             <div className="container max-w-2xl mx-auto p-3 md:p-4 space-y-4">
                 {/* Header */}
                 <div className="flex items-center gap-3 pt-2">
@@ -280,7 +280,7 @@ export default function SidakChargingStationHistory() {
                                 className="overflow-hidden border-none shadow-lg rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700"
                                 data-testid={`card-session-${session.id}`}
                             >
-                                <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+                                <div className="h-1.5 w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C]" />
                                 <CardContent className="p-5">
                                     {/* Header row with title and badge */}
                                     <div className="flex items-center justify-between gap-2 mb-4">
@@ -361,7 +361,7 @@ export default function SidakChargingStationHistory() {
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button
-                                                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md shadow-blue-500/20 rounded-lg h-10 font-medium transition-all active:scale-[0.98]"
+                                                className="w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C] hover:from-[#DF2A33] hover:to-[#96161C] text-white shadow-md shadow-blue-500/20 rounded-lg h-10 font-medium transition-all active:scale-[0.98]"
                                                 data-testid={`button-download-${session.id}`}
                                             >
                                                 <Download className="h-4 w-4 mr-2" />

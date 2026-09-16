@@ -112,7 +112,7 @@ export default function LeaveRequests() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'approved':
-        return <Badge className="bg-green-500 text-white"><CheckCircle className="w-3 h-3 mr-1" />Disetujui</Badge>;
+        return <Badge className="bg-primary text-white"><CheckCircle className="w-3 h-3 mr-1" />Disetujui</Badge>;
       case 'rejected':
         return <Badge className="bg-red-500 text-white"><XCircle className="w-3 h-3 mr-1" />Ditolak</Badge>;
       default:
@@ -321,7 +321,7 @@ export default function LeaveRequests() {
                           <Button
                             size="sm"
                             onClick={() => updateStatusMutation.mutate({ id: request.id, status: 'approved' })}
-                            className="bg-green-500 hover:bg-green-600 text-white"
+                            className="bg-primary hover:bg-primary/90 text-white"
                             data-testid={`approve-leave-${request.id}`}
                           >
                             Setujui

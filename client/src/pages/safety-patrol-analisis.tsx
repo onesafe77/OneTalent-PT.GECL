@@ -92,7 +92,7 @@ export default function AnalisisTab() {
     const maxLaporan = useMemo(() => Math.max(1, ...baris.map((b) => b.laporan)), [baris]);
 
     if (isLoading) {
-        return <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-orange-500" /></div>;
+        return <div className="flex justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>;
     }
 
     return (
@@ -130,7 +130,7 @@ export default function AnalisisTab() {
                     )}
                     {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     <div className="ml-auto text-xs text-muted-foreground">
-                        {kegiatan !== "all" && <span className="mr-2 font-medium text-orange-600">{kegiatan}</span>}
+                        {kegiatan !== "all" && <span className="mr-2 font-medium text-primary">{kegiatan}</span>}
                         {dari && sampai ? `${dari} s/d ${sampai}` : r?.bulan?.length ? `Seluruh data · ${r.bulan[0]} s/d ${r.bulan[r.bulan.length - 1]}` : ""}
                     </div>
                 </CardContent>
@@ -139,22 +139,22 @@ export default function AnalisisTab() {
             {/* ── kartu ringkasan ── */}
             {r && (
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <Kartu ikon={<ClipboardList className="h-4 w-4 text-blue-500" />} judul="TOTAL LAPORAN"
+                    <Kartu ikon={<ClipboardList className="h-4 w-4 text-muted-foreground" />} judul="TOTAL LAPORAN"
                         nilai={nf(r.totalLaporan)} ket={`${r.kegiatanTerpakai} jenis kegiatan`} />
-                    <Kartu ikon={<Activity className="h-4 w-4 text-emerald-500" />} judul="TOTAL SAMPEL DIPERIKSA"
+                    <Kartu ikon={<Activity className="h-4 w-4 text-muted-foreground" />} judul="TOTAL SAMPEL DIPERIKSA"
                         nilai={nf(r.totalSampel)} ket={`dari ${nf(r.laporanBersampel)} laporan yang mencantumkan`} />
-                    <Kartu ikon={<Users className="h-4 w-4 text-violet-500" />} judul="CAKUPAN PENCATATAN"
+                    <Kartu ikon={<Users className="h-4 w-4 text-muted-foreground" />} judul="CAKUPAN PENCATATAN"
                         nilai={`${r.cakupanSampel}%`} ket="laporan yang menyebut jumlah sampel" />
-                    <Kartu ikon={<AlertTriangle className="h-4 w-4 text-amber-500" />} judul="KEGIATAN TANPA LAPORAN"
-                        nilai={String(r.kegiatanResmiKosong.length)}
+                    <Kartu ikon={<AlertTriangle className={cn("h-4 w-4", r.kegiatanResmiKosong.length ? "text-destructive" : "text-muted-foreground")} />} judul="KEGIATAN TANPA LAPORAN"
+                        nilai={String(r.kegiatanResmiKosong.length)} nilaiKelas={r.kegiatanResmiKosong.length ? "text-destructive" : undefined}
                         ket={r.kegiatanResmiKosong.length ? r.kegiatanResmiKosong.join(", ") : "semua kegiatan ada laporannya"} />
                 </div>
             )}
 
             {/* ── peringatan cakupan ── */}
             {r && r.cakupanSampel < 100 && (
-                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
                     <p>
                         Jumlah sampel dibaca dari kalimat temuan (mis. <em>"Dari 15 driver yang dilakukan..."</em>),
                         karena tidak ada kolomnya sendiri. Baru <strong>{r.cakupanSampel}%</strong> laporan yang
@@ -171,7 +171,7 @@ export default function AnalisisTab() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                                <tr className="border-b border-border bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                                     <th className="px-4 py-3 text-left font-semibold">Kegiatan</th>
                                     <th className="px-3 py-3 text-right font-semibold">Laporan</th>
                                     <th className="min-w-[130px] px-3 py-3 text-left font-semibold">Porsi</th>
@@ -188,13 +188,13 @@ export default function AnalisisTab() {
                                     </td></tr>
                                 )}
                                 {baris.map((b) => (
-                                    <tr key={b.kegiatan} className={cn("border-b last:border-0 hover:bg-slate-50/70",
+                                    <tr key={b.kegiatan} className={cn("border-b border-border last:border-0 hover:bg-muted/40",
                                         b.laporan === 0 && "opacity-55")}>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
-                                                <span className="font-medium text-slate-800">{b.kegiatan}</span>
+                                                <span className="font-medium text-foreground">{b.kegiatan}</span>
                                                 {!b.resmi && <Badge variant="outline" className="text-[10px] font-normal">di luar daftar baku</Badge>}
-                                                {b.resmi && b.laporan === 0 && <Badge variant="outline" className="text-[10px] font-normal text-amber-700">belum ada laporan</Badge>}
+                                                {b.resmi && b.laporan === 0 && <Badge variant="outline" className="text-[10px] font-normal text-destructive">belum ada laporan</Badge>}
                                             </div>
                                             {b.contohMentah.length > 0 && (
                                                 <p className="mt-1 max-w-[420px] truncate text-[11px] text-muted-foreground"
@@ -205,22 +205,22 @@ export default function AnalisisTab() {
                                         </td>
                                         <td className="px-3 py-3 text-right font-semibold tabular-nums">{nf(b.laporan)}</td>
                                         <td className="px-3 py-3">
-                                            <div className="h-2 w-full rounded-full bg-slate-100">
-                                                <div className="h-2 rounded-full bg-orange-400"
+                                            <div className="h-1.5 w-full rounded-full bg-muted">
+                                                <div className="h-1.5 rounded-full bg-primary"
                                                     style={{ width: `${(b.laporan / maxLaporan) * 100}%` }} />
                                             </div>
                                         </td>
                                         <td className="px-3 py-3 text-right tabular-nums">
                                             {b.sampel > 0 ? (
-                                                <span className="font-semibold text-emerald-700">{nf(b.sampel)}</span>
-                                            ) : <span className="text-slate-300">—</span>}
+                                                <span className="font-semibold text-foreground">{nf(b.sampel)}</span>
+                                            ) : <span className="text-muted-foreground/40">—</span>}
                                         </td>
                                         <td className="px-3 py-3 text-right">
-                                            {b.laporan === 0 ? <span className="text-slate-300">—</span> : (
+                                            {b.laporan === 0 ? <span className="text-muted-foreground/40">—</span> : (
                                                 <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium tabular-nums",
-                                                    b.cakupan >= 80 ? "bg-emerald-50 text-emerald-700"
-                                                        : b.cakupan >= 30 ? "bg-amber-50 text-amber-700"
-                                                            : "bg-rose-50 text-rose-700")}>
+                                                    b.cakupan >= 80 ? "bg-muted text-foreground"
+                                                        : b.cakupan >= 30 ? "bg-amber-100 text-amber-800"
+                                                            : "bg-destructive/10 text-destructive")}>
                                                     {b.cakupan}%
                                                 </span>
                                             )}
@@ -228,20 +228,20 @@ export default function AnalisisTab() {
                                                 {b.laporan ? `${b.laporanBersampel}/${b.laporan}` : ""}
                                             </div>
                                         </td>
-                                        <td className="px-3 py-3 text-right tabular-nums text-slate-600">
-                                            {b.rataSampel > 0 ? b.rataSampel : <span className="text-slate-300">—</span>}
+                                        <td className="px-3 py-3 text-right tabular-nums text-muted-foreground">
+                                            {b.rataSampel > 0 ? b.rataSampel : <span className="text-muted-foreground/40">—</span>}
                                         </td>
-                                        <td className="px-4 py-3 text-right tabular-nums text-slate-600">{b.jumlahPetugas || <span className="text-slate-300">—</span>}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{b.jumlahPetugas || <span className="text-muted-foreground/40">—</span>}</td>
                                     </tr>
                                 ))}
                             </tbody>
                             {r && (
                                 <tfoot>
-                                    <tr className="border-t-2 bg-slate-50 font-semibold">
+                                    <tr className="border-t-2 border-border bg-muted/50 font-semibold">
                                         <td className="px-4 py-3">TOTAL</td>
                                         <td className="px-3 py-3 text-right tabular-nums">{nf(r.totalLaporan)}</td>
                                         <td />
-                                        <td className="px-3 py-3 text-right tabular-nums text-emerald-700">{nf(r.totalSampel)}</td>
+                                        <td className="px-3 py-3 text-right tabular-nums text-foreground">{nf(r.totalSampel)}</td>
                                         <td className="px-3 py-3 text-right tabular-nums">{r.cakupanSampel}%</td>
                                         <td colSpan={2} />
                                     </tr>
@@ -258,15 +258,15 @@ export default function AnalisisTab() {
                     <CardContent className="p-0">
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
                             <div className="flex items-center gap-2">
-                                <CalendarRange className="h-4 w-4 text-orange-500" />
-                                <h3 className="text-sm font-semibold text-slate-800">Rincian per Bulan</h3>
+                                <CalendarRange className="h-4 w-4 text-muted-foreground" />
+                                <h3 className="text-sm font-semibold text-foreground">Rincian per Bulan</h3>
                                 <span className="text-xs text-muted-foreground">{r.bulan.length} bulan</span>
                             </div>
                             <div className="flex items-center gap-1 rounded-md border p-0.5">
                                 {(["laporan", "sampel"] as const).map((u) => (
                                     <button key={u} onClick={() => setUkuran(u)}
                                         className={cn("rounded px-2.5 py-1 text-xs font-medium capitalize transition",
-                                            ukuran === u ? "bg-orange-500 text-white" : "text-slate-600 hover:bg-slate-100")}>
+                                            ukuran === u ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
                                         {u === "laporan" ? "Jumlah laporan" : "Jumlah sampel"}
                                     </button>
                                 ))}
@@ -276,17 +276,17 @@ export default function AnalisisTab() {
                         <div className="overflow-x-auto">
                             <table className="border-collapse text-xs">
                                 <thead>
-                                    <tr className="bg-slate-50">
+                                    <tr className="bg-muted/50">
                                         {/* latar buram diulang: sel menempel akan tembus tanpa ini */}
-                                        <th className="sticky left-0 z-20 min-w-[210px] border-b border-r bg-slate-50 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-slate-500">
+                                        <th className="sticky left-0 z-20 min-w-[210px] border-b border-r bg-muted/50 px-4 py-2.5 text-left font-semibold uppercase tracking-wide text-muted-foreground">
                                             Kegiatan
                                         </th>
                                         {r.bulan.map((b) => (
-                                            <th key={b} className="min-w-[62px] border-b border-r px-2 py-2.5 text-center font-semibold text-slate-600">
+                                            <th key={b} className="min-w-[62px] border-b border-r px-2 py-2.5 text-center font-semibold text-muted-foreground">
                                                 {labelBulan(b)}
                                             </th>
                                         ))}
-                                        <th className="min-w-[70px] border-b bg-slate-100 px-3 py-2.5 text-right font-semibold uppercase tracking-wide text-slate-500">
+                                        <th className="min-w-[70px] border-b bg-muted px-3 py-2.5 text-right font-semibold uppercase tracking-wide text-muted-foreground">
                                             Total
                                         </th>
                                     </tr>
@@ -295,8 +295,8 @@ export default function AnalisisTab() {
                                     {baris.filter((b) => b.laporan > 0).map((b) => {
                                         const totalBaris = ukuran === "laporan" ? b.laporan : b.sampel;
                                         return (
-                                            <tr key={b.kegiatan} className="group hover:bg-slate-50">
-                                                <td className="sticky left-0 z-10 border-b border-r bg-white px-4 py-2 font-medium text-slate-800 group-hover:bg-slate-50">
+                                            <tr key={b.kegiatan} className="group hover:bg-muted/50">
+                                                <td className="sticky left-0 z-10 border-b border-r bg-card px-4 py-2 font-medium text-foreground group-hover:bg-muted/50">
                                                     <span className="block max-w-[200px] truncate" title={b.kegiatan}>{b.kegiatan}</span>
                                                 </td>
                                                 {r.bulan.map((bl) => {
@@ -306,13 +306,13 @@ export default function AnalisisTab() {
                                                         <td key={bl}
                                                             title={sel ? `${labelBulan(bl)} · ${sel.laporan} laporan · ${sel.sampel} sampel dari ${sel.bersampel} laporan` : ""}
                                                             className={cn("border-b border-r px-2 py-2 text-center tabular-nums",
-                                                                nilai === 0 ? "text-slate-200" : "font-medium text-slate-700",
+                                                                nilai === 0 ? "text-muted-foreground/30" : "font-medium text-foreground",
                                                                 nilai > 0 && warnaSel(nilai, ukuran === "laporan" ? 60 : 400))}>
                                                             {nilai === 0 ? "·" : nf(nilai)}
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="border-b bg-slate-50 px-3 py-2 text-right font-semibold tabular-nums text-slate-800">
+                                                <td className="border-b bg-muted/50 px-3 py-2 text-right font-semibold tabular-nums text-foreground">
                                                     {nf(totalBaris)}
                                                 </td>
                                             </tr>
@@ -320,20 +320,20 @@ export default function AnalisisTab() {
                                     })}
                                 </tbody>
                                 <tfoot>
-                                    <tr className="bg-slate-100 font-semibold">
-                                        <td className="sticky left-0 z-10 border-r bg-slate-100 px-4 py-2.5 uppercase tracking-wide text-slate-600">
+                                    <tr className="bg-muted font-semibold">
+                                        <td className="sticky left-0 z-10 border-r bg-muted px-4 py-2.5 uppercase tracking-wide text-muted-foreground">
                                             Total
                                         </td>
                                         {r.bulan.map((bl) => {
                                             const t = totalBulan[bl];
                                             const nilai = t ? (ukuran === "laporan" ? t.laporan : t.sampel) : 0;
                                             return (
-                                                <td key={bl} className="border-r px-2 py-2.5 text-center tabular-nums text-slate-800">
+                                                <td key={bl} className="border-r px-2 py-2.5 text-center tabular-nums text-foreground">
                                                     {nilai ? nf(nilai) : "·"}
                                                 </td>
                                             );
                                         })}
-                                        <td className="px-3 py-2.5 text-right tabular-nums text-slate-900">
+                                        <td className="px-3 py-2.5 text-right tabular-nums text-foreground">
                                             {nf(ukuran === "laporan" ? r.totalLaporan : r.totalSampel)}
                                         </td>
                                     </tr>
@@ -364,13 +364,13 @@ function labelBulan(b: string): string {
 /** Semakin besar angkanya, semakin pekat latarnya — supaya pola bulanan langsung terlihat. */
 function warnaSel(n: number, acuan: number): string {
     const r = n / acuan;
-    if (r >= 0.75) return "bg-orange-200/80";
-    if (r >= 0.45) return "bg-orange-100";
-    if (r >= 0.2) return "bg-orange-50";
+    if (r >= 0.75) return "bg-primary/25";
+    if (r >= 0.45) return "bg-primary/[0.14]";
+    if (r >= 0.2) return "bg-primary/[0.06]";
     return "";
 }
 
-function Kartu({ ikon, judul, nilai, ket }: { ikon: React.ReactNode; judul: string; nilai: string; ket: string }) {
+function Kartu({ ikon, judul, nilai, ket, nilaiKelas }: { ikon: React.ReactNode; judul: string; nilai: string; ket: string; nilaiKelas?: string }) {
     return (
         <Card>
             <CardContent className="p-4">
@@ -378,7 +378,7 @@ function Kartu({ ikon, judul, nilai, ket }: { ikon: React.ReactNode; judul: stri
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{judul}</p>
                     {ikon}
                 </div>
-                <p className="mt-1.5 text-3xl font-bold tabular-nums text-slate-900">{nilai}</p>
+                <p className={cn("mt-1.5 text-3xl font-semibold tabular-nums", nilaiKelas || "text-foreground")}>{nilai}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{ket}</p>
             </CardContent>
         </Card>

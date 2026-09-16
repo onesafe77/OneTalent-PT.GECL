@@ -200,7 +200,7 @@ const historyItems = [
 const colorMap: Record<string, { bg: string, text: string, hoverText: string, hoverBg: string }> = {
     blue: { bg: "bg-blue-50 dark:bg-blue-900/30", text: "text-blue-600 dark:text-blue-400", hoverText: "group-hover:text-blue-600", hoverBg: "group-hover:bg-blue-100" },
     purple: { bg: "bg-purple-50 dark:bg-purple-900/30", text: "text-purple-600 dark:text-purple-400", hoverText: "group-hover:text-purple-600", hoverBg: "group-hover:bg-purple-100" },
-    green: { bg: "bg-green-50 dark:bg-green-900/30", text: "text-green-600 dark:text-green-400", hoverText: "group-hover:text-green-600", hoverBg: "group-hover:bg-green-100" },
+    green: { bg: "bg-muted", text: "text-foreground", hoverText: "group-hover:text-primary", hoverBg: "group-hover:bg-muted" },
     amber: { bg: "bg-amber-50 dark:bg-amber-900/30", text: "text-amber-600 dark:text-amber-400", hoverText: "group-hover:text-amber-600", hoverBg: "group-hover:bg-amber-100" },
     rose: { bg: "bg-rose-50 dark:bg-rose-900/30", text: "text-rose-600 dark:text-rose-400", hoverText: "group-hover:text-rose-600", hoverBg: "group-hover:bg-rose-100" },
     orange: { bg: "bg-orange-50 dark:bg-orange-900/30", text: "text-orange-600 dark:text-orange-400", hoverText: "group-hover:text-orange-700", hoverBg: "group-hover:bg-orange-100" },

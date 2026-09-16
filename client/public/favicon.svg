@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -4 108 108">
+  <!-- Lambang Cakra OneTalent — geometri sama persis dengan CakraMark.tsx.
+       Garis hitam tetap (tanpa mode gelap: tab Chrome bisa terang walau OS gelap). -->
+  <style>g,circle{fill:none;stroke:#0A0A0A;stroke-linejoin:round;stroke-linecap:round}</style>
+  <circle cx="50" cy="50" r="45" stroke-width="4.8" opacity="0.55"/>
+  <g stroke-width="5.4">
+    <path d="M50 36C60 27.9 60 16.56 50 9C40 16.56 40 27.9 50 36Z" transform="rotate(0 50 50)"/>
+    <path d="M50 36C60 27.9 60 16.56 50 9C40 16.56 40 27.9 50 36Z" transform="rotate(90 50 50)"/>
+    <path d="M50 36C60 27.9 60 16.56 50 9C40 16.56 40 27.9 50 36Z" transform="rotate(180 50 50)"/>
+    <path d="M50 36C60 27.9 60 16.56 50 9C40 16.56 40 27.9 50 36Z" transform="rotate(270 50 50)"/>
+  </g>
+  <g stroke-width="4.8" opacity="0.7">
+    <path d="M50 36C56.8 31.2 56.8 24.48 50 20C43.2 24.48 43.2 31.2 50 36Z" transform="rotate(45 50 50)"/>
+    <path d="M50 36C56.8 31.2 56.8 24.48 50 20C43.2 24.48 43.2 31.2 50 36Z" transform="rotate(135 50 50)"/>
+    <path d="M50 36C56.8 31.2 56.8 24.48 50 20C43.2 24.48 43.2 31.2 50 36Z" transform="rotate(225 50 50)"/>
+    <path d="M50 36C56.8 31.2 56.8 24.48 50 20C43.2 24.48 43.2 31.2 50 36Z" transform="rotate(315 50 50)"/>
+  </g>
+  <circle class="titik" cx="50" cy="50" r="3.6" style="fill:#0A0A0A;stroke:none"/>
+</svg>

@@ -180,7 +180,7 @@ export default function UsignRequestPage() {
                     { icon: <Send className="w-4 h-4" />, label: "Mulai" },
                 ].map((s: any, i: number) => (
                     <div key={i} className="flex-1 flex items-center group">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${step > i + 1 ? 'bg-emerald-500 text-white' :
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${step > i + 1 ? 'bg-primary text-white' :
                             step === i + 1 ? 'bg-primary text-white scale-110 shadow-lg shadow-primary/20' :
                                 'bg-slate-200 text-slate-500'
                             }`}>
@@ -323,7 +323,7 @@ export default function UsignRequestPage() {
                                                     key={app.id}
                                                     className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl group hover:border-primary hover:shadow-md transition-all"
                                                 >
-                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 group-hover:bg-primary group-hover:text-white transition-colors">
+                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                                                         {i + 1}
                                                     </div>
                                                     <div className="flex-1">
@@ -375,7 +375,7 @@ export default function UsignRequestPage() {
 
                 {step === 4 && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto">
-                        <Card className="border-none shadow-2xl rounded-3xl overflow-hidden bg-gradient-to-b from-primary to-blue-700 text-white text-center">
+                        <Card className="border-none shadow-2xl rounded-3xl overflow-hidden bg-gradient-to-b from-primary to-[#96161C] text-white text-center">
                             <CardContent className="p-12 space-y-8">
                                 <div className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mx-auto mb-6">
                                     <Send className="w-10 h-10 text-white" />

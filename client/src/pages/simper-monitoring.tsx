@@ -40,312 +40,312 @@ ChartJS.register(
 );
 
 const formSchema = insertSimperMonitoringSchema.extend({
-  id: z.string().optional(),
+ id: z.string().optional(),
 });
 
 interface SimperAnalytics {
-  totalKaryawan: number;
-  bibStats: {
-    segera: number;
-    mendekati: number;
-    menuju: number;
-    aktif: number;
+ totalKaryawan: number;
+ bibStats: {
+ segera: number;
+ mendekati: number;
+ menuju: number;
+ aktif: number;
   };
-  tiaStats: {
-    segera: number;
-    mendekati: number;
-    menuju: number;
-    aktif: number;
+ tiaStats: {
+ segera: number;
+ mendekati: number;
+ menuju: number;
+ aktif: number;
   };
-  criticalList: any[];
-  processedData: any[];
+ criticalList: any[];
+ processedData: any[];
 }
 
 export default function SimperMonitoring() {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedSimper, setSelectedSimper] = useState<SimperMonitoring | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
+ const [currentTime, setCurrentTime] = useState(new Date());
+ const [searchTerm, setSearchTerm] = useState("");
+ const [statusFilter, setStatusFilter] = useState("all");
+ const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+ const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+ const [selectedSimper, setSelectedSimper] = useState<SimperMonitoring | null>(null);
+ const fileInputRef = useRef<HTMLInputElement>(null);
+ const { toast } = useToast();
 
   // Real-time clock update
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
+ useEffect(() => {
+ const timer = setInterval(() => {
+ setCurrentTime(new Date());
     }, 1000);
-    return () => clearInterval(timer);
+ return () => clearInterval(timer);
   }, []);
 
   // Fetch SIMPER data
-  const { data: simperData = [], isLoading } = useQuery({
-    queryKey: ["/api/simper-monitoring"],
-    refetchInterval: 30000,
+ const { data: simperData = [], isLoading } = useQuery({
+ queryKey: ["/api/simper-monitoring"],
+ refetchInterval: 30000,
   });
 
   // Fetch analytics data
-  const { data: analytics } = useQuery<SimperAnalytics>({
-    queryKey: ["/api/simper-monitoring/analytics"],
-    refetchInterval: 30000,
+ const { data: analytics } = useQuery<SimperAnalytics>({
+ queryKey: ["/api/simper-monitoring/analytics"],
+ refetchInterval: 30000,
   });
 
   // Form for create/edit SIMPER
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      employeeName: "",
-      nik: "",
-      simperBibExpiredDate: "",
-      simperTiaExpiredDate: "",
+ const form = useForm<z.infer<typeof formSchema>>({
+ resolver: zodResolver(formSchema),
+ defaultValues: {
+ employeeName: "",
+ nik: "",
+ simperBibExpiredDate: "",
+ simperTiaExpiredDate: "",
     },
   });
 
   // Create/Update SIMPER mutation
-  const createMutation = useMutation({
-    mutationFn: async (data: InsertSimperMonitoring) => {
-      const response = await fetch("/api/simper-monitoring", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+ const createMutation = useMutation({
+ mutationFn: async (data: InsertSimperMonitoring) => {
+ const response = await fetch("/api/simper-monitoring", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error("Failed to create SIMPER");
-      return response.json();
+ if (!response.ok) throw new Error("Failed to create SIMPER");
+ return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
-      setIsEditDialogOpen(false);
-      form.reset();
-      toast({
-        title: "Berhasil",
-        description: "Data SIMPER berhasil disimpan",
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
+ setIsEditDialogOpen(false);
+ form.reset();
+ toast({
+ title: "Berhasil",
+ description: "Data SIMPER berhasil disimpan",
       });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Gagal menyimpan data SIMPER",
-        variant: "destructive",
+ onError: (error: any) => {
+ toast({
+ title: "Error",
+ description: error.message || "Gagal menyimpan data SIMPER",
+ variant: "destructive",
       });
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<InsertSimperMonitoring> }) => {
-      const response = await fetch(`/api/simper-monitoring/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+ const updateMutation = useMutation({
+ mutationFn: async ({ id, data }: { id: string; data: Partial<InsertSimperMonitoring> }) => {
+ const response = await fetch(`/api/simper-monitoring/${id}`, {
+ method: "PUT",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(data),
       });
-      if (!response.ok) throw new Error("Failed to update SIMPER");
-      return response.json();
+ if (!response.ok) throw new Error("Failed to update SIMPER");
+ return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
-      setIsEditDialogOpen(false);
-      setSelectedSimper(null);
-      form.reset();
-      toast({
-        title: "Berhasil",
-        description: "Data SIMPER berhasil diperbarui",
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
+ setIsEditDialogOpen(false);
+ setSelectedSimper(null);
+ form.reset();
+ toast({
+ title: "Berhasil",
+ description: "Data SIMPER berhasil diperbarui",
       });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Gagal memperbarui data SIMPER",
-        variant: "destructive",
+ onError: (error: any) => {
+ toast({
+ title: "Error",
+ description: error.message || "Gagal memperbarui data SIMPER",
+ variant: "destructive",
       });
     },
   });
 
   // Delete SIMPER mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/simper-monitoring/${id}`, {
-        method: "DELETE",
+ const deleteMutation = useMutation({
+ mutationFn: async (id: string) => {
+ const response = await fetch(`/api/simper-monitoring/${id}`, {
+ method: "DELETE",
       });
-      if (!response.ok) throw new Error("Failed to delete SIMPER");
-      return response.json();
+ if (!response.ok) throw new Error("Failed to delete SIMPER");
+ return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
-      toast({
-        title: "Berhasil",
-        description: "Data SIMPER berhasil dihapus",
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
+ toast({
+ title: "Berhasil",
+ description: "Data SIMPER berhasil dihapus",
       });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Gagal menghapus data SIMPER",
-        variant: "destructive",
+ onError: (error: any) => {
+ toast({
+ title: "Error",
+ description: error.message || "Gagal menghapus data SIMPER",
+ variant: "destructive",
       });
     },
   });
 
   // Delete all SIMPER mutation
-  const deleteAllMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/api/simper-monitoring", {
-        method: "DELETE",
+ const deleteAllMutation = useMutation({
+ mutationFn: async () => {
+ const response = await fetch("/api/simper-monitoring", {
+ method: "DELETE",
       });
-      if (!response.ok) throw new Error("Failed to delete all SIMPER");
-      return response.json();
+ if (!response.ok) throw new Error("Failed to delete all SIMPER");
+ return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
-      toast({
-        title: "Berhasil",
-        description: "Semua data SIMPER berhasil dihapus",
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
+ toast({
+ title: "Berhasil",
+ description: "Semua data SIMPER berhasil dihapus",
       });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error", 
-        description: error.message || "Gagal menghapus semua data SIMPER",
-        variant: "destructive",
+ onError: (error: any) => {
+ toast({
+ title: "Error", 
+ description: error.message || "Gagal menghapus semua data SIMPER",
+ variant: "destructive",
       });
     },
   });
 
   // Excel upload mutation
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      return fetch("/api/simper-monitoring/upload-excel", {
-        method: "POST",
-        body: formData,
+ const uploadMutation = useMutation({
+ mutationFn: (file: File) => {
+ const formData = new FormData();
+ formData.append("file", file);
+ return fetch("/api/simper-monitoring/upload-excel", {
+ method: "POST",
+ body: formData,
       }).then(res => res.json());
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
-      setIsUploadDialogOpen(false);
-      toast({
-        title: "Upload Berhasil",
-        description: `${result.success} data berhasil diproses. ${result.errors?.length || 0} error.`,
+ onSuccess: (result) => {
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring"] });
+ queryClient.invalidateQueries({ queryKey: ["/api/simper-monitoring/analytics"] });
+ setIsUploadDialogOpen(false);
+ toast({
+ title: "Upload Berhasil",
+ description: `${result.success} data berhasil diproses. ${result.errors?.length || 0} error.`,
       });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Error Upload",
-        description: error.message || "Gagal mengupload file Excel",
-        variant: "destructive",
+ onError: (error: any) => {
+ toast({
+ title: "Error Upload",
+ description: error.message || "Gagal mengupload file Excel",
+ variant: "destructive",
       });
     },
   });
 
   // Format date to dd-mm-yyyy
-  const formatDateToDDMMYYYY = (dateString: string | null | undefined) => {
-    if (!dateString || dateString === null || dateString === undefined || dateString === '' || dateString === 'N/A') {
-      return "-";
+ const formatDateToDDMMYYYY = (dateString: string | null | undefined) => {
+ if (!dateString || dateString === null || dateString === undefined || dateString === '' || dateString === 'N/A') {
+ return "-";
     }
     
-    try {
-      const date = new Date(dateString);
+ try {
+ const date = new Date(dateString);
       // Check if date is valid
-      if (isNaN(date.getTime())) {
-        return "-";
+ if (isNaN(date.getTime())) {
+ return "-";
       }
       
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      return `${day}-${month}-${year}`;
+ const day = String(date.getDate()).padStart(2, '0');
+ const month = String(date.getMonth() + 1).padStart(2, '0');
+ const year = date.getFullYear();
+ return `${day}-${month}-${year}`;
     } catch {
-      return "-";
+ return "-";
     }
   };
 
   // Get monitoring days and status
-  const getMonitoringStatus = (expiredDate: string | null | undefined) => {
-    if (!expiredDate || expiredDate === null || expiredDate === undefined || expiredDate === '' || expiredDate === 'N/A') {
-      return { days: null, status: "Tidak Ada Data", variant: "outline" as const, customStyle: "" };
+ const getMonitoringStatus = (expiredDate: string | null | undefined) => {
+ if (!expiredDate || expiredDate === null || expiredDate === undefined || expiredDate === '' || expiredDate === 'N/A') {
+ return { days: null, status: "Tidak Ada Data", variant: "outline" as const, customStyle: "" };
     }
     
-    const date = new Date(expiredDate);
+ const date = new Date(expiredDate);
     // Check if date is valid
-    if (isNaN(date.getTime())) {
-      return { days: null, status: "Tidak Ada Data", variant: "outline" as const, customStyle: "" };
+ if (isNaN(date.getTime())) {
+ return { days: null, status: "Tidak Ada Data", variant: "outline" as const, customStyle: "" };
     }
     
-    const expired = date;
-    const today = new Date();
-    const diffTime = expired.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+ const expired = date;
+ const today = new Date();
+ const diffTime = expired.getTime() - today.getTime();
+ const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays < 0) return { days: diffDays, status: "Segera Perpanjang", variant: "destructive" as const, customStyle: "bg-red-600 text-white hover:bg-red-700" };
-    if (diffDays < 7) return { days: diffDays, status: "Mendekati Perpanjangan", variant: "secondary" as const, customStyle: "bg-yellow-400 text-black hover:bg-yellow-500" };
-    if (diffDays < 30) return { days: diffDays, status: "Menuju Perpanjangan", variant: "secondary" as const, customStyle: "bg-orange-500 text-white hover:bg-orange-600" };
-    return { days: diffDays, status: "Aktif", variant: "secondary" as const, customStyle: "bg-green-500 text-white hover:bg-green-600" };
+ if (diffDays < 0) return { days: diffDays, status: "Segera Perpanjang", variant: "destructive" as const, customStyle: "bg-red-600 text-white hover:bg-red-700" };
+ if (diffDays < 7) return { days: diffDays, status: "Mendekati Perpanjangan", variant: "secondary" as const, customStyle: "bg-amber-500 text-white hover:bg-amber-500" };
+ if (diffDays < 30) return { days: diffDays, status: "Menuju Perpanjangan", variant: "secondary" as const, customStyle: "" };
+ return { days: diffDays, status: "Aktif", variant: "secondary" as const, customStyle: "bg-primary text-white hover:bg-primary/90" };
   };
 
   // Filter data based on search and status filter
-  const filteredData = (simperData as SimperMonitoring[]).filter((item: SimperMonitoring) => {
-    const matchesSearch = 
-      item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.nik.toLowerCase().includes(searchTerm.toLowerCase());
+ const filteredData = (simperData as SimperMonitoring[]).filter((item: SimperMonitoring) => {
+ const matchesSearch = 
+ item.employeeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+ item.nik.toLowerCase().includes(searchTerm.toLowerCase());
     
-    if (!matchesSearch) return false;
+ if (!matchesSearch) return false;
     
-    if (statusFilter === "all") return true;
+ if (statusFilter === "all") return true;
     
-    const bibStatus = getMonitoringStatus(item.simperBibExpiredDate);
-    const tiaStatus = getMonitoringStatus(item.simperTiaExpiredDate);
+ const bibStatus = getMonitoringStatus(item.simperBibExpiredDate);
+ const tiaStatus = getMonitoringStatus(item.simperTiaExpiredDate);
     
-    if (statusFilter === "bib") return bibStatus.status !== "Tidak Ada Data";
-    if (statusFilter === "tia") return tiaStatus.status !== "Tidak Ada Data";
+ if (statusFilter === "bib") return bibStatus.status !== "Tidak Ada Data";
+ if (statusFilter === "tia") return tiaStatus.status !== "Tidak Ada Data";
     
-    return true;
+ return true;
   });
 
-  const handleSubmit = (data: z.infer<typeof formSchema>) => {
-    if (selectedSimper) {
-      updateMutation.mutate({ id: selectedSimper.id, data });
+ const handleSubmit = (data: z.infer<typeof formSchema>) => {
+ if (selectedSimper) {
+ updateMutation.mutate({ id: selectedSimper.id, data });
     } else {
-      createMutation.mutate(data);
+ createMutation.mutate(data);
     }
   };
 
-  const handleEdit = (simper: SimperMonitoring) => {
-    setSelectedSimper(simper);
-    form.reset({
-      employeeName: simper.employeeName,
-      nik: simper.nik,
-      simperBibExpiredDate: simper.simperBibExpiredDate || "",
-      simperTiaExpiredDate: simper.simperTiaExpiredDate || "",
+ const handleEdit = (simper: SimperMonitoring) => {
+ setSelectedSimper(simper);
+ form.reset({
+ employeeName: simper.employeeName,
+ nik: simper.nik,
+ simperBibExpiredDate: simper.simperBibExpiredDate || "",
+ simperTiaExpiredDate: simper.simperTiaExpiredDate || "",
     });
-    setIsEditDialogOpen(true);
+ setIsEditDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Apakah Anda yakin ingin menghapus data SIMPER ini?")) {
-      deleteMutation.mutate(id);
+ const handleDelete = (id: string) => {
+ if (confirm("Apakah Anda yakin ingin menghapus data SIMPER ini?")) {
+ deleteMutation.mutate(id);
     }
   };
 
-  const handleDeleteAll = () => {
-    if (confirm("Apakah Anda yakin ingin menghapus SEMUA data SIMPER? Tindakan ini tidak dapat dibatalkan!")) {
-      deleteAllMutation.mutate();
+ const handleDeleteAll = () => {
+ if (confirm("Apakah Anda yakin ingin menghapus SEMUA data SIMPER? Tindakan ini tidak dapat dibatalkan!")) {
+ deleteAllMutation.mutate();
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      uploadMutation.mutate(file);
+ const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+ const file = event.target.files?.[0];
+ if (file) {
+ uploadMutation.mutate(file);
     }
   };
 
-  const downloadTemplate = () => {
-    const templateData = [
+ const downloadTemplate = () => {
+ const templateData = [
       {
         "Nama Karyawan": "Contoh Nama",
         "NIK": "C-000000",
@@ -354,65 +354,65 @@ export default function SimperMonitoring() {
       }
     ];
     
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    const wb = XLSX.utils.book_new();
+ const ws = XLSX.utils.json_to_sheet(templateData);
+ const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template SIMPER");
     XLSX.writeFile(wb, "Template_SIMPER_Monitoring.xlsx");
   };
 
   // Chart data for analytics
-  const chartData = analytics ? {
-    labels: ['Segera Perpanjang', 'Mendekati Perpanjangan', 'Menuju Perpanjangan', 'Aktif'],
-    datasets: [
+ const chartData = analytics ? {
+ labels: ['Segera Perpanjang', 'Mendekati Perpanjangan', 'Menuju Perpanjangan', 'Aktif'],
+ datasets: [
       {
-        label: 'SIMPER BIB',
-        data: [analytics.bibStats.segera, analytics.bibStats.mendekati, analytics.bibStats.menuju, analytics.bibStats.aktif],
-        backgroundColor: '#E53935',
-        borderColor: '#C62828',
-        borderWidth: 1,
+ label: 'SIMPER BIB',
+ data: [analytics.bibStats.segera, analytics.bibStats.mendekati, analytics.bibStats.menuju, analytics.bibStats.aktif],
+ backgroundColor: 'var(--grafik-4)',
+ borderColor: 'var(--grafik-4)',
+ borderWidth: 1,
       },
       {
-        label: 'SIMPER TIA',
-        data: [analytics.tiaStats.segera, analytics.tiaStats.mendekati, analytics.tiaStats.menuju, analytics.tiaStats.aktif],
-        backgroundColor: '#1E88E5',
-        borderColor: '#1565C0',
-        borderWidth: 1,
+ label: 'SIMPER TIA',
+ data: [analytics.tiaStats.segera, analytics.tiaStats.mendekati, analytics.tiaStats.menuju, analytics.tiaStats.aktif],
+ backgroundColor: 'var(--grafik-4)',
+ borderColor: 'var(--grafik-4)',
+ borderWidth: 1,
       }
     ]
   } : null;
 
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'top' as const,
+ const chartOptions = {
+ responsive: true,
+ plugins: {
+ legend: {
+ position: 'top' as const,
       },
-      title: {
-        display: true,
-        text: 'Status SIMPER BIB vs TIA'
+ title: {
+ display: true,
+ text: 'Status SIMPER BIB vs TIA'
       },
     },
-    scales: {
-      y: {
-        beginAtZero: true,
+ scales: {
+ y: {
+ beginAtZero: true,
       },
     },
   };
 
-  return (
+ return (
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h1 className="text-2xl sm:text-4xl font-bold text-[#E53935]">
+        <h1 className="text-[28px] sm:text-[32px] font-semibold tracking-[-0.03em] text-foreground">
           Monitoring SIMPER Karyawan
         </h1>
         <div className="text-left sm:text-right">
           <p className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-white">
             {currentTime.toLocaleDateString('id-ID', {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric'
+ weekday: 'long',
+ year: 'numeric',
+ month: 'long',
+ day: 'numeric'
             })}
           </p>
           <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
@@ -425,72 +425,71 @@ export default function SimperMonitoring() {
       {analytics && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
           {/* Total Karyawan */}
-          <Card className="rounded-2xl shadow-lg hover:shadow-xl transition-shadow">
+          <Card className="rounded-xl transition-shadow">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Karyawan</CardTitle>
+              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Total Karyawan</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center">
-                <Users className="h-8 w-8 text-gray-600 mr-2" />
-                <span className="text-2xl font-bold">{analytics.totalKaryawan}</span>
+                <span className="text-[28px] font-semibold leading-none tracking-[-0.03em] tabular-nums">{analytics.totalKaryawan}</span>
               </div>
             </CardContent>
           </Card>
 
           {/* BIB Statistics */}
-          <Card className="rounded-2xl shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-red-50 to-red-100">
+          <Card className="rounded-xl border border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-red-700">SIMPER BIB</CardTitle>
+              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">SIMPER BIB</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-xs text-red-600">Segera Perpanjang:</span>
-                <Badge className="text-xs bg-red-600 text-white hover:bg-red-700">{analytics.bibStats.segera}</Badge>
+                <span className="text-xs text-red-600 dark:text-red-500">Segera Perpanjang:</span>
+                <Badge className="text-xs bg-red-600 text-white hover:bg-red-600 tabular-nums">{analytics.bibStats.segera}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-red-600">Mendekati:</span>
-                <Badge className="text-xs bg-yellow-400 text-black hover:bg-yellow-500">{analytics.bibStats.mendekati}</Badge>
+                <span className="text-xs text-muted-foreground">Mendekati:</span>
+                <Badge className="text-xs bg-amber-500 text-white hover:bg-amber-500 tabular-nums">{analytics.bibStats.mendekati}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-red-600">Menuju:</span>
-                <Badge className="text-xs bg-orange-500 text-white hover:bg-orange-600">{analytics.bibStats.menuju}</Badge>
+                <span className="text-xs text-muted-foreground">Menuju:</span>
+                <Badge variant="secondary" className="text-xs tabular-nums">{analytics.bibStats.menuju}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-red-600">Aktif:</span>
-                <Badge className="text-xs bg-green-500 text-white hover:bg-green-600">{analytics.bibStats.aktif}</Badge>
+                <span className="text-xs text-muted-foreground">Aktif:</span>
+                <Badge className="text-xs bg-primary text-white hover:bg-primary/90 tabular-nums">{analytics.bibStats.aktif}</Badge>
               </div>
             </CardContent>
           </Card>
 
           {/* TIA Statistics */}
-          <Card className="rounded-2xl shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-50 to-blue-100">
+          <Card className="rounded-xl border border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-blue-700">SIMPER TIA</CardTitle>
+              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">SIMPER TIA</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div className="flex justify-between">
-                <span className="text-xs text-blue-600">Segera Perpanjang:</span>
-                <Badge className="text-xs bg-red-600 text-white hover:bg-red-700">{analytics.tiaStats.segera}</Badge>
+                <span className="text-xs text-red-600 dark:text-red-500">Segera Perpanjang:</span>
+                <Badge className="text-xs bg-red-600 text-white hover:bg-red-600 tabular-nums">{analytics.tiaStats.segera}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-blue-600">Mendekati:</span>
-                <Badge className="text-xs bg-yellow-400 text-black hover:bg-yellow-500">{analytics.tiaStats.mendekati}</Badge>
+                <span className="text-xs text-muted-foreground">Mendekati:</span>
+                <Badge className="text-xs bg-amber-500 text-white hover:bg-amber-500 tabular-nums">{analytics.tiaStats.mendekati}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-blue-600">Menuju:</span>
-                <Badge className="text-xs bg-orange-500 text-white hover:bg-orange-600">{analytics.tiaStats.menuju}</Badge>
+                <span className="text-xs text-muted-foreground">Menuju:</span>
+                <Badge variant="secondary" className="text-xs tabular-nums">{analytics.tiaStats.menuju}</Badge>
               </div>
               <div className="flex justify-between">
-                <span className="text-xs text-blue-600">Aktif:</span>
-                <Badge className="text-xs bg-green-500 text-white hover:bg-green-600">{analytics.tiaStats.aktif}</Badge>
+                <span className="text-xs text-muted-foreground">Aktif:</span>
+                <Badge className="text-xs bg-primary text-white hover:bg-primary/90 tabular-nums">{analytics.tiaStats.aktif}</Badge>
               </div>
             </CardContent>
           </Card>
 
           {/* Critical List Card */}
-          <Card className="rounded-2xl shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-yellow-50 to-yellow-100">
+          <Card className="rounded-xl border border-border bg-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-yellow-700">Daftar Kritis</CardTitle>
+              <CardTitle className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Daftar Kritis</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-1">
@@ -513,7 +512,7 @@ export default function SimperMonitoring() {
 
       {/* Chart */}
       {chartData && (
-        <Card className="rounded-2xl shadow-lg">
+        <Card className="rounded-xl ">
           <CardHeader>
             <CardTitle>Grafik Status SIMPER</CardTitle>
           </CardHeader>
@@ -526,7 +525,7 @@ export default function SimperMonitoring() {
       )}
 
       {/* Control Panel */}
-      <Card className="rounded-2xl shadow-lg">
+      <Card className="rounded-xl ">
         <CardHeader>
           <CardTitle>Kelola Data SIMPER</CardTitle>
         </CardHeader>
@@ -535,7 +534,7 @@ export default function SimperMonitoring() {
           <div className="flex flex-wrap gap-4">
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-[#E53935] hover:bg-[#C62828]" data-testid="button-upload-excel">
+                <Button  data-testid="button-upload-excel">
                   <Upload className="w-4 h-4 mr-2" />
                   Upload Excel
                 </Button>
@@ -546,19 +545,19 @@ export default function SimperMonitoring() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <Button 
-                    onClick={downloadTemplate} 
-                    variant="outline"
-                    data-testid="button-download-template"
+ onClick={downloadTemplate} 
+ variant="outline"
+ data-testid="button-download-template"
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Download Template
                   </Button>
                   <Input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    ref={fileInputRef}
-                    onChange={handleFileUpload}
-                    data-testid="input-excel-file"
+ type="file"
+ accept=".xlsx,.xls"
+ ref={fileInputRef}
+ onChange={handleFileUpload}
+ data-testid="input-excel-file"
                   />
                   <p className="text-sm text-gray-600">
                     Upload file Excel dengan kolom: Nama Karyawan, NIK, Tanggal SIMPER BIB Mati, Tanggal SIMPER TIA Mati
@@ -583,9 +582,9 @@ export default function SimperMonitoring() {
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
                     <FormField
-                      control={form.control}
-                      name="employeeName"
-                      render={({ field }) => (
+ control={form.control}
+ name="employeeName"
+ render={({ field }) => (
                         <FormItem>
                           <FormLabel>Nama Karyawan</FormLabel>
                           <FormControl>
@@ -596,9 +595,9 @@ export default function SimperMonitoring() {
                       )}
                     />
                     <FormField
-                      control={form.control}
-                      name="nik"
-                      render={({ field }) => (
+ control={form.control}
+ name="nik"
+ render={({ field }) => (
                         <FormItem>
                           <FormLabel>NIK</FormLabel>
                           <FormControl>
@@ -609,9 +608,9 @@ export default function SimperMonitoring() {
                       )}
                     />
                     <FormField
-                      control={form.control}
-                      name="simperBibExpiredDate"
-                      render={({ field }) => (
+ control={form.control}
+ name="simperBibExpiredDate"
+ render={({ field }) => (
                         <FormItem>
                           <FormLabel>Tanggal SIMPER BIB Mati</FormLabel>
                           <FormControl>
@@ -622,9 +621,9 @@ export default function SimperMonitoring() {
                       )}
                     />
                     <FormField
-                      control={form.control}
-                      name="simperTiaExpiredDate"
-                      render={({ field }) => (
+ control={form.control}
+ name="simperTiaExpiredDate"
+ render={({ field }) => (
                         <FormItem>
                           <FormLabel>Tanggal SIMPER TIA Mati</FormLabel>
                           <FormControl>
@@ -636,21 +635,21 @@ export default function SimperMonitoring() {
                     />
                     <div className="flex justify-end space-x-2">
                       <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsEditDialogOpen(false);
-                          setSelectedSimper(null);
-                          form.reset();
+ type="button"
+ variant="outline"
+ onClick={() => {
+ setIsEditDialogOpen(false);
+ setSelectedSimper(null);
+ form.reset();
                         }}
                       >
                         Batal
                       </Button>
                       <Button
-                        type="submit"
-                        className="bg-[#E53935] hover:bg-[#C62828]"
-                        disabled={createMutation.isPending || updateMutation.isPending}
-                        data-testid="button-save-simper"
+ type="submit"
+ 
+ disabled={createMutation.isPending || updateMutation.isPending}
+ data-testid="button-save-simper"
                       >
                         {selectedSimper ? "Update" : "Simpan"}
                       </Button>
@@ -661,9 +660,9 @@ export default function SimperMonitoring() {
             </Dialog>
 
             <Button 
-              onClick={handleDeleteAll} 
-              variant="destructive"
-              data-testid="button-delete-all"
+ onClick={handleDeleteAll} 
+ variant="destructive"
+ data-testid="button-delete-all"
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Hapus Semua Data
@@ -675,11 +674,11 @@ export default function SimperMonitoring() {
             <div className="relative flex-1 min-w-64">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Cari nama karyawan atau NIK..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search"
+ placeholder="Cari nama karyawan atau NIK..."
+ value={searchTerm}
+ onChange={(e) => setSearchTerm(e.target.value)}
+ className="pl-10"
+ data-testid="input-search"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -697,7 +696,7 @@ export default function SimperMonitoring() {
       </Card>
 
       {/* Data Table */}
-      <Card className="rounded-2xl shadow-lg">
+      <Card className="rounded-xl ">
         <CardHeader>
           <CardTitle>Tabel Monitoring SIMPER</CardTitle>
         </CardHeader>
@@ -722,11 +721,11 @@ export default function SimperMonitoring() {
                 </TableHeader>
                 <TableBody>
                   {filteredData.map((simper: SimperMonitoring) => {
-                    const bibStatus = getMonitoringStatus(simper.simperBibExpiredDate);
-                    const tiaStatus = getMonitoringStatus(simper.simperTiaExpiredDate);
+ const bibStatus = getMonitoringStatus(simper.simperBibExpiredDate);
+ const tiaStatus = getMonitoringStatus(simper.simperTiaExpiredDate);
                     
-                    return (
-                      <TableRow key={simper.id} className="hover:bg-[#F5F5F5] transition-colors">
+ return (
+                      <TableRow key={simper.id} className="transition-colors">
                         <TableCell className="font-medium">{simper.employeeName}</TableCell>
                         <TableCell>{simper.nik}</TableCell>
                         <TableCell>
@@ -754,18 +753,18 @@ export default function SimperMonitoring() {
                         <TableCell>
                           <div className="flex space-x-2">
                             <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEdit(simper)}
-                              data-testid={`button-edit-${simper.id}`}
+ size="sm"
+ variant="outline"
+ onClick={() => handleEdit(simper)}
+ data-testid={`button-edit-${simper.id}`}
                             >
                               <Edit className="w-4 h-4" />
                             </Button>
                             <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDelete(simper.id)}
-                              data-testid={`button-delete-${simper.id}`}
+ size="sm"
+ variant="outline"
+ onClick={() => handleDelete(simper.id)}
+ data-testid={`button-delete-${simper.id}`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -788,9 +787,9 @@ export default function SimperMonitoring() {
 
       {/* Critical List Table */}
       {analytics && analytics.criticalList.length > 0 && (
-        <Card className="rounded-2xl shadow-lg border-yellow-200">
-          <CardHeader className="bg-yellow-50">
-            <CardTitle className="text-yellow-800 flex items-center">
+        <Card className="rounded-xl border-yellow-200">
+          <CardHeader className="border-b border-border">
+            <CardTitle className="flex items-center text-base font-semibold text-foreground">
               <AlertCircle className="w-5 h-5 mr-2" />
               Daftar SIMPER Kritis (10 Terdekat)
             </CardTitle>
@@ -825,10 +824,10 @@ export default function SimperMonitoring() {
                       <TableCell>
                         <span className={`font-semibold ${
                           Math.min(item.bibMonitoringDays || 999, item.tiaMonitoringDays || 999) < 0 
-                            ? 'text-red-600' 
-                            : Math.min(item.bibMonitoringDays || 999, item.tiaMonitoringDays || 999) < 7
+                            ? 'text-gray-950' 
+ : Math.min(item.bibMonitoringDays || 999, item.tiaMonitoringDays || 999) < 7
                               ? 'text-yellow-600'
-                              : 'text-orange-600'
+ : 'text-orange-600'
                         }`}>
                           {Math.min(item.bibMonitoringDays || 999, item.tiaMonitoringDays || 999)} hari
                         </span>

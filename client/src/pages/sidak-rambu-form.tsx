@@ -216,8 +216,8 @@ export default function SidakRambuForm() {
                     className={cn(
                         "flex-1 h-10 transition-all",
                         value
-                            ? "bg-green-600 hover:bg-green-700 shadow-md shadow-green-100 dark:shadow-none border-transparent"
-                            : "hover:bg-green-50 text-gray-500 border-gray-200"
+                            ? "bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 dark:shadow-none border-transparent"
+                            : "hover:bg-muted text-gray-500 border-gray-200"
                     )}
                     onClick={() => onChange(true)}
                 >
@@ -282,7 +282,7 @@ export default function SidakRambuForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.observers.length === 0}
                 >
@@ -524,7 +524,7 @@ export default function SidakRambuForm() {
                                                     {hasViolation ?
                                                         <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-md">PELANGGARAN</span>
                                                         :
-                                                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-md">PATUH</span>
+                                                        <span className="text-xs font-bold text-foreground bg-muted px-2 py-1 rounded-md">PATUH</span>
                                                     }
                                                 </div>
                                             </div>
@@ -548,12 +548,12 @@ export default function SidakRambuForm() {
                             {draft.observers.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.observers.map((obs, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                                                 <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

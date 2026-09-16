@@ -121,7 +121,7 @@ export default function IndikatorKesehatan() {
                         <Settings2 className="mr-2 h-4 w-4" /> Man-Hours & Threshold
                     </Button>
                     <Button onClick={() => setFormOpen({})}
-                        className="rounded-xl bg-slate-900 transition-transform duration-150 ease-out hover:bg-slate-800 active:scale-[0.97]">
+                        className="rounded-xl bg-primary transition-transform duration-150 ease-out hover:bg-primary/90 active:scale-[0.97]">
                         <Plus className="mr-2 h-4 w-4" /> Catat Kejadian
                     </Button>
                 </div>
@@ -140,7 +140,7 @@ export default function IndikatorKesehatan() {
                                     <span className="text-[11px] font-bold tracking-wide text-slate-500">{i.kode}</span>
                                     {lewat
                                         ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-700">di atas batas</span>
-                                        : <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">aman</span>}
+                                        : <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold text-foreground">aman</span>}
                                 </div>
                                 <p className={`text-2xl font-bold tabular-nums ${lewat ? "text-rose-700" : "text-slate-900"}`}>
                                     {angka(nilai, i.desimal)}
@@ -182,22 +182,22 @@ export default function IndikatorKesehatan() {
                                 <AreaChart data={grafik} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="gMfr" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#e11d48" stopOpacity={0.2} />
-                                            <stop offset="100%" stopColor="#e11d48" stopOpacity={0.01} />
+                                            <stop offset="0%" stopColor="#df2a33" stopOpacity={0.2} />
+                                            <stop offset="100%" stopColor="#df2a33" stopOpacity={0.01} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="2 4" stroke="#eef2f7" vertical={false} />
-                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
-                                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} width={38} />
+                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#B4B4B4" }} tickLine={false} axisLine={false} />
+                                    <YAxis tick={{ fontSize: 10, fill: "#B4B4B4" }} tickLine={false} axisLine={false} width={38} />
                                     <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12 }}
                                         formatter={(v: any, n: any) => [angka(Number(v)), String(n).toUpperCase()]} />
                                     {setting?.thresholdMfr > 0 && (
                                         <ReferenceLine y={setting.thresholdMfr} stroke="#f59e0b" strokeDasharray="4 4"
                                             label={{ value: "threshold", fontSize: 10, fill: "#b45309", position: "right" }} />
                                     )}
-                                    <Area type="monotone" dataKey="mfr" stroke="#e11d48" strokeWidth={2} fill="url(#gMfr)" dot={{ r: 2 }} />
-                                    <Area type="monotone" dataKey="ssr" stroke="#7c3aed" strokeWidth={2} fill="transparent" dot={{ r: 2 }} />
-                                    <Area type="monotone" dataKey="asr" stroke="#0284c7" strokeWidth={2} fill="transparent" dot={{ r: 2 }} />
+                                    <Area type="monotone" dataKey="mfr" stroke="#df2a33" strokeWidth={2} fill="url(#gMfr)" dot={{ r: 2 }} />
+                                    <Area type="monotone" dataKey="ssr" stroke="#96161C" strokeWidth={2} fill="transparent" dot={{ r: 2 }} />
+                                    <Area type="monotone" dataKey="asr" stroke="#96161c" strokeWidth={2} fill="transparent" dot={{ r: 2 }} />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
@@ -491,7 +491,7 @@ function FormKejadian({ item, onClose, onSuccess }: any) {
                                 ))}
                             </div>
                         )}
-                        {f.employeeId && <p className="mt-1 text-[11px] text-emerald-600">Tertaut ke {f.employeeId}</p>}
+                        {f.employeeId && <p className="mt-1 text-[11px] text-foreground">Tertaut ke {f.employeeId}</p>}
                     </div>
 
                     <Bidang label="NIK / ID"><Input value={f.nik} onChange={(e) => setF({ ...f, nik: e.target.value })} /></Bidang>
@@ -541,7 +541,7 @@ function FormKejadian({ item, onClose, onSuccess }: any) {
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={simpan}>Batal</Button>
-                    <Button onClick={kirim} disabled={simpan} className="bg-slate-900 hover:bg-slate-800">
+                    <Button onClick={kirim} disabled={simpan} className="bg-primary hover:bg-primary/90">
                         {simpan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{ubah ? "Simpan Perubahan" : "Simpan"}
                     </Button>
                 </DialogFooter>
@@ -709,7 +709,7 @@ function DialogSetelan({ tahun, perBulan, setting, onClose, onSuccess }: any) {
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={simpan}>Batal</Button>
-                    <Button onClick={kirim} disabled={simpan} className="bg-slate-900 hover:bg-slate-800">
+                    <Button onClick={kirim} disabled={simpan} className="bg-primary hover:bg-primary/90">
                         {simpan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Simpan
                     </Button>
                 </DialogFooter>

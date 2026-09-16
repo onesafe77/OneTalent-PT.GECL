@@ -143,11 +143,11 @@ export default function EmployeePersonalData() {
                   <div className="text-[10px] uppercase tracking-wider text-white/70 font-medium">Inspections</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-emerald-400 mb-1">98%</div>
+                  <div className="text-2xl font-bold text-muted-foreground mb-1">98%</div>
                   <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Compliance</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-emerald-400 mb-1">12</div>
+                  <div className="text-2xl font-bold text-muted-foreground mb-1">12</div>
                   <div className="text-[10px] uppercase tracking-wider text-gray-500 font-medium">Reports</div>
                 </div>
               </div>
@@ -166,7 +166,7 @@ export default function EmployeePersonalData() {
               <Link href={item.href} key={idx}>
                 <div className={`p-4 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-2xl transition-all ${idx !== 1 ? 'border-b border-gray-100 dark:border-gray-700/50' : ''}`}>
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-500 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                    <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-500 group-hover:bg-muted group-hover:text-primary transition-colors">
                       <item.icon className="w-5 h-5" />
                     </div>
                     <div>
@@ -188,7 +188,7 @@ export default function EmployeePersonalData() {
               <Link href={item.href} key={idx}>
                 <div className={`p-4 flex items-center justify-between group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-2xl transition-all ${idx !== menuItems.slice(2).length - 1 ? 'border-b border-gray-100 dark:border-gray-700/50' : ''}`}>
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-500 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                    <div className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-500 group-hover:bg-muted group-hover:text-primary transition-colors">
                       <item.icon className="w-5 h-5" />
                     </div>
                     <div>
@@ -198,7 +198,7 @@ export default function EmployeePersonalData() {
                   </div>
                   <div className="flex items-center gap-2">
                     {item.badge && (
-                      <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-bold">
+                      <span className="px-2 py-1 rounded-lg bg-muted text-foreground text-[10px] font-bold">
                         {item.badge}
                       </span>
                     )}

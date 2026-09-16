@@ -80,8 +80,8 @@ export default function ChecklistArsipPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-green-50 rounded-lg">
-            <ListChecks className="w-5 h-5 text-green-600" />
+          <div className="p-2 bg-muted rounded-lg">
+            <ListChecks className="w-5 h-5 text-foreground" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Checklist Arsip — {monthLabel}</h1>
@@ -108,13 +108,13 @@ export default function ChecklistArsipPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-        <Stat icon={CheckCircle} label="Lengkap" value={`${summary.completed}/${summary.total}`} color="text-green-600" />
+        <Stat icon={CheckCircle} label="Lengkap" value={`${summary.completed}/${summary.total}`} color="text-foreground" />
         <Stat icon={Clock} label="Belum Lengkap" value={String(summary.pending)} color="text-amber-600" />
         <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-900 col-span-2 md:col-span-1">
           <div className="text-xs text-gray-500 font-medium mb-2">Progress</div>
           <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
             <div
-              className="bg-green-500 h-2 rounded-full transition-all"
+              className="bg-primary h-2 rounded-full transition-all"
               style={{ width: `${summary.progressPercent}%` }}
             />
           </div>
@@ -144,13 +144,13 @@ export default function ChecklistArsipPage() {
               </td></tr>
             )}
             {items.map((it) => (
-              <tr key={it.id} className={it.isCompleted ? "bg-green-50/30 dark:bg-green-900/10" : ""}>
+              <tr key={it.id} className={it.isCompleted ? "bg-muted" : ""}>
                 <td className="px-4 py-3 text-center">
                   <input
                     type="checkbox"
                     checked={it.isCompleted}
                     onChange={(e) => toggleMutation.mutate({ id: it.id, isCompleted: e.target.checked })}
-                    className="w-4 h-4 rounded accent-green-600 cursor-pointer"
+                    className="w-4 h-4 rounded accent-primary cursor-pointer"
                   />
                 </td>
                 <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{it.itemName}</td>

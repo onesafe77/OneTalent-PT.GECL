@@ -37,7 +37,9 @@ function Router() {
     return (
       <ProtectedRoute>
         <Suspense fallback={<LoadingScreen isLoading={true} />}>
-          <Workspace key={currentPath + window.location.search} />
+          {/* Tanpa key: sidebar & kerangka tetap hidup saat pindah menu. Yang di-reset
+              hanya isi halaman (lihat <Switch key> di workspace.tsx). */}
+          <Workspace />
         </Suspense>
       </ProtectedRoute>
     );

@@ -91,7 +91,7 @@ export default function UsignDetailPage() {
     const statusColors: any = {
         pending: "bg-amber-100 text-amber-700",
         in_progress: "bg-blue-100 text-blue-700",
-        completed: "bg-emerald-100 text-emerald-700",
+        completed: "bg-muted text-foreground",
         rejected: "bg-rose-100 text-rose-700",
     };
 
@@ -201,7 +201,7 @@ export default function UsignDetailPage() {
                                 }, new Map<string, typeof steps extends undefined ? any : NonNullable<typeof steps>[0]>()).values()
                             ).map((step, i) => (
                                 <div key={step.id} className="relative pl-12">
-                                    <div className={`absolute left-0 top-1 w-12 h-12 rounded-2xl flex items-center justify-center z-10 border-4 border-white shadow-sm transition-all ${step.status === 'completed' ? 'bg-emerald-500 text-white' :
+                                    <div className={`absolute left-0 top-1 w-12 h-12 rounded-2xl flex items-center justify-center z-10 border-4 border-white shadow-sm transition-all ${step.status === 'completed' ? 'bg-primary text-white' :
                                         step.status === 'current' ? 'bg-blue-600 text-white scale-110 shadow-lg' :
                                             'bg-slate-100 text-slate-400'
                                         }`}>
@@ -219,8 +219,8 @@ export default function UsignDetailPage() {
                                         </span>
                                         <span className="text-xs text-muted-foreground">{step.approver?.position || "Position"}</span>
                                         {step.status === 'completed' && (
-                                            <div className="mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-100">
-                                                <p className="text-[10px] text-emerald-800 flex items-center gap-1">
+                                            <div className="mt-2 p-2 bg-muted rounded-lg border border-border">
+                                                <p className="text-[10px] text-foreground flex items-center gap-1">
                                                     <CheckCircle2 className="w-3 h-3" /> Disetujui pada {format(new Date(step.respondedAt!), "d MMM yyyy, HH:mm")}
                                                 </p>
                                             </div>

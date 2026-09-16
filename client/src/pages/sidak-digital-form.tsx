@@ -299,7 +299,7 @@ export default function SidakDigitalForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.observers.length === 0}
                 >
@@ -581,25 +581,25 @@ export default function SidakDigitalForm() {
                                                 <p className="font-medium text-sm">{rec.nama}</p>
                                                 <p className="text-xs text-gray-500">{rec.nik} • {rec.perusahaan}</p>
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q1_lokasiKerja ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q1_lokasiKerja ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q1: {rec.q1_lokasiKerja ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q2_sapHazard ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q2_sapHazard ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q2: {rec.q2_sapHazard ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q3_sapInspeksi ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q3_sapInspeksi ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q3: {rec.q3_sapInspeksi ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q4_sapObservasi ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q4_sapObservasi ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q4: {rec.q4_sapObservasi ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q5_validasiFamous ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q5_validasiFamous ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q5: {rec.q5_validasiFamous ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q6_identifikasiBahaya ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q6_identifikasiBahaya ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q6: {rec.q6_identifikasiBahaya ? '✓' : '✗'}
                                                     </span>
-                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q7_prosedurKeselamatan ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${rec.q7_prosedurKeselamatan ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                         Q7: {rec.q7_prosedurKeselamatan ? '✓' : '✗'}
                                                     </span>
                                                 </div>
@@ -624,12 +624,12 @@ export default function SidakDigitalForm() {
                             {draft.observers.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.observers.map((obs, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                                                 <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

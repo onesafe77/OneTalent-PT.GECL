@@ -62,7 +62,7 @@ import { useToast } from "@/hooks/use-toast";
 // Helper to calculate status
 const getMonitoringStatus = (expiryDateStr?: string | null) => {
     // If no expiry date, assume Aktif (No Expiry) - or handle as "No Info"
-    if (!expiryDateStr) return { status: "Aktif", label: "Aktif (No Expiry)", color: "bg-green-100 text-green-700", icon: CheckCircle };
+    if (!expiryDateStr) return { status: "Aktif", label: "Aktif (No Expiry)", color: "bg-muted text-foreground", icon: CheckCircle };
 
     const today = new Date();
     const expiry = parseISO(expiryDateStr);
@@ -76,7 +76,7 @@ const getMonitoringStatus = (expiryDateStr?: string | null) => {
     } else if (diff <= 30) {
         return { status: "Warning", label: `Akan Habis (${format(expiry, "dd MMM yyyy")})`, color: "bg-yellow-100 text-yellow-700", icon: AlertTriangle };
     } else {
-        return { status: "Aktif", label: `Aktif (${format(expiry, "dd MMM yyyy")})`, color: "bg-green-100 text-green-700", icon: CheckCircle };
+        return { status: "Aktif", label: `Aktif (${format(expiry, "dd MMM yyyy")})`, color: "bg-muted text-foreground", icon: CheckCircle };
     }
 };
 
@@ -338,7 +338,7 @@ export default function CompetencyDashboard() {
                     <Button onClick={() => setIsAddOpen(true)} className="gap-2 bg-red-600 hover:bg-red-700 text-white">
                         <Plus className="w-4 h-4" /> Tambah Data
                     </Button>
-                    <Button onClick={handleExport} className="gap-2 bg-green-600 hover:bg-green-700">
+                    <Button onClick={handleExport} className="gap-2 bg-primary hover:bg-primary/90">
                         <Download className="w-4 h-4" /> Export CSV
                     </Button>
                 </div>
@@ -407,7 +407,7 @@ export default function CompetencyDashboard() {
                 <div className="overflow-x-auto">
                     <Table className="whitespace-nowrap">
                         <TableHeader>
-                            <TableRow className="bg-white dark:bg-zinc-900 border-b border-red-100 dark:border-red-900">
+                            <TableRow className="border-b border-red-100 dark:border-red-900">
                                 <TableHead className="w-[50px] text-xs font-semibold text-red-700 dark:text-red-300 text-center">No</TableHead>
                                 <TableHead className="text-xs font-semibold text-red-700 dark:text-red-300">NIK</TableHead>
                                 <TableHead className="text-xs font-semibold text-red-700 dark:text-red-300">Nama Karyawan</TableHead>
@@ -545,7 +545,7 @@ export default function CompetencyDashboard() {
                                 className="cursor-pointer"
                             />
                             {selectedFile && (
-                                <span className="text-xs text-green-600 font-medium whitespace-nowrap">
+                                <span className="text-xs text-foreground font-medium whitespace-nowrap">
                                     File dipilih
                                 </span>
                             )}
@@ -718,7 +718,7 @@ export default function CompetencyDashboard() {
                                     className="cursor-pointer"
                                 />
                                 {selectedFile && (
-                                    <span className="text-xs text-green-600 font-medium whitespace-nowrap">
+                                    <span className="text-xs text-foreground font-medium whitespace-nowrap">
                                         File dipilih
                                     </span>
                                 )}

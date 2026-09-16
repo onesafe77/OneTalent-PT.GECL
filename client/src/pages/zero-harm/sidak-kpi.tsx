@@ -14,7 +14,7 @@ interface Kpi { program: Program; year: number; weeks: number[]; officers: Offic
 const pct = (v: number | null | undefined) => (v == null ? "—" : Math.round(v * 100) + "%");
 const colorOf = (v: number | null) => {
   if (v == null) return "bg-slate-100 text-slate-400";
-  if (v >= 0.8) return "bg-green-100 text-green-700";
+  if (v >= 0.8) return "bg-muted text-foreground";
   if (v >= 0.5) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-700";
 };

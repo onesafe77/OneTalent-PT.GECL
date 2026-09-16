@@ -228,7 +228,7 @@ export default function SidakSopKritisForm() {
 
     const StatusButtons = ({ value, onChange, withNA, size = "md" }: { value: string; onChange: (v: string) => void; withNA?: boolean; size?: "sm" | "md" }) => {
         const opts = withNA ? ["Ya", "Tidak", "N/A"] : ["Ya", "Tidak"];
-        const color = (o: string) => o === "Ya" ? "bg-green-500 border-green-500" : o === "Tidak" ? "bg-red-500 border-red-500" : "bg-gray-500 border-gray-500";
+        const color = (o: string) => o === "Ya" ? "bg-primary border-border" : o === "Tidak" ? "bg-red-500 border-red-500" : "bg-gray-500 border-gray-500";
         return (
             <div className={cn("grid gap-1.5", withNA ? "grid-cols-3" : "grid-cols-2")}>
                 {opts.map((o) => (
@@ -276,7 +276,7 @@ export default function SidakSopKritisForm() {
             </Button>
         );
         if (step === 5) return (
-            <Button className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold" onClick={() => finishMutation.mutate()} disabled={finishMutation.isPending}>
+            <Button className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold" onClick={() => finishMutation.mutate()} disabled={finishMutation.isPending}>
                 {finishMutation.isPending ? "Menyimpan..." : (isEdit ? "Perbarui & Simpan" : "Selesai & Simpan")} <Check className="ml-2 h-5 w-5" />
             </Button>
         );
@@ -310,7 +310,7 @@ export default function SidakSopKritisForm() {
                         <div className="flex justify-between mt-4">
                             {steps.map((s) => (
                                 <div key={s.n} className={cn("flex flex-col items-center", step >= s.n ? "opacity-100" : "opacity-40")}>
-                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > s.n ? "bg-green-500 text-white" : "bg-blue-600 text-white")}>
+                                    <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > s.n ? "bg-primary text-white" : "bg-blue-600 text-white")}>
                                         {step > s.n ? <Check className="w-4 h-4" /> : s.n}
                                     </div>
                                     <span className="text-[10px] font-medium">{s.label}</span>
@@ -494,7 +494,7 @@ export default function SidakSopKritisForm() {
                                             <p className="text-xs text-gray-500">{o.departemenPerusahaan}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Check className="text-green-600 w-5 h-5" />
+                                            <Check className="text-foreground w-5 h-5" />
                                             <button onClick={() => setObservers(observers.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
                                         </div>
                                     </div>
@@ -522,9 +522,9 @@ export default function SidakSopKritisForm() {
                 {/* Step 5: Ringkasan */}
                 {step === 5 && (
                     <Card className="animate-in fade-in slide-in-from-bottom-4">
-                        <CardHeader className="bg-green-600 text-white rounded-t-lg">
+                        <CardHeader className="bg-primary text-white rounded-t-lg">
                             <CardTitle>Ringkasan</CardTitle>
-                            <CardDescription className="text-green-100">Review sebelum disimpan</CardDescription>
+                            <CardDescription className="text-muted-foreground">Review sebelum disimpan</CardDescription>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-3 text-sm">
                             {selectedKartu && (

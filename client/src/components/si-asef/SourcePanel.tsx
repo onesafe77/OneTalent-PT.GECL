@@ -18,7 +18,7 @@ const SourcePanel: React.FC<SourcePanelProps> = ({ source, onClose }) => {
             />
 
             <aside className="fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50 flex flex-col animate-slide-in-right border-l border-zinc-200">
-                <header className="flex-none bg-emerald-600 text-white px-5 py-4">
+                <header className="flex-none bg-primary text-white px-5 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
@@ -26,7 +26,7 @@ const SourcePanel: React.FC<SourcePanelProps> = ({ source, onClose }) => {
                             </div>
                             <div>
                                 <h2 className="font-bold text-lg">Sumber Referensi</h2>
-                                <p className="text-emerald-100 text-xs">Detail dokumen</p>
+                                <p className="text-muted-foreground text-xs">Detail dokumen</p>
                             </div>
                         </div>
                         <button
@@ -41,15 +41,15 @@ const SourcePanel: React.FC<SourcePanelProps> = ({ source, onClose }) => {
                 <div className="flex-1 overflow-y-auto">
                     <div className="p-5 border-b border-zinc-100 bg-zinc-50">
                         <div className="flex items-start gap-3">
-                            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                                <FileText className="w-6 h-6 text-emerald-600" />
+                            <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-6 h-6 text-foreground" />
                             </div>
                             <div className="flex-1">
                                 <h3 className="font-bold text-zinc-900 text-sm leading-tight mb-1 break-words">
                                     {source.documentName}
                                 </h3>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-xs font-medium text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                                    <span className="text-xs font-medium text-foreground bg-muted px-2 py-0.5 rounded-full">
                                         Halaman {source.pageNumber}
                                     </span>
                                     {/* Removed Chunk ID display as it might be UUID now */}

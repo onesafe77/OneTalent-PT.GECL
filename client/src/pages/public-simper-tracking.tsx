@@ -50,7 +50,7 @@ export default function PublicSimperTracking() {
         switch (status) {
             case "Selesai":
             case "Approved":
-                return "bg-emerald-500 hover:bg-emerald-600 text-white";
+                return "bg-primary hover:bg-primary/90 text-white";
             case "Rejected":
                 return "bg-red-500 hover:bg-red-600 text-white";
             case "Dalam Proses":
@@ -114,7 +114,7 @@ export default function PublicSimperTracking() {
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-12">
             {/* Header Banner */}
-            <div className="bg-gradient-to-br from-blue-700 via-blue-800 to-indigo-900 pt-12 pb-24 px-4 text-center relative overflow-hidden">
+            <div className="bg-gradient-to-br from-[#DF2A33] via-[#BA1B23] to-[#96161C] pt-12 pb-24 px-4 text-center relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
                     <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-white rounded-full blur-3xl animate-pulse" />
                     <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-300 rounded-full blur-3xl animate-pulse delay-700" />
@@ -123,8 +123,8 @@ export default function PublicSimperTracking() {
                 <div className="relative z-10 max-w-lg mx-auto">
                     <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold tracking-widest uppercase mb-4">
                         <span className="relative flex h-2 w-2 mr-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-muted opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                         </span>
                         Live Status Tracking
                     </div>
@@ -142,7 +142,7 @@ export default function PublicSimperTracking() {
                 {/* Status Card */}
                 <Card className="rounded-[40px] shadow-2xl border-none overflow-hidden bg-white ring-1 ring-slate-100">
                     <CardContent className="p-0">
-                        <div className={`p-6 text-center ${record.statusPerpanjangan === 'Selesai' ? 'bg-emerald-50' : 'bg-blue-50/50'}`}>
+                        <div className={`p-6 text-center ${record.statusPerpanjangan === 'Selesai' ? 'bg-muted' : 'bg-blue-50/50'}`}>
                             <Badge className={`${getStatusColor(record.statusPerpanjangan)} px-6 py-2 rounded-full text-base font-bold shadow-md transform -translate-y-2`}>
                                 {record.statusPerpanjangan}
                             </Badge>
@@ -222,7 +222,7 @@ export default function PublicSimperTracking() {
                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500 shadow-md ${isActive
                                             ? 'bg-blue-600 text-white scale-110 ring-8 ring-blue-50'
                                             : isCompleted
-                                                ? 'bg-emerald-500 text-white'
+                                                ? 'bg-primary text-white'
                                                 : 'bg-white text-slate-300 border-2 border-slate-100'
                                             }`}>
                                             {isCompleted ? <CheckCircle2 className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
@@ -236,7 +236,7 @@ export default function PublicSimperTracking() {
                                                 <p className="text-[10px] text-blue-400 font-bold mt-1 animate-pulse uppercase tracking-wider">In Progress</p>
                                             )}
                                             {isCompleted && (
-                                                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1 underline decoration-emerald-100 underline-offset-2">Completed</p>
+                                                <p className="text-[10px] text-foreground font-bold uppercase tracking-widest mt-1 underline decoration-primary underline-offset-2">Completed</p>
                                             )}
                                         </div>
                                         {isActive && (

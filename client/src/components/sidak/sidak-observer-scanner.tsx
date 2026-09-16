@@ -203,7 +203,7 @@ export function SidakObserverScanner({ onScanSuccess, onCancel, autoStart = true
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
+      <div className="bg-gradient-to-r from-[#DF2A33] to-[#96161C] text-white p-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">Scan QR Observer</h2>
         <Button
           variant="ghost"

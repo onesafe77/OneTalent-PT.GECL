@@ -79,7 +79,7 @@ export function FatigueInterventionDialog({
                     {/* Evidence Upload */}
                     <div className="space-y-2">
                         <Label>Bukti Intervensi (Foto) - <span className="text-gray-400 font-normal">Opsional jika ada catatan</span></Label>
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer" onClick={handleCapture}>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-muted transition-colors cursor-pointer" onClick={handleCapture}>
                             {evidence ? (
                                 <div className="relative w-full h-48">
                                     <img src={evidence} alt="Evidence" className="w-full h-full object-cover rounded-md" />

@@ -23,397 +23,397 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { format } from "date-fns";
 
 export default function MonitoringSimperEvAdmin() {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-    const [csvUrl, setCsvUrl] = useState("");
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [isMitraDialogOpen, setIsMitraDialogOpen] = useState(false);
-    const [newMitraName, setNewMitraName] = useState("");
-    const [newMitraPhone, setNewMitraPhone] = useState("");
-    const [editingMitra, setEditingMitra] = useState<SimperMitra | null>(null);
-    const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+ const [searchTerm, setSearchTerm] = useState("");
+ const [page, setPage] = useState(1);
+ const [pageSize, setPageSize] = useState(10);
+ const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+ const [csvUrl, setCsvUrl] = useState("");
+ const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+ const [isMitraDialogOpen, setIsMitraDialogOpen] = useState(false);
+ const [newMitraName, setNewMitraName] = useState("");
+ const [newMitraPhone, setNewMitraPhone] = useState("");
+ const [editingMitra, setEditingMitra] = useState<SimperMitra | null>(null);
+ const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
 
     // Generate QR Code
-    useEffect(() => {
-        const url = window.location.origin + "/monitoring-simper-ev";
+ useEffect(() => {
+ const url = window.location.origin + "/monitoring-simper-ev";
         QRCode.toDataURL(url, { width: 300, margin: 2 }, (err, url) => {
-            if (!err) setQrCodeUrl(url);
+ if (!err) setQrCodeUrl(url);
         });
     }, []);
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [currentEmployee, setCurrentEmployee] = useState<Partial<SimperEvMonitoring>>({});
-    const [isEditMode, setIsEditMode] = useState(false);
-    const [selectedHistoryEmployee, setSelectedHistoryEmployee] = useState<SimperEvMonitoring | null>(null);
-    const [isNotificationLogOpen, setIsNotificationLogOpen] = useState(false);
-    const [selectedEmployeeForNotifLog, setSelectedEmployeeForNotifLog] = useState<SimperEvMonitoring | null>(null);
-    const [editingHistory, setEditingHistory] = useState<SimperEvHistory | null>(null);
-    const [newHistory, setNewHistory] = useState({
-        approver: "",
-        status: "APPROVED",
-        workflowLevel: "Waiting Approval by Admin STC",
-        workflowType: "VERSATILITY ORIENTASI",
-        message: "Ok"
+ const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+ const [currentEmployee, setCurrentEmployee] = useState<Partial<SimperEvMonitoring>>({});
+ const [isEditMode, setIsEditMode] = useState(false);
+ const [selectedHistoryEmployee, setSelectedHistoryEmployee] = useState<SimperEvMonitoring | null>(null);
+ const [isNotificationLogOpen, setIsNotificationLogOpen] = useState(false);
+ const [selectedEmployeeForNotifLog, setSelectedEmployeeForNotifLog] = useState<SimperEvMonitoring | null>(null);
+ const [editingHistory, setEditingHistory] = useState<SimperEvHistory | null>(null);
+ const [newHistory, setNewHistory] = useState({
+ approver: "",
+ status: "APPROVED",
+ workflowLevel: "Waiting Approval by Admin STC",
+ workflowType: "VERSATILITY ORIENTASI",
+ message: "Ok"
     });
 
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const { toast } = useToast();
+ const fileInputRef = useRef<HTMLInputElement>(null);
+ const { toast } = useToast();
 
     // Reset Form
-    const resetForm = () => {
-        setCurrentEmployee({});
-        setIsEditMode(false);
+ const resetForm = () => {
+ setCurrentEmployee({});
+ setIsEditMode(false);
     };
 
-    const handleEdit = (record: SimperEvMonitoring) => {
-        setCurrentEmployee(record);
-        setIsEditMode(true);
-        setIsEditDialogOpen(true);
+ const handleEdit = (record: SimperEvMonitoring) => {
+ setCurrentEmployee(record);
+ setIsEditMode(true);
+ setIsEditDialogOpen(true);
     };
 
     // Fetch Records (Paginated)
-    const { data: queryData, isLoading } = useQuery<{ data: SimperEvMonitoring[], total: number }>({
-        queryKey: ["simper-ev-all", page, pageSize, searchTerm], // Dependencies trigger refetch
-        queryFn: async () => {
-            const params = new URLSearchParams({
-                page: page.toString(),
-                limit: pageSize.toString(),
-                search: searchTerm
+ const { data: queryData, isLoading } = useQuery<{ data: SimperEvMonitoring[], total: number }>({
+ queryKey: ["simper-ev-all", page, pageSize, searchTerm], // Dependencies trigger refetch
+ queryFn: async () => {
+ const params = new URLSearchParams({
+ page: page.toString(),
+ limit: pageSize.toString(),
+ search: searchTerm
             });
-            const data = await apiRequest(`/api/simper-ev/all?${params.toString()}`, "GET");
+ const data = await apiRequest(`/api/simper-ev/all?${params.toString()}`, "GET");
             // Backend should return { data, total }, but handle array fallback just in case
-            if (Array.isArray(data)) return { data, total: data.length };
-            return data;
+ if (Array.isArray(data)) return { data, total: data.length };
+ return data;
         },
-        placeholderData: (previousData) => previousData // Keep previous data while fetching new page
+ placeholderData: (previousData) => previousData // Keep previous data while fetching new page
     });
 
-    const records = queryData?.data || [];
-    const totalItems = queryData?.total || 0;
-    const totalPages = Math.ceil(totalItems / pageSize);
+ const records = queryData?.data || [];
+ const totalItems = queryData?.total || 0;
+ const totalPages = Math.ceil(totalItems / pageSize);
 
     // Fetch Mitras
-    const { data: mitras = [] } = useQuery<SimperMitra[]>({
-        queryKey: ["simper-mitras"],
-        queryFn: async () => {
-            return await apiRequest("/api/simper-mitra", "GET");
+ const { data: mitras = [] } = useQuery<SimperMitra[]>({
+ queryKey: ["simper-mitras"],
+ queryFn: async () => {
+ return await apiRequest("/api/simper-mitra", "GET");
         },
     });
 
     // Fetch Settings
-    const { data: settings } = useQuery({
-        queryKey: ["simper-ev-settings"],
-        queryFn: async () => {
-            return await apiRequest("/api/simper-ev/settings", "GET");
+ const { data: settings } = useQuery({
+ queryKey: ["simper-ev-settings"],
+ queryFn: async () => {
+ return await apiRequest("/api/simper-ev/settings", "GET");
         },
     });
 
-    useEffect(() => {
-        if (settings?.url) {
-            setCsvUrl(settings.url);
+ useEffect(() => {
+ if (settings?.url) {
+ setCsvUrl(settings.url);
         }
     }, [settings]);
 
     // Sync from URL Mutation
-    const syncMutation = useMutation({
-        mutationFn: async () => {
-            return await apiRequest("/api/simper-ev/sync", "POST", { url: csvUrl });
+ const syncMutation = useMutation({
+ mutationFn: async () => {
+ return await apiRequest("/api/simper-ev/sync", "POST", { url: csvUrl });
         },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-settings"] });
-            toast({
-                title: "Sinkronisasi Berhasil",
-                description: `${data.message}. Total: ${data.count} data.`,
+ onSuccess: (data) => {
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-settings"] });
+ toast({
+ title: "Sinkronisasi Berhasil",
+ description: `${data.message}. Total: ${data.count} data.`,
             });
         },
-        onError: (err: any) => {
-            toast({
-                title: "Sinkronisasi Gagal",
-                description: err.message || "Gagal melakukan sinkronisasi dengan URL.",
-                variant: "destructive",
+ onError: (err: any) => {
+ toast({
+ title: "Sinkronisasi Gagal",
+ description: err.message || "Gagal melakukan sinkronisasi dengan URL.",
+ variant: "destructive",
             });
         }
     });
 
-    const uploadMutation = useMutation({
-        mutationFn: async (file: File) => {
-            const formData = new FormData();
-            formData.append("csvFile", file);
-            const res = await fetch("/api/simper-ev/upload", {
-                method: "POST",
-                body: formData,
+ const uploadMutation = useMutation({
+ mutationFn: async (file: File) => {
+ const formData = new FormData();
+ formData.append("csvFile", file);
+ const res = await fetch("/api/simper-ev/upload", {
+ method: "POST",
+ body: formData,
             });
-            if (!res.ok) throw new Error("Upload failed");
-            return res.json();
+ if (!res.ok) throw new Error("Upload failed");
+ return res.json();
         },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
-            setIsUploadDialogOpen(false);
-            toast({
-                title: "Upload Berhasil",
-                description: `Import berhasil: ${data.count} data.`,
+ onSuccess: (data) => {
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
+ setIsUploadDialogOpen(false);
+ toast({
+ title: "Upload Berhasil",
+ description: `Import berhasil: ${data.count} data.`,
             });
         },
-        onError: (err) => {
-            toast({
-                title: "Upload Gagal",
-                description: "Gagal memproses file CSV.",
-                variant: "destructive",
+ onError: (err) => {
+ toast({
+ title: "Upload Gagal",
+ description: "Gagal memproses file CSV.",
+ variant: "destructive",
             });
         },
     });
 
     // CRUD Mutations
-    const createMutation = useMutation({
-        mutationFn: async (data: Partial<SimperEvMonitoring>) => {
-            return await apiRequest("/api/simper-ev", "POST", data);
+ const createMutation = useMutation({
+ mutationFn: async (data: Partial<SimperEvMonitoring>) => {
+ return await apiRequest("/api/simper-ev", "POST", data);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
-            setIsEditDialogOpen(false);
-            resetForm();
-            toast({ title: "Berhasil", description: "Data berhasil ditambahkan" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
+ setIsEditDialogOpen(false);
+ resetForm();
+ toast({ title: "Berhasil", description: "Data berhasil ditambahkan" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const updateMutation = useMutation({
-        mutationFn: async (data: Partial<SimperEvMonitoring>) => {
-            return await apiRequest(`/api/simper-ev/${data.id}`, "PUT", data);
+ const updateMutation = useMutation({
+ mutationFn: async (data: Partial<SimperEvMonitoring>) => {
+ return await apiRequest(`/api/simper-ev/${data.id}`, "PUT", data);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
-            setIsEditDialogOpen(false);
-            resetForm();
-            toast({ title: "Berhasil", description: "Data berhasil diperbarui" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
+ setIsEditDialogOpen(false);
+ resetForm();
+ toast({ title: "Berhasil", description: "Data berhasil diperbarui" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const deleteMutation = useMutation({
-        mutationFn: async (id: string) => {
-            return await apiRequest(`/api/simper-ev/${id}`, "DELETE");
+ const deleteMutation = useMutation({
+ mutationFn: async (id: string) => {
+ return await apiRequest(`/api/simper-ev/${id}`, "DELETE");
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
-            toast({ title: "Berhasil", description: "Data berhasil dihapus" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
+ toast({ title: "Berhasil", description: "Data berhasil dihapus" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
     // Mitra Mutations
-    const createMitraMutation = useMutation({
-        mutationFn: async (data: { name: string, phoneNumber: string }) => {
-            return await apiRequest("/api/simper-mitra", "POST", data);
+ const createMitraMutation = useMutation({
+ mutationFn: async (data: { name: string, phoneNumber: string }) => {
+ return await apiRequest("/api/simper-mitra", "POST", data);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-mitras"] });
-            setNewMitraName("");
-            setNewMitraPhone("");
-            toast({ title: "Berhasil", description: "Mitra berhasil ditambahkan" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-mitras"] });
+ setNewMitraName("");
+ setNewMitraPhone("");
+ toast({ title: "Berhasil", description: "Mitra berhasil ditambahkan" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const updateMitraMutation = useMutation({
-        mutationFn: async (data: { id: string, name: string, phoneNumber: string }) => {
-            return await apiRequest(`/api/simper-mitra/${data.id}`, "PUT", { name: data.name, phoneNumber: data.phoneNumber });
+ const updateMitraMutation = useMutation({
+ mutationFn: async (data: { id: string, name: string, phoneNumber: string }) => {
+ return await apiRequest(`/api/simper-mitra/${data.id}`, "PUT", { name: data.name, phoneNumber: data.phoneNumber });
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-mitras"] });
-            setEditingMitra(null);
-            setNewMitraName("");
-            setNewMitraPhone("");
-            toast({ title: "Berhasil", description: "Mitra berhasil diupdate" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-mitras"] });
+ setEditingMitra(null);
+ setNewMitraName("");
+ setNewMitraPhone("");
+ toast({ title: "Berhasil", description: "Mitra berhasil diupdate" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const notifyMitraMutation = useMutation({
-        mutationFn: async (data: { phone: string, message: string }) => {
-            const res = await fetch("/api/simper-mitra/notify", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(data)
+ const notifyMitraMutation = useMutation({
+ mutationFn: async (data: { phone: string, message: string }) => {
+ const res = await fetch("/api/simper-mitra/notify", {
+ method: "POST",
+ headers: { "Content-Type": "application/json" },
+ body: JSON.stringify(data)
             });
-            if (!res.ok) {
-                const error = await res.json();
-                throw new Error(error.error || "Gagal kirim notifikasi");
+ if (!res.ok) {
+ const error = await res.json();
+ throw new Error(error.error || "Gagal kirim notifikasi");
             }
-            return res.json();
+ return res.json();
         },
-        onSuccess: () => {
-            toast({ title: "Terkirim", description: "Notifikasi WhatsApp berhasil dikirim" });
+ onSuccess: () => {
+ toast({ title: "Terkirim", description: "Notifikasi WhatsApp berhasil dikirim" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const deleteMitraMutation = useMutation({
-        mutationFn: async (id: string) => {
-            return await apiRequest(`/api/simper-mitra/${id}`, "DELETE");
+ const deleteMitraMutation = useMutation({
+ mutationFn: async (id: string) => {
+ return await apiRequest(`/api/simper-mitra/${id}`, "DELETE");
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-mitras"] });
-            toast({ title: "Berhasil", description: "Mitra berhasil dihapus" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-mitras"] });
+ toast({ title: "Berhasil", description: "Mitra berhasil dihapus" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const handleSubmit = () => {
-        if (isEditMode) {
-            updateMutation.mutate(currentEmployee);
+ const handleSubmit = () => {
+ if (isEditMode) {
+ updateMutation.mutate(currentEmployee);
         } else {
-            createMutation.mutate(currentEmployee);
+ createMutation.mutate(currentEmployee);
         }
     };
 
-    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            uploadMutation.mutate(file);
+ const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+ const file = e.target.files?.[0];
+ if (file) {
+ uploadMutation.mutate(file);
         }
     };
 
-    const downloadTemplate = () => {
+ const downloadTemplate = () => {
         // Create a CSV template
-        const headers = [
-            "No", "Nama", "NIK Simper", "Mitra",
-            "Simper", "Simper Permanen",
-            "UNIT YG DI SKILL UP", "Masa Berlaku Sertifikat OS", "Status Pengajuan"
+ const headers = [
+ "No", "Nama", "NIK Simper", "Mitra",
+ "Simper", "Simper Permanen",
+ "UNIT YG DI SKILL UP", "Masa Berlaku Sertifikat OS", "Status Pengajuan"
         ];
-        const ws = XLSX.utils.aoa_to_sheet([headers]);
-        const csvOutput = XLSX.utils.sheet_to_csv(ws);
+ const ws = XLSX.utils.aoa_to_sheet([headers]);
+ const csvOutput = XLSX.utils.sheet_to_csv(ws);
 
         // Download
-        const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", "template_simper_ev.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+ const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
+ const url = URL.createObjectURL(blob);
+ const link = document.createElement("a");
+ link.setAttribute("href", url);
+ link.setAttribute("download", "template_simper_ev.csv");
+ document.body.appendChild(link);
+ link.click();
+ document.body.removeChild(link);
     };
 
     // Removed client-side filtering; server handles it via 'searchTerm' in query key
-    const filteredData = records;
+ const filteredData = records;
 
     // History Tracker State removed from here (moved to top)
 
 
     // Fetch History
-    const { data: historyRecords = [], refetch: refetchHistory } = useQuery<SimperEvHistory[]>({
-        queryKey: ["simper-history", selectedHistoryEmployee?.nikSimper],
-        queryFn: async () => {
-            if (!selectedHistoryEmployee?.nikSimper) return [];
-            return await apiRequest(`/api/simper-ev/${selectedHistoryEmployee.nikSimper}/history`, "GET");
+ const { data: historyRecords = [], refetch: refetchHistory } = useQuery<SimperEvHistory[]>({
+ queryKey: ["simper-history", selectedHistoryEmployee?.nikSimper],
+ queryFn: async () => {
+ if (!selectedHistoryEmployee?.nikSimper) return [];
+ return await apiRequest(`/api/simper-ev/${selectedHistoryEmployee.nikSimper}/history`, "GET");
         },
-        enabled: !!selectedHistoryEmployee?.nikSimper
+ enabled: !!selectedHistoryEmployee?.nikSimper
     });
 
     // Fetch Notification Logs for Selected Employee
-    const { data: notificationLogs = [], refetch: refetchNotificationLogs } = useQuery<any[]>({
-        queryKey: ["simper-notification-logs", selectedEmployeeForNotifLog?.nikSimper],
-        queryFn: async () => {
-            if (!selectedEmployeeForNotifLog?.nikSimper) return [];
-            return await apiRequest(`/api/simper-ev/${selectedEmployeeForNotifLog.nikSimper}/notification-logs`, "GET");
+ const { data: notificationLogs = [], refetch: refetchNotificationLogs } = useQuery<any[]>({
+ queryKey: ["simper-notification-logs", selectedEmployeeForNotifLog?.nikSimper],
+ queryFn: async () => {
+ if (!selectedEmployeeForNotifLog?.nikSimper) return [];
+ return await apiRequest(`/api/simper-ev/${selectedEmployeeForNotifLog.nikSimper}/notification-logs`, "GET");
         },
-        enabled: !!selectedEmployeeForNotifLog?.nikSimper
+ enabled: !!selectedEmployeeForNotifLog?.nikSimper
     });
 
     // Fetch WhatsApp Config Status
-    const { data: whatsappConfig } = useQuery({
-        queryKey: ["whatsapp-config-status"],
-        queryFn: async () => {
-            return await apiRequest("/api/simper-ev/whatsapp-config-status", "GET");
+ const { data: whatsappConfig } = useQuery({
+ queryKey: ["whatsapp-config-status"],
+ queryFn: async () => {
+ return await apiRequest("/api/simper-ev/whatsapp-config-status", "GET");
         },
     });
 
     // Add History Mutation
-    const addHistoryMutation = useMutation({
-        mutationFn: async (data: { nikSimper: string, newRecord: typeof newHistory }) => {
-            return await apiRequest(`/api/simper-ev/${data.nikSimper}/history`, "POST", data.newRecord);
+ const addHistoryMutation = useMutation({
+ mutationFn: async (data: { nikSimper: string, newRecord: typeof newHistory }) => {
+ return await apiRequest(`/api/simper-ev/${data.nikSimper}/history`, "POST", data.newRecord);
         },
-        onSuccess: (data, variables) => {
-            refetchHistory();
-            queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
+ onSuccess: (data, variables) => {
+ refetchHistory();
+ queryClient.invalidateQueries({ queryKey: ["simper-ev-all"] });
 
             // Optimistically update the local selected employee state so the "Status Saat Ini" badge updates immediately
-            if (selectedHistoryEmployee && variables.newRecord.workflowLevel) {
-                setSelectedHistoryEmployee({
+ if (selectedHistoryEmployee && variables.newRecord.workflowLevel) {
+ setSelectedHistoryEmployee({
                     ...selectedHistoryEmployee,
-                    statusPengajuan: variables.newRecord.workflowLevel
+ statusPengajuan: variables.newRecord.workflowLevel
                 });
             }
 
-            setNewHistory(prev => ({ ...prev, message: "", workflowLevel: "" })); // Reset some fields
-            toast({ title: "Berhasil", description: "Riwayat approval berhasil ditambahkan." });
+ setNewHistory(prev => ({ ...prev, message: "", workflowLevel: "" })); // Reset some fields
+ toast({ title: "Berhasil", description: "Riwayat approval berhasil ditambahkan." });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const updateHistoryMutation = useMutation({
-        mutationFn: async (data: { id: string, updatedRecord: Partial<SimperEvHistory> }) => {
-            return await apiRequest(`/api/simper-ev/history/${data.id}`, "PUT", data.updatedRecord);
+ const updateHistoryMutation = useMutation({
+ mutationFn: async (data: { id: string, updatedRecord: Partial<SimperEvHistory> }) => {
+ return await apiRequest(`/api/simper-ev/history/${data.id}`, "PUT", data.updatedRecord);
         },
-        onSuccess: () => {
-            refetchHistory();
-            toast({ title: "Berhasil", description: "Riwayat approval berhasil diperbarui." });
-            setEditingHistory(null);
+ onSuccess: () => {
+ refetchHistory();
+ toast({ title: "Berhasil", description: "Riwayat approval berhasil diperbarui." });
+ setEditingHistory(null);
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
-    const deleteHistoryMutation = useMutation({
-        mutationFn: async (id: string) => {
-            return await apiRequest(`/api/simper-ev/history/${id}`, "DELETE");
+ const deleteHistoryMutation = useMutation({
+ mutationFn: async (id: string) => {
+ return await apiRequest(`/api/simper-ev/history/${id}`, "DELETE");
         },
-        onSuccess: () => {
-            refetchHistory();
-            toast({ title: "Berhasil", description: "Riwayat approval berhasil dihapus." });
+ onSuccess: () => {
+ refetchHistory();
+ toast({ title: "Berhasil", description: "Riwayat approval berhasil dihapus." });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         }
     });
 
     // Manual Send Notification Mutation
-    const sendNotificationMutation = useMutation({
-        mutationFn: async (historyId: string) => {
-            return await apiRequest(`/api/simper-ev/history/${historyId}/resend-notification`, "POST");
+ const sendNotificationMutation = useMutation({
+ mutationFn: async (historyId: string) => {
+ return await apiRequest(`/api/simper-ev/history/${historyId}/resend-notification`, "POST");
         },
-        onSuccess: (data) => {
-            refetchNotificationLogs();
-            toast({
-                title: "Notifikasi Terkirim",
-                description: `Notifikasi WhatsApp berhasil dikirim ke ${data.details?.recipientName}`
+ onSuccess: (data) => {
+ refetchNotificationLogs();
+ toast({
+ title: "Notifikasi Terkirim",
+ description: `Notifikasi WhatsApp berhasil dikirim ke ${data.details?.recipientName}`
             });
         },
-        onError: (err: any) => {
-            toast({
-                title: "Gagal Mengirim Notifikasi",
-                description: err.message || "Terjadi kesalahan saat mengirim notifikasi",
-                variant: "destructive"
+ onError: (err: any) => {
+ toast({
+ title: "Gagal Mengirim Notifikasi",
+ description: err.message || "Terjadi kesalahan saat mengirim notifikasi",
+ variant: "destructive"
             });
         }
     });
@@ -422,44 +422,44 @@ export default function MonitoringSimperEvAdmin() {
 
 
     // Dashboard Statistics Calculation
-    const distributionStats = useMemo(() => {
-        const stats = {
-            approved: records.filter(r => r.statusPengajuan === "APPROVED").length,
-            pending: records.filter(r => r.statusPengajuan !== "APPROVED" && r.statusPengajuan !== "REJECTED" && !(r.statusPengajuan || "").toLowerCase().includes("selesai")).length,
-            rejected: records.filter(r => r.statusPengajuan === "REJECTED").length,
-            completed: records.filter(r => (r.statusPengajuan || "").toLowerCase().includes("selesai")).length,
+ const distributionStats = useMemo(() => {
+ const stats = {
+ approved: records.filter(r => r.statusPengajuan === "APPROVED").length,
+ pending: records.filter(r => r.statusPengajuan !== "APPROVED" && r.statusPengajuan !== "REJECTED" && !(r.statusPengajuan || "").toLowerCase().includes("selesai")).length,
+ rejected: records.filter(r => r.statusPengajuan === "REJECTED").length,
+ completed: records.filter(r => (r.statusPengajuan || "").toLowerCase().includes("selesai")).length,
         };
-        return [
-            { name: "Selesai", value: stats.completed, color: "#10b981" }, // Emerald
-            { name: "Approved", value: stats.approved, color: "#3b82f6" }, // Blue
-            { name: "Proses", value: stats.pending, color: "#f59e0b" },   // Amber
-            { name: "Ditolak", value: stats.rejected, color: "#ef4444" }, // Red
+ return [
+            { name: "Selesai", value: stats.completed, color: "var(--grafik-1)" },
+            { name: "Approved", value: stats.approved, color: "var(--grafik-3)" },
+            { name: "Proses", value: stats.pending, color: "var(--grafik-5)" },
+            { name: "Ditolak", value: stats.rejected, color: "var(--grafik-7)" },
         ].filter(i => i.value > 0);
     }, [records]);
 
-    const mitraStats = useMemo(() => {
-        const counts: Record<string, number> = {};
-        records.forEach(r => {
-            const mitra = r.asalMitra || "Lainnya";
-            counts[mitra] = (counts[mitra] || 0) + 1;
+ const mitraStats = useMemo(() => {
+ const counts: Record<string, number> = {};
+ records.forEach(r => {
+ const mitra = r.asalMitra || "Lainnya";
+ counts[mitra] = (counts[mitra] || 0) + 1;
         });
-        return Object.entries(counts)
+ return Object.entries(counts)
             .map(([name, value]) => ({ name, value }))
             .sort((a, b) => b.value - a.value)
             .slice(0, 10); // Top 10 Mitra
     }, [records]);
 
-    return (
-        <div className="min-h-screen bg-slate-50/50 space-y-8 pb-20">
+ return (
+        <div className="min-h-screen bg-muted/50 space-y-8 pb-20">
             {/* Header Modern */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-30 bg-white/80 backdrop-blur-md">
+            <div className="bg-white border-b border-border sticky top-0 z-30 bg-card">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-600">
+                            <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-foreground">
                                 Monitoring Simper EV
                             </h1>
-                            <div className="text-slate-500 text-sm mt-1 flex items-center gap-2">
+                            <div className="text-muted-foreground text-sm mt-1 flex items-center gap-2">
                                 Dashboard Evaluasi & Manajemen Pengajuan
                                 {whatsappConfig && (
                                     <Badge variant={whatsappConfig.configured ? "default" : "destructive"} className="ml-2">
@@ -491,11 +491,11 @@ export default function MonitoringSimperEvAdmin() {
                                         </Button>
                                         <div className="grid w-full max-w-sm items-center gap-1.5">
                                             <Input
-                                                ref={fileInputRef}
-                                                type="file"
-                                                accept=".csv"
-                                                onChange={handleFileUpload}
-                                                disabled={uploadMutation.isPending}
+ ref={fileInputRef}
+ type="file"
+ accept=".csv"
+ onChange={handleFileUpload}
+ disabled={uploadMutation.isPending}
                                             />
                                             <p className="text-xs text-gray-500">Upload file .csv dengan header yang sesuai.</p>
                                         </div>
@@ -529,41 +529,41 @@ export default function MonitoringSimperEvAdmin() {
                                         <div className="grid gap-2">
                                             <div className="flex gap-2">
                                                 <Input
-                                                    placeholder="Nama Mitra Baru..."
-                                                    value={newMitraName}
-                                                    onChange={(e) => setNewMitraName(e.target.value)}
-                                                    className="flex-1"
+ placeholder="Nama Mitra Baru..."
+ value={newMitraName}
+ onChange={(e) => setNewMitraName(e.target.value)}
+ className="flex-1"
                                                 />
                                                 <Input
-                                                    placeholder="No. HP / WA (08...)"
-                                                    value={newMitraPhone}
-                                                    onChange={(e) => setNewMitraPhone(e.target.value)}
-                                                    className="w-[180px]"
+ placeholder="No. HP / WA (08...)"
+ value={newMitraPhone}
+ onChange={(e) => setNewMitraPhone(e.target.value)}
+ className="w-[180px]"
                                                 />
                                                 <Button
-                                                    onClick={() => {
-                                                        if (editingMitra) {
-                                                            updateMitraMutation.mutate({
-                                                                id: editingMitra.id,
-                                                                name: newMitraName,
-                                                                phoneNumber: newMitraPhone
+ onClick={() => {
+ if (editingMitra) {
+ updateMitraMutation.mutate({
+ id: editingMitra.id,
+ name: newMitraName,
+ phoneNumber: newMitraPhone
                                                             });
-                                                            setEditingMitra(null);
+ setEditingMitra(null);
                                                         } else {
-                                                            createMitraMutation.mutate({ name: newMitraName, phoneNumber: newMitraPhone });
+ createMitraMutation.mutate({ name: newMitraName, phoneNumber: newMitraPhone });
                                                         }
                                                     }}
-                                                    disabled={!newMitraName || createMitraMutation.isPending || updateMitraMutation.isPending}
+ disabled={!newMitraName || createMitraMutation.isPending || updateMitraMutation.isPending}
                                                 >
                                                     {editingMitra ? "Update" : "Tambah"}
                                                 </Button>
                                                 {editingMitra && (
                                                     <Button
-                                                        variant="outline"
-                                                        onClick={() => {
-                                                            setEditingMitra(null);
-                                                            setNewMitraName("");
-                                                            setNewMitraPhone("");
+ variant="outline"
+ onClick={() => {
+ setEditingMitra(null);
+ setNewMitraName("");
+ setNewMitraPhone("");
                                                         }}
                                                     >
                                                         Batal
@@ -577,7 +577,7 @@ export default function MonitoringSimperEvAdmin() {
                                                     {mitras.length === 0 ? (
                                                         <TableRow><TableCell className="text-center text-gray-500 py-4">Belum ada mitra.</TableCell></TableRow>
                                                     ) : (
-                                                        mitras.map(mitra => (
+ mitras.map(mitra => (
                                                             <TableRow key={mitra.id}>
                                                                 <TableCell className="font-medium">{mitra.name}</TableCell>
                                                                 <TableCell className="text-muted-foreground text-xs">
@@ -586,27 +586,27 @@ export default function MonitoringSimperEvAdmin() {
                                                                 <TableCell className="text-right flex items-center justify-end gap-1">
                                                                     {mitra.phoneNumber && (
                                                                         <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            title="Tes Notifikasi WhatsApp"
-                                                                            onClick={() => {
-                                                                                const msg = prompt("Masukkan pesan untuk tes notifikasi:", "Tes notifikasi dari OneTalent");
-                                                                                if (msg) {
-                                                                                    notifyMitraMutation.mutate({ phone: mitra.phoneNumber!, message: msg });
+ variant="ghost"
+ size="icon"
+ title="Tes Notifikasi WhatsApp"
+ onClick={() => {
+ const msg = prompt("Masukkan pesan untuk tes notifikasi:", "Tes notifikasi dari OneTalent");
+ if (msg) {
+ notifyMitraMutation.mutate({ phone: mitra.phoneNumber!, message: msg });
                                                                                 }
                                                                             }}
                                                                         >
-                                                                            <MessageSquare className="h-4 w-4 text-green-600" />
+                                                                            <MessageSquare className="h-4 w-4 text-foreground" />
                                                                         </Button>
                                                                     )}
                                                                     <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        title="Edit Mitra"
-                                                                        onClick={() => {
-                                                                            setEditingMitra(mitra);
-                                                                            setNewMitraName(mitra.name);
-                                                                            setNewMitraPhone(mitra.phoneNumber || "");
+ variant="ghost"
+ size="icon"
+ title="Edit Mitra"
+ onClick={() => {
+ setEditingMitra(mitra);
+ setNewMitraName(mitra.name);
+ setNewMitraPhone(mitra.phoneNumber || "");
                                                                         }}
                                                                     >
                                                                         <Edit className="h-4 w-4 text-orange-600" />
@@ -638,7 +638,7 @@ export default function MonitoringSimperEvAdmin() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Summary Cards */}
                     <div className="space-y-6">
-                        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-none shadow-lg">
+                        <Card className="border border-border bg-card">
                             <CardContent className="p-6">
                                 <p className="text-blue-100 font-medium text-sm">Total Pengajuan</p>
                                 <h3 className="text-4xl font-bold mt-2">{totalItems}</h3>
@@ -657,13 +657,13 @@ export default function MonitoringSimperEvAdmin() {
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie
-                                                data={distributionStats}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="value"
+ data={distributionStats}
+ cx="50%"
+ cy="50%"
+ innerRadius={60}
+ outerRadius={80}
+ paddingAngle={5}
+ dataKey="value"
                                             >
                                                 {distributionStats.map((entry: any, index: number) => (
                                                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -691,8 +691,8 @@ export default function MonitoringSimperEvAdmin() {
                                         <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                                         <XAxis type="number" />
                                         <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                                        <RechartsTooltip cursor={{ fill: '#f8fafc' }} />
-                                        <Bar dataKey="value" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={20} />
+                                        <RechartsTooltip cursor={{ fill: 'var(--grafik-garis)', opacity: 0.4 }} />
+                                        <Bar dataKey="value" fill="var(--grafik-4)" radius={[0, 4, 4, 0]} barSize={20} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -702,13 +702,13 @@ export default function MonitoringSimperEvAdmin() {
 
 
                 {/* Portal Section */}
-                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-900 to-slate-900 text-white shadow-2xl">
-                    <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-white/5 blur-3xl" />
+                <div className="relative overflow-hidden rounded-xl border border-border bg-card">
+                    <div className="absolute top-0 right-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-card blur-3xl" />
                     <div className="absolute bottom-0 left-0 -mb-10 -ml-10 h-64 w-64 rounded-full bg-blue-500/10 blur-3xl" />
 
                     <div className="relative flex flex-col md:flex-row items-center justify-between p-8 gap-8">
                         <div className="flex items-center gap-6">
-                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md shadow-inner border border-white/20">
+                            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-card shadow-inner border border-white/20">
                                 <Share2 className="h-8 w-8 text-blue-200" />
                             </div>
                             <div>
@@ -723,7 +723,7 @@ export default function MonitoringSimperEvAdmin() {
                         <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                             <Dialog>
                                 <DialogTrigger asChild>
-                                    <Button className="h-12 px-6 bg-white text-indigo-900 hover:bg-blue-50 border-none font-semibold text-md shadow-lg transition-all hover:-translate-y-0.5">
+                                    <Button className="h-12 px-6 bg-white text-indigo-900 hover:bg-blue-50 border-none font-semibold text-md transition-all ">
                                         <Smartphone className="mr-2 h-5 w-5" />
                                         Tampilkan Barcode
                                     </Button>
@@ -737,21 +737,21 @@ export default function MonitoringSimperEvAdmin() {
                                     </DialogHeader>
                                     <div className="flex justify-center py-6">
                                         {qrCodeUrl ? (
-                                            <div className="p-4 bg-white rounded-xl shadow-lg border border-slate-100">
+                                            <div className="p-4 bg-white rounded-xl border border-border">
                                                 <img src={qrCodeUrl} alt="QR Code Monitoring" className="w-56 h-56" />
                                             </div>
                                         ) : (
-                                            <div className="w-56 h-56 flex items-center justify-center bg-slate-100 rounded-xl">
-                                                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
+                                            <div className="w-56 h-56 flex items-center justify-center bg-muted rounded-xl">
+                                                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                                             </div>
                                         )}
                                     </div>
                                     <div className="flex justify-center gap-2">
                                         <Button variant="outline" onClick={() => {
-                                            const link = document.createElement('a');
-                                            link.download = 'simper-monitoring-qr.png';
-                                            link.href = qrCodeUrl;
-                                            link.click();
+ const link = document.createElement('a');
+ link.download = 'simper-monitoring-qr.png';
+ link.href = qrCodeUrl;
+ link.click();
                                         }}>
                                             <Download className="mr-2 h-4 w-4" />
                                             Download QR
@@ -761,11 +761,11 @@ export default function MonitoringSimperEvAdmin() {
                             </Dialog>
 
                             <Button
-                                variant="outline"
-                                className="h-12 px-6 bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
-                                onClick={() => {
-                                    navigator.clipboard.writeText(window.location.origin + "/monitoring-simper-ev");
-                                    toast({ title: "Tersalin!", description: "Link monitoring publik telah disalin ke clipboard." });
+ variant="outline"
+ variant="outline" className="h-12 px-6"
+ onClick={() => {
+ navigator.clipboard.writeText(window.location.origin + "/monitoring-simper-ev");
+ toast({ title: "Tersalin!", description: "Link monitoring publik telah disalin ke clipboard." });
                                 }}
                             >
                                 <Copy className="w-5 h-5 mr-2" />
@@ -773,9 +773,9 @@ export default function MonitoringSimperEvAdmin() {
                             </Button>
 
                             <Button
-                                variant="outline"
-                                className="h-12 px-6 bg-white/10 border-white/20 text-white hover:bg-white/20 backdrop-blur-sm"
-                                onClick={() => window.open("/monitoring-simper-ev", "_blank")}
+ variant="outline"
+ variant="outline" className="h-12 px-6"
+ onClick={() => window.open("/monitoring-simper-ev", "_blank")}
                             >
                                 <ExternalLink className="w-5 h-5 mr-2" />
                                 Buka
@@ -804,16 +804,16 @@ export default function MonitoringSimperEvAdmin() {
                                 <Label htmlFor="csv-url">URL Spreadsheet CSV (Publik)</Label>
                                 <div className="flex gap-2">
                                     <Input
-                                        id="csv-url"
-                                        placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv"
-                                        value={csvUrl}
-                                        onChange={(e) => setCsvUrl(e.target.value)}
-                                        className="flex-1"
+ id="csv-url"
+ placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv"
+ value={csvUrl}
+ onChange={(e) => setCsvUrl(e.target.value)}
+ className="flex-1"
                                     />
                                     <Button
-                                        onClick={() => syncMutation.mutate()}
-                                        disabled={syncMutation.isPending || !csvUrl}
-                                        className="bg-green-600 hover:bg-green-700 text-white"
+ onClick={() => syncMutation.mutate()}
+ disabled={syncMutation.isPending || !csvUrl}
+ className="bg-primary hover:bg-primary/90 text-white"
                                     >
                                         {syncMutation.isPending ? (
                                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -833,18 +833,18 @@ export default function MonitoringSimperEvAdmin() {
 
                 {/* Main Content Table (Modernized) */}
                 <Card className="border-none shadow-sm bg-white overflow-hidden">
-                    <CardHeader className="bg-slate-50/50 border-b border-slate-100/80">
+                    <CardHeader className="bg-muted/50 border-b border-border/80">
                         <CardTitle>Data Pengajuan</CardTitle>
                         <div className="flex items-center space-x-2">
                             <Search className="h-4 w-4 text-gray-400" />
                             <Input
-                                placeholder="Cari Nama atau NIK..."
-                                value={searchTerm}
-                                onChange={(e) => {
-                                    setSearchTerm(e.target.value);
-                                    setPage(1); // Reset to page 1 on search
+ placeholder="Cari Nama atau NIK..."
+ value={searchTerm}
+ onChange={(e) => {
+ setSearchTerm(e.target.value);
+ setPage(1); // Reset to page 1 on search
                                 }}
-                                className="max-w-sm"
+ className="max-w-sm"
                             />
                         </div>
                     </CardHeader>
@@ -877,7 +877,7 @@ export default function MonitoringSimperEvAdmin() {
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
-                                            filteredData.map((record) => (
+ filteredData.map((record) => (
                                                 <TableRow key={record.id}>
                                                     <TableCell className="font-medium">{record.nama}</TableCell>
                                                     <TableCell>{record.nikSimper}</TableCell>
@@ -894,15 +894,15 @@ export default function MonitoringSimperEvAdmin() {
                                                     </TableCell>
                                                     <TableCell className="text-right whitespace-nowrap">
                                                         <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => {
-                                                                setSelectedEmployeeForNotifLog(record);
-                                                                setIsNotificationLogOpen(true);
+ variant="ghost"
+ size="icon"
+ onClick={() => {
+ setSelectedEmployeeForNotifLog(record);
+ setIsNotificationLogOpen(true);
                                                             }}
-                                                            title="Riwayat Notifikasi WA"
+ title="Riwayat Notifikasi WA"
                                                         >
-                                                            <MessageSquare className="h-4 w-4 text-green-600" />
+                                                            <MessageSquare className="h-4 w-4 text-foreground" />
                                                         </Button>
                                                         <Button variant="ghost" size="icon" onClick={() => setSelectedHistoryEmployee(record)} title="Riwayat Approval">
                                                             <RefreshCw className="h-4 w-4 text-blue-600" />
@@ -911,8 +911,8 @@ export default function MonitoringSimperEvAdmin() {
                                                             <Edit className="h-4 w-4 text-orange-600" />
                                                         </Button>
                                                         <Button variant="ghost" size="icon" onClick={() => {
-                                                            if (confirm("Apakah anda yakin ingin menghapus data ini?")) {
-                                                                deleteMutation.mutate(record.id);
+ if (confirm("Apakah anda yakin ingin menghapus data ini?")) {
+ deleteMutation.mutate(record.id);
                                                             }
                                                         }} title="Hapus">
                                                             <Trash2 className="h-4 w-4 text-red-600" />
@@ -931,26 +931,26 @@ export default function MonitoringSimperEvAdmin() {
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setPage(1)}
-                                        disabled={page === 1 || isLoading}
+ variant="outline"
+ size="sm"
+ onClick={() => setPage(1)}
+ disabled={page === 1 || isLoading}
                                     >
                                         <ChevronsLeft className="h-4 w-4" />
                                     </Button>
                                     <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setPage(old => Math.max(old - 1, 1))}
-                                        disabled={page === 1 || isLoading}
+ variant="outline"
+ size="sm"
+ onClick={() => setPage(old => Math.max(old - 1, 1))}
+ disabled={page === 1 || isLoading}
                                     >
                                         <ChevronLeft className="h-4 w-4" />
                                     </Button>
                                     <Select
-                                        value={pageSize.toString()}
-                                        onValueChange={(val) => {
-                                            setPageSize(Number(val));
-                                            setPage(1);
+ value={pageSize.toString()}
+ onValueChange={(val) => {
+ setPageSize(Number(val));
+ setPage(1);
                                         }}
                                     >
                                         <SelectTrigger className="h-8 w-[70px]">
@@ -965,18 +965,18 @@ export default function MonitoringSimperEvAdmin() {
                                         </SelectContent>
                                     </Select>
                                     <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setPage(old => (totalPages > old ? old + 1 : old))}
-                                        disabled={page >= totalPages || isLoading}
+ variant="outline"
+ size="sm"
+ onClick={() => setPage(old => (totalPages > old ? old + 1 : old))}
+ disabled={page >= totalPages || isLoading}
                                     >
                                         <ChevronRight className="h-4 w-4" />
                                     </Button>
                                     <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setPage(totalPages)}
-                                        disabled={page >= totalPages || isLoading}
+ variant="outline"
+ size="sm"
+ onClick={() => setPage(totalPages)}
+ disabled={page >= totalPages || isLoading}
                                     >
                                         <ChevronsRight className="h-4 w-4" />
                                     </Button>
@@ -999,7 +999,7 @@ export default function MonitoringSimperEvAdmin() {
 
                         <div className="space-y-6 mt-4">
                             {/* Employee Info Recap */}
-                            <div className="bg-slate-50 p-4 rounded-lg grid grid-cols-2 gap-4 text-sm">
+                            <div className="bg-muted p-4 rounded-lg grid grid-cols-2 gap-4 text-sm">
                                 <div><span className="text-gray-500 block">Mitra</span> <span className="font-semibold">{selectedHistoryEmployee?.asalMitra}</span></div>
                                 <div><span className="text-gray-500 block">Simper</span> <span className="font-semibold">{selectedHistoryEmployee?.simper}</span></div>
                                 <div><span className="text-gray-500 block">Status Saat Ini</span> <Badge variant="outline">{selectedHistoryEmployee?.statusPengajuan}</Badge></div>
@@ -1031,7 +1031,7 @@ export default function MonitoringSimperEvAdmin() {
                                                 <TableCell colSpan={7} className="text-center py-8 text-gray-500">Belum ada riwayat approval.</TableCell>
                                             </TableRow>
                                         ) : (
-                                            historyRecords
+ historyRecords
                                                 .sort((a, b) => new Date(b.approvedAt || 0).getTime() - new Date(a.approvedAt || 0).getTime())
                                                 .map((log) => (
                                                     <TableRow key={log.id}>
@@ -1046,13 +1046,13 @@ export default function MonitoringSimperEvAdmin() {
                                                         <TableCell>{log.message}</TableCell>
                                                         <TableCell className="text-xs text-gray-500">
                                                             {(() => {
-                                                                if (!log.approvedAt) return "-";
-                                                                try {
-                                                                    const d = new Date(log.approvedAt);
-                                                                    if (isNaN(d.getTime())) return "-";
-                                                                    return format(d, "d MMM yyyy HH:mm");
+ if (!log.approvedAt) return "-";
+ try {
+ const d = new Date(log.approvedAt);
+ if (isNaN(d.getTime())) return "-";
+ return format(d, "d MMM yyyy HH:mm");
                                                                 } catch (e) {
-                                                                    return "-";
+ return "-";
                                                                 }
                                                             })()}
                                                         </TableCell>
@@ -1060,32 +1060,32 @@ export default function MonitoringSimperEvAdmin() {
                                                             <div className="flex items-center justify-end gap-1">
                                                                 {/* Send Notification Button */}
                                                                 <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() => {
-                                                                        if (confirm(`Kirim notifikasi WhatsApp ke Mitra ${selectedHistoryEmployee?.asalMitra}?`)) {
-                                                                            sendNotificationMutation.mutate(log.id);
+ variant="ghost"
+ size="icon"
+ onClick={() => {
+ if (confirm(`Kirim notifikasi WhatsApp ke Mitra ${selectedHistoryEmployee?.asalMitra}?`)) {
+ sendNotificationMutation.mutate(log.id);
                                                                         }
                                                                     }}
-                                                                    disabled={sendNotificationMutation.isPending}
-                                                                    title="Kirim Notifikasi WhatsApp"
+ disabled={sendNotificationMutation.isPending}
+ title="Kirim Notifikasi WhatsApp"
                                                                 >
                                                                     {sendNotificationMutation.isPending && sendNotificationMutation.variables === log.id ? (
                                                                         <Loader2 className="h-3 w-3 animate-spin" />
                                                                     ) : (
-                                                                        <MessageSquare className="h-3 w-3 text-green-600" />
+                                                                        <MessageSquare className="h-3 w-3 text-foreground" />
                                                                     )}
                                                                 </Button>
 
                                                                 {/* Edit Button */}
                                                                 <Button variant="ghost" size="icon" onClick={() => {
-                                                                    setEditingHistory(log);
-                                                                    setNewHistory({
-                                                                        approver: log.approver || "",
-                                                                        status: (log.status as any) || "PENDING",
-                                                                        workflowLevel: log.workflowLevel || "",
-                                                                        workflowType: log.workflowType || "",
-                                                                        message: log.message || ""
+ setEditingHistory(log);
+ setNewHistory({
+ approver: log.approver || "",
+ status: (log.status as any) || "PENDING",
+ workflowLevel: log.workflowLevel || "",
+ workflowType: log.workflowType || "",
+ message: log.message || ""
                                                                     });
                                                                 }}>
                                                                     <Edit className="h-3 w-3" />
@@ -1093,8 +1093,8 @@ export default function MonitoringSimperEvAdmin() {
 
                                                                 {/* Delete Button */}
                                                                 <Button variant="ghost" size="icon" onClick={() => {
-                                                                    if (confirm("Hapus riwayat ini?")) {
-                                                                        deleteHistoryMutation.mutate(log.id);
+ if (confirm("Hapus riwayat ini?")) {
+ deleteHistoryMutation.mutate(log.id);
                                                                     }
                                                                 }}>
                                                                     <Trash2 className="h-3 w-3 text-red-500" />
@@ -1114,8 +1114,8 @@ export default function MonitoringSimperEvAdmin() {
                                     <h4 className="text-sm font-semibold">{editingHistory ? "Edit Riwayat Approval" : "Input Manual Approval"}</h4>
                                     {editingHistory && (
                                         <Button variant="ghost" size="sm" onClick={() => {
-                                            setEditingHistory(null);
-                                            setNewHistory({ approver: "", status: "PENDING", workflowLevel: "", workflowType: "", message: "" });
+ setEditingHistory(null);
+ setNewHistory({ approver: "", status: "PENDING", workflowLevel: "", workflowType: "", message: "" });
                                         }}>Batal Edit</Button>
                                     )}
                                 </div>
@@ -1123,9 +1123,9 @@ export default function MonitoringSimperEvAdmin() {
                                     <div className="space-y-2">
                                         <Label>Nama Approver</Label>
                                         <Input
-                                            value={newHistory.approver}
-                                            onChange={(e) => setNewHistory({ ...newHistory, approver: e.target.value })}
-                                            placeholder="Contoh: ADING FAHRIZA A"
+ value={newHistory.approver}
+ onChange={(e) => setNewHistory({ ...newHistory, approver: e.target.value })}
+ placeholder="Contoh: ADING FAHRIZA A"
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -1142,38 +1142,38 @@ export default function MonitoringSimperEvAdmin() {
                                     <div className="space-y-2">
                                         <Label>Workflow Level</Label>
                                         <Input
-                                            value={newHistory.workflowLevel}
-                                            onChange={(e) => setNewHistory({ ...newHistory, workflowLevel: e.target.value })}
-                                            placeholder="Contoh: Waiting Approval by..."
+ value={newHistory.workflowLevel}
+ onChange={(e) => setNewHistory({ ...newHistory, workflowLevel: e.target.value })}
+ placeholder="Contoh: Waiting Approval by..."
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Tipe Workflow</Label>
                                         <Input
-                                            value={newHistory.workflowType}
-                                            onChange={(e) => setNewHistory({ ...newHistory, workflowType: e.target.value })}
-                                            placeholder="Contoh: VERSATILITY ORIENTASI"
+ value={newHistory.workflowType}
+ onChange={(e) => setNewHistory({ ...newHistory, workflowType: e.target.value })}
+ placeholder="Contoh: VERSATILITY ORIENTASI"
                                         />
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
                                         <Label>Pesan / Catatan</Label>
                                         <Textarea
-                                            value={newHistory.message}
-                                            onChange={(e) => setNewHistory({ ...newHistory, message: e.target.value })}
-                                            placeholder="Catatan tambahan..."
+ value={newHistory.message}
+ onChange={(e) => setNewHistory({ ...newHistory, message: e.target.value })}
+ placeholder="Catatan tambahan..."
                                         />
                                     </div>
                                 </div>
                                 <div className="mt-4 flex justify-end gap-2">
                                     <Button
-                                        onClick={() => {
-                                            if (editingHistory) {
-                                                updateHistoryMutation.mutate({ id: editingHistory.id, updatedRecord: newHistory });
+ onClick={() => {
+ if (editingHistory) {
+ updateHistoryMutation.mutate({ id: editingHistory.id, updatedRecord: newHistory });
                                             } else {
-                                                selectedHistoryEmployee && addHistoryMutation.mutate({ nikSimper: selectedHistoryEmployee.nikSimper || "", newRecord: newHistory });
+ selectedHistoryEmployee && addHistoryMutation.mutate({ nikSimper: selectedHistoryEmployee.nikSimper || "", newRecord: newHistory });
                                             }
                                         }}
-                                        disabled={addHistoryMutation.isPending || updateHistoryMutation.isPending || !selectedHistoryEmployee}
+ disabled={addHistoryMutation.isPending || updateHistoryMutation.isPending || !selectedHistoryEmployee}
                                     >
                                         {(addHistoryMutation.isPending || updateHistoryMutation.isPending) && <Loader2 className="animate-spin h-4 w-4 mr-2" />}
                                         {editingHistory ? "Simpan Perubahan" : "Simpan Riwayat"}
@@ -1194,23 +1194,23 @@ export default function MonitoringSimperEvAdmin() {
                             <div className="space-y-2">
                                 <Label>Nama Lengkap</Label>
                                 <Input
-                                    value={currentEmployee.nama || ""}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, nama: e.target.value })}
+ value={currentEmployee.nama || ""}
+ onChange={(e) => setCurrentEmployee({ ...currentEmployee, nama: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label>NIK Simper / NIK</Label>
                                 <Input
-                                    value={currentEmployee.nikSimper || ""}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, nikSimper: e.target.value })}
+ value={currentEmployee.nikSimper || ""}
+ onChange={(e) => setCurrentEmployee({ ...currentEmployee, nikSimper: e.target.value })}
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <Label>Mitra</Label>
                                 <Select
-                                    value={currentEmployee.asalMitra || ""}
-                                    onValueChange={(val) => setCurrentEmployee({ ...currentEmployee, asalMitra: val })}
+ value={currentEmployee.asalMitra || ""}
+ onValueChange={(val) => setCurrentEmployee({ ...currentEmployee, asalMitra: val })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Pilih Mitra..." />
@@ -1225,30 +1225,30 @@ export default function MonitoringSimperEvAdmin() {
                             <div className="space-y-2">
                                 <Label>Simper</Label>
                                 <Input
-                                    value={currentEmployee.simper || ""}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, simper: e.target.value })}
+ value={currentEmployee.simper || ""}
+ onChange={(e) => setCurrentEmployee({ ...currentEmployee, simper: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label>Status Pengajuan</Label>
                                 <Input
-                                    value={currentEmployee.statusPengajuan || ""}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, statusPengajuan: e.target.value })}
+ value={currentEmployee.statusPengajuan || ""}
+ onChange={(e) => setCurrentEmployee({ ...currentEmployee, statusPengajuan: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label>Merk Unit</Label>
                                 <Input
-                                    value={currentEmployee.merkUnit || ""}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, merkUnit: e.target.value })}
-                                    placeholder="Contoh: SANY"
+ value={currentEmployee.merkUnit || ""}
+ onChange={(e) => setCurrentEmployee({ ...currentEmployee, merkUnit: e.target.value })}
+ placeholder="Contoh: SANY"
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label>Type Unit</Label>
                                 <Select
-                                    value={currentEmployee.typeUnit || ""}
-                                    onValueChange={(val) => setCurrentEmployee({ ...currentEmployee, typeUnit: val })}
+ value={currentEmployee.typeUnit || ""}
+ onValueChange={(val) => setCurrentEmployee({ ...currentEmployee, typeUnit: val })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Pilih Type..." />
@@ -1263,8 +1263,8 @@ export default function MonitoringSimperEvAdmin() {
                             <div className="space-y-2">
                                 <Label>Masa Berlaku Sertifikat</Label>
                                 <Input
-                                    value={currentEmployee.masaBerlakuSertifikatOs || ""}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, masaBerlakuSertifikatOs: e.target.value })}
+ value={currentEmployee.masaBerlakuSertifikatOs || ""}
+ onChange={(e) => setCurrentEmployee({ ...currentEmployee, masaBerlakuSertifikatOs: e.target.value })}
                                 />
                             </div>
                         </div>
@@ -1291,15 +1291,15 @@ export default function MonitoringSimperEvAdmin() {
                         <div className="space-y-4 mt-4">
                             {/* WhatsApp Config Status */}
                             {whatsappConfig && (
-                                <div className={`p-4 rounded-lg border ${whatsappConfig.configured ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                                <div className={`p-4 rounded-lg border ${whatsappConfig.configured ? 'bg-muted border-border' : 'bg-yellow-50 border-yellow-200'}`}>
                                     <div className="flex items-start gap-3">
                                         {whatsappConfig.configured ? (
-                                            <Activity className="h-5 w-5 text-green-600 mt-0.5" />
+                                            <Activity className="h-5 w-5 text-foreground mt-0.5" />
                                         ) : (
                                             <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
                                         )}
                                         <div className="flex-1">
-                                            <p className={`font-semibold ${whatsappConfig.configured ? 'text-green-800' : 'text-yellow-800'}`}>
+                                            <p className={`font-semibold ${whatsappConfig.configured ? 'text-foreground' : 'text-yellow-800'}`}>
                                                 {whatsappConfig.configured ? "WhatsApp API Terkonfigurasi" : "WhatsApp API Belum Dikonfigurasi"}
                                             </p>
                                             <p className="text-sm text-gray-600 mt-1">
@@ -1336,11 +1336,11 @@ export default function MonitoringSimperEvAdmin() {
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
-                                            notificationLogs.map((log) => (
+ notificationLogs.map((log) => (
                                                 <TableRow key={log.id}>
                                                     <TableCell className="text-xs">
                                                         {log.sentAt ? format(new Date(log.sentAt), "dd MMM yyyy HH:mm") :
-                                                            format(new Date(log.createdAt), "dd MMM yyyy HH:mm")}
+ format(new Date(log.createdAt), "dd MMM yyyy HH:mm")}
                                                     </TableCell>
                                                     <TableCell>
                                                         <div>
@@ -1355,13 +1355,13 @@ export default function MonitoringSimperEvAdmin() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <Badge variant={
-                                                            log.status === "SENT" ? "default" :
-                                                                log.status === "FAILED" ? "destructive" :
-                                                                    "secondary"
+ log.status === "SENT" ? "default" :
+ log.status === "FAILED" ? "destructive" :
+ "secondary"
                                                         }>
                                                             {log.status === "SENT" ? "✅ Terkirim" :
-                                                                log.status === "FAILED" ? "❌ Gagal" :
-                                                                    "⏳ Pending"}
+ log.status === "FAILED" ? "❌ Gagal" :
+ "⏳ Pending"}
                                                         </Badge>
                                                         {log.errorMessage && (
                                                             <p className="text-xs text-red-600 mt-1">{log.errorMessage}</p>

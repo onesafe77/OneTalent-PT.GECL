@@ -228,7 +228,7 @@ export function UsignPdfEditor({ fileUrl, onSave, approvers, isReadOnly = false,
                     )}
                     <Button
                         onClick={() => onSave(boxes)}
-                        className="bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 px-6"
+                        className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95 px-6"
                     >
                         <Check className="w-4 h-4 mr-2" /> Simpan Konfigurasi
                     </Button>

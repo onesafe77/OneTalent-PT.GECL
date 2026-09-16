@@ -129,7 +129,7 @@ export default function SidakSopKritisHistory() {
     const handleDeletePhoto = (photoIndex: number) => { if (selectedSession) deletePhotoMutation.mutate({ sessionId: selectedSession.id, photoIndex }); };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-[#96161C] dark:from-gray-900 dark:to-gray-800">
             <div className="container max-w-2xl mx-auto p-3 md:p-4 space-y-4">
                 <div className="flex items-center gap-3 pt-2">
                     <Link href="/workspace/sidak">
@@ -163,7 +163,7 @@ export default function SidakSopKritisHistory() {
                     <div className="space-y-3">
                         {sortedSessions.map((session) => (
                             <Card key={session.id} className="overflow-hidden border-none shadow-lg rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-100 dark:ring-gray-700">
-                                <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+                                <div className="h-1.5 w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C]" />
                                 <CardContent className="p-5">
                                     <div className="flex items-center justify-between gap-2 mb-4">
                                         <div className="min-w-0">
@@ -214,7 +214,7 @@ export default function SidakSopKritisHistory() {
                                     )}
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md rounded-lg h-10 font-medium">
+                                            <Button className="w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C] hover:from-[#DF2A33] hover:to-[#96161C] text-white shadow-md rounded-lg h-10 font-medium">
                                                 <Download className="h-4 w-4 mr-2" /> Download Data <ChevronDown className="h-4 w-4 ml-auto opacity-70" />
                                             </Button>
                                         </DropdownMenuTrigger>

@@ -323,4 +323,18 @@ export function initializeCronJobs() {
       console.error('❌ Error pengingat Shift 2:', error);
     }
   }, { timezone: "Asia/Makassar" });
+
+  // Pelanggaran FMS & Safe Distance baru (Google Sheet) -> notifikasi. Tiap 30 menit; sheet diperbarui manual
+  // jadi lebih sering tidak menambah informasi, hanya menambah unduhan 2 MB.
+  cron.schedule('*/30 * * * *', async () => {
+    try {
+      const { periksaPelanggaranBaru } = await import('./lib/fms-notifikasi');
+      const h = await periksaPelanggaranBaru();
+      if (h.disemai) console.log(`[fms-notif] jalan pertama: ${h.disemai} baris dicatat tanpa notifikasi`);
+      else if (h.baru) console.log(`[fms-notif] ${h.baru} pelanggaran baru diberitahukan`);
+    } catch (e: any) {
+      console.error('[fms-notif] gagal:', e?.message || e);
+    }
+  }, { timezone: 'Asia/Makassar' });
+
 }

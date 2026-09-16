@@ -11,7 +11,7 @@ export default function SiAsefProjectsPage() {
             <div className="max-w-4xl mx-auto">
                 <Button
                     variant="ghost"
-                    onClick={() => setLocation('/workspace/si-asef')}
+                    onClick={() => setLocation('/workspace/dashboard')}
                     className="mb-6 text-slate-600 hover:text-slate-900"
                 >
                     <ArrowLeft className="w-4 h-4 mr-2" />

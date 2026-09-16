@@ -281,10 +281,10 @@ export default function DriverView() {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case "present": return "bg-green-500";
+      case "present": return "bg-primary";
       case "scheduled": return "bg-blue-500";
       case "pending": return "bg-yellow-500";
-      case "approved": return "bg-green-500";
+      case "approved": return "bg-primary";
       case "rejected": return "bg-red-500";
       default: return "bg-gray-500";
     }
@@ -297,7 +297,7 @@ export default function DriverView() {
       case 'NEAR EXPIRED':
         return 'bg-yellow-100 text-yellow-800';
       case 'ACTIVE':
-        return 'bg-green-100 text-green-800';
+        return 'bg-muted text-foreground';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -438,7 +438,7 @@ export default function DriverView() {
                 variant={activeTab === 'roster' ? "default" : "outline"}
                 onClick={() => setActiveTab('roster')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 ${activeTab === 'roster'
-                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                  ? 'bg-primary hover:bg-primary/90 text-white border-border'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-roster"
@@ -450,7 +450,7 @@ export default function DriverView() {
                 variant={activeTab === 'leave' ? "default" : "outline"}
                 onClick={() => setActiveTab('leave')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 ${activeTab === 'leave'
-                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                  ? 'bg-primary hover:bg-primary/90 text-white border-border'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-leave"
@@ -479,7 +479,7 @@ export default function DriverView() {
                 variant={activeTab === 'simper' ? "default" : "outline"}
                 onClick={() => setActiveTab('simper')}
                 className={`flex-none rounded-full px-6 py-2 text-sm font-semibold transition-all duration-200 ${activeTab === 'simper'
-                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                  ? 'bg-primary hover:bg-primary/90 text-white border-border'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 data-testid="tab-simper"
@@ -498,12 +498,12 @@ export default function DriverView() {
                   <Card className="bg-white dark:bg-gray-800 shadow-md">
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-green-500 rounded-lg p-2">
+                        <div className="bg-primary rounded-lg p-2">
                           <Calendar className="h-5 w-5 text-white" />
                         </div>
                         <h3 className="text-lg font-bold text-gray-900 dark:text-white">Jadwal Roster Kerja</h3>
                       </div>
-                      <p className="text-sm text-green-600 dark:text-green-400 font-medium">
+                      <p className="text-sm text-foreground font-medium">
                         Daftar jadwal kerja untuk {searchEmployee?.name}
                       </p>
                     </CardContent>
@@ -559,7 +559,7 @@ export default function DriverView() {
                               variant={selectedShift === 'all' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('all')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'all'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-primary hover:bg-primary/90 text-white'
                                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
@@ -569,7 +569,7 @@ export default function DriverView() {
                               variant={selectedShift === 'Shift 1' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Shift 1')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Shift 1'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-primary hover:bg-primary/90 text-white'
                                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
@@ -579,7 +579,7 @@ export default function DriverView() {
                               variant={selectedShift === 'Shift 2' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Shift 2')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Shift 2'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-primary hover:bg-primary/90 text-white'
                                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
@@ -589,7 +589,7 @@ export default function DriverView() {
                               variant={selectedShift === 'Overshift' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Overshift')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Overshift'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-primary hover:bg-primary/90 text-white'
                                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
@@ -599,7 +599,7 @@ export default function DriverView() {
                               variant={selectedShift === 'Cuti' ? 'default' : 'outline'}
                               onClick={() => setSelectedShift('Cuti')}
                               className={`flex-none rounded-full px-4 py-2 text-sm font-semibold ${selectedShift === 'Cuti'
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                ? 'bg-primary hover:bg-primary/90 text-white'
                                 : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                 }`}
                             >
@@ -668,7 +668,7 @@ export default function DriverView() {
                                 <Card
                                   key={roster.id}
                                   className={`${isToday
-                                    ? 'bg-green-50 dark:bg-green-900/20 border-green-500 border-2'
+                                    ? 'bg-muted border-border border-2'
                                     : 'bg-white dark:bg-gray-800'
                                     } shadow-md`}
                                   data-testid={`roster-card-${roster.id}`}
@@ -679,7 +679,7 @@ export default function DriverView() {
                                         <h4 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                                           {format(new Date(roster.date), "dd MMM yyyy")}
                                           {isToday && (
-                                            <Badge className="ml-2 bg-green-600 text-white text-xs px-2 py-0.5">
+                                            <Badge className="ml-2 bg-primary text-white text-xs px-2 py-0.5">
                                               Hari Ini
                                             </Badge>
                                           )}
@@ -751,7 +751,7 @@ export default function DriverView() {
                       <MapPin className="h-7 w-7 mr-3 text-[#E53935]" />
                       Riwayat Cuti
                     </h3>
-                    <Badge className="bg-green-100 text-green-800 px-4 py-2">
+                    <Badge className="bg-muted text-foreground px-4 py-2">
                       {employeeLeaves.length} Pengajuan Cuti
                     </Badge>
                   </div>
@@ -896,7 +896,7 @@ export default function DriverView() {
               {/* Dialog Detail Pengumuman */}
               <Dialog open={announcementDialogOpen} onOpenChange={setAnnouncementDialogOpen}>
                 <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden">
-                  <DialogHeader className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white p-6">
+                  <DialogHeader className="bg-gradient-to-r from-[#DF2A33] to-[#96161C] text-white p-6">
                     <DialogTitle className="text-xl font-bold flex items-center gap-3">
                       <Megaphone className="h-6 w-6" />
                       {selectedAnnouncement?.title}
@@ -957,7 +957,7 @@ export default function DriverView() {
                   ) : simperData ? (
                     <div className="space-y-8">
                       {/* Employee Info */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl border border-blue-200 dark:border-blue-700">
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#DF2A33]/20 dark:to-[#96161C]/20 p-6 rounded-xl border border-blue-200 dark:border-blue-700">
                         <h4 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
                           <User className="h-6 w-6 mr-3 text-blue-600" />
                           Informasi Karyawan
@@ -1006,10 +1006,10 @@ export default function DriverView() {
                         </div>
 
                         {/* SIMPER TIA */}
-                        <div className="bg-white dark:bg-gray-800 border-2 border-green-200 dark:border-green-700 rounded-xl p-6 shadow-lg">
+                        <div className="bg-white dark:bg-gray-800 border-2 border-border rounded-xl p-6 shadow-lg">
                           <h4 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center">
-                            <div className="w-3 h-8 bg-green-500 rounded-full mr-3"></div>
-                            <Shield className="w-6 h-6 mr-3 text-green-600" />
+                            <div className="w-3 h-8 bg-primary rounded-full mr-3"></div>
+                            <Shield className="w-6 h-6 mr-3 text-foreground" />
                             SIMPER TIA
                           </h4>
                           <div className="space-y-4">

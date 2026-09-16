@@ -124,7 +124,7 @@ export default function SafetyPatrolAttendancePlan() {
         placeholder="NA"
         onChange={(e) => onChange(e.target.value)}
         className={`w-12 h-7 text-center text-xs font-semibold rounded border ${
-          isNA ? "bg-red-50 text-red-400 border-red-200" : "bg-green-50 text-green-700 border-green-300"
+          isNA ? "bg-red-50 text-red-400 border-red-200" : "bg-muted text-foreground border-border"
         }`}
         title="Isi angka (hadir) atau kosongkan (NA)"
       />

@@ -66,14 +66,14 @@ export function UsignDashboard({ userId, nik }: { userId?: string, nik: string }
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+                        <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-[#96161C] bg-clip-text text-transparent">
                             USign Dashboard
                         </h1>
                         {stats && stats.pendingCount > 0 && (
                             <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
-                                className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-red-500/30 animate-bounce"
+                                className="h-6 w-6 rounded-full bg-gray-950 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-red-500/30 animate-bounce"
                             >
                                 {stats.pendingCount}
                             </motion.div>
@@ -99,7 +99,7 @@ export function UsignDashboard({ userId, nik }: { userId?: string, nik: string }
                             <PopoverContent className="w-80 p-0 overflow-hidden" align="end">
                                 <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
                                     <h4 className="font-bold text-sm">Notifikasi USign</h4>
-                                    <Badge variant="outline" className="bg-red-500/10 text-red-400 border-red-500/20 text-[10px]">
+                                    <Badge variant="outline" className="bg-gray-950/10 text-gray-400 border-gray-400/20 text-[10px]">
                                         {stats.pendingCount} Pending
                                     </Badge>
                                 </div>
@@ -109,8 +109,8 @@ export function UsignDashboard({ userId, nik }: { userId?: string, nik: string }
                                             <Link key={approval.id} href={`/workspace/usign/document/${approval.document.id}`}>
                                                 <div className="p-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer group">
                                                     <div className="flex items-start gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center flex-shrink-0 animate-pulse">
-                                                            <PenTool className="w-4 h-4 text-red-500" />
+                                                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0 animate-pulse">
+                                                            <PenTool className="w-4 h-4 text-gray-600" />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
                                                             <p className="text-xs font-bold text-slate-900 truncate">
@@ -177,25 +177,25 @@ export function UsignDashboard({ userId, nik }: { userId?: string, nik: string }
                 </motion.div>
 
                 <motion.div variants={item}>
-                    <Card className="relative overflow-hidden group hover:shadow-xl transition-shadow border-none bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/20 dark:to-green-950/20 shadow-sm">
+                    <Card className="relative overflow-hidden group hover:shadow-xl transition-shadow border-none bg-gradient-to-br from-primary to-primary dark:from-primary dark:to-primary shadow-sm">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                            <CheckCircle2 className="w-16 h-16 text-emerald-600" />
+                            <CheckCircle2 className="w-16 h-16 text-foreground" />
                         </div>
                         <CardContent className="p-6">
-                            <div className="flex items-center gap-2 text-emerald-600 mb-2">
+                            <div className="flex items-center gap-2 text-foreground mb-2">
                                 <CheckCircle2 className="w-4 h-4" />
                                 <span className="text-xs font-bold uppercase tracking-wider">Selesai</span>
                             </div>
-                            <div className="text-4xl font-bold text-emerald-900 dark:text-emerald-100">
+                            <div className="text-4xl font-bold text-foreground">
                                 {stats?.approvedCount || 0}
                             </div>
-                            <p className="text-sm text-emerald-700/70 dark:text-emerald-300/50 mt-1">Dokumen ditandatangani</p>
+                            <p className="text-sm text-foreground/70 mt-1">Dokumen ditandatangani</p>
                         </CardContent>
                     </Card>
                 </motion.div>
 
                 <motion.div variants={item}>
-                    <Card className="relative overflow-hidden group hover:shadow-xl transition-shadow border-none bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 shadow-sm">
+                    <Card className="relative overflow-hidden group hover:shadow-xl transition-shadow border-none bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-[#DF2A33]/20 dark:to-[#96161C]/20 shadow-sm">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
                             <TrendingUp className="w-16 h-16 text-blue-600" />
                         </div>
@@ -220,7 +220,7 @@ export function UsignDashboard({ userId, nik }: { userId?: string, nik: string }
                         <TabsTrigger value="approvals" className="flex items-center gap-2 px-6 relative">
                             <CheckCircle2 className="w-4 h-4" /> Persetujuan
                             {stats && stats.pendingCount > 0 && (
-                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ring-2 ring-white">
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-gray-950 text-[9px] font-bold text-white ring-2 ring-white">
                                     {stats.pendingCount}
                                 </span>
                             )}
@@ -306,7 +306,7 @@ function DocumentCard({ doc, isApproval, currentStep }: { doc: UsignDocument, is
     const statusColors: any = {
         pending: "bg-amber-100 text-amber-700 border-amber-200",
         in_progress: "bg-blue-100 text-blue-700 border-blue-200",
-        completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+        completed: "bg-muted text-foreground border-border",
         rejected: "bg-rose-100 text-rose-700 border-rose-200",
         void: "bg-slate-100 text-slate-700 border-slate-200",
     };
@@ -339,7 +339,7 @@ function DocumentCard({ doc, isApproval, currentStep }: { doc: UsignDocument, is
                             </Badge>
                         )}
                         {isApproval && currentStep && currentStep.status === 'completed' && (
-                            <Badge variant="outline" className="text-emerald-600 border-emerald-200">
+                            <Badge variant="outline" className="text-foreground border-border">
                                 Selesai
                             </Badge>
                         )}

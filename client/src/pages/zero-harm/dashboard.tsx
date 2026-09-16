@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, Upload, Database, Loader2, ArrowRight } from "lucide-react";
 
-const COLORS = ["#0e7490", "#2563eb", "#16a34a", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2", "#db2777"];
+const COLORS = ["#575757", "#2A2A2A", "#BA1B23", "#f59e0b", "#dc2626", "#96161C", "#969696", "#db2777"];
 type KC = { k: string; c: number };
 
 // ---- chart helpers (recharts) ----
@@ -34,7 +34,7 @@ const Donut = ({ data }: { data: KC[] }) => (
     </PieChart>
   </ResponsiveContainer>
 );
-const BarH = ({ data, color = "#2563eb" }: { data: KC[]; color?: string }) => (
+const BarH = ({ data, color = "#2A2A2A" }: { data: KC[]; color?: string }) => (
   <ResponsiveContainer width="100%" height="100%">
     <BarChart data={data} layout="vertical" margin={{ left: 8, right: 24, top: 4, bottom: 4 }}>
       <XAxis type="number" hide /><YAxis type="category" dataKey="k" width={120} tick={{ fontSize: 10 }} />
@@ -42,7 +42,7 @@ const BarH = ({ data, color = "#2563eb" }: { data: KC[]; color?: string }) => (
     </BarChart>
   </ResponsiveContainer>
 );
-const BarV = ({ data, color = "#0e7490" }: { data: KC[]; color?: string }) => (
+const BarV = ({ data, color = "#575757" }: { data: KC[]; color?: string }) => (
   <ResponsiveContainer width="100%" height="100%">
     <BarChart data={data} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
       <CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="k" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
@@ -50,7 +50,7 @@ const BarV = ({ data, color = "#0e7490" }: { data: KC[]; color?: string }) => (
     </BarChart>
   </ResponsiveContainer>
 );
-const LineW = ({ data, yKey = "c", color = "#0e7490" }: { data: any[]; yKey?: string; color?: string }) => (
+const LineW = ({ data, yKey = "c", color = "#575757" }: { data: any[]; yKey?: string; color?: string }) => (
   <ResponsiveContainer width="100%" height="100%">
     <LineChart data={data} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
       <CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="k" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
@@ -72,7 +72,7 @@ const find = (a: KC[] = [], k: string) => a.find((x) => (x.k || "").toLowerCase(
 const findEx = (a: KC[] = [], k: string) => a.find((x) => (x.k || "").toLowerCase() === k)?.c || 0;
 const sumSesuai = (rows: { s?: string; c: number }[] = []) => rows.filter((r) => !(r.s || "").toLowerCase().includes("tidak")).reduce((s, r) => s + (r.c || 0), 0);
 function SecTitle({ children }: { children: any }) {
-  return <div className="text-[13px] font-bold text-slate-700 mt-1 pl-2 border-l-4 border-[#0e7490]">{children}</div>;
+  return <div className="text-[13px] font-bold text-slate-700 mt-1 pl-2 border-l-4 border-[#575757]">{children}</div>;
 }
 
 const TABS = ["Ringkasan", "Hazard", "Inspeksi", "Observasi", "OPK", "Attendance", "FMS"];
@@ -90,24 +90,24 @@ export default function ZeroHarmDashboard() {
   return (
     <div className="space-y-4">
       {/* Header SIMANTIK */}
-      <div className="rounded-2xl p-5 text-white shadow-lg" style={{ background: "linear-gradient(120deg,#0e7490 0%,#1d4ed8 55%,#7c3aed 100%)" }}>
+      <div className="rounded-2xl p-5 text-white shadow-lg" style={{ background: "linear-gradient(120deg,#575757 0%,#DF2A33 55%,#96161C 100%)" }}>
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center backdrop-blur"><ShieldAlert className="w-6 h-6" /></div>
             <div><h1 className="text-xl font-extrabold">SIMANTIK — Zero Harm 2.0</h1><p className="text-white/80 text-xs">Analitik data keselamatan (iSafe / FMS)</p></div>
           </div>
-          <Button onClick={() => navigate("/workspace/zero-harm/import")} className="bg-white text-[#0e7490] hover:bg-white/90 font-bold"><Upload className="w-4 h-4 mr-2" /> Import Data</Button>
+          <Button onClick={() => navigate("/workspace/zero-harm/import")} className="bg-white text-[#575757] hover:bg-white/90 font-bold"><Upload className="w-4 h-4 mr-2" /> Import Data</Button>
         </div>
       </div>
 
-      {isLoading && <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-[#0e7490]" /></div>}
+      {isLoading && <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-[#575757]" /></div>}
 
       {!isLoading && !hasData && (
         <Card className="border-dashed border-2"><CardContent className="py-12 text-center">
           <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3"><Database className="w-7 h-7 text-gray-400" /></div>
           <div className="font-bold text-lg">Belum ada data</div>
           <p className="text-sm text-muted-foreground mt-1">Import export iSafe & FMS untuk menampilkan analitik.</p>
-          <Button onClick={() => navigate("/workspace/zero-harm/import")} className="mt-4" style={{ background: "#0e7490" }}><Upload className="w-4 h-4 mr-2" /> Mulai Import <ArrowRight className="w-4 h-4 ml-2" /></Button>
+          <Button onClick={() => navigate("/workspace/zero-harm/import")} className="mt-4" style={{ background: "#575757" }}><Upload className="w-4 h-4 mr-2" /> Mulai Import <ArrowRight className="w-4 h-4 ml-2" /></Button>
         </CardContent></Card>
       )}
 
@@ -117,7 +117,7 @@ export default function ZeroHarmDashboard() {
           <div className="flex gap-1 border-b overflow-x-auto">
             {TABS.map((t) => (
               <button key={t} onClick={() => setTab(t)}
-                className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 ${tab === t ? "text-[#0e7490] border-[#0e7490]" : "text-muted-foreground border-transparent"}`}>{t}</button>
+                className={`px-4 py-2 text-sm font-semibold whitespace-nowrap border-b-2 ${tab === t ? "text-[#575757] border-[#575757]" : "text-muted-foreground border-transparent"}`}>{t}</button>
             ))}
           </div>
 
@@ -145,22 +145,22 @@ export default function ZeroHarmDashboard() {
               <SecTitle>Tren Waktu</SecTitle>
               <div className="grid gap-3 lg:grid-cols-2">
                 <ChartCard title="Tren per Minggu"><LineW data={a.hazard?.byWeek || []} color="#dc2626" /></ChartCard>
-                <ChartCard title="Per Bulan"><BarV data={a.hazard?.byMonth || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Per Bulan"><BarV data={a.hazard?.byMonth || []} color="#96161C" /></ChartCard>
               </div>
               <SecTitle>Jenis Temuan & Lokasi</SecTitle>
               <div className="grid gap-3 lg:grid-cols-2">
                 <ChartCard title="Top Ketidaksesuaian"><BarH data={a.hazard?.byKetidaksesuaian || []} color="#dc2626" /></ChartCard>
-                <ChartCard title="Sub Ketidaksesuaian"><BarH data={a.hazard?.bySubKetidak || []} color="#ea580c" /></ChartCard>
+                <ChartCard title="Sub Ketidaksesuaian"><BarH data={a.hazard?.bySubKetidak || []} color="#D98806" /></ChartCard>
                 <ChartCard title="Penyebab"><BarH data={a.hazard?.byPenyebab || []} color="#b45309" /></ChartCard>
-                <ChartCard title="Lokasi Laporan"><BarH data={a.hazard?.byLokasi || []} color="#0891b2" /></ChartCard>
+                <ChartCard title="Lokasi Laporan"><BarH data={a.hazard?.byLokasi || []} color="#969696" /></ChartCard>
               </div>
               <SecTitle>Pelapor & Penindaklanjut</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Top Pelapor"><BarH data={a.hazard?.topPelapor || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Posisi Pelapor"><BarH data={a.hazard?.byPosisiPelapor || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Posisi Penindaklanjut"><BarH data={a.hazard?.byPosisiPenindak || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Departemen Penindaklanjut"><BarH data={a.hazard?.byDeptPenindak || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Perusahaan Penindaklanjut" span={2}><BarH data={a.hazard?.byPerusahaanPenindak || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Top Pelapor"><BarH data={a.hazard?.topPelapor || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Posisi Pelapor"><BarH data={a.hazard?.byPosisiPelapor || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Posisi Penindaklanjut"><BarH data={a.hazard?.byPosisiPenindak || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Departemen Penindaklanjut"><BarH data={a.hazard?.byDeptPenindak || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Perusahaan Penindaklanjut" span={2}><BarH data={a.hazard?.byPerusahaanPenindak || []} color="#96161C" /></ChartCard>
               </div>
             </>
           )}
@@ -175,18 +175,18 @@ export default function ZeroHarmDashboard() {
               </div>
               <SecTitle>Objek & Form</SecTitle>
               <div className="grid gap-3 lg:grid-cols-2">
-                <ChartCard title="Per Jenis Objek"><BarH data={a.inspeksi?.byJenisObjek || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Per Nama Form"><BarH data={a.inspeksi?.byNamaForm || []} color="#0891b2" /></ChartCard>
-                <ChartCard title="Per Lokasi"><BarH data={a.inspeksi?.byLokasi || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Per Bulan"><BarV data={a.inspeksi?.byMonth || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Per Jenis Objek"><BarH data={a.inspeksi?.byJenisObjek || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Per Nama Form"><BarH data={a.inspeksi?.byNamaForm || []} color="#969696" /></ChartCard>
+                <ChartCard title="Per Lokasi"><BarH data={a.inspeksi?.byLokasi || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Per Bulan"><BarV data={a.inspeksi?.byMonth || []} color="#96161C" /></ChartCard>
               </div>
               <SecTitle>Pelaksana & PJU</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Top Pelaksana"><BarH data={a.inspeksi?.topPelaksana || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Posisi Pelaksana"><BarH data={a.inspeksi?.byPosisi || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Posisi PJU"><BarH data={a.inspeksi?.byPosisiPju || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Departemen PJU"><BarH data={a.inspeksi?.byDeptPju || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Perusahaan PJU" span={2}><BarH data={a.inspeksi?.byPerusahaanPju || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Top Pelaksana"><BarH data={a.inspeksi?.topPelaksana || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Posisi Pelaksana"><BarH data={a.inspeksi?.byPosisi || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Posisi PJU"><BarH data={a.inspeksi?.byPosisiPju || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Departemen PJU"><BarH data={a.inspeksi?.byDeptPju || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Perusahaan PJU" span={2}><BarH data={a.inspeksi?.byPerusahaanPju || []} color="#96161C" /></ChartCard>
               </div>
             </>
           )}
@@ -196,19 +196,19 @@ export default function ZeroHarmDashboard() {
               <Kpis items={[[counts.observasi || 0, "Total"], [a.observasi?.topPja?.length || 0, "Jml PJA"], [a.observasi?.byLokasi?.length || 0, "Lokasi"], [a.observasi?.byPerusahaanPekerja?.length || 0, "Perusahaan"]]} />
               <SecTitle>Tren & Lokasi</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Tren per Minggu" span={2}><LineW data={a.observasi?.byWeek || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Per Bulan"><BarV data={a.observasi?.byMonth || []} color="#7c3aed" /></ChartCard>
-                <ChartCard title="Per Lokasi"><BarH data={a.observasi?.byLokasi || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Sublokasi"><BarH data={a.observasi?.bySublokasi || []} color="#0891b2" /></ChartCard>
-                <ChartCard title="Perusahaan Pekerja"><BarH data={a.observasi?.byPerusahaanPekerja || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Tren per Minggu" span={2}><LineW data={a.observasi?.byWeek || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Per Bulan"><BarV data={a.observasi?.byMonth || []} color="#96161C" /></ChartCard>
+                <ChartCard title="Per Lokasi"><BarH data={a.observasi?.byLokasi || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Sublokasi"><BarH data={a.observasi?.bySublokasi || []} color="#969696" /></ChartCard>
+                <ChartCard title="Perusahaan Pekerja"><BarH data={a.observasi?.byPerusahaanPekerja || []} color="#96161C" /></ChartCard>
               </div>
               <SecTitle>PJA & Pelapor</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Top PJA"><BarH data={a.observasi?.topPja || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Posisi PJA"><BarH data={a.observasi?.byPosisiPja || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Departemen Pekerja"><BarH data={a.observasi?.byDeptPekerja || []} color="#0891b2" /></ChartCard>
-                <ChartCard title="Top Pelapor"><BarH data={a.observasi?.topPelapor || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Posisi Pelapor" span={2}><BarH data={a.observasi?.byPosisiPelapor || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Top PJA"><BarH data={a.observasi?.topPja || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Posisi PJA"><BarH data={a.observasi?.byPosisiPja || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Departemen Pekerja"><BarH data={a.observasi?.byDeptPekerja || []} color="#969696" /></ChartCard>
+                <ChartCard title="Top Pelapor"><BarH data={a.observasi?.topPelapor || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Posisi Pelapor" span={2}><BarH data={a.observasi?.byPosisiPelapor || []} color="#96161C" /></ChartCard>
               </div>
             </>
           )}
@@ -219,15 +219,15 @@ export default function ZeroHarmDashboard() {
               <SecTitle>Hasil & Jenis</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
                 <ChartCard title="Hasil Observasi"><Donut data={a.opk?.byHasil || []} /></ChartCard>
-                <ChartCard title="Per Jenis Pekerjaan" span={2}><BarH data={a.opk?.byJenisPekerjaan || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Per Jenis Pekerjaan" span={2}><BarH data={a.opk?.byJenisPekerjaan || []} color="#96161C" /></ChartCard>
                 <ChartCard title="Deviasi (Jenis Temuan)" span={2}><BarH data={a.opk?.byDeviasi || []} color="#dc2626" /></ChartCard>
-                <ChartCard title="Per Lokasi"><BarH data={a.opk?.byLokasi || []} color="#16a34a" /></ChartCard>
+                <ChartCard title="Per Lokasi"><BarH data={a.opk?.byLokasi || []} color="#BA1B23" /></ChartCard>
               </div>
               <SecTitle>Observer, Unit & Waktu</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Top Observer"><BarH data={a.opk?.topObserver || []} color="#2563eb" /></ChartCard>
-                <ChartCard title="Perusahaan Unit Terlibat"><BarH data={a.opk?.byPerusahaanTerlibat || []} color="#0891b2" /></ChartCard>
-                <ChartCard title="Per Bulan"><BarV data={a.opk?.byMonth || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Top Observer"><BarH data={a.opk?.topObserver || []} color="#2A2A2A" /></ChartCard>
+                <ChartCard title="Perusahaan Unit Terlibat"><BarH data={a.opk?.byPerusahaanTerlibat || []} color="#969696" /></ChartCard>
+                <ChartCard title="Per Bulan"><BarV data={a.opk?.byMonth || []} color="#96161C" /></ChartCard>
                 <ChartCard title="Tren per Minggu" span={3}><LineW data={a.opk?.byWeek || []} color="#0d9488" /></ChartCard>
               </div>
             </>
@@ -238,17 +238,17 @@ export default function ZeroHarmDashboard() {
               <Kpis items={[[counts.attendance || 0, "Total"], [findEx(a.attendance?.validitas, "valid"), "Valid"], [findEx(a.attendance?.validitas, "invalid"), "Invalid"], [a.attendance?.byEvent?.length || 0, "Event"], [a.attendance?.byPembicara?.length || 0, "Pembicara"]]} />
               <SecTitle>Event & Validitas</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Per Tipe Event"><BarH data={a.attendance?.byTipe || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Per Tipe Event"><BarH data={a.attendance?.byTipe || []} color="#96161C" /></ChartCard>
                 <ChartCard title="Validitas Absen"><Donut data={a.attendance?.validitas || []} /></ChartCard>
                 <ChartCard title="Per Shift"><Donut data={a.attendance?.byShift || []} /></ChartCard>
-                <ChartCard title="Top Nama Event" span={2}><BarH data={a.attendance?.byEvent || []} color="#2563eb" /></ChartCard>
+                <ChartCard title="Top Nama Event" span={2}><BarH data={a.attendance?.byEvent || []} color="#2A2A2A" /></ChartCard>
                 <ChartCard title="Status Registrasi"><Donut data={a.attendance?.byStatusReg || []} /></ChartCard>
               </div>
               <SecTitle>Peserta & Pembicara</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
-                <ChartCard title="Pembicara"><BarH data={a.attendance?.byPembicara || []} color="#16a34a" /></ChartCard>
-                <ChartCard title="Jabatan Peserta"><BarH data={a.attendance?.byJabatan || []} color="#0891b2" /></ChartCard>
-                <ChartCard title="Per Bulan"><BarV data={a.attendance?.byMonth || []} color="#7c3aed" /></ChartCard>
+                <ChartCard title="Pembicara"><BarH data={a.attendance?.byPembicara || []} color="#BA1B23" /></ChartCard>
+                <ChartCard title="Jabatan Peserta"><BarH data={a.attendance?.byJabatan || []} color="#969696" /></ChartCard>
+                <ChartCard title="Per Bulan"><BarV data={a.attendance?.byMonth || []} color="#96161C" /></ChartCard>
               </div>
             </>
           )}
@@ -266,14 +266,14 @@ export default function ZeroHarmDashboard() {
               <SecTitle>Violation, SLA & Tren</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
                 <ChartCard title="Jenis Violation"><BarH data={a.fms?.byViolation || []} color="#f59e0b" /></ChartCard>
-                <ChartCard title="SLA Validasi (mnt) / Minggu"><LineW data={a.fms?.slaByWeek || []} yKey="v" color="#0891b2" /></ChartCard>
+                <ChartCard title="SLA Validasi (mnt) / Minggu"><LineW data={a.fms?.slaByWeek || []} yKey="v" color="#969696" /></ChartCard>
                 <ChartCard title="Alert / Minggu"><LineW data={a.fms?.byWeek || []} color="#f59e0b" /></ChartCard>
               </div>
               <SecTitle>Unit, Perusahaan & Validator</SecTitle>
               <div className="grid gap-3 lg:grid-cols-3">
                 <ChartCard title="Top Unit (Vehicle)"><BarH data={a.fms?.topVehicle || []} color="#dc2626" /></ChartCard>
-                <ChartCard title="Per Perusahaan"><BarH data={a.fms?.byCompany || []} color="#7c3aed" /></ChartCard>
-                <ChartCard title="Validated By"><BarH data={a.fms?.byValidatedBy || []} color="#16a34a" /></ChartCard>
+                <ChartCard title="Per Perusahaan"><BarH data={a.fms?.byCompany || []} color="#96161C" /></ChartCard>
+                <ChartCard title="Validated By"><BarH data={a.fms?.byValidatedBy || []} color="#BA1B23" /></ChartCard>
               </div>
             </>
           )}
@@ -296,7 +296,7 @@ function StackedKesesuaian({ rows }: { rows: { k: string; s: string; c: number }
       <BarChart data={data} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="k" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
         <Tooltip /><Legend wrapperStyle={{ fontSize: 11 }} />
-        <Bar dataKey="Sesuai" stackId="s" fill="#16a34a" /><Bar dataKey="Tidak" stackId="s" fill="#dc2626" />
+        <Bar dataKey="Sesuai" stackId="s" fill="#BA1B23" /><Bar dataKey="Tidak" stackId="s" fill="#dc2626" />
       </BarChart>
     </ResponsiveContainer>
   );

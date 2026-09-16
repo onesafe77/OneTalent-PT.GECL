@@ -369,10 +369,10 @@ export default function MobileDriverView() {
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
-      case "present": return "bg-green-500 text-white";
+      case "present": return "bg-primary text-white";
       case "scheduled": return "bg-blue-500 text-white";
       case "pending": return "bg-yellow-500 text-black";
-      case "approved": return "bg-green-500 text-white";
+      case "approved": return "bg-primary text-white";
       case "rejected": return "bg-red-500 text-white";
       default: return "bg-gray-500 text-white";
     }
@@ -387,7 +387,7 @@ export default function MobileDriverView() {
       case 'Menuju Perpanjangan':
         return 'bg-orange-100 text-orange-800';
       case 'Aktif':
-        return 'bg-green-100 text-green-800';
+        return 'bg-muted text-foreground';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -497,7 +497,7 @@ export default function MobileDriverView() {
         {searchEmployee && !employeesLoading && (
           <>
             <Card className="shadow-xl border-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg overflow-hidden">
-              <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+              <CardHeader className="pb-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#DF2A33]/20 dark:to-[#96161C]/20">
                 <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800 dark:text-white">
                   <div className="p-3 bg-blue-500 rounded-full shadow-lg">
                     <User className="h-6 w-6 text-white" />
@@ -532,7 +532,7 @@ export default function MobileDriverView() {
                 variant={activeTab === 'roster' ? "default" : "outline"}
                 onClick={() => setActiveTab('roster')}
                 className={`p-3 rounded-xl font-semibold flex-shrink-0 ${activeTab === 'roster' 
-                  ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-lg' 
+                  ? 'bg-gradient-to-r from-primary to-primary text-white shadow-lg' 
                   : 'bg-white dark:bg-gray-800 border-2'}`}
                 data-testid="tab-roster"
               >
@@ -554,7 +554,7 @@ export default function MobileDriverView() {
                 variant={activeTab === 'pemberitahuan' ? "default" : "outline"}
                 onClick={() => setActiveTab('pemberitahuan')}
                 className={`p-3 rounded-xl font-semibold flex-shrink-0 relative overflow-visible ${activeTab === 'pemberitahuan' 
-                  ? 'bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg' 
+                  ? 'bg-gradient-to-r from-[#DF2A33] to-[#96161C] text-white shadow-lg' 
                   : 'bg-white dark:bg-gray-800 border-2'}`}
                 data-testid="tab-pemberitahuan"
               >
@@ -582,14 +582,14 @@ export default function MobileDriverView() {
             {/* Tab Content */}
             {activeTab === 'roster' && (
               <Card className="shadow-xl border-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg">
-                <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-t-lg">
+                <CardHeader className="bg-gradient-to-r from-primary to-primary dark:from-primary dark:to-primary rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800 dark:text-white">
-                    <div className="p-2 bg-green-500 rounded-full">
+                    <div className="p-2 bg-primary rounded-full">
                       <Calendar className="h-5 w-5 text-white" />
                     </div>
                     Jadwal Roster Kerja
                   </CardTitle>
-                  <CardDescription className="text-green-600 dark:text-green-300 font-medium">
+                  <CardDescription className="text-foreground font-medium">
                     Daftar jadwal kerja untuk {searchEmployee.name}
                   </CardDescription>
                 </CardHeader>
@@ -630,7 +630,7 @@ export default function MobileDriverView() {
                       <Button
                         variant={selectedShift === 'all' ? "default" : "outline"}
                         onClick={() => setSelectedShift('all')}
-                        className={`flex-1 text-xs font-semibold ${selectedShift === 'all' ? 'bg-green-600' : ''}`}
+                        className={`flex-1 text-xs font-semibold ${selectedShift === 'all' ? 'bg-primary' : ''}`}
                         data-testid="filter-shift-all"
                       >
                         Semua Shift
@@ -676,7 +676,7 @@ export default function MobileDriverView() {
 
                   {rosterLoading ? (
                     <div className="text-center py-12">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-4 border-green-500 mx-auto"></div>
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-4 border-border mx-auto"></div>
                       <p className="text-gray-600 dark:text-gray-300 font-semibold mt-4">Loading roster data...</p>
                       <p className="text-gray-400 text-sm mt-2">Mengambil jadwal kerja terbaru...</p>
                     </div>
@@ -792,7 +792,7 @@ export default function MobileDriverView() {
 
             {activeTab === 'pemberitahuan' && (
               <Card className="shadow-xl border-0 bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-t-lg">
+                <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-[#DF2A33]/20 dark:to-[#96161C]/20 rounded-t-lg">
                   <CardTitle className="flex items-center gap-3 text-xl font-bold text-gray-800 dark:text-white">
                     <div className="p-2 bg-purple-500 rounded-full">
                       <Megaphone className="h-5 w-5 text-white" />
@@ -928,7 +928,7 @@ export default function MobileDriverView() {
             {/* Dialog Detail Pengumuman - Fullscreen Mobile Optimized */}
             <Dialog open={announcementDialogOpen} onOpenChange={setAnnouncementDialogOpen}>
               <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-lg h-[90vh] max-h-[90vh] p-0 overflow-hidden rounded-xl">
-                <DialogHeader className="bg-gradient-to-r from-purple-500 to-indigo-500 text-white p-3 sm:p-4 sticky top-0 z-10">
+                <DialogHeader className="bg-gradient-to-r from-[#DF2A33] to-[#96161C] text-white p-3 sm:p-4 sticky top-0 z-10">
                   <DialogTitle className="text-base sm:text-lg font-bold flex items-center gap-2 pr-8">
                     <Megaphone className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                     <span className="line-clamp-2">{selectedAnnouncement?.title}</span>
@@ -1050,7 +1050,7 @@ export default function MobileDriverView() {
                       {/* SIMPER Status Cards */}
                       <div className="space-y-4">
                         {/* SIMPER BIB */}
-                        <div className="border-2 border-blue-100 dark:border-blue-800 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+                        <div className="border-2 border-blue-100 dark:border-blue-800 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-[#DF2A33]/20 dark:to-[#96161C]/20">
                           <h4 className="font-bold text-gray-700 dark:text-gray-200 mb-3 flex items-center">
                             <Shield className="w-5 h-5 mr-2 text-blue-600" />
                             SIMPER BIB
@@ -1078,9 +1078,9 @@ export default function MobileDriverView() {
                         </div>
 
                         {/* SIMPER TIA */}
-                        <div className="border-2 border-green-100 dark:border-green-800 rounded-xl p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20">
+                        <div className="border-2 border-border rounded-xl p-4 bg-gradient-to-r from-primary to-primary dark:from-primary dark:to-primary">
                           <h4 className="font-bold text-gray-700 dark:text-gray-200 mb-3 flex items-center">
-                            <Shield className="w-5 h-5 mr-2 text-green-600" />
+                            <Shield className="w-5 h-5 mr-2 text-foreground" />
                             SIMPER TIA
                           </h4>
                           <div className="space-y-3">

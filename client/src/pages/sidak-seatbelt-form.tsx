@@ -329,7 +329,7 @@ export default function SidakSeatbeltForm() {
         if (draft.step === 1) {
             return (
                 <Button
-                    className="w-full h-12 text-lg font-medium shadow-md shadow-green-200 dark:shadow-none bg-green-600 hover:bg-green-700 text-white"
+                    className="w-full h-12 text-lg font-medium shadow-md shadow-primary/20 dark:shadow-none bg-primary hover:bg-primary/90 text-white"
                     disabled={!draft.headerData.lokasi || !draft.headerData.waktu || handleCreateSession.isPending}
                     onClick={() => handleCreateSession.mutate(draft.headerData)}
                 >
@@ -344,7 +344,7 @@ export default function SidakSeatbeltForm() {
                     <Button
                         onClick={() => handleAddRecord.mutate(currentRecord)}
                         disabled={!currentRecord.nama || !currentRecord.perusahaan || !canAddMore || handleAddRecord.isPending}
-                        className="w-full h-12 text-lg font-medium shadow-md shadow-green-200 dark:shadow-none bg-green-600 hover:bg-green-700 text-white"
+                        className="w-full h-12 text-lg font-medium shadow-md shadow-primary/20 dark:shadow-none bg-primary hover:bg-primary/90 text-white"
                     >
                         <Plus className="w-5 h-5 mr-2" />
                         {canAddMore ? "Simpan Pemeriksaan" : "Batas Maksimal"}
@@ -365,7 +365,7 @@ export default function SidakSeatbeltForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.observers.length === 0 && (!currentObserver.nama || !currentObserver.signatureDataUrl)}
                 >
@@ -397,14 +397,14 @@ export default function SidakSeatbeltForm() {
                 {/* STEP 1 */}
                 {draft.step === 1 && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-2xl border border-green-100 dark:border-green-800">
+                        <div className="bg-muted p-4 rounded-2xl border border-border">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="h-8 w-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600">
+                                <div className="h-8 w-8 bg-muted rounded-lg flex items-center justify-center text-foreground">
                                     <ClipboardCheck className="h-5 w-5" />
                                 </div>
-                                <h3 className="font-semibold text-green-900 dark:text-green-100">Info Pelaksanaan</h3>
+                                <h3 className="font-semibold text-foreground">Info Pelaksanaan</h3>
                             </div>
-                            <p className="text-xs text-green-600 dark:text-green-300">
+                            <p className="text-xs text-foreground">
                                 Lengkapi data waktu dan lokasi pemeriksaan seatbelt.
                             </p>
                         </div>
@@ -469,7 +469,7 @@ export default function SidakSeatbeltForm() {
                                 <p className="text-xs text-gray-500 uppercase font-semibold">Unit Diperiksa</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{draft.records.length} <span className="text-sm text-gray-400 font-normal">/ {maxRecords}</span></p>
                             </div>
-                            <div className="h-10 w-10 bg-green-50 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600">
+                            <div className="h-10 w-10 bg-muted rounded-full flex items-center justify-center text-foreground">
                                 <ClipboardCheck className="h-5 w-5" />
                             </div>
                         </div>
@@ -554,7 +554,7 @@ export default function SidakSeatbeltForm() {
                                                 <Button
                                                     type="button"
                                                     variant={currentRecord.seatbeltDriverCondition ? "default" : "outline"}
-                                                    className={cn("flex-1", currentRecord.seatbeltDriverCondition && "bg-green-600 hover:bg-green-700")}
+                                                    className={cn("flex-1", currentRecord.seatbeltDriverCondition && "bg-primary hover:bg-primary/90")}
                                                     onClick={() => setCurrentRecord(prev => ({ ...prev, seatbeltDriverCondition: true }))}
                                                 >
                                                     Ya
@@ -575,7 +575,7 @@ export default function SidakSeatbeltForm() {
                                                 <Button
                                                     type="button"
                                                     variant={currentRecord.seatbeltPassengerCondition ? "default" : "outline"}
-                                                    className={cn("flex-1", currentRecord.seatbeltPassengerCondition && "bg-green-600 hover:bg-green-700")}
+                                                    className={cn("flex-1", currentRecord.seatbeltPassengerCondition && "bg-primary hover:bg-primary/90")}
                                                     onClick={() => setCurrentRecord(prev => ({ ...prev, seatbeltPassengerCondition: true }))}
                                                 >
                                                     Ya
@@ -604,7 +604,7 @@ export default function SidakSeatbeltForm() {
                                                 <Button
                                                     type="button"
                                                     variant={currentRecord.seatbeltDriverUsage ? "default" : "outline"}
-                                                    className={cn("flex-1", currentRecord.seatbeltDriverUsage && "bg-green-600 hover:bg-green-700")}
+                                                    className={cn("flex-1", currentRecord.seatbeltDriverUsage && "bg-primary hover:bg-primary/90")}
                                                     onClick={() => setCurrentRecord(prev => ({ ...prev, seatbeltDriverUsage: true }))}
                                                 >
                                                     Ya
@@ -625,7 +625,7 @@ export default function SidakSeatbeltForm() {
                                                 <Button
                                                     type="button"
                                                     variant={currentRecord.seatbeltPassengerUsage ? "default" : "outline"}
-                                                    className={cn("flex-1", currentRecord.seatbeltPassengerUsage && "bg-green-600 hover:bg-green-700")}
+                                                    className={cn("flex-1", currentRecord.seatbeltPassengerUsage && "bg-primary hover:bg-primary/90")}
                                                     onClick={() => setCurrentRecord(prev => ({ ...prev, seatbeltPassengerUsage: true }))}
                                                 >
                                                     Ya
@@ -672,7 +672,7 @@ export default function SidakSeatbeltForm() {
                                                     {hasIssue ?
                                                         <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-md">TEMUAN</span>
                                                         :
-                                                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-md">OK</span>
+                                                        <span className="text-xs font-bold text-foreground bg-muted px-2 py-1 rounded-md">OK</span>
                                                     }
                                                 </div>
                                             </div>
@@ -697,12 +697,12 @@ export default function SidakSeatbeltForm() {
                             {draft.observers.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.observers.map((obs, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                                                 <p className="text-xs text-gray-500">{obs.perusahaan} • {obs.jabatan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

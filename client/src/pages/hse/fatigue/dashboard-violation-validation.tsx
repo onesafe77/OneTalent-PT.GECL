@@ -107,8 +107,8 @@ export default function ViolationValidationDashboard() {
 
     // Prepare Chart Data
     const pieData = data?.kpi ? [
-        { name: "Fast (< 5 Min)", value: data.kpi.fast, color: "#22c55e" },
-        { name: "Slow (> 5 Min)", value: data.kpi.slow, color: "#ef4444" },
+        { name: "Fast (< 5 Min)", value: data.kpi.fast, color: "#E15A61" },
+        { name: "Slow (> 5 Min)", value: data.kpi.slow, color: "#df2a33" },
     ] : [];
 
     const hourlyData = data?.hourlyTrend?.map((count, i) => ({
@@ -153,7 +153,7 @@ export default function ViolationValidationDashboard() {
 
                         {/* Period Toggle */}
                         <Tabs value={period} onValueChange={setPeriod} className="bg-white border border-slate-200 rounded-xl shadow-sm">
-                            <TabsList className="bg-transparent p-1 gap-1">
+                            <TabsList className="bg-transparent gap-1">
                                 <TabsTrigger value="day" className="data-[state=active]:bg-amber-600 data-[state=active]:text-white rounded-lg text-xs font-bold px-4">
                                     Per Hari
                                 </TabsTrigger>
@@ -314,9 +314,9 @@ export default function ViolationValidationDashboard() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-8 mt-6 w-full max-w-[280px]">
-                                    <div className="flex flex-col items-center p-3 rounded-2xl bg-green-50/50 border border-green-100">
-                                        <span className="text-green-600 font-bold text-xl">{data?.kpi?.fast?.toLocaleString()}</span>
-                                        <span className="text-[10px] uppercase font-bold text-green-400 tracking-wider">Fast</span>
+                                    <div className="flex flex-col items-center p-3 rounded-2xl bg-muted border border-border">
+                                        <span className="text-foreground font-bold text-xl">{data?.kpi?.fast?.toLocaleString()}</span>
+                                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Fast</span>
                                     </div>
                                     <div className="flex flex-col items-center p-3 rounded-2xl bg-red-50/50 border border-red-100">
                                         <span className="text-red-500 font-bold text-xl">{data?.kpi?.slow?.toLocaleString()}</span>
@@ -328,10 +328,10 @@ export default function ViolationValidationDashboard() {
 
                         {/* Hourly Trend */}
                         <Card className="bg-white/80 backdrop-blur-md shadow-lg shadow-slate-200/40 border-none rounded-3xl overflow-hidden relative">
-                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary to-teal-500"></div>
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                    <Timer className="w-4 h-4 text-emerald-500" />
+                                    <Timer className="w-4 h-4 text-foreground" />
                                     Trend Jam Validasi
                                 </CardTitle>
                             </CardHeader>
@@ -345,8 +345,8 @@ export default function ViolationValidationDashboard() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="hour" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} interval={1} />
-                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} />
+                                        <XAxis dataKey="hour" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }} interval={1} />
+                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }} />
                                         <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }} />
                                         <Bar dataKey="count" fill="url(#hourlyGradient)" radius={[4, 4, 0, 0]} />
                                     </BarChart>
@@ -384,17 +384,17 @@ export default function ViolationValidationDashboard() {
                                                 <h3 className="font-black text-slate-800 text-sm truncate">{name}</h3>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-gradient-to-r from-green-400 to-green-500 rounded-full transition-all" style={{ width: `${pctFast}%` }} />
+                                                        <div className="h-full bg-gradient-to-r from-primary to-primary rounded-full transition-all" style={{ width: `${pctFast}%` }} />
                                                     </div>
-                                                    <span className="text-[10px] font-bold text-green-600">{pctFast}%</span>
+                                                    <span className="text-[10px] font-bold text-foreground">{pctFast}%</span>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-4 gap-2">
-                                            <div className="bg-green-50 rounded-xl p-2.5 text-center border border-green-100">
-                                                <div className="text-[9px] font-bold text-green-500 mb-1">{"<"} 5 Mnt</div>
-                                                <div className="text-lg font-black text-green-700">{stats.fast.toLocaleString()}</div>
+                                            <div className="bg-muted rounded-xl p-2.5 text-center border border-border">
+                                                <div className="text-[9px] font-bold text-foreground mb-1">{"<"} 5 Mnt</div>
+                                                <div className="text-lg font-black text-foreground">{stats.fast.toLocaleString()}</div>
                                             </div>
                                             <div className="bg-yellow-50 rounded-xl p-2.5 text-center border border-yellow-100">
                                                 <div className="text-[9px] font-bold text-yellow-600 mb-1">{">"} 5 Mnt</div>
@@ -431,9 +431,9 @@ export default function ViolationValidationDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Fast < 5 Min */}
                         <Card className="bg-white/80 backdrop-blur-md shadow-lg shadow-slate-200/40 border-none rounded-3xl overflow-hidden relative">
-                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-green-400 to-emerald-500"></div>
+                            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary to-primary"></div>
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-green-600 uppercase tracking-widest flex items-center gap-2">
+                                <CardTitle className="text-sm font-bold text-foreground uppercase tracking-widest flex items-center gap-2">
                                     <Zap className="w-4 h-4" />
                                     Validasi {"<"} 5 Menit
                                 </CardTitle>
@@ -442,12 +442,12 @@ export default function ViolationValidationDashboard() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data?.breakdownCharts}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }}
+                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }}
                                             tickFormatter={(val) => period === 'day' ? (val ? format(new Date(val), 'dd-MMM') : '') : val}
                                         />
-                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} />
-                                        <Tooltip cursor={{ fill: '#f0fdf4' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }} />
-                                        <Bar dataKey="fast" name="< 5 Menit" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }} />
+                                        <Tooltip cursor={{ fill: '#fbe9ea' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }} />
+                                        <Bar dataKey="fast" name="< 5 Menit" fill="#E15A61" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </CardContent>
@@ -466,10 +466,10 @@ export default function ViolationValidationDashboard() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data?.breakdownCharts}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }}
+                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }}
                                             tickFormatter={(val) => period === 'day' ? (val ? format(new Date(val), 'dd-MMM') : '') : val}
                                         />
-                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} />
+                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }} />
                                         <Tooltip cursor={{ fill: '#fefce8' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }} />
                                         <Bar dataKey="slow5" name="> 5 Menit" fill="#eab308" radius={[4, 4, 0, 0]} />
                                     </BarChart>
@@ -490,12 +490,12 @@ export default function ViolationValidationDashboard() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data?.breakdownCharts}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }}
+                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }}
                                             tickFormatter={(val) => period === 'day' ? (val ? format(new Date(val), 'dd-MMM') : '') : val}
                                         />
-                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} />
+                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }} />
                                         <Tooltip cursor={{ fill: '#fff7ed' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }} />
-                                        <Bar dataKey="slow10" name="> 10 Menit" fill="#f97316" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="slow10" name="> 10 Menit" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </CardContent>
@@ -514,12 +514,12 @@ export default function ViolationValidationDashboard() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data?.breakdownCharts}>
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }}
+                                        <XAxis dataKey="label" fontSize={9} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }}
                                             tickFormatter={(val) => period === 'day' ? (val ? format(new Date(val), 'dd-MMM') : '') : val}
                                         />
-                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#94a3b8' }} />
+                                        <YAxis fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#B4B4B4' }} />
                                         <Tooltip cursor={{ fill: '#fef2f2' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }} />
-                                        <Bar dataKey="slow15" name="> 15 Menit" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="slow15" name="> 15 Menit" fill="#df2a33" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </CardContent>

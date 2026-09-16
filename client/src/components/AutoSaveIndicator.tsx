@@ -19,7 +19,7 @@ export function AutoSaveIndicator({ status, className }: AutoSaveIndicatorProps)
         return {
           icon: Check,
           text: 'Draft tersimpan',
-          className: 'text-green-600 dark:text-green-400'
+          className: 'text-foreground'
         };
       default:
         return {

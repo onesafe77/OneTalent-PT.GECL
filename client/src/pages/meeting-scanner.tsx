@@ -19,302 +19,302 @@ import jsQR from "jsqr";
 import type { Meeting } from "@shared/schema";
 
 export default function MeetingScanner() {
-  const [isScanning, setIsScanning] = useState(false);
-  const [employeeId, setEmployeeId] = useState("");
-  const [lastScanResult, setLastScanResult] = useState<any>(null);
-  const [meetingToken, setMeetingToken] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<string>("qr-scan");
-  const [signature, setSignature] = useState<string>("");
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const { toast } = useToast();
+ const [isScanning, setIsScanning] = useState(false);
+ const [employeeId, setEmployeeId] = useState("");
+ const [lastScanResult, setLastScanResult] = useState<any>(null);
+ const [meetingToken, setMeetingToken] = useState<string>("");
+ const [activeTab, setActiveTab] = useState<string>("qr-scan");
+ const [signature, setSignature] = useState<string>("");
+ const videoRef = useRef<HTMLVideoElement>(null);
+ const canvasRef = useRef<HTMLCanvasElement>(null);
+ const streamRef = useRef<MediaStream | null>(null);
+ const { toast } = useToast();
 
   // Get token from URL parameters
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const token = urlParams.get('token');
-    if (token) {
-      setMeetingToken(token);
+ useEffect(() => {
+ const urlParams = new URLSearchParams(window.location.search);
+ const token = urlParams.get('token');
+ if (token) {
+ setMeetingToken(token);
     }
   }, []);
 
   // Fetch meeting details if token is available
-  const { data: meeting, isLoading: isLoadingMeeting } = useQuery({
-    queryKey: ['/api/meetings/by-token', meetingToken],
-    queryFn: () => apiRequest(`/api/meetings/by-token/${meetingToken}`, "GET"),
-    enabled: !!meetingToken,
+ const { data: meeting, isLoading: isLoadingMeeting } = useQuery({
+ queryKey: ['/api/meetings/by-token', meetingToken],
+ queryFn: () => apiRequest(`/api/meetings/by-token/${meetingToken}`, "GET"),
+ enabled: !!meetingToken,
   });
 
   // Fetch investor groups for dropdown
-  const { data: investorGroups } = useQuery({
-    queryKey: ['/api/investor-groups'],
-    queryFn: () => apiRequest('/api/investor-groups', 'GET'),
+ const { data: investorGroups } = useQuery({
+ queryKey: ['/api/investor-groups'],
+ queryFn: () => apiRequest('/api/investor-groups', 'GET'),
   });
 
-  const isBIBMeeting = (meeting as any)?.meetingType === "bib";
+ const isBIBMeeting = (meeting as any)?.meetingType === "bib";
 
   // Auto-switch to manual-entry tab for BIB meetings once meeting data loads
-  useEffect(() => {
-    if (isBIBMeeting) {
-      setActiveTab("manual-entry");
+ useEffect(() => {
+ if (isBIBMeeting) {
+ setActiveTab("manual-entry");
     }
   }, [isBIBMeeting]);
 
   // Manual attendance form schema (adapts based on meeting type)
-  const manualAttendanceSchema = z.object({
-    namaKaryawan: z.string().min(1, "Nama karyawan wajib diisi"),
-    nik: z.string().optional(),
-    position: isBIBMeeting
+ const manualAttendanceSchema = z.object({
+ namaKaryawan: z.string().min(1, "Nama karyawan wajib diisi"),
+ nik: z.string().optional(),
+ position: isBIBMeeting
       ? z.string().min(1, "Jabatan wajib diisi")
-      : z.enum(["Investor", "Korlap"], { required_error: "Position wajib dipilih" }),
-    department: z.string().min(1, isBIBMeeting ? "Dept/Perusahaan wajib diisi" : "Department wajib dipilih"),
+ : z.enum(["Investor", "Korlap"], { required_error: "Position wajib dipilih" }),
+ department: z.string().min(1, isBIBMeeting ? "Dept/Perusahaan wajib diisi" : "Department wajib dipilih"),
   });
 
-  const manualForm = useForm<z.infer<typeof manualAttendanceSchema>>({
-    resolver: zodResolver(manualAttendanceSchema),
-    defaultValues: {
-      namaKaryawan: "",
-      nik: "",
-      position: undefined,
-      department: "",
+ const manualForm = useForm<z.infer<typeof manualAttendanceSchema>>({
+ resolver: zodResolver(manualAttendanceSchema),
+ defaultValues: {
+ namaKaryawan: "",
+ nik: "",
+ position: undefined,
+ department: "",
     },
   });
 
-  const attendanceMutation = useMutation({
-    mutationFn: async (data: { qrToken: string; employeeId: string }) => {
-      return await apiRequest("/api/meetings/qr-scan", "POST", data);
+ const attendanceMutation = useMutation({
+ mutationFn: async (data: { qrToken: string; employeeId: string }) => {
+ return await apiRequest("/api/meetings/qr-scan", "POST", data);
     },
-    onSuccess: (data) => {
-      setLastScanResult(data);
-      toast({
-        title: "Absensi Berhasil!",
-        description: data.message,
+ onSuccess: (data) => {
+ setLastScanResult(data);
+ toast({
+ title: "Absensi Berhasil!",
+ description: data.message,
       });
       // Reset employee ID after successful scan
-      setEmployeeId("");
+ setEmployeeId("");
     },
-    onError: (error: any) => {
-      let errorMessage = error.message || "Gagal melakukan absensi";
-      let errorTitle = "Absensi Gagal";
+ onError: (error: any) => {
+ let errorMessage = error.message || "Gagal melakukan absensi";
+ let errorTitle = "Absensi Gagal";
 
       // Handle specific meeting errors  
-      if (error.message?.includes("Already attended")) {
-        errorTitle = "Sudah Absen";
-        errorMessage = "Anda sudah melakukan absensi untuk meeting ini sebelumnya";
+ if (error.message?.includes("Already attended")) {
+ errorTitle = "Sudah Absen";
+ errorMessage = "Anda sudah melakukan absensi untuk meeting ini sebelumnya";
       } else if (error.message?.includes("Employee not found")) {
-        errorTitle = "Karyawan Tidak Ditemukan";
-        errorMessage = "NIK yang dimasukkan tidak terdaftar dalam sistem";
+ errorTitle = "Karyawan Tidak Ditemukan";
+ errorMessage = "NIK yang dimasukkan tidak terdaftar dalam sistem";
       } else if (error.message?.includes("Meeting not found")) {
-        errorTitle = "Meeting Tidak Ditemukan";
-        errorMessage = "QR Code meeting tidak valid atau meeting sudah tidak aktif";
+ errorTitle = "Meeting Tidak Ditemukan";
+ errorMessage = "QR Code meeting tidak valid atau meeting sudah tidak aktif";
       }
 
-      setLastScanResult({ error: errorMessage });
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
+ setLastScanResult({ error: errorMessage });
+ toast({
+ title: errorTitle,
+ description: errorMessage,
+ variant: "destructive",
       });
     },
   });
 
   // Manual attendance mutation
-  const manualAttendanceMutation = useMutation({
-    mutationFn: async (data: any) => {
-      if (!meeting?.id) throw new Error("Meeting not found");
-      return await apiRequest(`/api/meetings/${meeting.id}/manual-attendance`, "POST", {
-        attendanceType: "manual_entry",
-        manualName: data.namaKaryawan,
-        manualNik: data.nik || undefined,
-        manualPosition: data.position,
-        manualDepartment: data.department,
-        manualSignature: data.manualSignature || undefined,
-        scanTime: new Date().toTimeString().split(' ')[0],
-        scanDate: new Date().toISOString().split('T')[0],
-        deviceInfo: navigator.userAgent || 'Manual Entry'
+ const manualAttendanceMutation = useMutation({
+ mutationFn: async (data: any) => {
+ if (!meeting?.id) throw new Error("Meeting not found");
+ return await apiRequest(`/api/meetings/${meeting.id}/manual-attendance`, "POST", {
+ attendanceType: "manual_entry",
+ manualName: data.namaKaryawan,
+ manualNik: data.nik || undefined,
+ manualPosition: data.position,
+ manualDepartment: data.department,
+ manualSignature: data.manualSignature || undefined,
+ scanTime: new Date().toTimeString().split(' ')[0],
+ scanDate: new Date().toISOString().split('T')[0],
+ deviceInfo: navigator.userAgent || 'Manual Entry'
       });
     },
-    onSuccess: (data) => {
-      toast({
-        title: "Absensi Manual Berhasil!",
-        description: `${data.manualName} (${data.manualPosition}) telah dicatat sebagai hadir`,
+ onSuccess: (data) => {
+ toast({
+ title: "Absensi Manual Berhasil!",
+ description: `${data.manualName} (${data.manualPosition}) telah dicatat sebagai hadir`,
       });
-      manualForm.reset();
-      setSignature("");
+ manualForm.reset();
+ setSignature("");
       // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/meetings', meeting?.id, 'attendance'] });
+ queryClient.invalidateQueries({ queryKey: ['/api/meetings', meeting?.id, 'attendance'] });
     },
-    onError: (error: any) => {
-      toast({
-        title: "Absensi Manual Gagal",
-        description: error.message || "Terjadi kesalahan saat mencatat absensi manual",
-        variant: "destructive",
+ onError: (error: any) => {
+ toast({
+ title: "Absensi Manual Gagal",
+ description: error.message || "Terjadi kesalahan saat mencatat absensi manual",
+ variant: "destructive",
       });
     },
   });
 
   // Handle manual form submission
-  const onManualSubmit = (data: z.infer<typeof manualAttendanceSchema>) => {
-    manualAttendanceMutation.mutate({ ...data, manualSignature: signature || undefined } as any);
+ const onManualSubmit = (data: z.infer<typeof manualAttendanceSchema>) => {
+ manualAttendanceMutation.mutate({ ...data, manualSignature: signature || undefined } as any);
   };
 
   // Handle form submission for direct attendance
-  const handleFormSubmit = () => {
-    if (!employeeId.trim()) {
-      toast({
-        title: "NIK Diperlukan",
-        description: "Silakan masukkan NIK karyawan",
-        variant: "destructive",
+ const handleFormSubmit = () => {
+ if (!employeeId.trim()) {
+ toast({
+ title: "NIK Diperlukan",
+ description: "Silakan masukkan NIK karyawan",
+ variant: "destructive",
       });
-      return;
+ return;
     }
 
-    if (!meetingToken) {
-      toast({
-        title: "Token Meeting Tidak Ditemukan",
-        description: "Silakan scan QR code meeting yang valid",
-        variant: "destructive",
+ if (!meetingToken) {
+ toast({
+ title: "Token Meeting Tidak Ditemukan",
+ description: "Silakan scan QR code meeting yang valid",
+ variant: "destructive",
       });
-      return;
+ return;
     }
 
-    attendanceMutation.mutate({
-      qrToken: meetingToken,
-      employeeId: employeeId.trim()
+ attendanceMutation.mutate({
+ qrToken: meetingToken,
+ employeeId: employeeId.trim()
     });
   };
 
-  const startCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" } // Use back camera if available
+ const startCamera = useCallback(async () => {
+ try {
+ const stream = await navigator.mediaDevices.getUserMedia({
+ video: { facingMode: "environment" } // Use back camera if available
       });
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setIsScanning(true);
+ if (videoRef.current) {
+ videoRef.current.srcObject = stream;
+ streamRef.current = stream;
+ setIsScanning(true);
 
         // Start scanning process
-        const scanQR = () => {
-          if (videoRef.current && canvasRef.current && isScanning) {
-            const video = videoRef.current;
-            const canvas = canvasRef.current;
-            const context = canvas.getContext("2d");
+ const scanQR = () => {
+ if (videoRef.current && canvasRef.current && isScanning) {
+ const video = videoRef.current;
+ const canvas = canvasRef.current;
+ const context = canvas.getContext("2d");
 
-            if (context && video.readyState === video.HAVE_ENOUGH_DATA) {
-              canvas.height = video.videoHeight;
-              canvas.width = video.videoWidth;
-              context.drawImage(video, 0, 0, canvas.width, canvas.height);
+ if (context && video.readyState === video.HAVE_ENOUGH_DATA) {
+ canvas.height = video.videoHeight;
+ canvas.width = video.videoWidth;
+ context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-              const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height);
+ const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+ const code = jsQR(imageData.data, imageData.width, imageData.height);
 
-              if (code && code.data) {
-                let qrToken = null;
+ if (code && code.data) {
+ let qrToken = null;
 
                 // Try to parse as JSON first
-                try {
-                  const qrData = JSON.parse(code.data);
-                  if (qrData.type === "meeting" && qrData.token) {
-                    qrToken = qrData.token;
+ try {
+ const qrData = JSON.parse(code.data);
+ if (qrData.type === "meeting" && qrData.token) {
+ qrToken = qrData.token;
                   }
                 } catch (parseError) {
                   // If JSON parsing fails, try to parse as URL
-                  try {
-                    const url = new URL(code.data);
+ try {
+ const url = new URL(code.data);
 
                     // Handle direct meeting scanner URLs
-                    if (url.pathname.includes('/meeting-scanner')) {
-                      qrToken = url.searchParams.get('token');
+ if (url.pathname.includes('/meeting-scanner')) {
+ qrToken = url.searchParams.get('token');
                     }
                     // Handle QR redirect URLs (new format)
-                    else if (url.pathname.includes('/qr-redirect')) {
-                      const data = url.searchParams.get('data');
-                      if (data) {
-                        try {
-                          const decodedData = decodeURIComponent(data);
-                          const redirectQrData = JSON.parse(decodedData);
-                          if (redirectQrData.type === "meeting" && redirectQrData.token) {
-                            qrToken = redirectQrData.token;
+ else if (url.pathname.includes('/qr-redirect')) {
+ const data = url.searchParams.get('data');
+ if (data) {
+ try {
+ const decodedData = decodeURIComponent(data);
+ const redirectQrData = JSON.parse(decodedData);
+ if (redirectQrData.type === "meeting" && redirectQrData.token) {
+ qrToken = redirectQrData.token;
                           }
                         } catch (nestedParseError) {
-                          console.log('Failed to parse QR redirect data:', nestedParseError);
+ console.log('Failed to parse QR redirect data:', nestedParseError);
                         }
                       }
                     }
                   } catch (urlError) {
                     // Neither JSON nor URL, continue scanning
-                    console.log('QR code format not recognized:', code.data);
+ console.log('QR code format not recognized:', code.data);
                   }
                 }
 
                 // If we found a valid meeting token and have employee ID
-                if (qrToken && employeeId) {
+ if (qrToken && employeeId) {
                   // Stop scanning when QR code is detected
-                  stopCamera();
+ stopCamera();
 
                   // Show loading state
-                  toast({
-                    title: "QR Code Detected",
-                    description: "Memproses absensi meeting...",
+ toast({
+ title: "QR Code Detected",
+ description: "Memproses absensi meeting...",
                   });
 
-                  attendanceMutation.mutate({
-                    qrToken: qrToken,
-                    employeeId: employeeId
+ attendanceMutation.mutate({
+ qrToken: qrToken,
+ employeeId: employeeId
                   });
-                  return;
+ return;
                 }
               }
             }
 
             // Continue scanning
-            requestAnimationFrame(scanQR);
+ requestAnimationFrame(scanQR);
           }
         };
 
         // Start scanning loop
-        videoRef.current.addEventListener('loadedmetadata', () => {
-          scanQR();
+ videoRef.current.addEventListener('loadedmetadata', () => {
+ scanQR();
         });
       }
     } catch (error) {
-      console.error("Error accessing camera:", error);
-      toast({
-        title: "Camera Error",
-        description: "Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.",
-        variant: "destructive",
+ console.error("Error accessing camera:", error);
+ toast({
+ title: "Camera Error",
+ description: "Tidak dapat mengakses kamera. Pastikan izin kamera telah diberikan.",
+ variant: "destructive",
       });
     }
   }, [employeeId, isScanning, attendanceMutation]);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
+ const stopCamera = useCallback(() => {
+ if (streamRef.current) {
+ streamRef.current.getTracks().forEach(track => track.stop());
+ streamRef.current = null;
     }
-    setIsScanning(false);
+ setIsScanning(false);
   }, []);
 
-  const handleStartScan = () => {
-    if (!employeeId.trim()) {
-      toast({
-        title: "NIK Required",
-        description: "Masukkan NIK karyawan terlebih dahulu",
-        variant: "destructive",
+ const handleStartScan = () => {
+ if (!employeeId.trim()) {
+ toast({
+ title: "NIK Required",
+ description: "Masukkan NIK karyawan terlebih dahulu",
+ variant: "destructive",
       });
-      return;
+ return;
     }
-    startCamera();
+ startCamera();
   };
 
-  return (
+ return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       <div className="max-w-md mx-auto">
         <div className="text-center mb-6">
-          <QrCode className="w-16 h-16 text-red-600 mx-auto mb-4" />
+          <QrCode className="w-16 h-16 text-gray-950 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             Absensi Meeting
           </h1>
@@ -384,7 +384,7 @@ export default function MeetingScanner() {
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               {!isBIBMeeting && (
-                <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsList className="mb-6">
                   <TabsTrigger value="qr-scan" data-testid="tab-qr-scan">
                     <QrCode className="w-4 h-4 mr-2" />
                     Scan QR Code
@@ -401,16 +401,16 @@ export default function MeetingScanner() {
                 <div>
                   <Label htmlFor="employeeId">NIK Karyawan</Label>
                   <Input
-                    id="employeeId"
-                    type="text"
-                    placeholder="Masukkan NIK karyawan"
-                    value={employeeId}
-                    onChange={(e) => setEmployeeId(e.target.value)}
-                    disabled={attendanceMutation.isPending}
-                    data-testid="input-employee-id"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && meetingToken) {
-                        handleFormSubmit();
+ id="employeeId"
+ type="text"
+ placeholder="Masukkan NIK karyawan"
+ value={employeeId}
+ onChange={(e) => setEmployeeId(e.target.value)}
+ disabled={attendanceMutation.isPending}
+ data-testid="input-employee-id"
+ onKeyPress={(e) => {
+ if (e.key === 'Enter' && meetingToken) {
+ handleFormSubmit();
                       }
                     }}
                   />
@@ -418,10 +418,10 @@ export default function MeetingScanner() {
 
                 {meetingToken ? (
                   <Button
-                    onClick={handleFormSubmit}
-                    disabled={attendanceMutation.isPending || !employeeId.trim()}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                    data-testid="button-submit-attendance"
+ onClick={handleFormSubmit}
+ disabled={attendanceMutation.isPending || !employeeId.trim()}
+ className="w-full bg-primary hover:bg-primary/90"
+ data-testid="button-submit-attendance"
                   >
                     {attendanceMutation.isPending ? (
                       <>
@@ -437,10 +437,10 @@ export default function MeetingScanner() {
                   </Button>
                 ) : (
                   <Button
-                    onClick={handleStartScan}
-                    disabled={!employeeId.trim() || isScanning || attendanceMutation.isPending}
-                    className="w-full bg-red-600 hover:bg-red-700"
-                    data-testid="button-start-scan"
+ onClick={handleStartScan}
+ disabled={!employeeId.trim() || isScanning || attendanceMutation.isPending}
+ className="w-full bg-gray-950 hover:bg-gray-950"
+ data-testid="button-start-scan"
                   >
                     {isScanning ? (
                       <>
@@ -470,23 +470,23 @@ export default function MeetingScanner() {
                     </div>
                     <div className="relative">
                       <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full rounded-lg"
-                        data-testid="video-scanner"
+ ref={videoRef}
+ autoPlay
+ playsInline
+ className="w-full rounded-lg"
+ data-testid="video-scanner"
                       />
                       <canvas
-                        ref={canvasRef}
-                        className="hidden"
+ ref={canvasRef}
+ className="hidden"
                       />
 
                       {/* Scanning overlay */}
-                      <div className="absolute inset-0 border-2 border-red-500 rounded-lg pointer-events-none">
-                        <div className="absolute top-4 left-4 w-6 h-6 border-t-4 border-l-4 border-red-500"></div>
-                        <div className="absolute top-4 right-4 w-6 h-6 border-t-4 border-r-4 border-red-500"></div>
-                        <div className="absolute bottom-4 left-4 w-6 h-6 border-b-4 border-l-4 border-red-500"></div>
-                        <div className="absolute bottom-4 right-4 w-6 h-6 border-b-4 border-r-4 border-red-500"></div>
+                      <div className="absolute inset-0 border-2 border-gray-400 rounded-lg pointer-events-none">
+                        <div className="absolute top-4 left-4 w-6 h-6 border-t-4 border-l-4 border-gray-400"></div>
+                        <div className="absolute top-4 right-4 w-6 h-6 border-t-4 border-r-4 border-gray-400"></div>
+                        <div className="absolute bottom-4 left-4 w-6 h-6 border-b-4 border-l-4 border-gray-400"></div>
+                        <div className="absolute bottom-4 right-4 w-6 h-6 border-b-4 border-r-4 border-gray-400"></div>
                       </div>
 
                       <div className="absolute bottom-2 left-2 right-2 bg-black bg-opacity-50 text-white text-xs p-2 rounded text-center">
@@ -494,10 +494,10 @@ export default function MeetingScanner() {
                       </div>
                     </div>
                     <Button
-                      onClick={stopCamera}
-                      variant="outline"
-                      className="w-full mt-4"
-                      data-testid="button-stop-scan"
+ onClick={stopCamera}
+ variant="outline"
+ className="w-full mt-4"
+ data-testid="button-stop-scan"
                     >
                       <CameraOff className="w-4 h-4 mr-2" />
                       Hentikan Scanner
@@ -525,10 +525,10 @@ export default function MeetingScanner() {
                             <span className="font-medium text-blue-800 dark:text-blue-200">Tanggal:</span>
                             <div className="text-blue-700 dark:text-blue-300">
                               {new Date().toLocaleDateString('id-ID', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
+ weekday: 'long',
+ year: 'numeric',
+ month: 'long',
+ day: 'numeric'
                               })}
                             </div>
                           </div>
@@ -536,8 +536,8 @@ export default function MeetingScanner() {
                             <span className="font-medium text-blue-800 dark:text-blue-200">Waktu:</span>
                             <div className="text-blue-700 dark:text-blue-300">
                               {new Date().toLocaleTimeString('id-ID', {
-                                hour: '2-digit',
-                                minute: '2-digit'
+ hour: '2-digit',
+ minute: '2-digit'
                               })}
                             </div>
                           </div>
@@ -546,15 +546,15 @@ export default function MeetingScanner() {
 
                       {/* Nama Karyawan */}
                       <FormField
-                        control={manualForm.control}
-                        name="namaKaryawan"
-                        render={({ field }) => (
+ control={manualForm.control}
+ name="namaKaryawan"
+ render={({ field }) => (
                           <FormItem>
                             <FormLabel>Nama Karyawan</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="Masukkan nama lengkap karyawan"
-                                data-testid="input-manual-name"
+ placeholder="Masukkan nama lengkap karyawan"
+ data-testid="input-manual-name"
                                 {...field}
                               />
                             </FormControl>
@@ -565,15 +565,15 @@ export default function MeetingScanner() {
 
                       {/* NIK (Optional) */}
                       <FormField
-                        control={manualForm.control}
-                        name="nik"
-                        render={({ field }) => (
+ control={manualForm.control}
+ name="nik"
+ render={({ field }) => (
                           <FormItem>
                             <FormLabel>NIK Karyawan (Opsional)</FormLabel>
                             <FormControl>
                               <Input
-                                placeholder="Masukkan NIK jika tersedia"
-                                data-testid="input-manual-nik"
+ placeholder="Masukkan NIK jika tersedia"
+ data-testid="input-manual-nik"
                                 {...field}
                               />
                             </FormControl>
@@ -584,24 +584,24 @@ export default function MeetingScanner() {
 
                       {/* Position / Jabatan */}
                       <FormField
-                        control={manualForm.control}
-                        name="position"
-                        render={({ field }) => (
+ control={manualForm.control}
+ name="position"
+ render={({ field }) => (
                           <FormItem className="space-y-3">
                             <FormLabel>{isBIBMeeting ? "Jabatan" : "Posisi"}</FormLabel>
                             <FormControl>
                               {isBIBMeeting ? (
                                 <Input
-                                  placeholder="Masukkan jabatan"
-                                  data-testid="input-manual-position"
+ placeholder="Masukkan jabatan"
+ data-testid="input-manual-position"
                                   {...field}
                                 />
                               ) : (
                                 <RadioGroup
-                                  onValueChange={field.onChange}
-                                  value={field.value}
-                                  className="flex flex-col space-y-2"
-                                  data-testid="radio-manual-position"
+ onValueChange={field.onChange}
+ value={field.value}
+ className="flex flex-col space-y-2"
+ data-testid="radio-manual-position"
                                 >
                                   <div className="flex items-center space-x-2">
                                     <RadioGroupItem value="Investor" id="investor" />
@@ -621,16 +621,16 @@ export default function MeetingScanner() {
 
                       {/* Department / Perusahaan */}
                       <FormField
-                        control={manualForm.control}
-                        name="department"
-                        render={({ field }) => (
+ control={manualForm.control}
+ name="department"
+ render={({ field }) => (
                           <FormItem>
                             <FormLabel>{isBIBMeeting ? "Dept / Perusahaan" : "Department"}</FormLabel>
                             {isBIBMeeting ? (
                               <FormControl>
                                 <Input
-                                  placeholder="Masukkan dept / perusahaan"
-                                  data-testid="input-manual-department"
+ placeholder="Masukkan dept / perusahaan"
+ data-testid="input-manual-department"
                                   {...field}
                                 />
                               </FormControl>
@@ -661,22 +661,22 @@ export default function MeetingScanner() {
                           <Label className="flex items-center gap-2">
                             <PenLine className="w-4 h-4" />
                             Tanda Tangan
-                            {signature && <span className="text-xs text-green-600 font-medium">(tersimpan)</span>}
+                            {signature && <span className="text-xs text-foreground font-medium">(tersimpan)</span>}
                           </Label>
                           <SignaturePad
-                            title=""
-                            autoSave={true}
-                            onSave={(dataUrl) => setSignature(dataUrl)}
-                            onClear={() => setSignature("")}
+ title=""
+ autoSave={true}
+ onSave={(dataUrl) => setSignature(dataUrl)}
+ onClear={() => setSignature("")}
                           />
                         </div>
                       )}
 
                       <Button
-                        type="submit"
-                        disabled={manualAttendanceMutation.isPending || (isBIBMeeting && !signature)}
-                        className="w-full bg-blue-600 hover:bg-blue-700"
-                        data-testid="button-submit-manual"
+ type="submit"
+ disabled={manualAttendanceMutation.isPending || (isBIBMeeting && !signature)}
+ className="w-full bg-blue-600 hover:bg-blue-700"
+ data-testid="button-submit-manual"
                       >
                         {manualAttendanceMutation.isPending ? (
                           <>
@@ -700,9 +700,9 @@ export default function MeetingScanner() {
 
         {/* Scan Result */}
         {lastScanResult && (
-          <Card className={`mb-6 ${lastScanResult.error ? 'border-red-200' : 'border-green-200'}`}>
+          <Card className={`mb-6 ${lastScanResult.error ? 'border-red-200' : 'border-border'}`}>
             <CardHeader>
-              <CardTitle className={`text-lg flex items-center gap-2 ${lastScanResult.error ? 'text-red-600' : 'text-green-600'}`}>
+              <CardTitle className={`text-lg flex items-center gap-2 ${lastScanResult.error ? 'text-red-600' : 'text-foreground'}`}>
                 {lastScanResult.error ? (
                   <>
                     <AlertCircle className="w-5 h-5" />
@@ -723,7 +723,7 @@ export default function MeetingScanner() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="text-green-600 font-medium">
+                  <div className="text-foreground font-medium">
                     {lastScanResult.message}
                   </div>
 
@@ -756,7 +756,7 @@ export default function MeetingScanner() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="qr-instructions" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsList className="mb-4">
                 <TabsTrigger value="qr-instructions" className="text-xs">
                   <QrCode className="w-3 h-3 mr-1" />
                   Scan QR
@@ -770,28 +770,28 @@ export default function MeetingScanner() {
               <TabsContent value="qr-instructions">
                 <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
                   <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    <div className="w-6 h-6 bg-gray-100 text-gray-950 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       1
                     </div>
                     <div>Masukkan NIK karyawan pada form di atas</div>
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    <div className="w-6 h-6 bg-gray-100 text-gray-950 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       2
                     </div>
                     <div>Tekan tombol "Mulai Scan QR Code" untuk mengaktifkan kamera</div>
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    <div className="w-6 h-6 bg-gray-100 text-gray-950 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       3
                     </div>
                     <div>Arahkan kamera ke QR code meeting yang telah disediakan</div>
                   </div>
 
                   <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 bg-red-100 text-red-600 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                    <div className="w-6 h-6 bg-gray-100 text-gray-950 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
                       4
                     </div>
                     <div>Tunggu hingga sistem berhasil memindai dan memproses absensi</div>

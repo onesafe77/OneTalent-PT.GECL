@@ -161,10 +161,10 @@ export default function SupervisorRecordings() {
                         <p className="text-xs text-gray-500">Total Sesi</p>
                     </CardContent>
                 </Card>
-                <Card className="border-green-200 bg-green-50 dark:bg-green-900/10">
+                <Card className="border-border bg-muted">
                     <CardContent className="pt-4 text-center">
-                        <Play className="w-6 h-6 mx-auto mb-2 text-green-500" />
-                        <p className="text-2xl font-bold text-green-600">{withRecording}</p>
+                        <Play className="w-6 h-6 mx-auto mb-2 text-foreground" />
+                        <p className="text-2xl font-bold text-foreground">{withRecording}</p>
                         <p className="text-xs text-gray-500">Ada Rekaman Sesi</p>
                     </CardContent>
                 </Card>
@@ -321,14 +321,14 @@ export default function SupervisorRecordings() {
                                 </thead>
                                 <tbody className="divide-y">
                                     {scanRecords.map((rec, idx) => (
-                                        <tr key={rec.id} className={`hover:bg-gray-50 ${playingScan?.id === rec.id ? 'bg-blue-50' : ''}`}>
+                                        <tr key={rec.id} className={`hover:bg-muted ${playingScan?.id === rec.id ? 'bg-muted' : ''}`}>
                                             <td className="py-2 px-2">{idx + 1}</td>
                                             <td className="py-2 px-2 font-medium">{rec.nama}</td>
                                             <td className="py-2 px-2 font-mono text-xs">{rec.nik}</td>
                                             <td className="py-2 px-2 text-gray-600">{rec.nomorLambung || "-"}</td>
                                             <td className="py-2 px-2 text-center">
                                                 <Badge className={rec.karyawanSiapBekerja
-                                                    ? "bg-green-100 text-green-700 text-xs"
+                                                    ? "bg-muted text-foreground text-xs"
                                                     : "bg-red-100 text-red-700 text-xs"}>
                                                     {rec.karyawanSiapBekerja ? "Fit" : "Tidak Fit"}
                                                 </Badge>

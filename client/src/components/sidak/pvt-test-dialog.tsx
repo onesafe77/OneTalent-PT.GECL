@@ -170,7 +170,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
     };
 
     const getStatusColor = () => {
-        if (meanRT <= 350) return "text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400";
+        if (meanRT <= 350) return "text-foreground bg-muted";
         if (meanRT <= 500) return "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30 dark:text-yellow-400";
         return "text-red-600 bg-red-100 dark:bg-red-900/30 dark:text-red-400";
     };
@@ -202,7 +202,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
                         "flex-1 flex flex-col items-center justify-center p-6 text-center transition-colors duration-200 cursor-pointer select-none",
                         gameState === "idle" && "bg-background",
                         gameState === "waiting" && "bg-gray-100 dark:bg-gray-900",
-                        gameState === "ready" && "bg-green-500 hover:bg-green-600 active:bg-green-700",
+                        gameState === "ready" && "bg-primary hover:bg-primary/90 active:bg-primary",
                         gameState === "early" && "bg-red-100 dark:bg-red-900/20",
                         gameState === "result" && "bg-background",
                         gameState === "score" && "bg-background"
@@ -219,7 +219,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
                             <div>
                                 <h2 className="text-2xl font-bold mb-2">Siap Mulai?</h2>
                                 <p className="text-muted-foreground">
-                                    Ketuk layar secepatnya saat berubah menjadi warna <span className="text-green-600 font-bold">HIJAU</span>.
+                                    Ketuk layar secepatnya saat berubah menjadi warna <span className="text-foreground font-bold">HIJAU</span>.
                                 </p>
                             </div>
                             <Button onClick={startRound} size="lg" className="w-full text-lg h-12">
@@ -268,7 +268,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
                             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
                                 <div
                                     className={cn("h-full transition-all duration-500",
-                                        (reactionTime || 0) <= 350 ? "bg-green-500" : (reactionTime || 0) <= 500 ? "bg-yellow-500" : "bg-red-500"
+                                        (reactionTime || 0) <= 350 ? "bg-primary" : (reactionTime || 0) <= 500 ? "bg-yellow-500" : "bg-red-500"
                                     )}
                                     style={{ width: `${Math.min(100, (1000 - (reactionTime || 0)) / 10)}%` }}
                                 />
@@ -287,7 +287,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
                             </div>
 
                             <div className="text-center space-y-2">
-                                <h2 className={cn("text-2xl font-bold", meanRT <= 350 ? "text-green-600" : meanRT <= 500 ? "text-yellow-600" : "text-red-600")}>
+                                <h2 className={cn("text-2xl font-bold", meanRT <= 350 ? "text-foreground" : meanRT <= 500 ? "text-yellow-600" : "text-red-600")}>
                                     {getStatusText().title}
                                 </h2>
                                 <p className="text-muted-foreground text-sm">
@@ -302,7 +302,7 @@ export function PVTTestDialog({ open, onOpenChange, onComplete }: PVTTestDialogP
 
                             <Button
                                 onClick={handleFinalAction}
-                                className={cn("w-full h-12 text-lg", meanRT > 500 ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700")}
+                                className={cn("w-full h-12 text-lg", meanRT > 500 ? "bg-red-600 hover:bg-red-700" : "bg-primary hover:bg-primary/90")}
                             >
                                 Selesai & Simpan
                             </Button>

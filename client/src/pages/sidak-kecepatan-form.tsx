@@ -254,7 +254,7 @@ export default function SidakKecepatanForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.observers.length === 0}
                 >
@@ -426,7 +426,7 @@ export default function SidakKecepatanForm() {
                                             type="button"
                                             onClick={() => setCurrentRecord(prev => ({ ...prev, arahMuatan: false, arahKosongan: true }))}
                                             variant={currentRecord.arahKosongan ? "default" : "outline"}
-                                            className={cn("flex-1 h-12", currentRecord.arahKosongan ? "bg-green-600 hover:bg-green-700 shadow-md shadow-green-200 dark:shadow-none" : "hover:bg-green-50 text-gray-600")}
+                                            className={cn("flex-1 h-12", currentRecord.arahKosongan ? "bg-primary hover:bg-primary/90 shadow-md shadow-primary/20 dark:shadow-none" : "hover:bg-muted text-gray-600")}
                                         >
                                             Kosongan
                                         </Button>
@@ -487,7 +487,7 @@ export default function SidakKecepatanForm() {
                                                     <p className="text-xs text-gray-500">{rec.arahMuatan ? "Muatan" : "Kosongan"}</p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className={cn("text-sm font-bold px-2 py-1 rounded-md border", isOverspeed ? "text-red-600 bg-red-100 border-red-200" : "text-green-600 bg-green-50 border-green-100")}>
+                                                    <span className={cn("text-sm font-bold px-2 py-1 rounded-md border", isOverspeed ? "text-red-600 bg-red-100 border-red-200" : "text-foreground bg-muted border-border")}>
                                                         {rec.kecepatanKph} KM/H
                                                     </span>
                                                 </div>
@@ -512,12 +512,12 @@ export default function SidakKecepatanForm() {
                             {draft.observers.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.observers.map((obs, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                                                 <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

@@ -363,7 +363,7 @@ export default function SidakBehaviorForm() {
         if (step === 4) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold"
                     onClick={handleFinish}
                 >
                     Selesai & Kirim Data
@@ -393,19 +393,19 @@ export default function SidakBehaviorForm() {
                         <Progress value={(step / 4) * 100} className="h-2 bg-blue-100" />
                         <div className="flex justify-between mt-4">
                             <div className={cn("flex flex-col items-center", step >= 1 ? "opacity-100" : "opacity-40")}>
-                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > 1 ? "bg-green-500 text-white" : "bg-blue-600 text-white")}>
+                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > 1 ? "bg-primary text-white" : "bg-blue-600 text-white")}>
                                     {step > 1 ? <Check className="w-4 h-4" /> : "1"}
                                 </div>
                                 <span className="text-[10px] font-medium">Header</span>
                             </div>
                             <div className={cn("flex flex-col items-center", step >= 2 ? "opacity-100" : "opacity-40")}>
-                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > 2 ? "bg-green-500 text-white" : "bg-blue-600 text-white")}>
+                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > 2 ? "bg-primary text-white" : "bg-blue-600 text-white")}>
                                     {step > 2 ? <Check className="w-4 h-4" /> : "2"}
                                 </div>
                                 <span className="text-[10px] font-medium">Driver</span>
                             </div>
                             <div className={cn("flex flex-col items-center", step >= 3 ? "opacity-100" : "opacity-40")}>
-                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > 3 ? "bg-green-500 text-white" : "bg-blue-600 text-white")}>
+                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1", step > 3 ? "bg-primary text-white" : "bg-blue-600 text-white")}>
                                     {step > 3 ? <Check className="w-4 h-4" /> : "3"}
                                 </div>
                                 <span className="text-[10px] font-medium">Observer</span>
@@ -502,14 +502,14 @@ export default function SidakBehaviorForm() {
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
-                                        <div className={`rounded-full p-1.5 ${records.length >= 10 ? 'bg-green-500' : 'bg-blue-500'}`}>
+                                        <div className={`rounded-full p-1.5 ${records.length >= 10 ? 'bg-primary' : 'bg-blue-500'}`}>
                                             <Car className="w-4 h-4 text-white" />
                                         </div>
                                         <div>
                                             <CardTitle className="text-base">Data Driver</CardTitle>
                                             <CardDescription className="text-xs">
                                                 {records.length}/10 sampel driver
-                                                {records.length >= 10 && <span className="ml-1 text-green-600 font-bold">✓ Lengkap</span>}
+                                                {records.length >= 10 && <span className="ml-1 text-foreground font-bold">✓ Lengkap</span>}
                                             </CardDescription>
                                         </div>
                                     </div>
@@ -595,7 +595,7 @@ export default function SidakBehaviorForm() {
                                             placeholder="Auto dari pencarian"
                                             value={currentRecord.namaDriver}
                                             onChange={(e) => setCurrentRecord({ ...currentRecord, namaDriver: e.target.value })}
-                                            className={currentRecord.namaDriver ? "bg-green-50 border-green-200" : ""}
+                                            className={currentRecord.namaDriver ? "bg-muted border-border" : ""}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -604,7 +604,7 @@ export default function SidakBehaviorForm() {
                                             placeholder="Auto dari pencarian"
                                             value={currentRecord.nomorLambung}
                                             onChange={(e) => setCurrentRecord({ ...currentRecord, nomorLambung: e.target.value })}
-                                            className={currentRecord.nomorLambung ? "bg-green-50 border-green-200" : ""}
+                                            className={currentRecord.nomorLambung ? "bg-muted border-border" : ""}
                                         />
                                     </div>
                                 </div>
@@ -645,7 +645,7 @@ export default function SidakBehaviorForm() {
                                 <Separator />
 
                                 <div className="space-y-4">
-                                    <Label className="text-green-700 font-bold flex items-center gap-2">
+                                    <Label className="text-foreground font-bold flex items-center gap-2">
                                         <ClipboardCheck className="w-4 h-4" />
                                         TINDAK LANJUT / REKOMENDASI
                                     </Label>
@@ -660,7 +660,7 @@ export default function SidakBehaviorForm() {
                                             { id: "mandatoryRest", label: "Mandatory rest >= 30 menit" },
                                             { id: "koordinasiPengawas", label: "Koordinasi pengawas lapangan" },
                                         ].map((item) => (
-                                            <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-green-50/30">
+                                            <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted">
                                                 <Label htmlFor={item.id} className="flex-1 text-sm">{item.label}</Label>
                                                 <Checkbox
                                                     id={item.id}
@@ -693,7 +693,7 @@ export default function SidakBehaviorForm() {
                                                 </button>
                                             </div>
                                         ) : (
-                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors group">
+                                            <label className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-muted transition-colors group">
                                                 <Camera className="h-8 w-8 text-gray-400 group-hover:text-amber-500 mb-2 transition-colors" />
                                                 <span className="text-sm text-gray-600 font-medium">Klik untuk Unggah / Ambil Foto</span>
                                                 <span className="text-xs text-gray-400 text-center mt-1">Bukti temuan pelanggaran (jika ada)</span>
@@ -722,7 +722,7 @@ export default function SidakBehaviorForm() {
                                             <p className="font-bold text-sm">{obs.nama}</p>
                                             <p className="text-xs text-gray-500">{obs.jabatan} - {obs.perusahaan}</p>
                                         </div>
-                                        <Check className="text-green-600 w-5 h-5" />
+                                        <Check className="text-foreground w-5 h-5" />
                                     </div>
                                 ))}
 
@@ -783,9 +783,9 @@ export default function SidakBehaviorForm() {
                 {step === 4 && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
                         <Card>
-                            <CardHeader className="bg-green-600 text-white rounded-t-lg">
+                            <CardHeader className="bg-primary text-white rounded-t-lg">
                                 <CardTitle>Ringkasan Sidak</CardTitle>
-                                <CardDescription className="text-green-100">Review data sebelum diselesaikan</CardDescription>
+                                <CardDescription className="text-muted-foreground">Review data sebelum diselesaikan</CardDescription>
                             </CardHeader>
                             <CardContent className="pt-6 space-y-4">
                                 <div className="bg-gray-50 p-4 rounded-lg space-y-2">

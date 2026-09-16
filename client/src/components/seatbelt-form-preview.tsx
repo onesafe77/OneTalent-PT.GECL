@@ -5,7 +5,7 @@ export function SeatbeltFormPreview({ session, records, observers }: {
     observers: any[];
 }) {
     const CheckIcon = ({ checked }: { checked: boolean }) => (
-        <span className={`text-lg font-bold ${checked ? 'text-green-600' : 'text-red-500'}`}>
+        <span className={`text-lg font-bold ${checked ? 'text-foreground' : 'text-red-500'}`}>
             {checked ? '✓' : '✗'}
         </span>
     );

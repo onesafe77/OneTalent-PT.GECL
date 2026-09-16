@@ -95,7 +95,14 @@ const FormLabel = React.forwardRef<
   return (
     <Label
       ref={ref}
-      className={cn(error && "text-destructive", className)}
+      // Label field mengikuti prototipe: mono huruf besar berspasi. Diterapkan di
+      // FormLabel, BUKAN di Label mentah — Label juga dipakai untuk judul checklist
+      // dan kalimat panjang, yang jadi sulit dibaca bila dikapitalkan.
+      className={cn(
+        "font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground",
+        error && "text-destructive",
+        className
+      )}
       htmlFor={formItemId}
       {...props}
     />

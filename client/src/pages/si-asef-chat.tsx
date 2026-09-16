@@ -27,9 +27,9 @@ const spotlightData = [
         source: "UU No. 1 Tahun 1970",
         pasal: "Pasal 3",
         query: "Apa hak tenaga kerja terkait keselamatan kerja dalam UU No. 1 Tahun 1970?",
-        color: "bg-emerald-900",
+        color: "bg-muted",
         icon: ShieldCheck,
-        accent: "text-emerald-300",
+        accent: "text-muted-foreground",
         badge: "HAK PEKERJA"
     },
     {
@@ -183,7 +183,7 @@ export default function SiAsefChatPage() {
                         setCurrentSessionId(null);
                         setMessages([]);
                     }}
-                    className="w-full justify-start gap-3 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl h-10 px-4 mb-6 shadow-md shadow-red-500/20 font-medium transition-all group"
+                    className="w-full justify-start gap-3 bg-gradient-to-r from-gray-600 to-rose-600 hover:from-gray-700 hover:to-rose-700 text-white rounded-xl h-10 px-4 mb-6 shadow-md shadow-red-500/20 font-medium transition-all group"
                 >
                     <Plus className="w-4 h-4 text-white group-hover:rotate-90 transition-transform duration-300" />
                     Mulai Chat Baru
@@ -259,7 +259,7 @@ export default function SiAsefChatPage() {
                                         alert("Gagal menghapus chat");
                                     }
                                 }}
-                                className="p-2 text-zinc-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all absolute right-1 top-1/2 -translate-y-1/2 z-10 hover:shadow-sm"
+                                className="p-2 text-zinc-300 hover:text-gray-950 hover:bg-muted rounded-lg transition-all absolute right-1 top-1/2 -translate-y-1/2 z-10 hover:shadow-sm"
                                 title="Hapus chat"
                             >
                                 <Trash2 className="w-4 h-4" />
@@ -277,7 +277,7 @@ export default function SiAsefChatPage() {
             {/* Bottom Profile Section (Mockup) */}
             <div className="p-4 border-t border-[#e5e5e5]">
                 <div className="flex items-center gap-3 px-2 py-2 cursor-pointer hover:bg-[#e8e8e7] rounded-lg transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
                         {user?.name?.charAt(0) || 'U'}
                     </div>
                     <div className="flex-1 overflow-hidden">
@@ -288,6 +288,15 @@ export default function SiAsefChatPage() {
             </div>
         </div>
     );
+
+    // Pertanyaan yang diketik di Beranda dititipkan lewat sessionStorage lalu
+    // dikirim di sini. Dibuang sebelum dikirim supaya refresh tidak mengirim ulang.
+    useEffect(() => {
+        const draf = sessionStorage.getItem("berandaDraft");
+        if (!draf) return;
+        sessionStorage.removeItem("berandaDraft");
+        handleSendMessage(draf);
+    }, []);
 
     return (
         <div className="fixed inset-0 z-50 flex bg-white font-sans">
@@ -304,14 +313,14 @@ export default function SiAsefChatPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setLocation('/workspace/dashboard')}
-                            className="text-zinc-600 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            className="text-zinc-600 hover:text-gray-950 hover:bg-muted rounded-full transition-colors"
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </Button>
 
                         <div className="flex flex-col">
                             <h1 className="font-bold text-lg text-zinc-900 leading-tight">Mystic</h1>
-                            <p className="text-[10px] uppercase tracking-wider text-red-600 font-bold">Safety Assistant</p>
+                            <p className="text-[10px] uppercase tracking-wider text-gray-950 font-bold">Safety Assistant</p>
                         </div>
                     </div>
 
@@ -343,7 +352,7 @@ export default function SiAsefChatPage() {
                     {/* Ambient Background — subtle, hanya di empty state */}
                     {messages.length === 0 && (
                         <>
-                            <div className="absolute top-[-10%] right-[-5%] w-[420px] h-[420px] bg-red-100/30 rounded-full blur-[140px] pointer-events-none" />
+                            <div className="absolute top-[-10%] right-[-5%] w-[420px] h-[420px] bg-gray-100/30 rounded-full blur-[140px] pointer-events-none" />
                             <div className="absolute bottom-[5%] left-[-10%] w-[360px] h-[360px] bg-rose-100/30 rounded-full blur-[120px] pointer-events-none" />
                         </>
                     )}
@@ -353,11 +362,11 @@ export default function SiAsefChatPage() {
                             <div className="max-w-2xl mx-auto px-2 md:px-0">
                                 {/* Greeting — lebih kompak */}
                                 <div className="text-center mb-8 animate-fade-in-up">
-                                    <div className="inline-flex items-center justify-center w-14 h-14 mb-4 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 shadow-md shadow-red-500/25 text-white">
+                                    <div className="inline-flex items-center justify-center w-14 h-14 mb-4 rounded-2xl bg-gradient-to-tr from-gray-600 to-rose-500 shadow-md shadow-red-500/25 text-white">
                                         <ShieldCheck className="w-7 h-7" />
                                     </div>
                                     <h2 className="text-2xl md:text-3xl font-semibold text-zinc-900 mb-2 tracking-tight">
-                                        Halo, <span className="bg-clip-text text-transparent bg-gradient-to-r from-red-600 to-rose-500">{user?.name?.split(' ')[0] || 'User'}</span>
+                                        Halo, <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-600 to-rose-500">{user?.name?.split(' ')[0] || 'User'}</span>
                                     </h2>
                                     <p className="text-zinc-500 text-sm max-w-md mx-auto leading-relaxed">
                                         Siap membantu Anda menelusuri Regulasi K3 & Dokumen Internal Perusahaan dengan cepat.
@@ -366,11 +375,11 @@ export default function SiAsefChatPage() {
 
                                 {/* Spotlight Card — compact, refined */}
                                 <div className="relative overflow-hidden rounded-2xl bg-zinc-900 border border-zinc-800 shadow-xl shadow-black/10">
-                                    <div className="absolute top-0 right-0 w-48 h-48 bg-red-600/15 rounded-full blur-[80px] -mr-12 -mt-12 pointer-events-none" />
+                                    <div className="absolute top-0 right-0 w-48 h-48 bg-gray-950/15 rounded-full blur-[80px] -mr-12 -mt-12 pointer-events-none" />
 
                                     <div className="relative z-10 p-6 md:p-8">
                                         <div className="flex items-center gap-2 mb-4">
-                                            <span className="px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold tracking-widest uppercase">
+                                            <span className="px-2.5 py-1 rounded-full bg-gray-950/10 border border-gray-400/20 text-gray-400 text-[10px] font-bold tracking-widest uppercase">
                                                 {currentSpotlight.badge}
                                             </span>
                                         </div>
@@ -417,7 +426,7 @@ export default function SiAsefChatPage() {
                                         <button
                                             key={q}
                                             onClick={() => handleSendMessage(q)}
-                                            className="text-left text-xs text-zinc-600 bg-white border border-zinc-200 rounded-xl px-4 py-2.5 hover:border-red-300 hover:bg-red-50/40 hover:text-zinc-900 transition-all"
+                                            className="text-left text-xs text-zinc-600 bg-white border border-zinc-200 rounded-xl px-4 py-2.5 hover:border-red-300 hover:bg-muted/40 hover:text-zinc-900 transition-all"
                                         >
                                             {q}
                                         </button>
@@ -437,9 +446,9 @@ export default function SiAsefChatPage() {
                                 {isLoading && (
                                     <div className="flex justify-start px-4 py-4">
                                         <div className="bg-white/80 backdrop-blur border border-zinc-100 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex items-center gap-2">
-                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                                            <div className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                            <div className="w-2 h-2 bg-gray-950 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                            <div className="w-2 h-2 bg-gray-950 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                            <div className="w-2 h-2 bg-gray-950 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                                         </div>
                                     </div>
                                 )}

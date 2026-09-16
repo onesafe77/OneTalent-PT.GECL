@@ -376,7 +376,7 @@ export default function SidakIntercomForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.observers.length === 0}
                 >
@@ -722,7 +722,7 @@ export default function SidakIntercomForm() {
                                                         const key = `q${num}` as any;
                                                         const isChecked = Object.entries(rec).find(([k]) => k.startsWith(key))?.[1];
                                                         return (
-                                                            <span key={num} className={`text-xs px-2 py-0.5 rounded ${isChecked ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                            <span key={num} className={`text-xs px-2 py-0.5 rounded ${isChecked ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                                                                 Q{num}: {isChecked ? '✓' : '✗'}
                                                             </span>
                                                         )
@@ -749,12 +749,12 @@ export default function SidakIntercomForm() {
                             {draft.observers.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.observers.map((obs, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                                                 <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

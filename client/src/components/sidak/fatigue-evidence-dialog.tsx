@@ -107,7 +107,7 @@ export function FatigueEvidenceDialog({
                     {/* Evidence Upload */}
                     <div className="space-y-2">
                         <Label>Bukti Intervensi (Foto)</Label>
-                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer" onClick={handleCapture}>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex flex-col items-center justify-center bg-gray-50 hover:bg-muted transition-colors cursor-pointer" onClick={handleCapture}>
                             {evidence ? (
                                 <div className="relative w-full h-48">
                                     <ImageWithFallback src={evidence} alt="Evidence" className="w-full h-full object-cover rounded-md" />

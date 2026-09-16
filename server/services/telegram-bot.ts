@@ -726,7 +726,11 @@ async function poll() {
       const updates: any[] = await tgApi("getUpdates", { offset, timeout: 50, allowed_updates: ["message"] });
       for (const u of updates) {
         offset = u.update_id + 1;
-        try { await processUpdate(u); } catch (e: any) { console.error("[Telegram] processUpdate error:", e?.message || e); }
+        // Lewat processTelegramUpdate (bukan processUpdate langsung) supaya mode polling
+        // ikut meninggalkan jejak di safety_patrol_raw_messages. Tanpa ini, pesan yang
+        // masuk saat polling hilang tanpa bekas — persis buta yang bikin insiden Agustus
+        // 2026 baru ketahuan setelah 10 pesan terbuang.
+        try { await processTelegramUpdate(u); } catch (e: any) { console.error("[Telegram] processUpdate error:", e?.message || e); }
       }
     } catch (e: any) {
       const msg = e?.message || String(e);

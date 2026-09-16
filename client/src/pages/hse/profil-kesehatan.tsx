@@ -1,5 +1,6 @@
 import React, { useState, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { fotoKecil } from "@/lib/utils";
 import {
     Search, Upload, Download, Plus, Link2, Users, Loader2, ShieldAlert,
     ChevronRight, X, Trash2, CalendarDays, Activity, Eye, Pencil, AlertTriangle,
@@ -138,7 +139,7 @@ export default function ProfilKesehatan() {
                         <Upload className="w-4 h-4 mr-2" /> Import
                     </Button>
                     <Button onClick={() => setTambahOpen(true)}
-                        className="rounded-xl bg-slate-900 hover:bg-slate-800 transition-transform duration-150 ease-out active:scale-[0.97]">
+                        className="rounded-xl bg-primary hover:bg-primary/90 transition-transform duration-150 ease-out active:scale-[0.97]">
                         <Plus className="w-4 h-4 mr-2" /> Tambah Catatan
                     </Button>
                 </div>
@@ -195,19 +196,19 @@ export default function ProfilKesehatan() {
                                 <AreaChart data={ringkas?.tren || []} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
                                     <defs>
                                         <linearGradient id="gTemuan" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#e11d48" stopOpacity={0.22} />
-                                            <stop offset="100%" stopColor="#e11d48" stopOpacity={0.01} />
+                                            <stop offset="0%" stopColor="#df2a33" stopOpacity={0.22} />
+                                            <stop offset="100%" stopColor="#df2a33" stopOpacity={0.01} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="2 4" stroke="#eef2f7" vertical={false} />
-                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} allowDecimals={false} width={30} />
+                                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#B4B4B4" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                                    <YAxis tick={{ fontSize: 10, fill: "#B4B4B4" }} tickLine={false} axisLine={false} allowDecimals={false} width={30} />
                                     <Tooltip
-                                        cursor={{ stroke: "#cbd5e1", strokeDasharray: "3 3" }}
+                                        cursor={{ stroke: "#D6D6D6", strokeDasharray: "3 3" }}
                                         contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 16px rgba(15,23,42,.08)" }}
-                                        formatter={(v: any) => [`${v} temuan`, ""]} labelStyle={{ color: "#64748b", fontSize: 11 }} />
-                                    <Area type="monotone" dataKey="jumlah" stroke="#e11d48" strokeWidth={2}
-                                        fill="url(#gTemuan)" dot={{ r: 2.5, fill: "#e11d48", strokeWidth: 0 }}
+                                        formatter={(v: any) => [`${v} temuan`, ""]} labelStyle={{ color: "#757575", fontSize: 11 }} />
+                                    <Area type="monotone" dataKey="jumlah" stroke="#df2a33" strokeWidth={2}
+                                        fill="url(#gTemuan)" dot={{ r: 2.5, fill: "#df2a33", strokeWidth: 0 }}
                                         activeDot={{ r: 4.5 }} />
                                 </AreaChart>
                             </ResponsiveContainer>
@@ -273,10 +274,10 @@ export default function ProfilKesehatan() {
                                     <TableRow key={r.id}
                                         onClick={() => setDetail({ employeeId: r.employeeId || undefined, nama: r.nama })}
                                         className="cursor-pointer border-slate-100 transition-colors hover:bg-slate-50/70">
-                                        <TableCell className="py-2.5">
+                                        <TableCell className="py-2">
                                             <div className="flex items-center gap-2.5">
                                                 {r.empFoto
-                                                    ? <img src={r.empFoto} alt="" className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" />
+                                                    ? <img src={fotoKecil(r.empFoto, 96)} alt="" loading="lazy" decoding="async" className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" />
                                                     : <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-400">
                                                         {(r.empNama || r.nama).slice(0, 2).toUpperCase()}</div>}
                                                 <div className="min-w-0">
@@ -296,22 +297,22 @@ export default function ProfilKesehatan() {
                                                 <span className={`h-1.5 w-1.5 rounded-full ${ru.bar}`} />{r.kategori}
                                             </span>
                                         </TableCell>
-                                        <TableCell className="whitespace-nowrap text-[12px] tabular-nums text-slate-500">
+                                        <TableCell className="w-[86px] whitespace-nowrap text-[12px] tabular-nums text-slate-500">
                                             {(r.bulan || "").slice(0, 3)} {r.tahun}
                                         </TableCell>
-                                        <TableCell className="max-w-[230px] text-[12px] text-slate-600">
+                                        <TableCell className="max-w-[300px] text-[12px] text-slate-600">
                                             {r.nilai ? Object.entries(r.nilai).slice(0, 2).map(([k, v]: any) => (
-                                                <div key={k} className="truncate">
+                                                <div key={k} className="leading-[1.45]">
                                                     <span className="text-slate-400">{k.replace(/\(.*?\)/g, "").trim()}</span>{" "}
                                                     <b className="tabular-nums text-slate-800">{v}</b>
                                                 </div>
-                                            )) : <span className="text-slate-300">—</span>}
+                                            )) : <span className="text-slate-200">·</span>}
                                         </TableCell>
                                         <TableCell className="max-w-[170px] text-[12px] font-medium text-slate-700">
-                                            <span className="line-clamp-2">{r.kesimpulan || <span className="text-slate-300">—</span>}</span>
+                                            <span className="line-clamp-2">{r.kesimpulan || <span className="text-slate-200">·</span>}</span>
                                         </TableCell>
                                         <TableCell className="max-w-[190px] text-[12px] text-slate-500">
-                                            <span className="line-clamp-2">{r.tindakLanjut || <span className="text-slate-300">—</span>}</span>
+                                            <span className="line-clamp-2">{r.tindakLanjut || <span className="text-slate-200">·</span>}</span>
                                         </TableCell>
                                         <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-center gap-0.5">
@@ -419,7 +420,7 @@ function PanelDetail({ target, onClose, onUbah }: any) {
                 <div className="sticky top-0 z-10 border-b bg-white/95 px-6 py-4 backdrop-blur">
                     <div className="flex items-start gap-3">
                         {k?.foto
-                            ? <img src={k.foto} alt="" className="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-200" />
+                            ? <img src={fotoKecil(k.foto, 192)} alt="" loading="lazy" decoding="async" className="h-14 w-14 rounded-2xl object-cover ring-1 ring-slate-200" />
                             : <div className="grid h-14 w-14 place-items-center rounded-2xl bg-slate-100 text-slate-400"><Users className="h-6 w-6" /></div>}
                         <div className="min-w-0 flex-1">
                             <h2 className="truncate text-lg font-bold tracking-tight text-slate-900">
@@ -548,7 +549,7 @@ function DialogLihat({ item, onClose, onBukaRiwayat }: any) {
 
                 <div className="flex items-center gap-3 rounded-xl border border-slate-200/80 p-3">
                     {item.empFoto
-                        ? <img src={item.empFoto} alt="" className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200" />
+                        ? <img src={fotoKecil(item.empFoto, 192)} alt="" className="h-12 w-12 rounded-xl object-cover ring-1 ring-slate-200" />
                         : <div className="grid h-12 w-12 place-items-center rounded-xl bg-slate-100 text-[12px] font-semibold text-slate-400">
                             {(item.empNama || item.nama).slice(0, 2).toUpperCase()}</div>}
                     <div className="min-w-0 flex-1">
@@ -799,7 +800,7 @@ function DialogForm({ item, kategoriAda, onClose, onSuccess }: any) {
                                 </div>
                             )}
                             {f.employeeId && (
-                                <p className="mt-1 text-[11px] text-emerald-600">
+                                <p className="mt-1 text-[11px] text-foreground">
                                     Tertaut ke {f.employeeId} — identitas diisi otomatis dari data HR
                                 </p>
                             )}
@@ -871,7 +872,7 @@ function DialogForm({ item, kategoriAda, onClose, onSuccess }: any) {
 
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={simpan}>Batal</Button>
-                    <Button onClick={kirim} disabled={simpan} className="bg-slate-900 hover:bg-slate-800">
+                    <Button onClick={kirim} disabled={simpan} className="bg-primary hover:bg-primary/90">
                         {simpan && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                         {ubahMode ? "Simpan Perubahan" : "Simpan"}
                     </Button>
@@ -994,7 +995,7 @@ function DialogImport({ onClose, onSuccess }: any) {
                 <Input ref={fileRef} type="file" accept=".xlsx,.xls" />
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={proses}>Batal</Button>
-                    <Button onClick={kirim} disabled={proses} className="bg-slate-900 hover:bg-slate-800">
+                    <Button onClick={kirim} disabled={proses} className="bg-primary hover:bg-primary/90">
                         {proses && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Import
                     </Button>
                 </DialogFooter>

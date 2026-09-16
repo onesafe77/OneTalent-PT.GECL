@@ -150,7 +150,7 @@ export function Header({ title, onMenuClick }: HeaderProps) {
                 variant="ghost"
                 size="icon"
                 onClick={handleLogout}
-                className="h-8 w-8 sm:h-9 sm:w-9 bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800 text-red-600 dark:text-red-400"
+                className="h-8 w-8 sm:h-9 sm:w-9 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-950 dark:text-gray-400"
                 title="Logout"
                 data-testid="button-logout"
               >

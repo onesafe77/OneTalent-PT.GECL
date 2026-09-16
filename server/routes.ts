@@ -177,7 +177,7 @@ import { eq, ilike, and, or, not, lt, lte, gt, gte, isNull, isNotNull, desc, sql
 import { processAndSaveDocument, deleteDocument, processAndSaveGoogleSheet } from "./services/document-service";
 import * as whatsappService from "./services/whatsapp-service";
 import { buildRAGPrompt, searchSimilarChunks, generateEmbedding } from "./services/rag-service";
-import { db } from "./db";
+import { db, pool } from "./db";
 import { PushNotificationService } from "./push-notification";
 import { createUserWithRole, Role, Permission, ROLE_PERMISSIONS, getRoleFromPosition, canAccessHealthProfile } from "@shared/rbac";
 import { inductionAiService } from "./services/induction-ai-service";
@@ -607,6 +607,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const disposition = req.query.download === '1' ? 'attachment' : 'inline';
       res.setHeader("Content-Type", file.mimeType);
       res.setHeader("Content-Disposition", `${disposition}; filename="${encodeURIComponent(file.filename)}"`);
+
+      // ?w=<piksel> melayani versi kecil. Foto karyawan disimpan ukuran penuh
+      // (rata-rata 372 KB) padahal avatar cuma puluhan piksel; tanpa ini satu
+      // tabel bisa menarik belasan MB. Lebar dibatasi ke daftar tetap supaya
+      // tidak ada yang memaksa server membuat ribuan ukuran berbeda.
+      const LEBAR_SAH = [48, 96, 192, 384];
+      const minta = Number(req.query.w);
+      const lebar = LEBAR_SAH.includes(minta) ? minta : null;
+      const bisaDiubah = /^image\/(jpeg|png|webp)$/.test(file.mimeType || "");
+
+      // Berkas ditunjuk lewat UUID sehingga isinya tidak pernah berubah — aman
+      // disinggahkan lama. "private": foto karyawan, jangan lewat proksi bersama.
+      res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+      const etag = `"${id}${lebar ? `-w${lebar}` : ""}"`;
+      res.setHeader("ETag", etag);
+      if (req.headers["if-none-match"] === etag) return res.status(304).end();
+
+      if (lebar && bisaDiubah) {
+        try {
+          const sharp = (await import("sharp")).default;
+          const kecil = await sharp(file.data)
+            .rotate()                                   // hormati orientasi EXIF
+            .resize({ width: lebar, withoutEnlargement: true })
+            .webp({ quality: 78 })
+            .toBuffer();
+          res.setHeader("Content-Type", "image/webp");
+          return res.send(kecil);
+        } catch (e) {
+          // Gagal mengecilkan bukan alasan gambarnya tidak tampil — kirim aslinya.
+          console.warn("[uploads] gagal mengecilkan", id, (e as Error).message);
+        }
+      }
+
       res.send(file.data);
     } catch (error) {
       console.error("Error serving file from database:", error);
@@ -1359,6 +1392,1668 @@ Format sebagai bullet points singkat per insight.`;
     } catch (error) {
       console.error('❌ Error fetching employees:', error);
       res.status(500).json({ message: "Failed to fetch employees" });
+    }
+  });
+
+  /**
+   * Ekspor daftar karyawan ke Excel.
+   *
+   * Dikerjakan di SERVER, bukan di browser, karena pustaka xlsx sisi klien tidak
+   * bisa menulis gaya sel — header tebal, baris beku, dan tautan foto mustahil di
+   * sana. ExcelJS sudah jadi dependensi untuk ekspor SPIP, jadi tidak ada paket baru.
+   */
+  /**
+   * Man-hours & target HSE (PROMPT-HSE-OneTalent.md §2.4, §5.5).
+   *
+   * MH TIDAK dihitung di sini — trigger `hitung_manhours` yang mengisinya (§2.2).
+   * Menghitung di aplikasi berarti angka yang tampil bisa berbeda dari yang tersimpan.
+   */
+  /* ── Insiden HSE (PROMPT-HSE-OneTalent.md §4, §5.2, §5.4) ───────────────── */
+
+  /**
+   * Unggah PDF Laporan Penyelidikan -> DRAF insiden.
+   *
+   * TIDAK menyimpan apa pun. Hasilnya dikembalikan untuk diisikan ke form dan
+   * diperiksa manusia (§6.2: nilai yang salah masuk tanpa galat apa pun).
+   */
+  app.post("/api/hse/insiden/impor-pdf", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "Tidak ada berkas diunggah" });
+      const { bacaPdfInsiden, usiaSaatKejadian } = await import("./lib/hse-pdf");
+      const fsx = await import("fs");
+      const buf = req.file.buffer ?? fsx.readFileSync(req.file.path);
+      const draf = await bacaPdfInsiden(buf);
+      if (req.file.path) { try { fsx.unlinkSync(req.file.path); } catch { } }
+
+      // Nama tidak tertulis di PDF (kolom "Nama -"), hanya NIK. Diambil dari
+      // daftar manpower. Laporan bisa memuat beberapa orang termasuk dari
+      // perusahaan lain — yang dicatat adalah karyawan KITA, bukan yang pertama
+      // muncul di halaman.
+      const daftarNik = (draf.orang || []).map((o: any) => o.nik).filter(Boolean);
+      let terpilih: any = null;
+      if (daftarNik.length) {
+        const k = await pool.query(
+          "select id, name, position from employees where id = any($1::text[])", [daftarNik]);
+        const ketemu = new Map(k.rows.map((r: any) => [r.id, r]));
+        terpilih = draf.orang.find((o: any) => ketemu.has(o.nik)) ?? null;
+        if (terpilih) {
+          const kar = ketemu.get(terpilih.nik);
+          draf.nik_terlibat = terpilih.nik;
+          draf.nama_terlibat = kar.name;
+          draf.jabatan = terpilih.jabatan || kar.position || null;
+          draf.usia = usiaSaatKejadian(terpilih.lahir, draf.tanggal);
+        }
+        const luar = draf.orang.filter((o: any) => !ketemu.has(o.nik)).map((o: any) => o.nik);
+        if (luar.length)
+          draf.peringatan.push(`NIK ${luar.join(", ")} tidak ada di daftar manpower — kemungkinan karyawan perusahaan lain.`);
+        if (!terpilih && daftarNik.length)
+          draf.peringatan.push(`Tidak satu pun NIK (${daftarNik.join(", ")}) cocok dengan daftar manpower. Isi nama secara manual.`);
+        if (draf.orang.length > 1 && terpilih)
+          draf.peringatan.push(`${draf.orang.length} orang di laporan; yang dicatat ${terpilih.nik} karena terdaftar di manpower.`);
+      }
+
+      if (!draf.judul || !draf.tanggal)
+        draf.peringatan.push("Judul atau tanggal tidak terbaca — isi manual sebelum menyimpan.");
+      res.json(draf);
+    } catch (e: any) {
+      console.error("impor-pdf:", e);
+      res.status(500).json({ message: "Gagal membaca PDF: " + (e?.message || "tidak diketahui") });
+    }
+  });
+
+  /** Pelanggaran FMS GEC/GECL dari Google Sheet, sudah dibakukan (§ lib/fms-sheet). */
+  app.get("/api/hse/fms-violations", async (req, res) => {
+    try {
+      const { ambilPelanggaran } = await import("./lib/fms-sheet");
+      const semua = await ambilPelanggaran(req.query.refresh === "1");
+      const { tahun, bulan, unit, jenis, status, cari } = req.query as any;
+      let d = semua;
+      if (tahun && tahun !== "all") d = d.filter((x) => x.tanggal?.slice(0, 4) === String(tahun));
+      if (bulan && bulan !== "all") d = d.filter((x) => x.tanggal?.slice(5, 7) === String(bulan).padStart(2, "0"));
+      if (unit && unit !== "all") d = d.filter((x) => x.unit === unit);
+      if (jenis && jenis !== "all") d = d.filter((x) => x.pelanggaran === jenis);
+      const { sanksi, shift, jalur, level } = req.query as any;
+      if (sanksi && sanksi !== "all") d = d.filter((x) => x.sanksi === sanksi);
+      if (shift && shift !== "all") d = d.filter((x) => x.shift === shift);
+      if (jalur && jalur !== "all") d = d.filter((x) => x.jalur === jalur);
+      if (level && level !== "all") d = d.filter((x) => x.level === level);
+      // "belum" menggabungkan Open + Menunggu Verifikasi — keduanya sama-sama
+      // belum tuntas, dan itu pertanyaan yang biasa diajukan.
+      if (status === "belum") d = d.filter((x) => x.status && x.status !== "Closed");
+      else if (status && status !== "all") d = d.filter((x) => x.status === status);
+      if (cari) {
+        const q = String(cari).toLowerCase();
+        // Pencarian menyeluruh: NIK, nama, unit, jenis, sanksi, kode & kategori
+        // pelanggaran, jalur, lokasi, status — satu kotak untuk seluruh data.
+        d = d.filter((x) =>
+          [x.nik, x.nama, x.unit, x.pelanggaran, x.sanksi, x.kodePelanggaran,
+           x.kategori, x.jalur, x.lokasiKm, x.status, x.level, x.jabatan, x.sumber]
+            .some((v) => String(v || "").toLowerCase().includes(q)));
+      }
+
+      const hitung = (f: (x: any) => string) => {
+        const o: Record<string, number> = {};
+        d.forEach((x) => { const k = f(x) || "(kosong)"; o[k] = (o[k] || 0) + 1; });
+        return o;
+      };
+      const durasi = d.map((x) => x.durasiClose).filter((n): n is number => n !== null && n >= 0);
+      const hariIni = new Date().toISOString().slice(0, 10);
+      const umurHari = (t: string | null) =>
+        t ? Math.floor((Date.parse(hariIni) - Date.parse(t)) / 86400000) : null;
+
+      const selesai = d.filter((x) => x.status === "Closed");
+      const belumSelesai = d.filter((x) => x.status && x.status !== "Closed");
+
+      // Sebaran durasi penutupan — median lebih jujur daripada rata-rata bila
+      // ada satu kasus 367 hari yang menarik rata-rata.
+      const urut = [...durasi].sort((a, b) => a - b);
+      const median = urut.length ? urut[Math.floor(urut.length / 2)] : null;
+      const ember: Record<string, number> = { "0-1 hari": 0, "2-3 hari": 0, "4-7 hari": 0, "8-14 hari": 0, "> 14 hari": 0 };
+      durasi.forEach((n) => {
+        ember[n <= 1 ? "0-1 hari" : n <= 3 ? "2-3 hari" : n <= 7 ? "4-7 hari" : n <= 14 ? "8-14 hari" : "> 14 hari"]++;
+      });
+
+      // Per pengemudi: siapa yang paling sering, dan berapa yang belum tuntas.
+      const perOrang = new Map<string, any>();
+      for (const x of d) {
+        if (!x.nik && !x.nama) continue;
+        const k = x.nik || x.nama;
+        const o = perOrang.get(k) ?? { nik: x.nik, nama: x.nama, total: 0, belum: 0, durasi: [] as number[], unit: new Set<string>() };
+        o.total++;
+        if (x.nama && !o.nama) o.nama = x.nama;
+        if (x.status && x.status !== "Closed") o.belum++;
+        if (x.durasiClose !== null && x.durasiClose >= 0) o.durasi.push(x.durasiClose);
+        o.unit.add(x.unit);
+        perOrang.set(k, o);
+      }
+      const pengemudi = [...perOrang.values()].map((o) => ({
+        nik: o.nik, nama: o.nama, total: o.total, belum: o.belum,
+        rataDurasi: o.durasi.length ? Math.round((o.durasi.reduce((a: number, b: number) => a + b, 0) / o.durasi.length) * 10) / 10 : null,
+        unit: [...o.unit].slice(0, 3),
+      })).sort((a, b) => b.total - a.total);
+
+      // Open vs Closed per bulan, untuk melihat apakah penutupan mengejar.
+      /**
+       * Sanksi aktif = masa berlakunya belum lewat. Setelah tanggal itu sanksi
+       * hangus (pemutihan) dan tidak lagi diperhitungkan untuk yang bersangkutan.
+       * Ini yang perlu dipantau: siapa yang MASIH menanggung sanksi hari ini.
+       */
+      const sanksiAktif = d
+        .filter((x) => x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi)
+        .map((x) => ({
+          kunci: x.kunci, tanggal: x.tanggal, nik: x.nik, nama: x.nama, unit: x.unit,
+          sanksi: x.sanksi, kategori: x.kategori, kode: x.kodePelanggaran,
+          masaBerlaku: x.masaBerlakuSanksi,
+          sisaHari: Math.ceil((Date.parse(x.masaBerlakuSanksi!) - Date.parse(hariIni)) / 86400000),
+        }))
+        .sort((a, b) => (a.sisaHari ?? 0) - (b.sisaHari ?? 0));
+
+      const perBulanStatus: Record<string, { selesai: number; belum: number }> = {};
+      for (const x of d) {
+        const b = x.tanggal ? x.tanggal.slice(0, 7) : "";
+        if (!b) continue;
+        perBulanStatus[b] ||= { selesai: 0, belum: 0 };
+        if (x.status === "Closed") perBulanStatus[b].selesai++;
+        else if (x.status) perBulanStatus[b].belum++;
+      }
+
+      // ── §3 KPI dengan pembanding, §4 agregat enam bab ────────────────────
+      const thIni = new Date().getFullYear();
+      const thLalu = thIni - 1;
+      const tahunDari = (x: any) => Number(x.tanggalKerja?.slice(0, 4)) || null;
+      const jml = (arr: any[], t: number) => arr.filter((x) => tahunDari(x) === t).length;
+
+      const berNik = d.filter((x) => x.nik).length;
+      const pengulang = pengemudi.filter((o) => o.total > 1);
+      const dariPengulang = pengulang.reduce((a, o) => a + o.total, 0);
+      const devSemua = d.map((x) => x.deviasi2).filter((n): n is number => n !== null);
+      const rerataDev = devSemua.length ? Math.round((devSemua.reduce((a, b) => a + b, 0) / devSemua.length) * 10) / 10 : null;
+      const batasUmum = (() => {
+        const c: Record<string, number> = {};
+        d.forEach((x) => { if (x.batas) c[String(x.batas)] = (c[String(x.batas)] || 0) + 1; });
+        const t = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+        return t ? Number(t[0]) : null;
+      })();
+
+      // Peta panas hari × jam (§4 Bab 2) — inti bab pola kelelahan.
+      const HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+      const peta = HARI.map((h) => ({
+        hari: h,
+        jam: Array.from({ length: 24 }, (_, j) => d.filter((x) => x.hari === h && x.jamKe === j).length),
+      }));
+
+      // Tren dua tahun — TIDAK terpengaruh saringan tahun (§4 Bab 1).
+      const semuaTanpaTahun = semua.filter((x) => {
+        if (bulan && bulan !== "all" && x.tanggalKerja?.slice(5, 7) !== String(bulan).padStart(2, "0")) return false;
+        if (jenis && jenis !== "all" && x.pelanggaran !== jenis) return false;
+        return true;
+      });
+      const perBulanTahun = (t: number) =>
+        Array.from({ length: 12 }, (_, m) =>
+          semuaTanpaTahun.filter((x) => tahunDari(x) === t && Number(x.tanggalKerja?.slice(5, 7)) === m + 1).length);
+      const bulanIni = perBulanTahun(thIni), bulanLalu = perBulanTahun(thLalu);
+      const kumulatif = (a: number[]) => a.reduce((acc: number[], v, i) => [...acc, (acc[i - 1] ?? 0) + v], []);
+      // Bulan yang belum berjalan tidak digambar sebagai nol (§1.6).
+      const bulanBerjalan = thIni === new Date().getFullYear() ? new Date().getMonth() : 11;
+
+      // Jumlah vs keparahan per bulan (§4 Bab 1, grafik 3).
+      const bulanJumlahDev = Array.from({ length: 12 }, (_, m) => {
+        const b = d.filter((x) => Number(x.tanggalKerja?.slice(5, 7)) === m + 1);
+        const dev = b.map((x) => x.deviasi2).filter((n): n is number => n !== null);
+        return { jumlah: b.length, rerataDeviasi: dev.length ? Math.round((dev.reduce((a, c) => a + c, 0) / dev.length) * 10) / 10 : null };
+      });
+
+      // Pareto pengemudi: berapa persen orang menyumbang 80% pelanggaran (§4 Bab 4).
+      const paretoUrut = pengemudi.slice(0, 20);
+      let jalan = 0;
+      const pareto = paretoUrut.map((o) => {
+        jalan += o.total;
+        return { ...o, kumulatifPersen: Math.round((jalan / Math.max(1, d.length)) * 1000) / 10 };
+      });
+      let n80 = 0, akum = 0;
+      for (const o of pengemudi) { akum += o.total; n80++; if (akum >= d.length * 0.8) break; }
+
+      // Pita KM 5 km + rerata deviasi (§4 Bab 5).
+      const pitaKm: Record<string, { jumlah: number; dev: number[] }> = {};
+      d.forEach((x) => {
+        if (!x.pitaKm) return;
+        pitaKm[x.pitaKm] ||= { jumlah: 0, dev: [] };
+        pitaKm[x.pitaKm].jumlah++;
+        if (x.deviasi2 !== null) pitaKm[x.pitaKm].dev.push(x.deviasi2);
+      });
+      const km5 = Object.entries(pitaKm)
+        .sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+        .map(([k, v]) => ({ pita: k, jumlah: v.jumlah,
+          rerataDeviasi: v.dev.length ? Math.round((v.dev.reduce((a, c) => a + c, 0) / v.dev.length) * 10) / 10 : null }));
+
+      // Tingkat penutupan per bulan (§4 Bab 6).
+      const tutupPerBulan = Object.entries(perBulanStatus).sort((a, b) => a[0].localeCompare(b[0])).slice(-14)
+        .map(([b, v]) => ({ bulan: b, total: v.selesai + v.belum,
+          persen: v.selesai + v.belum ? Math.round((v.selesai / (v.selesai + v.belum)) * 1000) / 10 : null }));
+
+      const silang = (a: (x: any) => string, b: (x: any) => string) => {
+        const o: Record<string, Record<string, number>> = {};
+        d.forEach((x) => { const ka = a(x), kb = b(x); if (!ka || !kb) return; o[ka] ||= {}; o[ka][kb] = (o[ka][kb] || 0) + 1; });
+        return o;
+      };
+
+      res.json({
+        total: d.length,
+        totalSemua: semua.length,
+
+        // §5 — jangan memotong diam-diam: halaman & jumlahnya disebutkan.
+        data: (() => {
+          const per = Math.min(200, Math.max(10, parseInt(String(req.query.per ?? "50")) || 50));
+          const hal = Math.max(1, parseInt(String(req.query.hal ?? "1")) || 1);
+          return d.slice().sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""))
+            .slice((hal - 1) * per, hal * per);
+        })(),
+        halaman: {
+          ke: Math.max(1, parseInt(String(req.query.hal ?? "1")) || 1),
+          per: Math.min(200, Math.max(10, parseInt(String(req.query.per ?? "50")) || 50)),
+          jumlah: Math.ceil(d.length / Math.min(200, Math.max(10, parseInt(String(req.query.per ?? "50")) || 50))),
+        },
+        ringkas: {
+          perJenis: hitung((x) => x.pelanggaran),
+          perStatus: hitung((x) => x.status),
+          perLevel: hitung((x) => x.level),
+          perBulan: hitung((x) => (x.tanggal ? x.tanggal.slice(0, 7) : "")),
+          perUnit: hitung((x) => x.unit),
+          perJam: hitung((x) => (x.jam || "").slice(0, 2)),
+          rataDurasi: durasi.length ? Math.round((durasi.reduce((a, b) => a + b, 0) / durasi.length) * 10) / 10 : null,
+          medianDurasi: median,
+          durasiTerlama: urut.length ? urut[urut.length - 1] : null,
+          sebaranDurasi: ember,
+          jumlahSelesai: selesai.length,
+          jumlahBelum: belumSelesai.length,
+          perBulanStatus,
+          // Yang belum tuntas, diurutkan dari yang paling lama menggantung.
+          belumTuntas: belumSelesai
+            .map((x) => ({ ...x, umur: umurHari(x.tanggal) }))
+            .sort((a, b) => (b.umur ?? 0) - (a.umur ?? 0))
+            .slice(0, 50),
+          pengemudi: pengemudi.slice(0, 25),
+          jumlahPengemudi: pengemudi.length,
+          perSanksi: hitung((x) => x.sanksi),
+          perKategori: hitung((x) => x.kategori),
+          perJalur: hitung((x) => x.jalur),
+          perSumber: hitung((x) => x.sumber),
+          perJenisPel: hitung((x) => x.pelanggaran),
+          sanksiAktif,
+          jumlahSanksiAktif: sanksiAktif.length,
+          sanksiSegeraHangus: sanksiAktif.filter((x: any) => x.sisaHari !== null && x.sisaHari <= 30).length,
+
+          // ── KPI dengan pembanding (§3) ──────────────────────────────────
+          kpi: {
+            tahunIni: thIni, tahunLalu: thLalu,
+            pelanggaranIni: jml(d, thIni), pelanggaranLalu: jml(d, thLalu),
+            pelanggar: pengemudi.length,
+            berNik, persenBerNik: d.length ? Math.round((berNik / d.length) * 1000) / 10 : null,
+            pengulang: pengulang.length,
+            persenDariPengulang: d.length ? Math.round((dariPengulang / d.length) * 1000) / 10 : null,
+            rerataDeviasi: rerataDev, batasUmum,
+            tingkatPenutupan: d.length ? Math.round((selesai.length / d.length) * 1000) / 10 : null,
+            belumDitutup: belumSelesai.length,
+            rerataPenutupan: durasi.length ? Math.round((durasi.reduce((a, b) => a + b, 0) / durasi.length) * 10) / 10 : null,
+            durasiTercatat: durasi.length,
+            pengemudi80: n80, persenPengemudi80: pengemudi.length ? Math.round((n80 / pengemudi.length) * 1000) / 10 : null,
+          },
+
+          // ── Bab 1 Tren ──────────────────────────────────────────────────
+          tren: { bulanIni, bulanLalu, kumIni: kumulatif(bulanIni), kumLalu: kumulatif(bulanLalu), bulanBerjalan },
+          bulanJumlahDev,
+          perMinggu: hitung((x) => (x.minggu ? `W${x.minggu}` : "")),
+
+          // ── Bab 2 Pola kelelahan ────────────────────────────────────────
+          petaPanas: peta,
+          perHari: hitung((x) => x.hari),
+          perShift: hitung((x) => x.shift),
+          shiftJenis: silang((x) => x.shift, (x) => x.pelanggaran),
+
+          // ── Bab 3 Jenis & keparahan ─────────────────────────────────────
+          perRentangDeviasi: hitung((x) => x.rentangDeviasi),
+          perKode: hitung((x) => x.kodePelanggaran),
+          jalurJenis: silang((x) => x.jalur, (x) => x.pelanggaran),
+          sebaranKecepatan: (() => {
+            const o: Record<string, number> = {};
+            d.forEach((x) => { if (x.kecepatan === null) return; const b = Math.floor(x.kecepatan / 5) * 5; o[`${b}-${b + 5}`] = (o[`${b}-${b + 5}`] || 0) + 1; });
+            return o;
+          })(),
+
+          // ── Bab 4 Pelanggar ─────────────────────────────────────────────
+          pareto,
+          perJabatan: hitung((x) => x.jabatan),
+
+          // ── Bab 5 Lokasi ────────────────────────────────────────────────
+          km5, perZona: hitung((x) => x.zona),
+
+          // ── Bab 6 Penegakan ─────────────────────────────────────────────
+          tutupPerBulan,
+        },
+        pilihan: {
+          tahun: [...new Set(semua.map((x) => x.tanggal?.slice(0, 4)).filter(Boolean))].sort().reverse(),
+          unit: [...new Set(semua.map((x) => x.unit))].sort(),
+          jenis: [...new Set(semua.map((x) => x.pelanggaran).filter(Boolean))].sort(),
+          status: [...new Set(semua.map((x) => x.status).filter(Boolean))].sort(),
+          sanksi: [...new Set(semua.map((x) => x.sanksi).filter(Boolean))].sort(),
+          shift: [...new Set(semua.map((x) => x.shift).filter(Boolean))].sort(),
+          jalur: [...new Set(semua.map((x) => x.jalur).filter(Boolean))].sort(),
+          level: [...new Set(semua.map((x) => x.level).filter(Boolean))].sort(),
+        },
+      });
+    } catch (e: any) {
+      console.error("GET fms-violations:", e);
+      res.status(500).json({ message: "Gagal memuat pelanggaran FMS: " + (e?.message || "") });
+    }
+  });
+
+  /** Ekspor pelanggaran FMS ke Excel — mengikuti saringan yang sedang tampil. */
+  app.get("/api/hse/fms-violations/export", async (req, res) => {
+    try {
+      const { ambilPelanggaran } = await import("./lib/fms-sheet");
+      const semua = await ambilPelanggaran(false);
+      const { tahun, bulan, unit, jenis, status, cari, sanksi, shift, jalur, level } = req.query as any;
+      let d = semua;
+      if (tahun && tahun !== "all") d = d.filter((x) => x.tanggalKerja?.slice(0, 4) === String(tahun));
+      if (bulan && bulan !== "all") d = d.filter((x) => x.tanggalKerja?.slice(5, 7) === String(bulan).padStart(2, "0"));
+      if (unit && unit !== "all") d = d.filter((x) => x.unit === unit);
+      if (jenis && jenis !== "all") d = d.filter((x) => x.pelanggaran === jenis);
+      if (sanksi && sanksi !== "all") d = d.filter((x) => x.sanksi === sanksi);
+      if (shift && shift !== "all") d = d.filter((x) => x.shift === shift);
+      if (jalur && jalur !== "all") d = d.filter((x) => x.jalur === jalur);
+      if (level && level !== "all") d = d.filter((x) => x.level === level);
+      if (status === "belum") d = d.filter((x) => x.status && x.status !== "Closed");
+      else if (status && status !== "all") d = d.filter((x) => x.status === status);
+      if (cari) {
+        const q = String(cari).toLowerCase();
+        d = d.filter((x) => [x.nik, x.nama, x.unit, x.pelanggaran, x.sanksi, x.kodePelanggaran,
+          x.kategori, x.jalur, x.lokasiKm, x.status, x.level, x.jabatan, x.sumber]
+          .some((v) => String(v || "").toLowerCase().includes(q)));
+      }
+      d = d.slice().sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+
+      const ExcelJS = (await import("exceljs")).default as any;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "OneTalent";
+      wb.created = new Date();
+
+      const hariIni = new Date().toISOString().slice(0, 10);
+      const tglExcel = (v: string | null) => (v ? new Date(v + "T00:00:00") : null);
+      const kepala = (ws: any, n: number) => {
+        const h = ws.getRow(1);
+        h.font = { bold: true };
+        h.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F4F4" } };
+        h.height = 20;
+        h.border = { bottom: { style: "thin", color: { argb: "FFC2C2C2" } } };
+        ws.views = [{ state: "frozen", ySplit: 1 }];
+        ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: n } };
+      };
+      const hit = (f: (x: any) => string) => {
+        const o: Record<string, number> = {};
+        d.forEach((x) => { const k = f(x) || "(kosong)"; o[k] = (o[k] || 0) + 1; });
+        return Object.entries(o).sort((a, b) => b[1] - a[1]);
+      };
+
+      /* ── Lembar 1 · Ringkasan ─────────────────────────────────────────── */
+      const s1 = wb.addWorksheet("Ringkasan");
+      s1.columns = [{ width: 42 }, { width: 16 }, { width: 12 }];
+      const baris1 = (a: string, b: any = "", c: any = "") => s1.addRow([a, b, c]);
+      baris1("PELANGGARAN FMS — PT GECL");
+      baris1("Diekspor", new Date().toLocaleString("id-ID"));
+      const saringanTerpakai = Object.entries({ tahun, bulan, unit, jenis, status, sanksi, shift, jalur, level, cari })
+        .filter(([, v]) => v && v !== "all").map(([k, v]) => `${k}=${v}`).join(" · ");
+      baris1("Saringan", saringanTerpakai || "tidak ada — seluruh data");
+      baris1("Cakupan", "Perusahaan GEC & GECL saja");
+      baris1("");
+      const selesai = d.filter((x: any) => x.status === "Closed").length;
+      const belum = d.filter((x: any) => x.status && x.status !== "Closed").length;
+      const dur = d.map((x: any) => x.durasiClose).filter((n: any) => n !== null && n >= 0).sort((a: number, b: number) => a - b);
+      const dev = d.map((x: any) => x.deviasi2).filter((n: any) => n !== null);
+      const aktif = d.filter((x: any) => x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi);
+      baris1("Jumlah pelanggaran", d.length);
+      baris1("Sudah ditutup", selesai, d.length ? `${Math.round((selesai / d.length) * 1000) / 10}%` : "");
+      baris1("Belum selesai", belum);
+      baris1("Pengemudi terlibat", new Set(d.map((x: any) => x.nik || x.nama).filter(Boolean)).size);
+      baris1("Unit terlibat", new Set(d.map((x: any) => x.unit)).size);
+      baris1("Rerata deviasi (km/jam)", dev.length ? Math.round((dev.reduce((a: number, b: number) => a + b, 0) / dev.length) * 10) / 10 : "—");
+      baris1("Median penutupan (hari)", dur.length ? dur[Math.floor(dur.length / 2)] : "—");
+      baris1("Penutupan terlama (hari)", dur.length ? dur[dur.length - 1] : "—");
+      baris1("Sanksi masih berlaku", aktif.length);
+      for (const [judul, f] of [
+        ["PER JENIS PELANGGARAN", (x: any) => x.pelanggaran],
+        ["PER STATUS", (x: any) => x.status],
+        ["PER SANKSI", (x: any) => x.sanksi],
+        ["PER LEVEL", (x: any) => x.level],
+        ["PER SHIFT", (x: any) => x.shift],
+        ["PER JALUR", (x: any) => x.jalur],
+        ["PER BULAN", (x: any) => (x.tanggalKerja ? x.tanggalKerja.slice(0, 7) : "")],
+        ["PER HARI", (x: any) => x.hari],
+        ["PER RENTANG DEVIASI", (x: any) => x.rentangDeviasi],
+        ["10 UNIT TERBANYAK", (x: any) => x.unit],
+      ] as const) {
+        baris1("");
+        const b = baris1(judul); b.font = { bold: true };
+        hit(f as any).slice(0, judul.startsWith("10 ") ? 10 : 30).forEach(([k, v]) => baris1(k, v,
+          d.length ? `${Math.round((v / d.length) * 1000) / 10}%` : ""));
+      }
+      s1.getRow(1).font = { bold: true, size: 13 };
+
+      /* ── Lembar 2 · Pelanggaran (seluruh kolom) ───────────────────────── */
+      const ws = wb.addWorksheet("Pelanggaran", { views: [{ state: "frozen", ySplit: 1 }] });
+      const K = [
+        ["No sheet", "nomorSheet", 10], ["Tanggal", "tanggal", 12], ["Jam", "jam", 10],
+        ["Tanggal opr", "tanggalOpr", 12], ["Hari kerja", "tanggalKerja", 12],
+        ["Hari", "hari", 10], ["Minggu", "minggu", 8], ["Shift", "shift", 10],
+        ["Unit", "unit", 13], ["Perusahaan", "perusahaan", 12],
+        ["NIK", "nik", 12], ["Nama", "nama", 26], ["Jabatan", "jabatan", 28],
+        ["Pelanggaran", "pelanggaran", 22], ["Kode", "kodePelanggaran", 8],
+        ["Kategori pelanggaran", "kategori", 46], ["Level", "level", 10],
+        ["Kecepatan (kph)", "kecepatan", 15], ["Batas (kph)", "batas", 12],
+        ["Deviasi (kph)", "deviasi2", 13], ["Rentang deviasi", "rentangDeviasi", 16],
+        ["Lokasi (KM)", "lokasiKm", 13], ["KM", "km", 8], ["Pita KM", "pitaKm", 11],
+        ["Zona", "zona", 8], ["Jalur", "jalur", 11], ["Koordinat", "koordinat", 22],
+        ["Sanksi", "sanksi", 18], ["Masa berlaku sanksi", "masaBerlakuSanksi", 18],
+        ["Sanksi masih berlaku", "sanksiAktif", 19], ["Sisa hari sanksi", "sisaSanksi", 16],
+        ["Status", "status", 20], ["Tanggal pemenuhan", "tanggalPemenuhan", 17],
+        ["Durasi close (hari)", "durasiClose", 17], ["Umur kasus (hari)", "umurKasus", 17],
+        ["Verifikasi", "verifikasi", 13], ["Catatan verifikasi", "catatanVerifikasi", 34],
+        ["Eksekutor", "eksekutor", 12], ["Sumber", "sumber", 11], ["Evidence", "evidence", 14],
+      ] as const;
+      ws.columns = K.map(([h, k, w]) => ({ header: h, key: k, width: w }));
+
+      d.forEach((x: any) => {
+        const berlaku = !!(x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi);
+        const r = ws.addRow({
+          ...x,
+          // §5 — tanggal sebagai TANGGAL sungguhan agar bisa dipivot & diurut,
+          // bukan teks. Angka tetap angka, kosong ditulis "—" bukan 0.
+          tanggal: tglExcel(x.tanggal), tanggalOpr: tglExcel(x.tanggalOpr),
+          tanggalKerja: tglExcel(x.tanggalKerja),
+          masaBerlakuSanksi: tglExcel(x.masaBerlakuSanksi),
+          tanggalPemenuhan: tglExcel(x.tanggalPemenuhan),
+          sanksiAktif: x.sanksi ? (berlaku ? "Ya" : "Sudah hangus") : "—",
+          sisaSanksi: berlaku
+            ? Math.ceil((Date.parse(x.masaBerlakuSanksi) - Date.parse(hariIni)) / 86400000) : null,
+          umurKasus: x.status && x.status !== "Closed" && x.tanggal
+            ? Math.floor((Date.parse(hariIni) - Date.parse(x.tanggal)) / 86400000) : null,
+          evidence: x.evidence ? { text: "Bukti", hyperlink: x.evidence } : null,
+        });
+        for (const [, k] of K) {
+          const sel = r.getCell(k as string);
+          if (sel.value === null || sel.value === undefined || sel.value === "") sel.value = "—";
+        }
+        if (x.evidence) r.getCell("evidence").font = { color: { argb: "FF0563C1" }, underline: true };
+        ["tanggal", "tanggalOpr", "tanggalKerja", "masaBerlakuSanksi", "tanggalPemenuhan"]
+          .forEach((k) => { if (r.getCell(k).value instanceof Date) r.getCell(k).numFmt = "dd/mm/yyyy"; });
+        r.getCell("kategori").alignment = { wrapText: true, vertical: "middle" };
+      });
+      kepala(ws, K.length);
+
+      /* ── Lembar 3 · Per Pengemudi ─────────────────────────────────────── */
+      const peta = new Map<string, any>();
+      for (const x of d as any[]) {
+        const kunciOrang = x.nik || x.nama;
+        if (!kunciOrang) continue;
+        const o = peta.get(kunciOrang) ?? {
+          nik: x.nik, nama: x.nama, jabatan: x.jabatan, unit: new Set<string>(),
+          total: 0, belum: 0, dur: [] as number[], dev: [] as number[],
+          jenis: {} as Record<string, number>, sanksiAktif: 0, terakhir: null as string | null,
+        };
+        o.total++;
+        o.unit.add(x.unit);
+        if (!o.nama && x.nama) o.nama = x.nama;
+        if (!o.jabatan && x.jabatan) o.jabatan = x.jabatan;
+        if (x.status && x.status !== "Closed") o.belum++;
+        if (x.durasiClose !== null && x.durasiClose >= 0) o.dur.push(x.durasiClose);
+        if (x.deviasi2 !== null) o.dev.push(x.deviasi2);
+        if (x.pelanggaran) o.jenis[x.pelanggaran] = (o.jenis[x.pelanggaran] || 0) + 1;
+        if (x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi) o.sanksiAktif++;
+        if (x.tanggal && (!o.terakhir || x.tanggal > o.terakhir)) o.terakhir = x.tanggal;
+        peta.set(kunciOrang, o);
+      }
+      const s3 = wb.addWorksheet("Per Pengemudi", { views: [{ state: "frozen", ySplit: 1 }] });
+      s3.columns = [
+        { header: "NIK", key: "nik", width: 12 }, { header: "Nama", key: "nama", width: 26 },
+        { header: "Jabatan", key: "jabatan", width: 28 }, { header: "Unit", key: "unit", width: 30 },
+        { header: "Total pelanggaran", key: "total", width: 17 },
+        { header: "Belum selesai", key: "belum", width: 14 },
+        { header: "Sanksi masih berlaku", key: "sanksiAktif", width: 19 },
+        { header: "Jenis terbanyak", key: "jenisTop", width: 22 },
+        { header: "Rerata deviasi (kph)", key: "rerataDev", width: 19 },
+        { header: "Rerata penutupan (hari)", key: "rerataDur", width: 21 },
+        { header: "Pelanggaran terakhir", key: "terakhir", width: 19 },
+      ];
+      [...peta.values()].sort((a, b) => b.total - a.total).forEach((o) => {
+        const rerata = (a: number[]) => (a.length ? Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10 : null);
+        const top = Object.entries(o.jenis).sort((a: any, b: any) => b[1] - a[1])[0];
+        const r = s3.addRow({
+          nik: o.nik || "—", nama: o.nama || "—", jabatan: o.jabatan || "—",
+          unit: [...o.unit].join(", "), total: o.total, belum: o.belum, sanksiAktif: o.sanksiAktif,
+          jenisTop: top ? `${top[0]} (${top[1]})` : "—",
+          rerataDev: rerata(o.dev) ?? "—", rerataDur: rerata(o.dur) ?? "—",
+          terakhir: o.terakhir ? tglExcel(o.terakhir) : "—",
+        });
+        if (r.getCell("terakhir").value instanceof Date) r.getCell("terakhir").numFmt = "dd/mm/yyyy";
+      });
+      kepala(s3, 11);
+
+      /* ── Lembar 4 · Sanksi Aktif (pemutihan) ──────────────────────────── */
+      const s4 = wb.addWorksheet("Sanksi Aktif", { views: [{ state: "frozen", ySplit: 1 }] });
+      s4.columns = [
+        { header: "NIK", key: "nik", width: 12 }, { header: "Nama", key: "nama", width: 26 },
+        { header: "Unit", key: "unit", width: 13 }, { header: "Tanggal pelanggaran", key: "tanggal", width: 18 },
+        { header: "Pelanggaran", key: "pelanggaran", width: 20 }, { header: "Kode", key: "kode", width: 8 },
+        { header: "Kategori", key: "kategori", width: 46 }, { header: "Sanksi", key: "sanksi", width: 18 },
+        { header: "Berlaku sampai", key: "berlaku", width: 15 }, { header: "Sisa hari", key: "sisa", width: 11 },
+      ];
+      aktif.map((x: any) => ({
+        ...x, sisa: Math.ceil((Date.parse(x.masaBerlakuSanksi) - Date.parse(hariIni)) / 86400000),
+      })).sort((a: any, b: any) => a.sisa - b.sisa).forEach((x: any) => {
+        const r = s4.addRow({
+          nik: x.nik || "—", nama: x.nama || "—", unit: x.unit, tanggal: tglExcel(x.tanggal),
+          pelanggaran: x.pelanggaran || "—", kode: x.kodePelanggaran || "—",
+          kategori: x.kategori || "—", sanksi: x.sanksi,
+          berlaku: tglExcel(x.masaBerlakuSanksi), sisa: x.sisa,
+        });
+        ["tanggal", "berlaku"].forEach((k) => { if (r.getCell(k).value instanceof Date) r.getCell(k).numFmt = "dd/mm/yyyy"; });
+        // Yang tinggal <= 30 hari ditandai — itu yang perlu diputihkan segera.
+        if (x.sisa <= 30) r.getCell("sisa").font = { color: { argb: "FFB45309" }, bold: true };
+      });
+      kepala(s4, 10);
+
+      const bagian = [tahun, jenis, status, cari].filter((x) => x && x !== "all")
+        .map((x) => String(x).replace(/[^A-Za-z0-9]+/g, "_")).join("_");
+      const namaBerkas = `Pelanggaran_FMS${bagian ? "_" + bagian : ""}_${hariIni}.xlsx`;
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${namaBerkas}"`);
+      res.send(Buffer.from(buf));
+    } catch (e: any) {
+      console.error("export FMS:", e);
+      res.status(500).json({ message: "Gagal mengekspor: " + (e?.message || "") });
+    }
+  });
+
+  /** Periksa pelanggaran baru sekarang juga (tombol di halaman). */
+  app.post("/api/hse/fms-violations/periksa", async (_req, res) => {
+    try {
+      const { periksaPelanggaranBaru } = await import("./lib/fms-notifikasi");
+      res.json(await periksaPelanggaranBaru());
+    } catch (e: any) {
+      console.error("periksa FMS:", e);
+      res.status(500).json({ message: e?.message || "Gagal memeriksa" });
+    }
+  });
+
+  /* ══ SAFE DISTANCE ══════════════════════════════════════════════════════
+   * Sheet terpisah dari FMS. Sumbu analisisnya sengaja BERBEDA dari FMS:
+   * di subset GEC/GECL semua baris Closed, Truck, Hauling, dan kolom
+   * Departement kosong 100% — grafik atas sumbu konstan tidak memberi
+   * informasi apa pun, jadi tidak dibuat. Yang informatif: waktu, jalur,
+   * lokasi KM, kerapatan jarak (detik), pengulang, dan masa berlaku sanksi.
+   */
+  const saringSD = (semua: any[], q: any) => {
+    const { tahun, bulan, unit, jenis, status, cari, sanksi, shift, jalur, statusSanksi, rentang } = q;
+    let d = semua;
+    if (tahun && tahun !== "all") d = d.filter((x: any) => x.tanggal?.slice(0, 4) === String(tahun));
+    if (bulan && bulan !== "all") d = d.filter((x: any) => x.tanggal?.slice(5, 7) === String(bulan).padStart(2, "0"));
+    if (unit && unit !== "all") d = d.filter((x: any) => x.unit === unit);
+    if (jenis && jenis !== "all") d = d.filter((x: any) => x.pelanggaran === jenis);
+    if (sanksi && sanksi !== "all") d = d.filter((x: any) => x.sanksi === sanksi);
+    if (shift && shift !== "all") d = d.filter((x: any) => x.shift === shift);
+    if (jalur && jalur !== "all") d = d.filter((x: any) => x.jalur === jalur);
+    if (statusSanksi && statusSanksi !== "all") d = d.filter((x: any) => x.statusSanksi === statusSanksi);
+    if (rentang && rentang !== "all") d = d.filter((x: any) => x.rentangDetik === rentang);
+    if (status === "belum") d = d.filter((x: any) => x.status && x.status !== "Closed");
+    else if (status && status !== "all") d = d.filter((x: any) => x.status === status);
+    if (cari) {
+      const s = String(cari).toLowerCase();
+      d = d.filter((x: any) => [x.nik, x.nama, x.unit, x.pelanggaran, x.sanksi, x.kodePelanggaran,
+        x.kategori, x.jalur, x.lokasiKm, x.status, x.jabatan, x.area, x.jenisKendaraan, x.nomorSheet]
+        .some((v: any) => String(v || "").toLowerCase().includes(s)));
+    }
+    return d;
+  };
+
+  app.get("/api/hse/sd-violations", async (req, res) => {
+    try {
+      const { ambilPelanggaranSD } = await import("./lib/sd-sheet");
+      const semua = await ambilPelanggaranSD(req.query.refresh === "1");
+      const d = saringSD(semua, req.query);
+
+      const hitung = (f: (x: any) => string) => {
+        const o: Record<string, number> = {};
+        d.forEach((x) => { const k = f(x) || "(kosong)"; o[k] = (o[k] || 0) + 1; });
+        return o;
+      };
+      const silang = (a: (x: any) => string, b: (x: any) => string) => {
+        const o: Record<string, Record<string, number>> = {};
+        d.forEach((x) => { const ka = a(x), kb = b(x); if (!ka || !kb) return; o[ka] ||= {}; o[ka][kb] = (o[ka][kb] || 0) + 1; });
+        return o;
+      };
+      const hariIni = new Date().toISOString().slice(0, 10);
+
+      // Durasi negatif = galat sumber (pemenuhan mendahului kejadian). Dikeluarkan
+      // dari statistik tapi jumlahnya dilaporkan, bukan disembunyikan.
+      const durasiSemua = d.map((x) => x.durasiClose).filter((n): n is number => n !== null);
+      const durasi = durasiSemua.filter((n) => n >= 0);
+      const durasiJanggal = durasiSemua.length - durasi.length;
+      const urut = [...durasi].sort((a, b) => a - b);
+      const median = urut.length ? urut[Math.floor(urut.length / 2)] : null;
+      const rerata = (a: number[]) => (a.length ? Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10 : null);
+      const ember: Record<string, number> = { "0-1 hari": 0, "2-3 hari": 0, "4-7 hari": 0, "8-14 hari": 0, "> 14 hari": 0 };
+      durasi.forEach((n) => { ember[n <= 1 ? "0-1 hari" : n <= 3 ? "2-3 hari" : n <= 7 ? "4-7 hari" : n <= 14 ? "8-14 hari" : "> 14 hari"]++; });
+
+      const selesai = d.filter((x) => x.status === "Closed");
+      const belumSelesai = d.filter((x) => x.status && x.status !== "Closed");
+
+      // Per pengemudi — inti evaluasi: siapa yang berulang.
+      const perOrang = new Map<string, any>();
+      for (const x of d) {
+        const k = x.nik || x.nama;
+        if (!k) continue;
+        const o = perOrang.get(k) ?? {
+          nik: x.nik, nama: x.nama, jabatan: x.jabatan, total: 0, belum: 0,
+          durasi: [] as number[], detik: [] as number[], unit: new Set<string>(),
+          sanksiAktif: 0, terakhir: null as string | null,
+        };
+        o.total++;
+        if (x.nama && !o.nama) o.nama = x.nama;
+        if (x.jabatan && !o.jabatan) o.jabatan = x.jabatan;
+        if (x.status && x.status !== "Closed") o.belum++;
+        if (x.durasiClose !== null && x.durasiClose >= 0) o.durasi.push(x.durasiClose);
+        if (x.detik !== null) o.detik.push(x.detik);
+        if (x.unit) o.unit.add(x.unit);
+        if (x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi) o.sanksiAktif++;
+        if (x.tanggal && (!o.terakhir || x.tanggal > o.terakhir)) o.terakhir = x.tanggal;
+        perOrang.set(k, o);
+      }
+      const pengemudi = [...perOrang.values()].map((o) => ({
+        nik: o.nik, nama: o.nama, jabatan: o.jabatan, total: o.total, belum: o.belum,
+        sanksiAktif: o.sanksiAktif, terakhir: o.terakhir,
+        rataDurasi: rerata(o.durasi), rataDetik: rerata(o.detik),
+        unit: [...o.unit].slice(0, 3),
+      })).sort((a, b) => b.total - a.total);
+
+      const pengulang = pengemudi.filter((p) => p.total > 1);
+      const dariPengulang = pengulang.reduce((a, p) => a + p.total, 0);
+
+      // Pareto pengemudi: berapa orang menyumbang 80% pelanggaran.
+      let jalan = 0; let n80 = 0;
+      const pareto = pengemudi.slice(0, 20).map((p) => {
+        jalan += p.total;
+        return { nama: p.nama || p.nik || "(tanpa nama)", total: p.total, kumulatif: d.length ? Math.round((jalan / d.length) * 1000) / 10 : 0 };
+      });
+      { let k = 0; for (const p of pengemudi) { k += p.total; n80++; if (k / d.length >= 0.8) break; } }
+
+      // Peta panas hari x jam — kapan jarak aman paling sering dilanggar.
+      const HARI = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+      const petaPanas = HARI.map((h) => ({ hari: h, jam: Array.from({ length: 24 }, () => 0) }));
+      d.forEach((x) => {
+        const i = HARI.indexOf(x.hari);
+        if (i >= 0 && x.jamKe !== null) petaPanas[i].jam[x.jamKe]++;
+      });
+
+      const sanksiAktif = d
+        .filter((x) => x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi)
+        .map((x) => ({
+          kunci: x.kunci, tanggal: x.tanggal, nik: x.nik, nama: x.nama, unit: x.unit,
+          sanksi: x.sanksi, kategori: x.kategori, kode: x.kodePelanggaran,
+          masaBerlaku: x.masaBerlakuSanksi,
+          sisaHari: Math.ceil((Date.parse(x.masaBerlakuSanksi!) - Date.parse(hariIni)) / 86400000),
+        }))
+        .sort((a, b) => (a.sisaHari ?? 0) - (b.sisaHari ?? 0));
+
+      // Tren tahun ini vs tahun lalu, per bulan.
+      const tahunAda = [...new Set(d.map((x) => x.tanggal?.slice(0, 4)).filter(Boolean))].sort();
+      const thIni = tahunAda[tahunAda.length - 1] ?? null;
+      const thLalu = tahunAda[tahunAda.length - 2] ?? null;
+      const perBulanTahun = (th: string | null) => {
+        const a = Array.from({ length: 12 }, () => 0);
+        if (th) d.forEach((x) => { if (x.tanggal?.slice(0, 4) === th) a[parseInt(x.tanggal.slice(5, 7)) - 1]++; });
+        return a;
+      };
+      const kumulatif = (a: number[]) => a.reduce((acc: number[], n) => [...acc, (acc[acc.length - 1] ?? 0) + n], []);
+      const bulanIni = perBulanTahun(thIni), bulanLalu = perBulanTahun(thLalu);
+
+      const detikSemua = d.map((x) => x.detik).filter((n): n is number => n !== null);
+
+      const per = Math.min(200, Math.max(10, parseInt(String(req.query.per ?? "50")) || 50));
+      const hal = Math.max(1, parseInt(String(req.query.hal ?? "1")) || 1);
+      const urutTanggal = d.slice().sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+
+      res.json({
+        total: d.length,
+        totalSemua: semua.length,
+        data: urutTanggal.slice((hal - 1) * per, hal * per),
+        halaman: { ke: hal, per, jumlah: Math.max(1, Math.ceil(d.length / per)) },
+        ringkas: {
+          kpi: {
+            tahunIni: thIni, tahunLalu: thLalu,
+            pelanggaranIni: bulanIni.reduce((a, b) => a + b, 0),
+            pelanggaranLalu: bulanLalu.reduce((a, b) => a + b, 0),
+            pengemudi: pengemudi.length,
+            pengulang: pengulang.length,
+            persenDariPengulang: d.length ? Math.round((dariPengulang / d.length) * 1000) / 10 : null,
+            rerataDetik: rerata(detikSemua), detikTercatat: detikSemua.length,
+            detikTerdekat: detikSemua.length ? Math.min(...detikSemua) : null,
+            tingkatPenutupan: d.length ? Math.round((selesai.length / d.length) * 1000) / 10 : null,
+            belumDitutup: belumSelesai.length,
+            rerataPenutupan: rerata(durasi), medianPenutupan: median,
+            durasiTercatat: durasi.length, durasiJanggal,
+            pengemudi80: n80, persenPengemudi80: pengemudi.length ? Math.round((n80 / pengemudi.length) * 1000) / 10 : null,
+            sanksiAktif: sanksiAktif.length,
+            sanksiSegeraHangus: sanksiAktif.filter((x) => x.sisaHari !== null && x.sisaHari <= 30).length,
+          },
+          tren: { bulanIni, bulanLalu, kumIni: kumulatif(bulanIni), kumLalu: kumulatif(bulanLalu) },
+          perBulan: hitung((x) => (x.tanggal ? x.tanggal.slice(0, 7) : "")),
+          perMinggu: hitung((x) => (x.minggu ? `W${x.minggu}` : "")),
+          petaPanas,
+          perHari: hitung((x) => x.hari),
+          perShift: hitung((x) => x.shift),
+          perJam: hitung((x) => (x.jam || "").slice(0, 2).padStart(2, "0")),
+          perJalur: hitung((x) => x.jalur),
+          jalurShift: silang((x) => x.jalur, (x) => x.shift),
+          perRentangDetik: hitung((x) => x.rentangDetik),
+          sebaranDetik: (() => {
+            const o: Record<string, number> = {};
+            d.forEach((x) => { if (x.detik === null) return; const b = (Math.floor(x.detik * 2) / 2).toFixed(1); o[`${b}-${(parseFloat(b) + 0.5).toFixed(1)} dtk`] = (o[`${b}-${(parseFloat(b) + 0.5).toFixed(1)} dtk`] || 0) + 1; });
+            return o;
+          })(),
+          perPitaKm: hitung((x) => x.pitaKm),
+          perKm: hitung((x) => (x.km === null ? "" : String(x.km))),
+          perJenis: hitung((x) => x.pelanggaran),
+          perKode: hitung((x) => x.kodePelanggaran),
+          perKategori: hitung((x) => x.kategori),
+          perSanksi: hitung((x) => x.sanksi),
+          perStatus: hitung((x) => x.status),
+          perStatusSanksi: hitung((x) => x.statusSanksi),
+          perUnit: hitung((x) => x.unit),
+          perJabatan: hitung((x) => x.jabatan),
+          perJenisKendaraan: hitung((x) => x.jenisKendaraan),
+          perArea: hitung((x) => x.area),
+          sebaranDurasi: ember,
+          jumlahSelesai: selesai.length,
+          jumlahBelum: belumSelesai.length,
+          belumTuntas: belumSelesai
+            .map((x) => ({ ...x, umur: x.tanggal ? Math.floor((Date.parse(hariIni) - Date.parse(x.tanggal)) / 86400000) : null }))
+            .sort((a, b) => (b.umur ?? 0) - (a.umur ?? 0)).slice(0, 50),
+          pengemudi: pengemudi.slice(0, 25),
+          jumlahPengemudi: pengemudi.length,
+          pareto,
+          sanksiAktif,
+          jumlahSanksiAktif: sanksiAktif.length,
+        },
+        pilihan: {
+          tahun: [...new Set(semua.map((x) => x.tanggal?.slice(0, 4)).filter(Boolean))].sort().reverse(),
+          unit: [...new Set(semua.map((x) => x.unit).filter(Boolean))].sort(),
+          jenis: [...new Set(semua.map((x) => x.pelanggaran).filter(Boolean))].sort(),
+          status: [...new Set(semua.map((x) => x.status).filter(Boolean))].sort(),
+          sanksi: [...new Set(semua.map((x) => x.sanksi).filter(Boolean))].sort(),
+          shift: [...new Set(semua.map((x) => x.shift).filter(Boolean))].sort(),
+          jalur: [...new Set(semua.map((x) => x.jalur).filter(Boolean))].sort(),
+          statusSanksi: [...new Set(semua.map((x) => x.statusSanksi).filter(Boolean))].sort(),
+          rentang: ["< 1 detik", "1-2 detik", "2-3 detik", "3-5 detik", "≥ 5 detik"],
+        },
+      });
+    } catch (e: any) {
+      console.error("GET sd-violations:", e);
+      res.status(500).json({ message: "Gagal memuat pelanggaran Safe Distance: " + (e?.message || "") });
+    }
+  });
+
+  app.get("/api/hse/sd-violations/export", async (req, res) => {
+    try {
+      const { ambilPelanggaranSD } = await import("./lib/sd-sheet");
+      const semua = await ambilPelanggaranSD(false);
+      const d = saringSD(semua, req.query).slice()
+        .sort((a: any, b: any) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+
+      const ExcelJS = (await import("exceljs")).default as any;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "OneTalent";
+      wb.created = new Date();
+
+      const hariIni = new Date().toISOString().slice(0, 10);
+      const tglExcel = (v: string | null) => (v ? new Date(v + "T00:00:00") : null);
+      const kepala = (ws: any, n: number) => {
+        const h = ws.getRow(1);
+        h.font = { bold: true };
+        h.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F4F4" } };
+        h.height = 20;
+        h.border = { bottom: { style: "thin", color: { argb: "FFC2C2C2" } } };
+        ws.views = [{ state: "frozen", ySplit: 1 }];
+        ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: n } };
+      };
+      const hit = (f: (x: any) => string) => {
+        const o: Record<string, number> = {};
+        d.forEach((x: any) => { const k = f(x) || "(kosong)"; o[k] = (o[k] || 0) + 1; });
+        return Object.entries(o).sort((a, b) => b[1] - a[1]);
+      };
+
+      /* ── Lembar 1 · Ringkasan ─────────────────────────────────────────── */
+      const s1 = wb.addWorksheet("Ringkasan");
+      s1.columns = [{ width: 44 }, { width: 16 }, { width: 12 }];
+      const b1 = (a: string, b: any = "", c: any = "") => s1.addRow([a, b, c]);
+      b1("PELANGGARAN SAFE DISTANCE — PT GECL");
+      b1("Diekspor", new Date().toLocaleString("id-ID"));
+      const terpakai = Object.entries(req.query as any)
+        .filter(([k, v]) => v && v !== "all" && !["hal", "per", "refresh"].includes(k))
+        .map(([k, v]) => `${k}=${v}`).join(" · ");
+      b1("Saringan", terpakai || "tidak ada — seluruh data");
+      b1("Cakupan", "Perusahaan GEC & GECL saja");
+      b1("");
+      const durSemua = d.map((x: any) => x.durasiClose).filter((n: any) => n !== null);
+      const dur = durSemua.filter((n: number) => n >= 0).sort((a: number, b: number) => a - b);
+      const det = d.map((x: any) => x.detik).filter((n: any) => n !== null);
+      const aktif = d.filter((x: any) => x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi);
+      const selesai = d.filter((x: any) => x.status === "Closed").length;
+      b1("Jumlah pelanggaran", d.length);
+      b1("Sudah ditutup", selesai, d.length ? `${Math.round((selesai / d.length) * 1000) / 10}%` : "");
+      b1("Belum selesai", d.filter((x: any) => x.status && x.status !== "Closed").length);
+      b1("Pengemudi terlibat", new Set(d.map((x: any) => x.nik || x.nama).filter(Boolean)).size);
+      b1("Unit terlibat", new Set(d.map((x: any) => x.unit).filter(Boolean)).size);
+      b1("Rerata jarak aman (detik)", det.length ? Math.round((det.reduce((a: number, b: number) => a + b, 0) / det.length) * 100) / 100 : "—");
+      b1("Jarak terdekat (detik)", det.length ? Math.min(...det) : "—");
+      b1("Baris tanpa nilai detik", d.length - det.length);
+      b1("Median penutupan (hari)", dur.length ? dur[Math.floor(dur.length / 2)] : "—");
+      b1("Penutupan terlama (hari)", dur.length ? dur[dur.length - 1] : "—");
+      b1("Durasi janggal (pemenuhan < kejadian)", durSemua.length - dur.length);
+      b1("Sanksi masih berlaku", aktif.length);
+      for (const [judul, f] of [
+        ["PER JENIS PELANGGARAN", (x: any) => x.pelanggaran],
+        ["PER STATUS", (x: any) => x.status],
+        ["PER STATUS SANKSI", (x: any) => x.statusSanksi],
+        ["PER SANKSI", (x: any) => x.sanksi],
+        ["PER RENTANG JARAK AMAN", (x: any) => x.rentangDetik],
+        ["PER SHIFT", (x: any) => x.shift],
+        ["PER JALUR", (x: any) => x.jalur],
+        ["PER BULAN", (x: any) => (x.tanggal ? x.tanggal.slice(0, 7) : "")],
+        ["PER HARI", (x: any) => x.hari],
+        ["PER PITA KM", (x: any) => x.pitaKm],
+        ["PER JENIS KENDARAAN", (x: any) => x.jenisKendaraan],
+        ["10 UNIT TERBANYAK", (x: any) => x.unit],
+      ] as const) {
+        b1("");
+        const b = b1(judul); b.font = { bold: true };
+        hit(f as any).slice(0, judul.startsWith("10 ") ? 10 : 30).forEach(([k, v]) =>
+          b1(k, v, d.length ? `${Math.round((v / d.length) * 1000) / 10}%` : ""));
+      }
+      s1.getRow(1).font = { bold: true, size: 13 };
+
+      /* ── Lembar 2 · Pelanggaran (seluruh kolom) ───────────────────────── */
+      const ws = wb.addWorksheet("Pelanggaran", { views: [{ state: "frozen", ySplit: 1 }] });
+      const K = [
+        ["No sheet", "nomorSheet", 10], ["Tanggal", "tanggal", 12], ["Jam", "jam", 10],
+        ["Hari kerja", "tanggalKerja", 12], ["Hari", "hari", 10], ["Minggu", "minggu", 8],
+        ["Shift", "shift", 10], ["Unit", "unit", 13], ["Perusahaan", "perusahaan", 12],
+        ["Jenis kendaraan", "jenisKendaraan", 16], ["Area", "area", 16],
+        ["NIK", "nik", 12], ["Nama", "nama", 26], ["Jabatan", "jabatan", 30],
+        ["Departemen", "departemen", 18],
+        ["Pelanggaran", "pelanggaran", 16], ["Kode", "kodePelanggaran", 8],
+        ["Kategori pelanggaran", "kategori", 52],
+        ["Jarak aman (detik)", "detik", 17], ["Rentang jarak aman", "rentangDetik", 18],
+        ["Kecepatan (kph)", "kecepatan", 15], ["Batas (kph)", "batas", 12],
+        ["Lokasi (KM)", "lokasiKm", 12], ["KM", "km", 8], ["Pita KM", "pitaKm", 10],
+        ["Jalur", "jalur", 11],
+        ["Sanksi", "sanksi", 18], ["Status sanksi", "statusSanksi", 14],
+        ["Masa berlaku sanksi", "masaBerlakuSanksi", 18],
+        ["Sanksi masih berlaku", "sanksiBerlaku", 19], ["Sisa hari sanksi", "sisaSanksi", 16],
+        ["Nilai sanksi", "nilaiSanksi", 13],
+        ["Status", "status", 12], ["Tanggal pemenuhan", "tanggalPemenuhan", 17],
+        ["Durasi close (hari)", "durasiClose", 17], ["Umur kasus (hari)", "umurKasus", 17],
+        ["Verifikasi", "verifikasi", 13], ["Catatan", "catatan", 30],
+        ["Catatan verifikasi", "catatanVerifikasi", 34],
+        ["Evidence", "evidence", 14], ["Foto pelanggaran", "capture", 16],
+      ] as const;
+      ws.columns = K.map(([h, k, w]) => ({ header: h, key: k, width: w }));
+
+      d.forEach((x: any) => {
+        const berlaku = !!(x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi);
+        const r = ws.addRow({
+          ...x,
+          tanggal: tglExcel(x.tanggal), tanggalKerja: tglExcel(x.tanggalKerja),
+          masaBerlakuSanksi: tglExcel(x.masaBerlakuSanksi),
+          tanggalPemenuhan: tglExcel(x.tanggalPemenuhan),
+          sanksiBerlaku: x.sanksi ? (berlaku ? "Ya" : "Sudah hangus") : "—",
+          sisaSanksi: berlaku ? Math.ceil((Date.parse(x.masaBerlakuSanksi) - Date.parse(hariIni)) / 86400000) : null,
+          umurKasus: x.status && x.status !== "Closed" && x.tanggal
+            ? Math.floor((Date.parse(hariIni) - Date.parse(x.tanggal)) / 86400000) : null,
+          evidence: x.evidence ? { text: "Bukti", hyperlink: x.evidence } : null,
+          capture: x.capture ? { text: "Foto", hyperlink: x.capture } : null,
+        });
+        for (const [, k] of K) {
+          const sel = r.getCell(k as string);
+          if (sel.value === null || sel.value === undefined || sel.value === "") sel.value = "—";
+        }
+        ["evidence", "capture"].forEach((k) => {
+          if (x[k]) r.getCell(k).font = { color: { argb: "FF0563C1" }, underline: true };
+        });
+        ["tanggal", "tanggalKerja", "masaBerlakuSanksi", "tanggalPemenuhan"]
+          .forEach((k) => { if (r.getCell(k).value instanceof Date) r.getCell(k).numFmt = "dd/mm/yyyy"; });
+        r.getCell("kategori").alignment = { wrapText: true, vertical: "middle" };
+        // Durasi janggal ditandai merah, bukan disembunyikan.
+        if (typeof x.durasiClose === "number" && x.durasiClose < 0)
+          r.getCell("durasiClose").font = { color: { argb: "FFDC2626" }, bold: true };
+      });
+      kepala(ws, K.length);
+
+      /* ── Lembar 3 · Per Pengemudi ─────────────────────────────────────── */
+      const peta = new Map<string, any>();
+      for (const x of d as any[]) {
+        const k = x.nik || x.nama;
+        if (!k) continue;
+        const o = peta.get(k) ?? {
+          nik: x.nik, nama: x.nama, jabatan: x.jabatan, unit: new Set<string>(),
+          total: 0, belum: 0, dur: [] as number[], det: [] as number[],
+          sanksiAktif: 0, terakhir: null as string | null,
+        };
+        o.total++;
+        if (x.unit) o.unit.add(x.unit);
+        if (!o.nama && x.nama) o.nama = x.nama;
+        if (!o.jabatan && x.jabatan) o.jabatan = x.jabatan;
+        if (x.status && x.status !== "Closed") o.belum++;
+        if (x.durasiClose !== null && x.durasiClose >= 0) o.dur.push(x.durasiClose);
+        if (x.detik !== null) o.det.push(x.detik);
+        if (x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni && x.sanksi) o.sanksiAktif++;
+        if (x.tanggal && (!o.terakhir || x.tanggal > o.terakhir)) o.terakhir = x.tanggal;
+        peta.set(k, o);
+      }
+      const s3 = wb.addWorksheet("Per Pengemudi", { views: [{ state: "frozen", ySplit: 1 }] });
+      s3.columns = [
+        { header: "NIK", key: "nik", width: 12 }, { header: "Nama", key: "nama", width: 26 },
+        { header: "Jabatan", key: "jabatan", width: 30 }, { header: "Unit", key: "unit", width: 30 },
+        { header: "Total pelanggaran", key: "total", width: 17 },
+        { header: "Belum selesai", key: "belum", width: 14 },
+        { header: "Sanksi masih berlaku", key: "sanksiAktif", width: 19 },
+        { header: "Rerata jarak aman (detik)", key: "rerataDet", width: 23 },
+        { header: "Rerata penutupan (hari)", key: "rerataDur", width: 21 },
+        { header: "Pelanggaran terakhir", key: "terakhir", width: 19 },
+      ];
+      const rr = (a: number[], p = 1) => (a.length ? Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10 ** p) / 10 ** p : null);
+      [...peta.values()].sort((a, b) => b.total - a.total).forEach((o) => {
+        const r = s3.addRow({
+          nik: o.nik || "—", nama: o.nama || "—", jabatan: o.jabatan || "—",
+          unit: [...o.unit].join(", ") || "—", total: o.total, belum: o.belum,
+          sanksiAktif: o.sanksiAktif, rerataDet: rr(o.det, 2) ?? "—", rerataDur: rr(o.dur) ?? "—",
+          terakhir: o.terakhir ? tglExcel(o.terakhir) : "—",
+        });
+        if (r.getCell("terakhir").value instanceof Date) r.getCell("terakhir").numFmt = "dd/mm/yyyy";
+        // Pengulang ditandai — itu yang perlu pembinaan.
+        if (o.total > 1) r.getCell("total").font = { color: { argb: "FFB45309" }, bold: true };
+      });
+      kepala(s3, 10);
+
+      /* ── Lembar 4 · Sanksi Aktif (pemutihan) ──────────────────────────── */
+      const s4 = wb.addWorksheet("Sanksi Aktif", { views: [{ state: "frozen", ySplit: 1 }] });
+      s4.columns = [
+        { header: "NIK", key: "nik", width: 12 }, { header: "Nama", key: "nama", width: 26 },
+        { header: "Unit", key: "unit", width: 13 }, { header: "Tanggal pelanggaran", key: "tanggal", width: 18 },
+        { header: "Pelanggaran", key: "pelanggaran", width: 16 }, { header: "Kode", key: "kode", width: 8 },
+        { header: "Kategori", key: "kategori", width: 52 }, { header: "Sanksi", key: "sanksi", width: 18 },
+        { header: "Berlaku sampai", key: "berlaku", width: 15 }, { header: "Sisa hari", key: "sisa", width: 11 },
+      ];
+      aktif.map((x: any) => ({ ...x, sisa: Math.ceil((Date.parse(x.masaBerlakuSanksi) - Date.parse(hariIni)) / 86400000) }))
+        .sort((a: any, b: any) => a.sisa - b.sisa).forEach((x: any) => {
+          const r = s4.addRow({
+            nik: x.nik || "—", nama: x.nama || "—", unit: x.unit || "—", tanggal: tglExcel(x.tanggal),
+            pelanggaran: x.pelanggaran || "—", kode: x.kodePelanggaran || "—",
+            kategori: x.kategori || "—", sanksi: x.sanksi,
+            berlaku: tglExcel(x.masaBerlakuSanksi), sisa: x.sisa,
+          });
+          ["tanggal", "berlaku"].forEach((k) => { if (r.getCell(k).value instanceof Date) r.getCell(k).numFmt = "dd/mm/yyyy"; });
+          if (x.sisa <= 30) r.getCell("sisa").font = { color: { argb: "FFB45309" }, bold: true };
+        });
+      kepala(s4, 10);
+
+      const bagian = [req.query.tahun, req.query.jenis, req.query.status, req.query.cari]
+        .filter((x: any) => x && x !== "all").map((x: any) => String(x).replace(/[^A-Za-z0-9]+/g, "_")).join("_");
+      const namaBerkas = `Pelanggaran_SafeDistance${bagian ? "_" + bagian : ""}_${hariIni}.xlsx`;
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${namaBerkas}"`);
+      res.send(Buffer.from(buf));
+    } catch (e: any) {
+      console.error("export Safe Distance:", e);
+      res.status(500).json({ message: "Gagal mengekspor: " + (e?.message || "") });
+    }
+  });
+
+
+  /* ══ RIWAYAT PELANGGARAN LINTAS KONTRAKTOR ═════════════════════════════
+   * Satu-satunya jalur yang membaca sheet TANPA saringan GEC/GECL.
+   * Digerbangi departemen HSE/HRGA, lebih ketat dari menu Violation lain,
+   * karena isinya data pribadi karyawan perusahaan lain.
+   */
+
+  /**
+   * Penjaga riwayat lintas-kontraktor. Isinya data pribadi karyawan perusahaan
+   * lain, jadi digerbangi lebih ketat daripada menu Violation lain: hanya
+   * departemen HSE dan HRGA, sepola dengan penjaga data kesehatan.
+   * Setiap penolakan DAN setiap penelusuran per-orang dicatat ke log —
+   * data seperti ini harus meninggalkan jejak siapa membukanya.
+   */
+  const wajibIzinRiwayat = (req: any, res: any, next: any) => {
+    const u = (req.session as any)?.user;
+    if (!u) return res.status(401).json({ error: "Harus login" });
+    const dept = (u.department || "").toUpperCase();
+    if (!dept.includes("HSE") && !dept.includes("HRGA")) {
+      console.warn(`[riwayat-pelanggaran] AKSES DITOLAK: ${u.name} (${u.position} / ${u.department}) -> ${req.method} ${req.originalUrl}`);
+      return res.status(403).json({ error: "Riwayat lintas kontraktor hanya untuk HSE dan HRGA" });
+    }
+    next();
+  };
+
+  app.get("/api/hse/riwayat-pelanggaran", wajibIzinRiwayat, async (req, res) => {
+    try {
+      const { bangunKorpus, bakukanNik } = await import("./lib/riwayat-pelanggaran");
+      const kor = await bangunKorpus(req.query.refresh === "1");
+      const { cari, perusahaan, hanyaLintas, hanyaKita } = req.query as any;
+
+      let orang = [...kor.orang.values()];
+      if (perusahaan && perusahaan !== "all") orang = orang.filter((o) => o.perusahaan.includes(String(perusahaan).toUpperCase()));
+      // "Pernah di kontraktor lain" — inti kegunaan halaman ini.
+      if (hanyaLintas === "1") orang = orang.filter((o) => o.perusahaan.length > 1);
+      if (hanyaKita === "1") orang = orang.filter((o) => o.diKita);
+      if (cari) {
+        const q = String(cari).trim().toLowerCase();
+        const qNik = bakukanNik(String(cari));
+        orang = orang.filter((o) =>
+          (qNik && o.nik.includes(qNik)) ||
+          o.nama.toLowerCase().includes(q) ||
+          o.namaLain.some((n) => n.toLowerCase().includes(q)) ||
+          o.perusahaan.some((p) => p.toLowerCase() === q));
+      }
+      orang.sort((a, b) => b.total - a.total || a.nik.localeCompare(b.nik));
+
+      const per = Math.min(200, Math.max(10, parseInt(String(req.query.per ?? "50")) || 50));
+      const hal = Math.max(1, parseInt(String(req.query.hal ?? "1")) || 1);
+
+      res.json({
+        total: orang.length,
+        totalSemua: kor.orang.size,
+        data: orang.slice((hal - 1) * per, hal * per),
+        halaman: { ke: hal, per, jumlah: Math.max(1, Math.ceil(orang.length / per)) },
+        ringkas: {
+          barisTerindeks: kor.baris.length,
+          tanpaNik: kor.tanpaNik,
+          lintasKontraktor: [...kor.orang.values()].filter((o) => o.perusahaan.length > 1).length,
+          namaBentrok: [...kor.orang.values()].filter((o) => o.namaBentrok).length,
+          kitaPunyaRiwayatLuar: [...kor.orang.values()].filter((o) => o.diKita && o.sebelumGecl > 0).length,
+          perusahaanFms: kor.perusahaanFms,
+          perusahaanSd: kor.perusahaanSd,
+        },
+        pilihan: {
+          perusahaan: [...new Set([...kor.perusahaanFms, ...kor.perusahaanSd])].sort(),
+        },
+      });
+    } catch (e: any) {
+      console.error("GET riwayat-pelanggaran:", e);
+      res.status(500).json({ message: "Gagal memuat riwayat: " + (e?.message || "") });
+    }
+  });
+
+  /** Linimasa satu orang: FMS + Safe Distance digabung, urut waktu. */
+  app.get("/api/hse/riwayat-pelanggaran/:nik", wajibIzinRiwayat, async (req, res) => {
+    try {
+      const { bangunKorpus, bakukanNik } = await import("./lib/riwayat-pelanggaran");
+      const kor = await bangunKorpus(false);
+      const nik = bakukanNik(req.params.nik);
+      const o = nik ? kor.orang.get(nik) : undefined;
+      if (!o) return res.status(404).json({ message: "NIK tidak ditemukan dalam korpus pelanggaran." });
+
+      const u = (req.session as any)?.user;
+      console.log(`[riwayat-pelanggaran] ${u?.name} (${u?.department}) membuka riwayat ${nik} — ${o.perusahaan.join(", ")}`);
+
+      const baris = (kor.perNik.get(nik) ?? []).slice()
+        .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+
+      const hitung = (f: (x: any) => string) => {
+        const m: Record<string, number> = {};
+        baris.forEach((x) => { const k = f(x); if (k) m[k] = (m[k] || 0) + 1; });
+        return m;
+      };
+      res.json({
+        orang: o,
+        baris,
+        ringkas: {
+          perPerusahaan: hitung((x) => x.perusahaan),
+          perJenis: hitung((x) => x.pelanggaran),
+          perSanksi: hitung((x) => x.sanksi),
+          perTahun: hitung((x) => (x.tanggal ? x.tanggal.slice(0, 4) : "")),
+          // Cakupan FMS tidak merata; ini yang membedakan "bersih" dari "tak terekam".
+          fmsMerekamPerusahaan: o.perusahaan.filter((p: string) => kor.perusahaanFms.includes(p)),
+          fmsTidakMerekam: o.perusahaan.filter((p: string) => !kor.perusahaanFms.includes(p)),
+        },
+      });
+    } catch (e: any) {
+      console.error("GET riwayat-pelanggaran/:nik:", e);
+      res.status(500).json({ message: "Gagal memuat riwayat: " + (e?.message || "") });
+    }
+  });
+
+  /* ══ REKAM JEJAK KARYAWAN (GEC/GECL) ═══════════════════════════════════
+   * Kebalikan arah dari halaman Violation lain: berangkat dari DAFTAR KARYAWAN,
+   * bukan dari daftar pelanggaran. Karyawan tanpa pelanggaran tetap tampil —
+   * "nol" itu informasi, bukan ketiadaan data.
+   *
+   * Pencocokan HANYA lewat NIK (kolom employees.id), tidak pernah lewat nama.
+   * Alasannya terukur: dari 200 NIK yang cocok, 19 di antaranya beda tulisan
+   * nama ("MUHAMMAD SIDIQ" vs "M SIDIQ", "AL`ANSARI" vs "AL'ANSARI") padahal
+   * orang yang sama. Pencocokan nama akan meleset di 19 kasus itu sekaligus
+   * berisiko menyatukan dua orang berbeda.
+   *
+   * Cakupan sengaja dibatasi baris GEC/GECL saja. Riwayat di kontraktor lain
+   * ada di halaman terpisah yang digerbangi lebih ketat.
+   */
+  const jejakKita = async (paksa = false) => {
+    const { bangunKorpus } = await import("./lib/riwayat-pelanggaran");
+    const { PERUSAHAAN_KITA } = await import("./lib/fms-sheet");
+    const kor = await bangunKorpus(paksa);
+    const perNik = new Map<string, any[]>();
+    for (const [nik, r] of kor.perNik) {
+      const kita = r.filter((x: any) => PERUSAHAAN_KITA.includes(x.perusahaan));
+      if (kita.length) perNik.set(nik, kita);
+    }
+    return { kor, perNik };
+  };
+
+  app.get("/api/hse/rekam-jejak", async (req, res) => {
+    try {
+      const { perNik } = await jejakKita(req.query.refresh === "1");
+      const hariIni = new Date().toISOString().slice(0, 10);
+      const emp = (await pool.query(
+        `select id, name, position, department, status_karyawan, nomor_lambung, doh, photo_url
+           from employees`)).rows;
+
+      const { status, department, cari, punya } = req.query as any;
+
+      const orang = emp.map((e: any) => {
+        const nik = String(e.id || "").trim().toUpperCase();
+        const r = perNik.get(nik) ?? [];
+        const tgl = r.map((x) => x.tanggal).filter(Boolean).sort();
+        const BOBOT: [RegExp, number][] = [[/phk/i, 5], [/sp\s*3/i, 4], [/sp\s*2/i, 3], [/sp\s*1/i, 2], [/konseling|teguran/i, 1]];
+        const berat = (s: string) => BOBOT.find(([re]) => re.test(s || ""))?.[1] ?? 0;
+        return {
+          nik, nama: e.name, jabatan: e.position, departemen: e.department,
+          statusKaryawan: e.status_karyawan, nomorLambung: e.nomor_lambung, doh: e.doh,
+          foto: e.photo_url,
+          total: r.length,
+          totalFms: r.filter((x) => x.sumber === "FMS").length,
+          totalSd: r.filter((x) => x.sumber === "Safe Distance").length,
+          pertama: tgl[0] ?? null,
+          terakhir: tgl[tgl.length - 1] ?? null,
+          sanksiTerberat: r.map((x) => x.sanksi).filter(Boolean).sort((a, b) => berat(b) - berat(a))[0] || "",
+          sanksiAktif: r.filter((x) => x.sanksi && x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni).length,
+          belumSelesai: r.filter((x) => x.status && x.status !== "Closed").length,
+          // Nama di sheet sering "#N/A". Kalau berbeda dari manpower, itu ditandai
+          // supaya ketahuan mana yang perlu dibetulkan di sumbernya.
+          namaSheet: [...new Set(r.map((x) => x.nama).filter(Boolean))],
+        };
+      });
+
+      let d = orang;
+      if (!status || status === "aktif") d = d.filter((x) => (x.statusKaryawan || "").toLowerCase() === "aktif");
+      else if (status !== "all") d = d.filter((x) => (x.statusKaryawan || "").toLowerCase() === String(status).toLowerCase());
+      if (department && department !== "all") d = d.filter((x) => x.departemen === department);
+      if (punya === "1") d = d.filter((x) => x.total > 0);
+      else if (punya === "0") d = d.filter((x) => x.total === 0);
+      if (cari) {
+        const q = String(cari).trim().toLowerCase();
+        d = d.filter((x) => [x.nik, x.nama, x.jabatan, x.departemen, x.nomorLambung]
+          .some((v) => String(v || "").toLowerCase().includes(q)));
+      }
+      d.sort((a, b) => b.total - a.total || (a.nama || "").localeCompare(b.nama || ""));
+
+      const per = Math.min(200, Math.max(10, parseInt(String(req.query.per ?? "50")) || 50));
+      const hal = Math.max(1, parseInt(String(req.query.hal ?? "1")) || 1);
+      const berjejak = d.filter((x) => x.total > 0);
+
+      res.json({
+        total: d.length,
+        totalSemua: orang.length,
+        data: d.slice((hal - 1) * per, hal * per),
+        halaman: { ke: hal, per, jumlah: Math.max(1, Math.ceil(d.length / per)) },
+        ringkas: {
+          karyawan: d.length,
+          punyaPelanggaran: berjejak.length,
+          persen: d.length ? Math.round((berjejak.length / d.length) * 1000) / 10 : 0,
+          totalPelanggaran: d.reduce((a, x) => a + x.total, 0),
+          sanksiAktif: d.reduce((a, x) => a + x.sanksiAktif, 0),
+          // Pelanggar GEC/GECL yang TIDAK ada di manpower — biasanya sudah keluar.
+          // Dilaporkan supaya tidak ada yang mengira angkanya sudah lengkap.
+          diluarManpower: [...perNik.keys()].filter((n) => !emp.some((e: any) => String(e.id || "").trim().toUpperCase() === n)).length,
+        },
+        pilihan: {
+          department: [...new Set(emp.map((e: any) => e.department).filter(Boolean))].sort(),
+          status: [...new Set(emp.map((e: any) => e.status_karyawan).filter(Boolean))].sort(),
+        },
+      });
+    } catch (e: any) {
+      console.error("GET rekam-jejak:", e);
+      res.status(500).json({ message: "Gagal memuat rekam jejak: " + (e?.message || "") });
+    }
+  });
+
+  /** Rincian pelanggaran satu karyawan — hanya baris GEC/GECL. */
+  app.get("/api/hse/rekam-jejak/:nik", async (req, res) => {
+    try {
+      const { perNik } = await jejakKita(false);
+      const nik = String(req.params.nik || "").trim().toUpperCase();
+      const e = (await pool.query("select id, name, position, department, status_karyawan, nomor_lambung, doh, photo_url from employees where upper(trim(id)) = $1", [nik])).rows[0];
+      if (!e) return res.status(404).json({ message: "NIK tidak ada di daftar karyawan." });
+
+      const baris = (perNik.get(nik) ?? []).slice()
+        .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+      const hitung = (f: (x: any) => string) => {
+        const m: Record<string, number> = {};
+        baris.forEach((x) => { const k = f(x); if (k) m[k] = (m[k] || 0) + 1; });
+        return m;
+      };
+      const hariIni = new Date().toISOString().slice(0, 10);
+      res.json({
+        karyawan: {
+          nik, nama: e.name, jabatan: e.position, departemen: e.department,
+          statusKaryawan: e.status_karyawan, nomorLambung: e.nomor_lambung, doh: e.doh, foto: e.photo_url,
+        },
+        baris,
+        ringkas: {
+          total: baris.length,
+          perSumber: hitung((x) => x.sumber),
+          perJenis: hitung((x) => x.pelanggaran),
+          perSanksi: hitung((x) => x.sanksi),
+          perTahun: hitung((x) => (x.tanggal ? x.tanggal.slice(0, 4) : "")),
+          sanksiAktif: baris.filter((x) => x.sanksi && x.masaBerlakuSanksi && x.masaBerlakuSanksi >= hariIni).length,
+          belumSelesai: baris.filter((x) => x.status && x.status !== "Closed").length,
+          // Beda tulisan nama antara sheet dan manpower: ditandai, bukan didiamkan.
+          namaSheetBerbeda: [...new Set(baris.map((x) => x.nama).filter(Boolean))]
+            .filter((n) => n.toUpperCase().replace(/[.,'`]/g, "").replace(/\s+/g, " ").trim()
+                        !== String(e.name || "").toUpperCase().replace(/[.,'`]/g, "").replace(/\s+/g, " ").trim()),
+        },
+      });
+    } catch (e: any) {
+      console.error("GET rekam-jejak/:nik:", e);
+      res.status(500).json({ message: "Gagal memuat rincian: " + (e?.message || "") });
+    }
+  });
+
+  app.get("/api/hse/master", async (_req, res) => {
+    try {
+      const r = await pool.query("select kategori, nilai, kode, induk from she_master order by kategori, urutan nulls last, nilai");
+      const out: Record<string, any[]> = {};
+      for (const b of r.rows) (out[b.kategori] ||= []).push(b);
+      res.json(out);
+    } catch (e) { res.status(500).json({ message: "Gagal memuat master" }); }
+  });
+
+  /** Daftar insiden + kolom turunan dari view. Saringan ikut ke ekspor (§5.4). */
+  app.get("/api/hse/insiden", async (req, res) => {
+    try {
+      const { tahun, klasifikasi, area, cari } = req.query as any;
+      const w: string[] = []; const p: any[] = [];
+      if (tahun) { p.push(parseInt(tahun)); w.push(`tahun = $${p.length}`); }
+      if (klasifikasi && klasifikasi !== "all") { p.push(klasifikasi); w.push(`klasifikasi = $${p.length}`); }
+      if (area && area !== "all") { p.push(area); w.push(`area = $${p.length}`); }
+      if (cari) { p.push(`%${cari}%`); w.push(`(judul ilike $${p.length} or lokasi ilike $${p.length} or nama_terlibat ilike $${p.length})`); }
+      const sql = `select v.*, to_char(v.tanggal,'YYYY-MM-DD') as tanggal
+                     from she_insiden_view v ${w.length ? "where " + w.join(" and ") : ""}
+                    order by v.tanggal desc, v.nomor desc nulls last`;
+      const r = await pool.query(sql, p);
+      res.json({ data: r.rows, total: r.rowCount });
+    } catch (e: any) {
+      console.error("GET insiden:", e);
+      res.status(500).json({ message: "Gagal memuat insiden" });
+    }
+  });
+
+  app.get("/api/hse/insiden/:id", async (req, res) => {
+    try {
+      const i = await pool.query(
+        "select v.*, to_char(v.tanggal,'YYYY-MM-DD') as tanggal from she_insiden_view v where v.id = $1", [req.params.id]);
+      if (!i.rowCount) return res.status(404).json({ message: "Insiden tidak ditemukan" });
+      const pn = await pool.query("select * from she_penyebab where insiden_id = $1", [req.params.id]);
+      const rk = await pool.query(
+        `select id, insiden_id, uraian, pic,
+                to_char(due_date,'YYYY-MM-DD') as due_date,
+                to_char(tanggal_pemenuhan,'YYYY-MM-DD') as tanggal_pemenuhan,
+                status_rekomendasi(due_date, tanggal_pemenuhan) as status
+           from she_rekomendasi where insiden_id = $1`, [req.params.id]);
+      res.json({ ...i.rows[0], penyebab: pn.rows, rekomendasi: rk.rows });
+    } catch (e) { res.status(500).json({ message: "Gagal memuat insiden" }); }
+  });
+
+  const KOLOM_INSIDEN = ["no_registrasi","nomor","tanggal","jam","shift","judul","area","lokasi","sub_lokasi","detail_lokasi",
+    "perusahaan","custodian","mekanisme","klasifikasi","kategori_khusus","jenis_tabrak","lost_cost",
+    "alat_terlibat","nama_terlibat","nik_terlibat","jabatan","usia","masa_kerja","hari_kerja",
+    "faktor_kritis","status_investigasi","catatan"];
+
+  /** Simpan insiden + penyebab + rekomendasi dalam SATU transaksi (§5.3). */
+  async function simpanInsiden(id: string | null, body: any) {
+    const klien = await pool.connect();
+    try {
+      await klien.query("BEGIN");
+      // Mengirim NULL eksplisit MENGALAHKAN DEFAULT kolom di PostgreSQL, jadi
+      // kolom NOT NULL DEFAULT harus diberi nilai di sini — bukan diserahkan ke DB.
+      const nilai = KOLOM_INSIDEN.map((k) => {
+        const v = body[k] === "" ? null : body[k] ?? null;
+        if (k === "status_investigasi") return v ?? "Open";
+        return v;
+      });
+      let insidenId = id;
+      if (id) {
+        await klien.query(
+          `update she_insiden set ${KOLOM_INSIDEN.map((k, n) => `${k}=$${n + 1}`).join(",")}, updated_at=now() where id=$${KOLOM_INSIDEN.length + 1}`,
+          [...nilai, id]);
+      } else {
+        const r = await klien.query(
+          `insert into she_insiden (${KOLOM_INSIDEN.join(",")}) values (${KOLOM_INSIDEN.map((_, n) => "$" + (n + 1)).join(",")}) returning id`,
+          nilai);
+        insidenId = r.rows[0].id;
+      }
+      // §5.3 — penyebab & rekomendasi disimpan hapus-lalu-isi, dalam transaksi yang sama.
+      await klien.query("delete from she_penyebab where insiden_id=$1", [insidenId]);
+      for (const p of body.penyebab || []) {
+        if (!p?.uraian) continue;
+        await klien.query("insert into she_penyebab (insiden_id, jenis, kode, uraian, detail) values ($1,$2,$3,$4,$5)",
+          [insidenId, p.jenis || "TTA", p.kode || null, p.uraian, p.detail || null]);
+      }
+      await klien.query("delete from she_rekomendasi where insiden_id=$1", [insidenId]);
+      for (const r of body.rekomendasi || []) {
+        if (!r?.uraian) continue;
+        await klien.query("insert into she_rekomendasi (insiden_id, uraian, pic, due_date, tanggal_pemenuhan) values ($1,$2,$3,$4,$5)",
+          [insidenId, r.uraian, r.pic || null, r.due_date || null, r.tanggal_pemenuhan || null]);
+      }
+      await klien.query("COMMIT");
+      return insidenId;
+    } catch (e) {
+      await klien.query("ROLLBACK").catch(() => { });
+      throw e;
+    } finally { klien.release(); }
+  }
+
+  app.post("/api/hse/insiden", async (req, res) => {
+    try {
+      if (!req.body?.judul || !req.body?.tanggal)
+        return res.status(400).json({ message: "Judul dan tanggal wajib diisi" });
+      const id = await simpanInsiden(null, req.body);
+      res.json({ id });
+    } catch (e: any) {
+      console.error("POST insiden:", e);
+      // Pesan basis data diteruskan; "Gagal menyimpan" saja tidak bisa ditindaklanjuti.
+      if (e?.code === "23505")
+        return res.status(409).json({ message: `Insiden ${req.body?.no_registrasi ?? ""} sudah pernah dicatat.` });
+      res.status(500).json({ message: "Gagal menyimpan insiden: " + (e?.message || "tidak diketahui") });
+    }
+  });
+
+  app.put("/api/hse/insiden/:id", async (req, res) => {
+    try {
+      await simpanInsiden(req.params.id, req.body);
+      res.json({ id: req.params.id });
+    } catch (e: any) {
+      console.error("PUT insiden:", e);
+      if (e?.code === "23505")
+        return res.status(409).json({ message: "Nomor registrasi itu sudah dipakai insiden lain." });
+      res.status(500).json({ message: "Gagal menyimpan insiden: " + (e?.message || "tidak diketahui") });
+    }
+  });
+
+  app.delete("/api/hse/insiden/:id", async (req, res) => {
+    try {
+      const r = await pool.query("delete from she_insiden where id=$1", [req.params.id]);
+      res.json({ dihapus: r.rowCount });
+    } catch (e) { res.status(500).json({ message: "Gagal menghapus insiden" }); }
+  });
+
+  /** Agregat untuk dasbor Detail Incident — dua tahun berdampingan (§5.2). */
+  app.get("/api/hse/insiden-analisis", async (req, res) => {
+    try {
+      const t1 = parseInt((req.query.tahun as string) || String(new Date().getFullYear()));
+      const t2 = parseInt((req.query.pembanding as string) || String(t1 - 1));
+      const area = req.query.area as string;
+      const filterArea = area && area !== "all" ? " and area = $3" : "";
+      const p: any[] = [t1, t2]; if (filterArea) p.push(area);
+
+      const hitung = async (kolom: string) => {
+        const r = await pool.query(
+          `select tahun, coalesce(nullif(trim(${kolom}::text), ''), '(kosong)') as nilai, count(*)::int as jumlah
+             from she_insiden_view where tahun in ($1,$2)${filterArea}
+            group by 1,2 order by 3 desc`, p);
+        return r.rows;
+      };
+      const kolom = ["bulan","minggu_bulan","hari","jam","klasifikasi","mekanisme","kategori_khusus",
+                     "lokasi","sub_lokasi","alat_terlibat","jabatan","rentang_usia","masa_kerja"];
+      const hasil: Record<string, any[]> = {};
+      for (const k of kolom) hasil[k] = await hitung(k);
+
+      const penyebab = await pool.query(
+        `select v.tahun, p.jenis, p.uraian, count(*)::int as jumlah
+           from she_penyebab p join she_insiden_view v on v.id = p.insiden_id
+          where v.tahun in ($1,$2)${filterArea ? " and v.area = $3" : ""}
+          group by 1,2,3 order by 4 desc`, p);
+
+      const ringkas = await pool.query(
+        `select tahun, count(*)::int as insiden, coalesce(sum(lost_cost),0)::numeric as lost_cost,
+                coalesce(sum(jumlah_penyebab),0)::int as penyebab,
+                coalesce(sum(jumlah_rekomendasi),0)::int as rekomendasi
+           from she_insiden_view where tahun in ($1,$2)${filterArea} group by 1`, p);
+
+      res.json({ tahun: t1, pembanding: t2, grafik: hasil, penyebab: penyebab.rows, ringkas: ringkas.rows });
+    } catch (e: any) {
+      console.error("GET insiden-analisis:", e);
+      res.status(500).json({ message: "Gagal memuat analisis" });
+    }
+  });
+
+  app.get("/api/hse/manhours/:tahun", async (req, res) => {
+    try {
+      const tahun = parseInt(req.params.tahun);
+      if (!Number.isInteger(tahun)) return res.status(400).json({ message: "Tahun tidak sah" });
+      const mh = await pool.query(
+        "select bulan, manpower, hari_kerja, jam_per_hari, faktor, jam_aktual, insiden, insiden_fatigue, insiden_menabrak, insiden_rebah, produksi from she_manhours where tahun = $1 order by bulan",
+        [tahun]);
+      const tg = await pool.query("select tifr, fatigue_fr, cifr from she_target where tahun = $1", [tahun]);
+      // §3 — jumlah insiden & rate DIHITUNG dari she_insiden lewat view, bukan
+      // dari kolom manual. Satu sumber, jadi Report Incident langsung terpantul
+      // ke Pengaturan Man Hour dan Statistik Keselamatan.
+      const st = await pool.query(
+        `select bulan, jam_bulan, insiden, insiden_fatigue, insiden_kendaraan,
+                insiden_manual, jam_kumulatif, insiden_kumulatif, tifr, fatigue_fr, cifr
+           from she_statistik_bulanan where tahun = $1 order by bulan`, [tahun]);
+      res.json({ tahun, bulan: mh.rows, target: tg.rows[0] || null, statistik: st.rows });
+    } catch (e: any) {
+      console.error("GET manhours:", e);
+      res.status(500).json({ message: "Gagal memuat man-hours" });
+    }
+  });
+
+  app.put("/api/hse/manhours/:tahun", async (req, res) => {
+    const klien = await pool.connect();
+    try {
+      const tahun = parseInt(req.params.tahun);
+      if (!Number.isInteger(tahun)) return res.status(400).json({ message: "Tahun tidak sah" });
+      const { bulan = [], target } = req.body || {};
+      if (!Array.isArray(bulan)) return res.status(400).json({ message: "Format bulan tidak sah" });
+
+      await klien.query("BEGIN");
+      for (const b of bulan) {
+        const n = parseInt(b?.bulan);
+        if (!Number.isInteger(n) || n < 1 || n > 12) continue;
+        // Bulan yang dikosongkan berarti BELUM BERJALAN, bukan nol jam (§2.4).
+        // Barisnya dihapus, bukan disimpan sebagai nol — nol membuat rate tak hingga.
+        // Bulan dianggap kosong hanya bila TIDAK ada man-hours DAN tidak ada insiden.
+        // Insiden tanpa man-hours tetap harus tersimpan — jam kerjanya bisa diisi belakangan.
+        const adaInsiden = (b.insiden || 0) + (b.insiden_fatigue || 0)
+          + (b.insiden_menabrak || 0) + (b.insiden_rebah || 0) > 0;
+        const kosong = !b.manpower && !b.hari_kerja && !b.jam_aktual && !adaInsiden && !b.produksi;
+        if (kosong) {
+          await klien.query("delete from she_manhours where tahun=$1 and bulan=$2", [tahun, n]);
+          continue;
+        }
+        await klien.query(
+          `insert into she_manhours (tahun, bulan, manpower, hari_kerja, jam_per_hari, faktor, jam_aktual,
+                                     insiden, insiden_fatigue, insiden_menabrak, insiden_rebah, produksi)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+           on conflict (tahun, bulan) do update set
+             manpower = excluded.manpower, hari_kerja = excluded.hari_kerja,
+             jam_per_hari = excluded.jam_per_hari, faktor = excluded.faktor,
+             jam_aktual = excluded.jam_aktual, insiden = excluded.insiden,
+             insiden_fatigue = excluded.insiden_fatigue,
+             insiden_menabrak = excluded.insiden_menabrak,
+             insiden_rebah = excluded.insiden_rebah,
+             produksi = excluded.produksi`,
+          [tahun, n, b.manpower ?? null, b.hari_kerja ?? null, b.jam_per_hari ?? null,
+           b.faktor ?? null, b.jam_aktual ?? null, b.insiden ?? 0,
+           b.insiden_fatigue ?? 0, b.insiden_menabrak ?? 0, b.insiden_rebah ?? 0, b.produksi ?? null]);
+      }
+      if (target) {
+        await klien.query(
+          `insert into she_target (tahun, tifr, fatigue_fr, cifr) values ($1,$2,$3,$4)
+           on conflict (tahun) do update set
+             tifr = excluded.tifr, fatigue_fr = excluded.fatigue_fr,
+             cifr = excluded.cifr, updated_at = now()`,
+          [tahun, target.tifr ?? null, target.fatigue_fr ?? null, target.cifr ?? null]);
+      }
+      await klien.query("COMMIT");
+
+      // Dikembalikan APA ADANYA dari basis data, termasuk jam_aktual hasil trigger —
+      // supaya yang tampil di layar persis yang tersimpan (§2.2).
+      const mh = await klien.query(
+        "select bulan, manpower, hari_kerja, jam_per_hari, faktor, jam_aktual, insiden, insiden_fatigue, insiden_menabrak, insiden_rebah, produksi from she_manhours where tahun=$1 order by bulan",
+        [tahun]);
+      res.json({ tahun, bulan: mh.rows, tersimpan: mh.rowCount });
+    } catch (e: any) {
+      await klien.query("ROLLBACK").catch(() => { });
+      console.error("PUT manhours:", e);
+      res.status(500).json({ message: "Gagal menyimpan man-hours" });
+    } finally {
+      klien.release();
+    }
+  });
+
+  app.get("/api/employees/export", async (req, res) => {
+    try {
+      const search = req.query.search as string | undefined;
+      const position = req.query.position as string | undefined;
+
+      let list: any[] = search
+        ? await storage.getEmployeesFiltered(search)
+        : await storage.getAllEmployees();
+      if (position && position.trim()) list = list.filter((e: any) => e.position === position);
+      list.sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "id"));
+
+      const ExcelJS = (await import("exceljs")).default as any;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "OneTalent";
+      wb.created = new Date();
+      const ws = wb.addWorksheet("Karyawan", {
+        views: [{ state: "frozen", xSplit: 2, ySplit: 1 }], // NIK + Nama ikut tergeser
+      });
+
+      const K = [
+        { header: "No", key: "no", width: 5 },
+        { header: "NIK", key: "id", width: 12 },
+        { header: "Nama", key: "name", width: 28 },
+        { header: "Foto", key: "photo", width: 10 },
+        { header: "Tempat Lahir", key: "tempatLahir", width: 18 },
+        { header: "Tanggal Lahir", key: "dob", width: 14 },
+        { header: "No. KTP", key: "ktpNo", width: 20 },
+        { header: "No. KK", key: "kkNo", width: 20 },
+        { header: "No. WhatsApp", key: "phone", width: 16 },
+        { header: "BPJS Kesehatan", key: "bpjsKesehatan", width: 18 },
+
+        { header: "Posisi", key: "position", width: 26 },
+        { header: "Departemen", key: "department", width: 24 },
+        { header: "Investor Group", key: "investorGroup", width: 18 },
+        { header: "Nomor Lambung", key: "nomorLambung", width: 15 },
+        { header: "Unit Spare", key: "spare", width: 11 },
+        { header: "No. iSafe", key: "isafeNumber", width: 13 },
+        { header: "ID ITWS", key: "idItws", width: 11 },
+        { header: "DOH", key: "doh", width: 12 },
+        { header: "Status", key: "statusLabel", width: 11 },
+        { header: "Status Karyawan", key: "statusKaryawan", width: 18 },
+        { header: "Tanggal Resign", key: "tanggalResign", width: 14 },
+        { header: "Catatan Resign", key: "catatanResign", width: 24 },
+
+        { header: "Tipe SIM", key: "typeSim", width: 11 },
+        { header: "No. SIM", key: "simNo", width: 18 },
+        { header: "Expired SIM POL", key: "expiredSimpol", width: 16 },
+        { header: "Expired SIMPER BIB", key: "expiredSimperBib", width: 18 },
+        { header: "Status SIMPER BIB", key: "statusSimperBib", width: 18 },
+        { header: "Expired SIMPER TIA", key: "expiredSimperTia", width: 18 },
+        { header: "Status SIMPER TIA", key: "statusSimperTia", width: 18 },
+
+        { header: "Alamat", key: "address", width: 40 },
+        { header: "Provinsi", key: "provinsi", width: 18 },
+        { header: "Kota/Kabupaten", key: "kotaKab", width: 20 },
+        { header: "Address Group", key: "addressGroup", width: 16 },
+        { header: "Domisili", key: "domisiliKaryawan", width: 14 },
+
+        { header: "Tgl Ikut Pelatihan OS", key: "tglIkutPelatihanOs", width: 19 },
+        { header: "Merek Unit OS", key: "merekUnitDigunakanOs", width: 18 },
+        { header: "Tgl Refreshment OS", key: "tglRefreshmentOs", width: 18 },
+        { header: "Refreshment OS", key: "refreshmentOs", width: 16 },
+        { header: "Keterangan OS", key: "keteranganOs", width: 24 },
+        { header: "Sertifikat OS", key: "sertifikatOsUrl", width: 30 },
+      ];
+      ws.columns = K;
+
+      // Alamat asal, supaya tautan foto bisa diklik dari Excel.
+      const asal = `${req.protocol}://${req.get("host")}`;
+      const tgl = (v: any) => (v ? String(v).slice(0, 10) : "");
+
+      list.forEach((e: any, i: number) => {
+        const r = ws.addRow({
+          no: i + 1, id: e.id, name: e.name, photo: e.photoUrl ? "Lihat" : "",
+          tempatLahir: e.tempatLahir ?? "", dob: tgl(e.dob),
+          ktpNo: e.ktpNo ?? "", kkNo: e.kkNo ?? "", phone: e.phone ?? "",
+          bpjsKesehatan: e.bpjsKesehatan ?? "",
+          position: e.position ?? "", department: e.department ?? "",
+          investorGroup: e.investorGroup ?? "", nomorLambung: e.nomorLambung ?? "",
+          spare: e.isSpareOrigin ? "Ya" : "Tidak",
+          isafeNumber: e.isafeNumber ?? "", idItws: e.idItws ?? "", doh: tgl(e.doh),
+          statusLabel: e.status === "active" ? "Aktif" : "Non-Aktif",
+          statusKaryawan: e.statusKaryawan ?? "", tanggalResign: tgl(e.tanggalResign),
+          catatanResign: e.catatanResign ?? "",
+          typeSim: e.typeSim ?? "", simNo: e.simNo ?? "",
+          expiredSimpol: tgl(e.expiredSimpol),
+          expiredSimperBib: tgl(e.expiredSimperBib), statusSimperBib: e.statusSimperBib ?? "",
+          expiredSimperTia: tgl(e.expiredSimperTia), statusSimperTia: e.statusSimperTia ?? "",
+          address: e.address ?? "", provinsi: e.provinsi ?? "", kotaKab: e.kotaKab ?? "",
+          addressGroup: e.addressGroup ?? "", domisiliKaryawan: e.domisiliKaryawan ?? "",
+          tglIkutPelatihanOs: tgl(e.tglIkutPelatihanOs),
+          merekUnitDigunakanOs: e.merekUnitDigunakanOs ?? "",
+          tglRefreshmentOs: tgl(e.tglRefreshmentOs), refreshmentOs: e.refreshmentOs ?? "",
+          keteranganOs: e.keteranganOs ?? "", sertifikatOsUrl: e.sertifikatOsUrl ?? "",
+        });
+
+        // Foto sebagai tautan yang bisa diklik, bukan URL panjang yang melebarkan kolom.
+        if (e.photoUrl) {
+          const url = String(e.photoUrl).startsWith("http") ? e.photoUrl : asal + e.photoUrl;
+          r.getCell("photo").value = { text: "Lihat", hyperlink: url };
+          r.getCell("photo").font = { color: { argb: "FF0563C1" }, underline: true };
+        }
+        r.alignment = { vertical: "middle" };
+        r.getCell("address").alignment = { vertical: "middle", wrapText: true };
+      });
+
+      const head = ws.getRow(1);
+      head.font = { bold: true, color: { argb: "FF1F1F1F" } };
+      head.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF4F4F4" } };
+      head.alignment = { vertical: "middle", horizontal: "left" };
+      head.height = 22;
+      head.border = { bottom: { style: "thin", color: { argb: "FFC2C2C2" } } };
+
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: K.length } };
+
+      const buf = await wb.xlsx.writeBuffer();
+      const nama = `List_Karyawan_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${nama}"`);
+      res.send(Buffer.from(buf));
+    } catch (error: any) {
+      console.error("Export karyawan error:", error);
+      res.status(500).json({ message: "Gagal mengekspor data karyawan" });
     }
   });
 
@@ -17354,7 +19049,11 @@ Format sebagai bullet points singkat per insight.`;
       console.log(`[Chat] Msg: "${message.substring(0, 20)}..." Session: ${currentSessionId}`);
 
       // 3. Define Tools
+      const { DEF_TANYA_PELANGGARAN, DEF_RIWAYAT_LINTAS, tanyaPelanggaran, riwayatPelanggaranOrang } = await import("./lib/pengetahuan/pelanggaran");
+      const peminta = { nama: (req.session as any)?.user?.name, departemen: (req.session as any)?.user?.department };
       const tools = [
+        DEF_TANYA_PELANGGARAN,
+        DEF_RIWAYAT_LINTAS,
         {
           type: "function",
           function: {
@@ -17463,6 +19162,19 @@ ATURAN PROSEDUR (wajib):
 - Jawab HANYA berdasarkan potongan yang dikembalikan. Sebutkan sumbernya dengan nomor [n] sesuai hasil, dan sebut kode PPO + revisinya (mis. GECL-HSE-PPO-4.1.16 R10).
 - Bila tidak ada potongan yang menjawab, katakan terus terang bahwa tidak ditemukan di PPO yang berlaku. Jangan mengarang angka atau aturan.
 
+ATURAN DATA PELANGGARAN (wajib):
+- Pertanyaan jumlah/tren/peringkat/daftar pelanggaran FMS atau Safe Distance: PANGGIL tanya_pelanggaran. Jangan menghitung atau menebak angka sendiri; pakai angka "total" dan hasil per_… apa adanya.
+- Terjemahkan waktu relatif ke tanggal pasti (mis. "minggu ini", "bulan lalu") berdasarkan waktu sekarang, dan sebutkan rentang tanggal serta sumbernya di jawaban.
+- Bila "data_terbaru_di_sheet" lebih lama dari periode yang ditanya, beri tahu bahwa data sheet mungkin belum diperbarui.
+- Riwayat seseorang lintas kontraktor / sebelum masuk GECL: PANGGIL riwayat_pelanggaran_orang. Bila ada "peringatan" nama ganda, sampaikan.
+- Bila alat mengembalikan "galat" (mis. akses ditolak), sampaikan apa adanya. Jangan pernah menyebut URL sumber data.
+- Untuk menilai kesesuaian sanksi/aturan, gabungkan dengan cari_ppo.
+
+FORMAT JAWABAN (Markdown):
+- Buka dengan satu kalimat jawaban inti; tebalkan angka/kesimpulan utama (**12 pelanggaran**).
+- Rincian dalam daftar berpoin; data banyak baris (per unit/jam/kejadian) dalam TABEL Markdown.
+- Pakai subjudul ### hanya bila jawaban punya beberapa bagian. Tutup dengan baris sumber & periode dalam huruf miring.
+
 Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cuti/roster (get_upcoming_leave, get_roster_schedule).`
         },
         ...riwayat.map((r) => ({ role: r.role === "model" ? "assistant" : "user", content: r.content })),
@@ -17495,7 +19207,17 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
 
           console.log(`[Destiny AI] Calling tool: ${functionName}`, functionArgs);
 
-          if (functionName === "cari_ppo") {
+          if (functionName === "tanya_pelanggaran" || functionName === "riwayat_pelanggaran_orang") {
+            const orang = functionName === "riwayat_pelanggaran_orang";
+            kirimLangkah({ tipe: "alat", nama: orang ? "Menelusuri riwayat pelanggaran" : "Menghitung data pelanggaran" });
+            try {
+              const h: any = orang ? await riwayatPelanggaranOrang(functionArgs, peminta) : await tanyaPelanggaran(functionArgs, peminta);
+              functionResponse = JSON.stringify(h);
+            } catch (e: any) {
+              console.error(`[Mystic] ${functionName} gagal:`, e?.message || e);
+              functionResponse = JSON.stringify({ galat: "Data pelanggaran sedang tidak dapat diambil." });
+            }
+          } else if (functionName === "cari_ppo") {
             try {
               const { cariDokumen } = await import("./lib/pengetahuan/cari");
               const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
@@ -18644,7 +20366,8 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
         return {
           violationDate: String(vDate || new Date().toISOString().split('T')[0]),
           violationTime: String(vTime),
-          violationTimestamp: new Date(`${String(vDate).split('T')[0]}T${String(vTime)}`),
+          // Akhiran Z disengaja — lihat catatan di fms-scraper.ts.
+          violationTimestamp: new Date(`${String(vDate).split('T')[0]}T${String(vTime)}Z`),
 
           vehicleNo: String(getValue(['Vehicle No', 'Vehicle No Company', 'No Lambung', 'vehicle_no']) || "-"),
           company: String(getValue(['Company', 'Perusahaan', 'company']) || "-"),
@@ -21500,7 +23223,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
 
   app.get("/api/spip/peralatan", async (req, res) => {
     try {
-      const { search, jenis_unit, merk, status_unit, status_bib, page = "1", limit = "15",
+      const { search, jenis_unit, merk, status_unit, status_bib, status_tia, status_tma, page = "1", limit = "15",
         sort_by = "lambung", sort_dir = "asc", lambung_min, lambung_max } = req.query;
 
       const pageNum = parseInt(page as string);
@@ -21520,35 +23243,20 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
       if (jenis_unit) conditions.push(eq(spipPeralatan.jenisUnit, jenis_unit as string));
       if (merk) conditions.push(eq(spipPeralatan.merk, merk as string));
       if (status_unit) conditions.push(eq(spipPeralatan.statusUnit, status_unit as string));
-      if (status_bib) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const nearLimit = addMonths(new Date(today), 2);
-
-        // Helper logic for NULL safety
-        const isExpBib = and(isNotNull(spipPeralatan.expiredBib), lt(spipPeralatan.expiredBib, today));
-        const isExpTia = and(isNotNull(spipPeralatan.expiredTia), lt(spipPeralatan.expiredTia, today));
-        const unitIsExpired = or(isExpBib, isExpTia);
-
-        const isNearBib = and(isNotNull(spipPeralatan.expiredBib), lt(spipPeralatan.expiredBib, nearLimit));
-        const isNearTia = and(isNotNull(spipPeralatan.expiredTia), lt(spipPeralatan.expiredTia, nearLimit));
-        const unitIsNear = or(isNearBib, isNearTia);
-
-        if (status_bib === 'EXPIRED') {
-          conditions.push(unitIsExpired);
-        } else if (status_bib === 'NEAR EXPIRED') {
-          // NEAR if NOT expired AND (bib_is_near OR tia_is_near)
-          conditions.push(and(not(unitIsExpired), unitIsNear));
-        } else if (status_bib === 'ACTIVE') {
-          // ACTIVE if NOT expired AND NOT near AND has_at_least_one_date
-          conditions.push(and(
-            not(unitIsExpired),
-            not(unitIsNear),
-            or(isNotNull(spipPeralatan.expiredBib), isNotNull(spipPeralatan.expiredTia))
-          ));
-        } else if (status_bib !== 'all') {
-          conditions.push(or(eq(spipPeralatan.statusBib, status_bib as string), eq(spipPeralatan.statusTia, status_bib as string)));
-        }
+      /* Tiga stiker disaring terpisah dan langsung dari kolom statusnya.
+         Versi sebelumnya mencampur dua hal: sebagian cabang menghitung
+         EXPIRED/NEAR dari selisih tanggal, sebagian lagi membaca kolom status —
+         dan cabang terakhirnya mencocokkan statusBib ATAU statusTia sekaligus,
+         sehingga menyaring "CLOSE" pada BIB ikut menarik unit yang CLOSE-nya
+         di TIA. Kolom status diisi petugas dan itulah sumber yang sah. */
+      if (status_bib && status_bib !== "all") {
+        conditions.push(eq(spipPeralatan.statusBib, status_bib as string));
+      }
+      if (status_tia && status_tia !== "all") {
+        conditions.push(eq(spipPeralatan.statusTia, status_tia as string));
+      }
+      if (status_tma && status_tma !== "all") {
+        conditions.push(eq(spipPeralatan.statusTma, status_tma as string));
       }
 
       // Saring berdasarkan ANGKA lambung ("DT GECL 9103" → 9103), bukan teksnya.
@@ -21597,49 +23305,197 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
 
   app.get("/api/spip/peralatan/export", async (req, res) => {
     try {
-      // Provide xlsx export
-      const items = await db.select().from(spipPeralatan).orderBy(desc(spipPeralatan.createdAt));
+      /* Ekspor mengikuti penyaring & urutan yang sedang aktif di layar.
+         Versi sebelumnya selalu mengambil seluruh tabel dan mengurutkannya
+         menurut waktu input — jadi menyaring "EXPIRED" lalu menekan Export
+         tetap menghasilkan 90 baris dengan urutan yang terlihat acak. */
+      const { search, jenis_unit, merk, status_unit, status_bib, status_tia, status_tma,
+        sort_by = "lambung", sort_dir = "asc", lambung_min, lambung_max } = req.query;
 
-      // format to match template
-      const formatted = items.map(item => ({
-        "NO LAMBUNG": item.noLambung,
-        "JENIS UNIT": item.jenisUnit,
-        "MERK": item.merk,
-        "TYPE": item.type,
-        "NO POLISI": item.noPolisi || "",
-        "NO RANGKA": item.noRangka || "",
-        "NO MESIN": item.noMesin || "",
-        "TAHUN PEMBUATAN": item.tahunPembuatan || "",
-        "VOLUME Vessel M3": item.volumeVessel || "",
-        "TARE (Kosongan)": item.tare || "",
-        "AEBS": item.aebs || "",
-        "TGL. PENGAJUAN": item.tglPengajuanBib ? new Date(item.tglPengajuanBib).toISOString().split('T')[0] : "",
-        "EXPIRED STIKER (BIB)": item.expiredBib ? new Date(item.expiredBib).toISOString().split('T')[0] : "",
-        "STATUS STICKER (BIB)": item.statusBib || "",
-        "TGL. EXPIRED (TIA)": item.expiredTia ? new Date(item.expiredTia).toISOString().split('T')[0] : "",
-        "STATUS STICKER (TIA)": item.statusTia || "",
-        "NO TMA": item.noTma || "",
-        "STATUS STICKER (TMA)": item.statusTma || "",
-        "STATUS UNIT": item.statusUnit,
-        "OWNER": item.owner || "",
-        "NAMA / PIC": item.namaPic || "",
-        "NIK KTP": item.nikKtp || "",
-        "Kepemilikan STNK/Faktur": item.kepemilikan || "",
-        "NO. KONTAK": item.noKontak || "",
-        "KOMISIONER": item.komisioner || "",
-        "KETERANGAN": item.keterangan || ""
-      }));
+      const conditions: any[] = [];
+      if (search) {
+        const k = `%${search}%`;
+        conditions.push(or(
+          ilike(spipPeralatan.noLambung, k), ilike(spipPeralatan.merk, k),
+          ilike(spipPeralatan.owner, k), ilike(spipPeralatan.noPolisi, k),
+          ilike(spipPeralatan.komisioner, k), ilike(spipPeralatan.namaPic, k),
+        ));
+      }
+      if (jenis_unit) conditions.push(eq(spipPeralatan.jenisUnit, jenis_unit as string));
+      if (merk) conditions.push(eq(spipPeralatan.merk, merk as string));
+      if (status_unit) conditions.push(eq(spipPeralatan.statusUnit, status_unit as string));
+      if (status_bib && status_bib !== "all") conditions.push(eq(spipPeralatan.statusBib, status_bib as string));
+      if (status_tia && status_tia !== "all") conditions.push(eq(spipPeralatan.statusTia, status_tia as string));
+      if (status_tma && status_tma !== "all") conditions.push(eq(spipPeralatan.statusTma, status_tma as string));
 
-      const xlsxModule = await import("xlsx");
-      const XLSX = xlsxModule.default || xlsxModule;
-      const ws = XLSX.utils.json_to_sheet(formatted);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "PERALATAN");
-      const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+      const angkaLambung = sql`NULLIF(regexp_replace(${spipPeralatan.noLambung}, '\\D', '', 'g'), '')::bigint`;
+      const bawah = parseInt(String(lambung_min ?? ""));
+      const atas = parseInt(String(lambung_max ?? ""));
+      if (!isNaN(bawah)) conditions.push(sql`${angkaLambung} >= ${bawah}`);
+      if (!isNaN(atas)) conditions.push(sql`${angkaLambung} <= ${atas}`);
 
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=Data_Peralatan.xlsx');
-      res.send(buffer);
+      const arah = sort_dir === "desc" ? desc : asc;
+      const kolomUrut: Record<string, any> = {
+        lambung: angkaLambung, expired_bib: spipPeralatan.expiredBib,
+        expired_tia: spipPeralatan.expiredTia, tahun: spipPeralatan.tahunPembuatan,
+        jenis: spipPeralatan.jenisUnit, terbaru: spipPeralatan.createdAt,
+      };
+      const items = await db.select().from(spipPeralatan)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(arah(kolomUrut[String(sort_by)] ?? angkaLambung));
+
+      const hariIni = new Date(); hariIni.setHours(0, 0, 0, 0);
+      const selisihHari = (t: any) => {
+        if (!t) return null;
+        const d = new Date(t); if (isNaN(d.getTime())) return null;
+        return Math.round((d.getTime() - hariIni.getTime()) / 86400000);
+      };
+      const tgl = (t: any) => (t ? new Date(t) : null);
+
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "OneTalent — PT Golden Energi Cemerlang Lestari";
+      wb.created = new Date();
+
+      const MERAH = "FFE6212A";
+      const kepalaMerah = (ws: any, jumlahKolom: number) => {
+        const b = ws.getRow(1);
+        b.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+        b.height = 22;
+        b.alignment = { vertical: "middle", wrapText: true };
+        b.eachCell((c: any) => { c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MERAH } }; });
+        ws.views = [{ state: "frozen", ySplit: 1 }];
+        ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: jumlahKolom } };
+      };
+
+      /* ── 1 · Data ───────────────────────────────────────────────── */
+      const d1 = wb.addWorksheet("Data Peralatan");
+      d1.columns = [
+        { header: "NO LAMBUNG", key: "lambung", width: 16 },
+        { header: "JENIS UNIT", key: "jenis", width: 22 },
+        { header: "MERK", key: "merk", width: 12 },
+        { header: "TYPE", key: "type", width: 18 },
+        { header: "NO POLISI", key: "polisi", width: 14 },
+        { header: "NO RANGKA", key: "rangka", width: 20 },
+        { header: "NO MESIN", key: "mesin", width: 18 },
+        { header: "TAHUN", key: "tahun", width: 8 },
+        { header: "UMUR UNIT (TAHUN)", key: "umur", width: 11 },
+        { header: "VOLUME VESSEL", key: "volume", width: 13 },
+        { header: "TARE (KOSONGAN)", key: "tare", width: 13 },
+        { header: "AEBS", key: "aebs", width: 11 },
+        { header: "TGL PENGAJUAN BIB", key: "ajuBib", width: 15 },
+        { header: "EXPIRED BIB", key: "expBib", width: 13 },
+        { header: "BIB LEWAT (HARI)", key: "lewatBib", width: 12 },
+        { header: "STATUS BIB", key: "stBib", width: 14 },
+        { header: "EXPIRED TIA", key: "expTia", width: 13 },
+        { header: "SISA TIA (HARI)", key: "sisaTia", width: 12 },
+        { header: "STATUS TIA", key: "stTia", width: 12 },
+        { header: "NO TMA", key: "noTma", width: 10 },
+        { header: "STATUS TMA", key: "stTma", width: 12 },
+        { header: "STATUS UNIT", key: "stUnit", width: 12 },
+        { header: "OWNER", key: "owner", width: 30 },
+        { header: "NAMA / PIC", key: "pic", width: 20 },
+        { header: "NIK KTP", key: "nik", width: 18 },
+        { header: "KEPEMILIKAN", key: "milik", width: 13 },
+        { header: "NO KONTAK", key: "kontak", width: 16 },
+        { header: "KOMISIONER", key: "komisioner", width: 22 },
+        { header: "KETERANGAN", key: "ket", width: 30 },
+      ];
+      items.forEach((i: any) => {
+        const sisaTia = selisihHari(i.expiredTia);
+        const lewatBib = selisihHari(i.expiredBib);
+        d1.addRow({
+          lambung: i.noLambung, jenis: i.jenisUnit, merk: i.merk, type: i.type,
+          polisi: i.noPolisi || "", rangka: i.noRangka || "", mesin: i.noMesin || "",
+          tahun: i.tahunPembuatan ?? "",
+          umur: i.tahunPembuatan ? hariIni.getFullYear() - Number(i.tahunPembuatan) : "",
+          volume: i.volumeVessel ?? "", tare: i.tare ?? "", aebs: i.aebs || "",
+          ajuBib: tgl(i.tglPengajuanBib), expBib: tgl(i.expiredBib),
+          lewatBib: lewatBib === null ? "" : -lewatBib,      // positif = sudah lewat
+          stBib: i.statusBib || "",
+          expTia: tgl(i.expiredTia), sisaTia: sisaTia === null ? "" : sisaTia,
+          stTia: i.statusTia || "", noTma: i.noTma || "", stTma: i.statusTma || "",
+          stUnit: i.statusUnit, owner: i.owner || "", pic: i.namaPic || "",
+          nik: i.nikKtp || "", milik: i.kepemilikan || "", kontak: i.noKontak || "",
+          komisioner: i.komisioner || "", ket: i.keterangan || "",
+        });
+      });
+      ["ajuBib", "expBib", "expTia"].forEach((k) => { d1.getColumn(k).numFmt = "dd mmm yyyy"; });
+      d1.getColumn("nik").numFmt = "@";                       // NIK jangan jadi notasi ilmiah
+      d1.getColumn("kontak").numFmt = "@";
+      kepalaMerah(d1, d1.columns.length);
+
+      /* ── 2 · Ringkasan ──────────────────────────────────────────── */
+      const cacah = (ambil: (i: any) => string) => {
+        const p: Record<string, number> = {};
+        items.forEach((i: any) => { const v = String(ambil(i) || "(kosong)"); p[v] = (p[v] || 0) + 1; });
+        return Object.entries(p).sort((a, b) => b[1] - a[1]);
+      };
+      const d2 = wb.addWorksheet("Ringkasan");
+      d2.columns = [{ header: "KELOMPOK", width: 24 }, { header: "NILAI", width: 34 }, { header: "JUMLAH", width: 10 }];
+      const blok = (nama: string, isi: [string, number][]) =>
+        isi.forEach((x, n) => d2.addRow([n === 0 ? nama : "", x[0], x[1]]));
+      d2.addRow(["Total unit", "", items.length]);
+      d2.addRow([]);
+      blok("Status unit", cacah((i) => i.statusUnit));       d2.addRow([]);
+      blok("Jenis unit", cacah((i) => i.jenisUnit));         d2.addRow([]);
+      blok("Status BIB", cacah((i) => i.statusBib));         d2.addRow([]);
+      blok("Status TIA", cacah((i) => i.statusTia));         d2.addRow([]);
+      blok("Status TMA", cacah((i) => i.statusTma));         d2.addRow([]);
+      blok("Merek", cacah((i) => i.merk));                   d2.addRow([]);
+      blok("Tahun pembuatan", cacah((i) => String(i.tahunPembuatan ?? ""))); d2.addRow([]);
+      blok("Pemilik unit", cacah((i) => i.owner));           d2.addRow([]);
+      blok("Komisioner", cacah((i) => i.komisioner));
+      kepalaMerah(d2, 3);
+
+      /* ── 3 · Jadwal perpanjangan ────────────────────────────────── */
+      const d3 = wb.addWorksheet("Jadwal Perpanjangan");
+      d3.columns = [
+        { header: "TANGGAL JATUH TEMPO TIA", key: "t", width: 22 },
+        { header: "SISA HARI", key: "s", width: 11 },
+        { header: "JUMLAH UNIT", key: "n", width: 12 },
+        { header: "NO LAMBUNG", key: "l", width: 80 },
+      ];
+      const perTanggal: Record<string, any[]> = {};
+      items.forEach((i: any) => {
+        if (!i.expiredTia) return;
+        const k = new Date(i.expiredTia).toISOString().slice(0, 10);
+        (perTanggal[k] ||= []).push(i.noLambung);
+      });
+      Object.entries(perTanggal).sort().forEach(([k, daftar]) => {
+        const r = d3.addRow({ t: new Date(k), s: selisihHari(k), n: daftar.length, l: daftar.join(", ") });
+        r.getCell("t").numFmt = "dd mmm yyyy";
+      });
+      kepalaMerah(d3, 4);
+
+      /* ── 4 · Mutu data ──────────────────────────────────────────── */
+      const d4 = wb.addWorksheet("Mutu Data");
+      d4.columns = [
+        { header: "TEMUAN", key: "a", width: 34 },
+        { header: "JUMLAH", key: "b", width: 9 },
+        { header: "UNIT TERDAMPAK", key: "c", width: 90 },
+      ];
+      const kosong = (v: any) => v === null || v === undefined || String(v).trim() === "";
+      const temuan: [string, (i: any) => boolean][] = [
+        ["Tanpa nomor kontak", (i) => kosong(i.noKontak)],
+        ["Tanpa nama PIC", (i) => kosong(i.namaPic)],
+        ["Tanpa data AEBS", (i) => kosong(i.aebs)],
+        ["Tanpa tanggal pengajuan BIB", (i) => kosong(i.tglPengajuanBib)],
+        ["Volume vessel ditulis liter (bukan m³)", (i) => Number(i.volumeVessel) >= 1000],
+        ["Tanpa nomor polisi", (i) => kosong(i.noPolisi)],
+      ];
+      temuan.forEach(([nama, uji]) => {
+        const kena = items.filter(uji);
+        if (kena.length) d4.addRow({ a: nama, b: kena.length, c: kena.map((i: any) => i.noLambung).join(", ") });
+      });
+      if (d4.rowCount === 1) d4.addRow({ a: "Tidak ada temuan", b: 0, c: "" });
+      kepalaMerah(d4, 3);
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const stempel = new Date().toISOString().slice(0, 10);
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename=Data_Peralatan_${stempel}.xlsx`);
+      res.send(Buffer.from(buffer));
     } catch (error) {
       console.error("Error exporting SPIP Peralatan:", error);
       res.status(500).json({ error: "Gagal me-export data peralatan" });

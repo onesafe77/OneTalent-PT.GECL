@@ -164,7 +164,7 @@ export default function PicaPage() {
         switch (status) {
             case "OPEN": return <Badge className="bg-red-50 text-red-700 border-red-100 hover:bg-red-100 p-1.5 px-3 rounded-full">OPEN</Badge>;
             case "IN_PROGRESS": return <Badge className="bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100 p-1.5 px-3 rounded-full">IN PROGRESS</Badge>;
-            case "CLOSED": return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100 p-1.5 px-3 rounded-full">CLOSED</Badge>;
+            case "CLOSED": return <Badge className="bg-muted text-foreground border-border hover:bg-muted p-1.5 px-3 rounded-full">CLOSED</Badge>;
             default: return <Badge variant="outline">{status}</Badge>;
         }
     };
@@ -246,13 +246,13 @@ export default function PicaPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="border-none shadow-sm ring-1 ring-emerald-100 dark:ring-emerald-900/10 bg-gradient-to-br from-emerald-50/50 to-white dark:from-gray-900 dark:to-gray-800">
+                        <Card className="border-none shadow-sm ring-1 ring-primary dark:ring-primary bg-gradient-to-br from-primary to-white dark:from-gray-900 dark:to-gray-800">
                             <CardContent className="p-6 flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">
+                                <div className="h-12 w-12 rounded-2xl bg-muted text-foreground flex items-center justify-center">
                                     <CheckCircle2 className="h-6 w-6" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-bold text-emerald-600 uppercase tracking-wider opacity-80">CLOSED</p>
+                                    <p className="text-sm font-bold text-foreground uppercase tracking-wider opacity-80">CLOSED</p>
                                     <h3 className="text-2xl font-black text-gray-900 dark:text-white">{stats.closed}</h3>
                                 </div>
                             </CardContent>
@@ -450,7 +450,7 @@ export default function PicaPage() {
             {/* Edit Dialog */}
             <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
                 <DialogContent className="sm:max-w-[500px] rounded-3xl p-6 overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 via-red-500 to-emerald-500" />
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-[#DF2A33] via-red-500 to-primary" />
                     <DialogHeader className="mb-4">
                         <DialogTitle className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
                             <Edit2 className="h-5 w-5 text-blue-600" />
@@ -478,7 +478,7 @@ export default function PicaPage() {
                                         <SelectContent className="rounded-xl">
                                             <SelectItem value="OPEN" className="font-bold text-red-600 rounded-lg">OPEN</SelectItem>
                                             <SelectItem value="IN_PROGRESS" className="font-bold text-amber-600 rounded-lg">IN PROGRESS</SelectItem>
-                                            <SelectItem value="CLOSED" className="font-bold text-emerald-600 rounded-lg">CLOSED</SelectItem>
+                                            <SelectItem value="CLOSED" className="font-bold text-foreground rounded-lg">CLOSED</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

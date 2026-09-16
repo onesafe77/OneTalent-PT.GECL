@@ -344,7 +344,7 @@ interface SessionDetail {
 }
 
 const CheckIcon = ({ checked }: { checked: boolean }) => (
-  <span className={`text-lg font-bold ${checked ? 'text-green-600' : 'text-red-500'}`}>
+  <span className={`text-lg font-bold ${checked ? 'text-foreground' : 'text-red-500'}`}>
     {checked ? '✓' : '✗'}
   </span>
 );
@@ -408,7 +408,7 @@ function FatigueFormPreview({ session, records, observers }: {
                 <td className="border p-1 text-center"><CheckIcon checked={record.masalahPribadi} /></td>
                 <td className="border p-1 text-center">
                   {record.pvtMeanRT != null ? (
-                    <span className={`font-bold text-xs ${record.pvtMeanRT <= 500 ? 'text-green-600' : record.pvtMeanRT <= 700 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    <span className={`font-bold text-xs ${record.pvtMeanRT <= 500 ? 'text-foreground' : record.pvtMeanRT <= 700 ? 'text-yellow-600' : 'text-red-600'}`}>
                       {record.pvtMeanRT} ms
                     </span>
                   ) : (
@@ -559,37 +559,37 @@ function RambuFormPreview({ session, records, observers }: {
                 <td className="border p-2">{record.noKendaraan}</td>
                 <td className="border p-2 text-xs">{record.perusahaan}</td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuStop ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuStop ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuStop ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuGiveWay ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuGiveWay ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuGiveWay ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuKecepatanMax ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuKecepatanMax ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuKecepatanMax ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuLaranganMasuk ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuLaranganMasuk ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuLaranganMasuk ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuLaranganParkir ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuLaranganParkir ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuLaranganParkir ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuWajibHelm ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuWajibHelm ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuWajibHelm ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.rambuLaranganUTurn ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.rambuLaranganUTurn ? 'text-foreground' : 'text-red-600'}`}>
                     {record.rambuLaranganUTurn ? '✓' : '✗'}
                   </span>
                 </td>
@@ -607,7 +607,7 @@ function RambuFormPreview({ session, records, observers }: {
           <p className="text-xs text-gray-500">Total Diperiksa</p>
         </div>
         <div>
-          <p className="text-2xl font-bold text-green-600">
+          <p className="text-2xl font-bold text-foreground">
             {records.filter(r => [r.rambuStop, r.rambuGiveWay, r.rambuKecepatanMax, r.rambuLaranganMasuk, r.rambuLaranganParkir, r.rambuWajibHelm, r.rambuLaranganUTurn].every(v => v)).length}
           </p>
           <p className="text-xs text-gray-500">Full Compliant</p>
@@ -697,7 +697,7 @@ function RosterFormPreview({ session, records, observers }: {
                 <td className="border p-2">{record.nik}</td>
                 <td className="border p-2">{record.nomorLambung || '-'}</td>
                 <td className="border p-2 text-center">
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${record.rosterSesuai ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`px-2 py-1 rounded text-xs font-bold ${record.rosterSesuai ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                     {record.rosterSesuai ? 'YA' : 'TIDAK'}
                   </span>
                 </td>
@@ -715,7 +715,7 @@ function RosterFormPreview({ session, records, observers }: {
           <p className="text-xs text-gray-500">Total Diperiksa</p>
         </div>
         <div>
-          <p className="text-2xl font-bold text-green-600">{records.filter(r => r.rosterSesuai).length}</p>
+          <p className="text-2xl font-bold text-foreground">{records.filter(r => r.rosterSesuai).length}</p>
           <p className="text-xs text-gray-500">Roster Sesuai</p>
         </div>
         <div>
@@ -800,12 +800,12 @@ function AntrianFormPreview({ session, records, observers }: {
                 <td className="border p-2 font-medium">{record.namaNik}</td>
                 <td className="border p-2">{record.noLambung || '-'}</td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.handbrakeAktif ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.handbrakeAktif ? 'text-foreground' : 'text-red-600'}`}>
                     {record.handbrakeAktif ? '✓' : '✗'}
                   </span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.jarakUnitAman ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className={`font-bold text-lg ${record.jarakUnitAman ? 'text-foreground' : 'text-red-600'}`}>
                     {record.jarakUnitAman ? '✓' : '✗'}
                   </span>
                 </td>
@@ -1179,12 +1179,12 @@ function DigitalFormPreview({ session, records, observers }: {
                 <td className="p-3 font-medium text-gray-600 border-r border-blue-100">{record.nik || '-'}</td>
                 <td className="p-3 text-gray-600 border-r border-blue-100">{record.jabatan || '-'}</td>
                 <td className="p-3 text-center border-r border-blue-100">
-                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.appUsage ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.appUsage ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                     <CheckIcon checked={record.appUsage} />
                   </div>
                 </td>
                 <td className="p-3 text-center border-r border-blue-100">
-                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.timelyReporting ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.timelyReporting ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                     <CheckIcon checked={record.timelyReporting} />
                   </div>
                 </td>
@@ -1264,17 +1264,17 @@ function WorkshopFormPreview({ session, records, observers }: {
                 <td className="p-3 text-center border-r border-orange-100 font-bold text-orange-700">{record.ordinal}</td>
                 <td className="p-3 font-extrabold text-gray-900 border-r border-orange-100">{record.namaAlat}</td>
                 <td className="p-3 text-center border-r border-orange-100">
-                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.kondisi ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.kondisi ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                     <CheckIcon checked={record.kondisi} />
                   </div>
                 </td>
                 <td className="p-3 text-center border-r border-orange-100">
-                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.kebersihan ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.kebersihan ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                     <CheckIcon checked={record.kebersihan} />
                   </div>
                 </td>
                 <td className="p-3 text-center border-r border-orange-100">
-                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.sertifikasi ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <div className={`inline-flex items-center justify-center p-1 rounded-full ${record.sertifikasi ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                     <CheckIcon checked={record.sertifikasi} />
                   </div>
                 </td>
@@ -1319,7 +1319,7 @@ function BehaviorFormPreview({ session, records, observers }: {
   observers: Observer[]
 }) {
   const renderViolation = (val: boolean) => val ? <span className="text-red-600 font-bold">✓</span> : null;
-  const renderAction = (val: boolean) => val ? <span className="text-green-600 font-bold">✓</span> : null;
+  const renderAction = (val: boolean) => val ? <span className="text-foreground font-bold">✓</span> : null;
 
   return (
     <div className="space-y-4 p-4 bg-white text-black text-sm">
@@ -1459,7 +1459,7 @@ function ChargingStationFormPreview({ session, records, observers }: {
     { key: "merapikanKabel", label: "Rapikan Kabel" },
   ];
   const mark = (val: boolean) => val
-    ? <span className="text-green-600 font-bold">V</span>
+    ? <span className="text-foreground font-bold">V</span>
     : <span className="text-red-600 font-bold">X</span>;
 
   return (
@@ -1545,7 +1545,7 @@ function SopKritisFormPreview({ session, pengendalian, langkah, observers }: {
   observers: Observer[];
 }) {
   const statusBadge = (s: string) => (
-    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s === 'Ya' ? 'bg-green-100 text-green-700' : s === 'Tidak' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>{s}</span>
+    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${s === 'Ya' ? 'bg-muted text-foreground' : s === 'Tidak' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>{s}</span>
   );
   return (
     <div className="space-y-4 p-4 bg-white text-black text-sm">
@@ -1652,7 +1652,7 @@ function EquipmentFormPreview({ session, records, observers }: {
                   <td className="p-3 text-center border-r border-slate-200 font-bold text-slate-700">{record.ordinal}</td>
                   <td className="p-3 font-extrabold text-gray-900 border-r border-slate-200">{record.noRegisterPeralatan || record.namaAlat || 'Alat ' + record.ordinal}</td>
                   <td className="p-3 text-center border-r border-slate-200">
-                    <div className={`inline-flex items-center justify-center p-1 rounded-full ${allOk ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    <div className={`inline-flex items-center justify-center p-1 rounded-full ${allOk ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700'}`}>
                       <CheckIcon checked={allOk} />
                     </div>
                   </td>
@@ -1738,25 +1738,25 @@ function IntercomFormPreview({ session, records, observers }: {
                 <td className="border p-2">{record.nik || '-'}</td>
                 <td className="border p-2">{record.perusahaan || '-'}</td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q1 ? 'text-green-600' : 'text-red-600'}`}>{record.q1 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q1 ? 'text-foreground' : 'text-red-600'}`}>{record.q1 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q2 ? 'text-green-600' : 'text-red-600'}`}>{record.q2 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q2 ? 'text-foreground' : 'text-red-600'}`}>{record.q2 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q3 ? 'text-green-600' : 'text-red-600'}`}>{record.q3 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q3 ? 'text-foreground' : 'text-red-600'}`}>{record.q3 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q4 ? 'text-green-600' : 'text-red-600'}`}>{record.q4 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q4 ? 'text-foreground' : 'text-red-600'}`}>{record.q4 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q5 ? 'text-green-600' : 'text-red-600'}`}>{record.q5 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q5 ? 'text-foreground' : 'text-red-600'}`}>{record.q5 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q6 ? 'text-green-600' : 'text-red-600'}`}>{record.q6 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q6 ? 'text-foreground' : 'text-red-600'}`}>{record.q6 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center">
-                  <span className={`font-bold text-lg ${record.q7 ? 'text-green-600' : 'text-red-600'}`}>{record.q7 ? '✓' : '✗'}</span>
+                  <span className={`font-bold text-lg ${record.q7 ? 'text-foreground' : 'text-red-600'}`}>{record.q7 ? '✓' : '✗'}</span>
                 </td>
                 <td className="border p-2 text-center font-bold">{record.waktuRespons}</td>
                 <td className="border p-2 text-gray-600">{record.keterangan || '-'}</td>
@@ -2114,7 +2114,7 @@ export default function SidakRecap() {
         const st: any = data?.stats || {};
         const CARDS: { key: string; label: string; Icon: any; chip: string }[] = [
           { key: "totalFatigue", label: "Fatigue", Icon: Activity, chip: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
-          { key: "totalRoster", label: "Roster", Icon: CalendarIcon, chip: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" },
+          { key: "totalRoster", label: "Roster", Icon: CalendarIcon, chip: "bg-muted text-foreground" },
           { key: "totalSeatbelt", label: "Seatbelt", Icon: Users, chip: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400" },
           { key: "totalAntrian", label: "Antrian", Icon: Truck, chip: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400" },
           { key: "totalApd", label: "APD", Icon: ClipboardCheck, chip: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
@@ -2186,7 +2186,7 @@ export default function SidakRecap() {
                   // Semua kategori SIDAK (label singkat + nama lengkap + warna). Hanya yang >0 ditampilkan.
                   const CATS: { key: keyof typeof supervisor; short: string; full: string; cls: string }[] = [
                     { key: "fatigue", short: "F", full: "Fatigue", cls: "bg-blue-50 text-blue-700" },
-                    { key: "roster", short: "R", full: "Roster", cls: "bg-green-50 text-green-700" },
+                    { key: "roster", short: "R", full: "Roster", cls: "bg-muted text-foreground" },
                     { key: "seatbelt", short: "SB", full: "Seatbelt", cls: "bg-teal-50 text-teal-700" },
                     { key: "rambu", short: "RB", full: "Rambu", cls: "bg-cyan-50 text-cyan-700" },
                     { key: "antrian", short: "AN", full: "Antrian", cls: "bg-rose-50 text-rose-700" },
@@ -2208,7 +2208,7 @@ export default function SidakRecap() {
                     { key: "mesinkompresor", short: "MK", full: "Mesin Kompresor", cls: "bg-zinc-50 text-zinc-700" },
                     { key: "pemenuhantyre", short: "PT", full: "Pemenuhan Tyre", cls: "bg-slate-50 text-slate-700" },
                     { key: "gerindaduduk", short: "GD", full: "Gerinda Duduk", cls: "bg-zinc-50 text-zinc-700" },
-                    { key: "fuelstorage", short: "FS", full: "Fuel Storage", cls: "bg-emerald-50 text-emerald-700" },
+                    { key: "fuelstorage", short: "FS", full: "Fuel Storage", cls: "bg-muted text-foreground" },
                   ];
                   const active = CATS.filter((c) => Number(supervisor[c.key]) > 0);
                   return (
@@ -2521,7 +2521,7 @@ export default function SidakRecap() {
 
                 {/* Tabs */}
                 <Tabs defaultValue="form" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList>
                     <TabsTrigger value="form">Tampilan Form</TabsTrigger>
                     <TabsTrigger value="records">Data ({detailData.records?.length || 0})</TabsTrigger>
                     <TabsTrigger value="observers">Observer ({detailData.observers?.length || 0})</TabsTrigger>
@@ -3036,7 +3036,7 @@ export default function SidakRecap() {
                               <TableCell>{record.nomorLambung || '-'}</TableCell>
                               <TableCell className="text-center">
                                 <Badge variant="outline" className={
-                                  record.tindakan === 'Apresiasi' ? 'bg-green-100 text-green-700' :
+                                  record.tindakan === 'Apresiasi' ? 'bg-muted text-foreground' :
                                     record.tindakan === 'Teguran' ? 'bg-yellow-100 text-yellow-700' :
                                       'bg-red-100 text-red-700'
                                 }>

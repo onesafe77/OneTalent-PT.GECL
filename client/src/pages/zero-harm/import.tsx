@@ -39,7 +39,7 @@ export default function ZeroHarmImport() {
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <button onClick={() => navigate("/workspace/zero-harm")} className="text-sm font-semibold text-[#0e7490] flex items-center gap-1">
+      <button onClick={() => navigate("/workspace/zero-harm")} className="text-sm font-semibold text-[#575757] flex items-center gap-1">
         <ArrowLeft className="w-4 h-4" /> Kembali ke Dashboard
       </button>
       <div>
@@ -53,11 +53,11 @@ export default function ZeroHarmImport() {
       <Card className="border-dashed border-2">
         <CardContent className="py-10 text-center">
           <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
-            {busy ? <Loader2 className="w-7 h-7 text-[#0e7490] animate-spin" /> : <Upload className="w-7 h-7 text-gray-400" />}
+            {busy ? <Loader2 className="w-7 h-7 text-[#575757] animate-spin" /> : <Upload className="w-7 h-7 text-gray-400" />}
           </div>
           <div className="font-bold">{busy ? "Memproses file…" : "Pilih file Excel (.xlsx)"}</div>
           <p className="text-xs text-muted-foreground mt-1">Maks 10MB · export iSafe & FMS</p>
-          <Button className="mt-4" disabled={busy} style={{ background: "#0e7490" }} onClick={() => fileRef.current?.click()}>
+          <Button className="mt-4" disabled={busy} style={{ background: "#575757" }} onClick={() => fileRef.current?.click()}>
             <Upload className="w-4 h-4 mr-2" /> {busy ? "Mengunggah…" : "Pilih File"}
           </Button>
         </CardContent>
@@ -66,7 +66,7 @@ export default function ZeroHarmImport() {
       {result && (
         <Card>
           <CardContent className="p-4">
-            <div className="font-bold text-sm mb-3 flex items-center gap-2 text-green-700"><CheckCircle2 className="w-4 h-4" /> Hasil Import</div>
+            <div className="font-bold text-sm mb-3 flex items-center gap-2 text-foreground"><CheckCircle2 className="w-4 h-4" /> Hasil Import</div>
             <div className="divide-y">
               {SHEETS.map((s) => (
                 <div key={s.key} className="flex items-center justify-between py-2.5">
@@ -83,7 +83,7 @@ export default function ZeroHarmImport() {
       {!result && (
         <Card>
           <CardContent className="p-4">
-            <div className="font-bold text-sm mb-2 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-[#0e7490]" /> Sheet yang dibaca</div>
+            <div className="font-bold text-sm mb-2 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-[#575757]" /> Sheet yang dibaca</div>
             <div className="divide-y">
               {SHEETS.map((s) => (
                 <div key={s.key} className="flex items-center justify-between py-2.5">

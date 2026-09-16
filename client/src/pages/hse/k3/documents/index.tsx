@@ -33,7 +33,7 @@ const statusColors: Record<string, string> = {
   "IN_REVIEW": "bg-amber-100 text-amber-700 border-amber-300",
   "APPROVED": "bg-blue-100 text-blue-700 border-blue-300",
   "ESIGN_PENDING": "bg-purple-100 text-purple-700 border-purple-300",
-  "SIGNED": "bg-green-100 text-green-700 border-green-300",
+  "SIGNED": "bg-muted text-foreground border-border",
   "PUBLISHED": "bg-teal-100 text-teal-700 border-teal-300",
   "ARCHIVED": "bg-slate-100 text-slate-700 border-slate-300",
   "OBSOLETE": "bg-red-100 text-red-700 border-red-300",
@@ -383,8 +383,8 @@ export default function DocumentsDashboard() {
         <Link href="/workspace/hse/k3/documents/checklist">
           <a className="block border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-50 rounded-lg">
-                <UserIcon className="w-5 h-5 text-green-600" />
+              <div className="p-2 bg-muted rounded-lg">
+                <UserIcon className="w-5 h-5 text-foreground" />
               </div>
               <div>
                 <div className="font-medium text-gray-900 dark:text-gray-100">Checklist Arsip Bulanan</div>

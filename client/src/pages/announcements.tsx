@@ -532,7 +532,7 @@ export default function Announcements() {
                       <span className="text-sm text-gray-600">{announcement.createdByName}</span>
                     </TableCell>
                     <TableCell>
-                      <Badge className={announcement.isActive ? "bg-green-500" : "bg-gray-400"}>
+                      <Badge className={announcement.isActive ? "bg-primary" : "bg-gray-400"}>
                         {announcement.isActive ? "Aktif" : "Nonaktif"}
                       </Badge>
                     </TableCell>
@@ -655,7 +655,7 @@ export default function Announcements() {
                         <img 
                           src={preview} 
                           alt={`New ${index + 1}`} 
-                          className="w-full h-20 object-cover rounded-lg border-2 border-green-500"
+                          className="w-full h-20 object-cover rounded-lg border-2 border-border"
                         />
                         <button
                           type="button"
@@ -664,7 +664,7 @@ export default function Announcements() {
                         >
                           <X className="h-3 w-3" />
                         </button>
-                        <span className="absolute bottom-0 left-0 bg-green-500 text-white text-xs px-1 rounded-tr">
+                        <span className="absolute bottom-0 left-0 bg-primary text-white text-xs px-1 rounded-tr">
                           Baru
                         </span>
                       </div>
@@ -738,7 +738,7 @@ export default function Announcements() {
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      <CheckCircle className="h-5 w-5 text-foreground" />
                       Daftar Pembaca ({announcementReads.length})
                     </CardTitle>
                     <CardDescription>Karyawan yang sudah membaca pengumuman ini</CardDescription>

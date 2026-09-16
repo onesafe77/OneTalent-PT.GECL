@@ -9,7 +9,9 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      // Prototipe OneTalent: permukaan DATAR, dipisah garis rambut — bukan kartu
+      // berbayang. Bayangan dibuang agar halaman terasa tenang & lapang.
+      "rounded-xl border border-border bg-card text-card-foreground",
       className
     )}
     {...props}

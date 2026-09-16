@@ -71,7 +71,7 @@ export function FmsWidget() {
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-xs text-emerald-600">
+                        <div className="flex items-center gap-2 text-xs text-foreground">
                             <CheckCircle className="w-3.5 h-3.5" />
                             <span className="font-medium">Valid</span>
                         </div>
@@ -106,7 +106,7 @@ export function FmsWidget() {
 
 function BadgeRate({ value }: { value: string | number }) {
     const num = Number(value);
-    const colorClass = num > 50 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
+    const colorClass = num > 50 ? 'bg-muted text-foreground' : 'bg-rose-100 text-rose-700';
     return (
         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${colorClass}`}>
             {value}%

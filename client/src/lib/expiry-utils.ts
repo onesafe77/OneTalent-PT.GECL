@@ -27,7 +27,7 @@ export function getExpiryStatus(expiryDate: string | null | undefined): ExpirySt
             daysLeft: null,
             level: 'nodata',
             badgeVariant: 'outline',
-            badgeClass: 'bg-gray-100 text-gray-500 border-gray-300',
+            badgeClass: 'border border-border bg-muted text-muted-foreground',
             displayText: '—'
         };
     }
@@ -48,7 +48,7 @@ export function getExpiryStatus(expiryDate: string | null | undefined): ExpirySt
             daysLeft,
             level: 'expired',
             badgeVariant: 'destructive',
-            badgeClass: 'bg-red-700 text-white',
+            badgeClass: 'border border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950 dark:text-red-400',
             displayText: `Expired ${Math.abs(daysLeft)} hari lalu`
         };
     }
@@ -60,7 +60,7 @@ export function getExpiryStatus(expiryDate: string | null | undefined): ExpirySt
             daysLeft,
             level: 'near_expired',
             badgeVariant: 'secondary',
-            badgeClass: 'bg-yellow-500 text-white',
+            badgeClass: 'border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950 dark:text-amber-400',
             displayText: `Sisa ${daysLeft} hari`
         };
     }
@@ -71,7 +71,7 @@ export function getExpiryStatus(expiryDate: string | null | undefined): ExpirySt
         daysLeft,
         level: 'aktif',
         badgeVariant: 'default',
-        badgeClass: 'bg-emerald-500 text-white',
+        badgeClass: 'border border-border bg-muted text-foreground',
         displayText: `Sisa ${daysLeft} hari`
     };
 }

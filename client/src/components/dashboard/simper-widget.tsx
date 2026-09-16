@@ -47,7 +47,7 @@ export function SimperWidget() {
             <CardHeader className="pb-2 pt-4 px-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className={`p-2 rounded-lg transition-colors ${totalUrgent > 0 ? "bg-red-50 text-red-600" : "bg-green-50 text-green-600"}`}>
+                        <div className={`p-2 rounded-lg transition-colors ${totalUrgent > 0 ? "bg-gray-50 text-gray-950" : "bg-muted text-foreground"}`}>
                             <Shield className="w-5 h-5" />
                         </div>
                         <div>
@@ -65,7 +65,7 @@ export function SimperWidget() {
 
             <CardContent className="flex-1 flex flex-col px-4 pb-4">
                 <div className="flex items-baseline gap-2 mb-4 mt-1">
-                    <span className={`text-3xl font-black ${totalUrgent > 0 ? "text-red-500" : "text-green-600"}`}>
+                    <span className={`text-3xl font-black ${totalUrgent > 0 ? "text-gray-600" : "text-foreground"}`}>
                         {totalUrgent}
                     </span>
                     <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
@@ -75,7 +75,7 @@ export function SimperWidget() {
 
                 <div className="grid grid-cols-2 gap-3 mt-auto">
                     {/* BIB Stats */}
-                    <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20">
+                    <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-red-900/20">
                         <div className="flex justify-between items-center mb-1">
                             <span className="text-[10px] font-bold text-red-700 dark:text-red-400">BIB</span>
                             <AlertCircle className="w-3 h-3 text-red-500" />
@@ -100,7 +100,7 @@ export function SimperWidget() {
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 text-[10px] text-gray-400">
-                    <CheckCircle className="w-3 h-3 text-green-500" />
+                    <CheckCircle className="w-3 h-3 text-foreground" />
                     <span>{(analytics?.bibStats.aktif || 0) + (analytics?.tiaStats.aktif || 0)} Simper Aktif</span>
                 </div>
             </CardContent>

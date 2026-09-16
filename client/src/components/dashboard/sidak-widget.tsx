@@ -48,7 +48,7 @@ export function SidakWidget() {
     const items = [
         { label: "Fatigue", value: stats?.totalFatigue || 0, icon: Activity, color: "text-blue-500", bg: "bg-blue-50" },
         { label: "Roster", value: stats?.totalRoster || 0, icon: ClipboardCheck, color: "text-purple-500", bg: "bg-purple-50" },
-        { label: "Seatbelt", value: stats?.totalSeatbelt || 0, icon: Shield, color: "text-green-500", bg: "bg-green-50" },
+        { label: "Seatbelt", value: stats?.totalSeatbelt || 0, icon: Shield, color: "text-foreground", bg: "bg-muted" },
         { label: "Rambu", value: stats?.totalRambu || 0, icon: TrafficCone, color: "text-amber-500", bg: "bg-amber-50" },
         { label: "Behavior", value: stats?.totalBehavior || 0, icon: Users, color: "text-indigo-500", bg: "bg-indigo-50" },
     ];

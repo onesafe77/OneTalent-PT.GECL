@@ -477,7 +477,7 @@ export default function SidakWorkshopForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.inspectors.length === 0}
                 >
@@ -630,7 +630,7 @@ export default function SidakWorkshopForm() {
                                     <div className="flex items-center justify-between">
                                         <Label className="text-sm font-bold text-gray-700 dark:text-gray-200">Checklist Inspeksi</Label>
                                         <div className="flex gap-2 text-xs">
-                                            <span className="text-green-600">S = Sesuai</span>
+                                            <span className="text-foreground">S = Sesuai</span>
                                             <span className="text-red-600">TS = Tidak Sesuai</span>
                                         </div>
                                     </div>
@@ -718,7 +718,7 @@ export default function SidakWorkshopForm() {
                                                     {hasIssue ? (
                                                         <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-md">TEMUAN</span>
                                                     ) : (
-                                                        <span className="text-xs font-bold text-green-600 bg-green-100 px-2 py-1 rounded-md">OK</span>
+                                                        <span className="text-xs font-bold text-foreground bg-muted px-2 py-1 rounded-md">OK</span>
                                                     )}
                                                 </div>
                                             </div>
@@ -743,12 +743,12 @@ export default function SidakWorkshopForm() {
                             {draft.inspectors.length > 0 && (
                                 <div className="grid gap-3">
                                     {draft.inspectors.map((insp, idx) => (
-                                        <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                                        <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                                             <div>
                                                 <p className="font-semibold text-gray-900 dark:text-white">{insp.nama}</p>
                                                 <p className="text-xs text-gray-500">{insp.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

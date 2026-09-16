@@ -1,9 +1,11 @@
 import { useState, useMemo } from "react";
+import { fotoKecil } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { getWeeksInMonth } from "@/lib/weekCutoffs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +60,18 @@ interface EvaluationData {
   rosterMissing?: boolean; // roster bulan ini belum diupload → pool driver diambil dari data SIDAK
 }
 
+/**
+ * Chart.js butuh warna nyata, tidak bisa membaca var() CSS. Diambil dari token
+ * --grafik-* saat render supaya grafik ikut tema terang/gelap.
+ */
+const tokenGrafik = (nama: string, cadangan: string) => {
+  if (typeof window === "undefined") return cadangan;
+  return getComputedStyle(document.documentElement).getPropertyValue(nama).trim() || cadangan;
+};
+
+const inisial = (n: string) =>
+  (n || "?").trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
 export default function EvaluasiDriver() {
   // Get current month in YYYY-MM format
   const currentDate = new Date();
@@ -79,7 +93,7 @@ export default function EvaluasiDriver() {
 
   // Fetch detail data when dialog is open
   const { data: detailData, isLoading: isLoadingDetail } = useQuery<{
-    employee: { name: string; nik: string; position: string };
+    employee: { id: string; name: string; nik?: string; position: string; photoUrl?: string | null };
     records: any[];
   }>({
     queryKey: [`/api/evaluasi-driver/${selectedDriverId}/details?month=${selectedMonth}`],
@@ -132,7 +146,7 @@ export default function EvaluasiDriver() {
       {
         label: 'Total SIDAK Fatigue',
         data: top10Drivers.map(d => d.totalSidak),
-        backgroundColor: 'rgba(59, 130, 246, 0.8)',
+        backgroundColor: tokenGrafik('--grafik-2', '#575757'),
         borderRadius: 6,
         barThickness: 30,
       },
@@ -154,14 +168,12 @@ export default function EvaluasiDriver() {
       y: {
         beginAtZero: true,
         grid: {
-          color: 'rgba(0, 0, 0, 0.05)',
+          color: tokenGrafik('--grafik-garis', '#E0E0E0'),
         },
         ticks: {
           stepSize: 1,
-          font: {
-            family: "'Inter', sans-serif",
-            size: 11
-          }
+          color: tokenGrafik('--grafik-label', '#757575'),
+          font: { family: "'Inter', sans-serif", size: 11 }
         },
         border: {
           display: false
@@ -172,10 +184,8 @@ export default function EvaluasiDriver() {
           display: false,
         },
         ticks: {
-          font: {
-            family: "'Inter', sans-serif",
-            size: 10
-          },
+          color: tokenGrafik('--grafik-label', '#757575'),
+          font: { family: "'Inter', sans-serif", size: 10 },
           autoSkip: false,
           maxRotation: 45,
           minRotation: 45
@@ -193,13 +203,12 @@ export default function EvaluasiDriver() {
     datasets: [
       {
         data: [data?.summary.sudahSidak || 0, data?.summary.belumSidak || 0],
-        backgroundColor: [
-          'rgba(34, 197, 94, 0.8)', // Green
-          'rgba(239, 68, 68, 0.8)', // Red
-        ],
+        // Hijau/merah dipertahankan: di sini warnanya MENANDAI patuh vs belum,
+        // bukan hiasan. Nadanya dipilih agar terbaca di terang maupun gelap.
+        backgroundColor: ['#BA1B23', '#dc2626'],
         borderColor: [
-          '#ffffff',
-          '#ffffff',
+          `hsl(${tokenGrafik('--card', '0 0% 100%')})`,
+          `hsl(${tokenGrafik('--card', '0 0% 100%')})`,
         ],
         borderWidth: 2,
       },
@@ -217,10 +226,8 @@ export default function EvaluasiDriver() {
         labels: {
           usePointStyle: true,
           padding: 20,
-          font: {
-            family: "'Inter', sans-serif",
-            size: 12
-          }
+          color: tokenGrafik('--grafik-label', '#757575'),
+          font: { family: "'Inter', sans-serif", size: 12 }
         }
       },
     },
@@ -328,28 +335,28 @@ export default function EvaluasiDriver() {
   if (isLoading) {
     return (
       <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-        <p className="text-gray-500 font-medium">Memuat Data Evaluasi Driver...</p>
+        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground font-medium">Memuat Data Evaluasi Driver...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/50 p-4 md:p-8 space-y-8 font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-muted/50 p-4 md:p-8 space-y-8 font-sans relative overflow-hidden">
       {/* Ambient Background */}
-      <div className="absolute top-0 right-0 w-full h-[500px] bg-gradient-to-bl from-blue-500/10 via-cyan-500/5 to-transparent pointer-events-none -z-10 blur-3xl" />
+      <div className="absolute top-0 right-0 w-full h-[500px] to-transparent pointer-events-none -z-10 blur-3xl" />
 
       {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl p-6 rounded-2xl shadow-sm border border-white/50 relative z-10">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-card p-6 rounded-xl shadow-sm border border-border relative z-10">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight bg-gradient-to-r from-blue-700 to-cyan-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-semibold text-foreground tracking-tight">
             Evaluasi Driver SIDAK Fatigue
           </h1>
           <div className="flex items-center gap-2 mt-2">
-            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 px-3 py-1">
+            <Badge variant="outline" className="text-xs bg-muted text-foreground border-border px-3 py-1">
               Monthly Report
             </Badge>
-            <p className="text-gray-500 text-sm font-medium">
+            <p className="text-muted-foreground text-sm font-medium">
               Monitoring partisipasi driver dalam SIDAK Fatigue
             </p>
           </div>
@@ -360,7 +367,7 @@ export default function EvaluasiDriver() {
             variant="outline"
             size="sm"
             onClick={exportToExcel}
-            className="bg-white/80 border-green-200 text-green-700 hover:bg-green-50"
+            className="bg-card border-border text-foreground hover:bg-muted"
           >
             <FileDown className="mr-2 h-4 w-4" />
             Excel
@@ -369,7 +376,7 @@ export default function EvaluasiDriver() {
             variant="outline"
             size="sm"
             onClick={exportToPDF}
-            className="bg-white/80 border-red-200 text-red-700 hover:bg-red-50"
+            className="bg-card border-red-200 text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-400"
           >
             <FileDown className="mr-2 h-4 w-4" />
             PDF
@@ -378,13 +385,13 @@ export default function EvaluasiDriver() {
       </div>
 
       {/* Filters - Glassy Bar */}
-      <div className="bg-white/60 backdrop-blur-md p-4 rounded-xl border border-white/60 shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-center">
+      <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col md:flex-row gap-4 items-end md:items-center">
         <div className="flex-1 w-full">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Calendar className="w-3 h-3" /> Periode
           </label>
           <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v); setWeekFilter("all"); }}>
-            <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg hover:border-blue-400 transition-colors">
+            <SelectTrigger className="bg-card border-border h-10 rounded-lg hover:border-blue-400 transition-colors">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -398,11 +405,11 @@ export default function EvaluasiDriver() {
         </div>
 
         <div className="flex-1 w-full">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Calendar className="w-3 h-3" /> Minggu
           </label>
           <Select value={weekFilter} onValueChange={setWeekFilter}>
-            <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg hover:border-blue-400 transition-colors">
+            <SelectTrigger className="bg-card border-border h-10 rounded-lg hover:border-blue-400 transition-colors">
               <SelectValue placeholder="Semua Minggu" />
             </SelectTrigger>
             <SelectContent>
@@ -417,11 +424,11 @@ export default function EvaluasiDriver() {
         </div>
 
         <div className="flex-1 w-full">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Filter className="w-3 h-3" /> Status
           </label>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="bg-white border-gray-200 h-10 rounded-lg hover:border-blue-400 transition-colors">
+            <SelectTrigger className="bg-card border-border h-10 rounded-lg hover:border-blue-400 transition-colors">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -433,16 +440,16 @@ export default function EvaluasiDriver() {
         </div>
 
         <div className="flex-1 w-full">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1">
             <Search className="w-3 h-3" /> Cari
           </label>
           <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Cari nama atau NIK..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-white border-gray-200 h-10 rounded-lg focus:ring-blue-500"
+              className="pl-10 bg-card border-border h-10 rounded-lg focus:ring-blue-500"
             />
           </div>
         </div>
@@ -459,75 +466,74 @@ export default function EvaluasiDriver() {
 
       {/* Summary Cards with Gradients */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="backdrop-blur-xl bg-white/70 shadow-sm border-white/50 overflow-hidden relative group hover:shadow-md transition-all">
+        <Card className="rounded-xl border border-border bg-card">
           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Users className="w-16 h-16 text-blue-600" />
+            <Users className="w-16 h-16 text-muted-foreground" />
           </div>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Total Driver</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Driver</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-gray-800">
+            <div className="text-3xl font-semibold text-foreground">
               {data?.summary.totalDrivers || 0}
             </div>
-            <p className="text-xs text-blue-600 font-medium mt-1">Semua driver terdaftar</p>
+            <p className="text-xs text-muted-foreground font-medium mt-1">Semua driver terdaftar</p>
           </CardContent>
         </Card>
 
-        <Card className="backdrop-blur-xl bg-white/70 shadow-sm border-white/50 overflow-hidden relative group hover:shadow-md transition-all">
+        <Card className="rounded-xl border border-border bg-card">
           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-            <CheckCircle className="w-16 h-16 text-green-600" />
+            <CheckCircle className="w-16 h-16 text-foreground" />
           </div>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Sudah SIDAK</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Sudah SIDAK</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-green-600">
+            <div className="text-3xl font-semibold text-foreground">
               {data?.summary.sudahSidak || 0}
             </div>
-            <p className="text-xs text-green-600 font-medium mt-1">
+            <p className="text-xs text-foreground font-medium mt-1">
               {weekFilter !== "all" ? "SIDAK pada minggu ini" : "Minimal 1 SIDAK bulan ini"}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="backdrop-blur-xl bg-white/70 shadow-sm border-white/50 overflow-hidden relative group hover:shadow-md transition-all">
+        <Card className="rounded-xl border border-border bg-card">
           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-            <XCircle className="w-16 h-16 text-red-600" />
+            <XCircle className="w-16 h-16 text-red-600 dark:text-red-400" />
           </div>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-500">Belum SIDAK</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Belum SIDAK</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-red-600">
+            <div className="text-3xl font-semibold text-red-600 dark:text-red-400">
               {data?.summary.belumSidak || 0}
             </div>
-            <p className="text-xs text-red-600 font-medium mt-1">Belum ada SIDAK sepanjang bulan</p>
+            <p className="text-xs text-red-600 font-medium mt-1 dark:text-red-400">Belum ada SIDAK sepanjang bulan</p>
           </CardContent>
         </Card>
 
-        <Card className="backdrop-blur-xl bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg border-none text-white overflow-hidden relative">
-          <div className="absolute top-0 right-0 p-3 opacity-20">
-            <ClipboardList className="w-16 h-16 text-white" />
-          </div>
+        <Card className="rounded-xl border border-border bg-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-blue-100">Total SIDAK</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <ClipboardList className="h-4 w-4" /> Total SIDAK
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-white">
+            <div className="text-3xl font-semibold tabular-nums text-foreground">
               {data?.summary.totalSidakKeseluruhan || 0}
             </div>
-            <p className="text-xs text-blue-100 mt-1">Total kegiatan bulan ini</p>
+            <p className="mt-1 text-xs font-medium text-muted-foreground">Total kegiatan bulan ini</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 backdrop-blur-xl bg-white/70 shadow-sm border-white/50">
+        <Card className="lg:col-span-2 bg-card shadow-sm border border-border">
           <CardHeader>
-            <CardTitle className="text-gray-800 flex items-center gap-2">
-              <GripHorizontal className="w-5 h-5 text-blue-600" />
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <GripHorizontal className="w-5 h-5 text-muted-foreground" />
               Top 10 Driver
             </CardTitle>
             <CardDescription>Driver dengan partisipasi SIDAK Fatigue terbanyak</CardDescription>
@@ -539,10 +545,10 @@ export default function EvaluasiDriver() {
           </CardContent>
         </Card>
 
-        <Card className="backdrop-blur-xl bg-white/70 shadow-sm border-white/50">
+        <Card className="bg-card shadow-sm border border-border">
           <CardHeader>
-            <CardTitle className="text-gray-800 flex items-center gap-2">
-              <PieChartIcon className="w-5 h-5 text-purple-600" />
+            <CardTitle className="text-foreground flex items-center gap-2">
+              <PieChartIcon className="w-5 h-5 text-muted-foreground" />
               Status Kepatuhan
             </CardTitle>
             <CardDescription>Persentase driver sudah vs belum SIDAK</CardDescription>
@@ -556,14 +562,14 @@ export default function EvaluasiDriver() {
       </div>
 
       {/* Modern Table */}
-      <Card className="backdrop-blur-xl bg-white/70 shadow-sm border-white/50 overflow-hidden">
-        <CardHeader className="border-b border-gray-100 bg-white/40">
+      <Card className="bg-card shadow-sm border border-border overflow-hidden">
+        <CardHeader className="border-b border-border bg-card">
           <div className="flex justify-between items-center">
             <div>
-              <CardTitle className="text-gray-800">Daftar Detail Driver</CardTitle>
+              <CardTitle className="text-foreground">Daftar Detail Driver</CardTitle>
               <CardDescription>Data lengkap status SIDAK per driver</CardDescription>
             </div>
-            <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+            <Badge variant="secondary" className="bg-muted text-muted-foreground">
               Total: {filteredDrivers.length}
             </Badge>
           </div>
@@ -571,47 +577,44 @@ export default function EvaluasiDriver() {
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-gray-50/50">
+              <TableHeader>
                 <TableRow>
-                  <TableHead className="w-16 font-bold text-gray-600">No</TableHead>
-                  <TableHead className="font-bold text-gray-600">Nama Driver</TableHead>
-                  <TableHead className="font-bold text-gray-600">NIK</TableHead>
-                  <TableHead className="font-bold text-gray-600">Investor Group</TableHead>
-                  <TableHead className="text-center font-bold text-gray-600">Total SIDAK</TableHead>
-                  <TableHead className="text-center font-bold text-gray-600">Status</TableHead>
-                  <TableHead className="text-center font-bold text-gray-600">Aksi</TableHead>
+                  <TableHead className="w-16 font-bold text-muted-foreground">No</TableHead>
+                  <TableHead className="font-bold text-muted-foreground">Nama Driver</TableHead>
+                  <TableHead className="font-bold text-muted-foreground">NIK</TableHead>
+                  <TableHead className="font-bold text-muted-foreground">Investor Group</TableHead>
+                  <TableHead className="text-center font-bold text-muted-foreground">Total SIDAK</TableHead>
+                  <TableHead className="text-center font-bold text-muted-foreground">Status</TableHead>
+                  <TableHead className="text-center font-bold text-muted-foreground">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sortedDrivers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
-                        <XCircle className="w-8 h-8 text-gray-300" />
+                        <XCircle className="w-8 h-8 text-muted-foreground" />
                         <p>Tidak ada data driver ditemukan</p>
                       </div>
                     </TableCell>
                   </TableRow>
                 ) : (
                   sortedDrivers.map((driver, index) => (
-                    <TableRow key={driver.id} className="hover:bg-blue-50/30 transition-colors">
-                      <TableCell className="font-medium text-gray-500">{index + 1}</TableCell>
+                    <TableRow key={driver.id} className="hover:bg-muted/30 transition-colors">
+                      <TableCell className="font-medium text-muted-foreground">{index + 1}</TableCell>
                       <TableCell>
-                        <span className="font-semibold text-gray-700">{driver.nama}</span>
+                        <span className="font-semibold text-foreground">{driver.nama}</span>
                       </TableCell>
-                      <TableCell className="text-gray-500 font-mono text-xs">{driver.nik}</TableCell>
-                      <TableCell className="text-gray-600 text-sm">{driver.investorGroup}</TableCell>
+                      <TableCell className="text-muted-foreground font-mono text-xs">{driver.nik}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{driver.investorGroup}</TableCell>
                       <TableCell className="text-center">
-                        <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${driver.totalSidak > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                        <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${driver.totalSidak > 0 ? 'bg-muted text-foreground' : 'bg-muted text-muted-foreground'}`}>
                           {driver.totalSidak}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge
-                          className={`px-3 py-1 rounded-full font-medium ${driver.status === "Sudah SIDAK"
-                            ? "bg-green-100 text-green-700 hover:bg-green-200 border-green-200"
-                            : "bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
-                            }`}
+                          className={`px-3 py-1 rounded-full font-medium ${driver.status === "Sudah SIDAK" ? "bg-muted text-foreground hover:bg-muted border-border" : "bg-red-100 text-red-700 hover:bg-red-200 border-red-200" } dark:text-red-400`}
                         >
                           {driver.status}
                         </Badge>
@@ -626,7 +629,7 @@ export default function EvaluasiDriver() {
                             setShowDetailDialog(true);
                           }}
                         >
-                          <Eye className="h-4 w-4 text-gray-500 hover:text-blue-600" />
+                          <Eye className="h-4 w-4 text-muted-foreground hover:text-muted-foreground" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -650,21 +653,28 @@ export default function EvaluasiDriver() {
 
           {isLoadingDetail ? (
             <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : detailData?.employee ? (
             <div className="flex flex-col gap-4 overflow-hidden">
               {/* Employee Info */}
-              <div className="bg-blue-50 p-4 rounded-lg flex items-center gap-4">
-                <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center text-blue-600 font-bold border border-blue-100">
-                  {detailData.employee.name.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-900">{detailData.employee.name}</h3>
-                  <p className="text-sm text-gray-500">{detailData.employee.position || 'Driver'} • {detailData.employee.nik}</p>
+              <div className="flex items-center gap-4 rounded-lg bg-muted p-4">
+                <Avatar className="h-12 w-12 flex-none border border-border">
+                  <AvatarImage src={fotoKecil(detailData.employee.photoUrl, 192)} alt={detailData.employee.name} className="object-cover" />
+                  <AvatarFallback className="bg-card text-sm font-medium text-muted-foreground">
+                    {inisial(detailData.employee.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-foreground">{detailData.employee.name}</h3>
+                  {/* NIK karyawan tersimpan di kolom `id`, bukan `nik` — kolom itu
+                      tidak ada di tabel employees, jadi sebelumnya tampil kosong. */}
+                  <p className="text-sm text-muted-foreground">
+                    {detailData.employee.position || 'Driver'} · {detailData.employee.nik || detailData.employee.id}
+                  </p>
                 </div>
                 <div className="ml-auto text-right">
-                  <span className="text-xs text-gray-500">Total Temuan</span>
+                  <span className="text-xs text-muted-foreground">Total Temuan</span>
                   <p className="text-xl font-bold">{detailData.records.length}</p>
                 </div>
               </div>
@@ -673,54 +683,54 @@ export default function EvaluasiDriver() {
               <ScrollArea className="flex-1 -mx-6 px-6">
                 <div className="space-y-3 pb-4">
                   {detailData.records.length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
+                    <div className="text-center py-12 text-muted-foreground">
                       Belum ada data pemeriksaan bulan ini
                     </div>
                   ) : (
                     detailData.records.map((record: any, idx: number) => (
-                      <div key={idx} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div key={idx} className="border rounded-lg p-4 hover:bg-muted transition-colors">
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="bg-gray-100">
+                            <Badge variant="outline" className="bg-muted">
                               {record.tanggal}
                             </Badge>
-                            <Badge variant="outline" className="bg-gray-50">
+                            <Badge variant="outline" className="bg-muted">
                               {record.waktu}
                             </Badge>
-                            <span className="text-xs text-gray-400">• {record.lokasi}</span>
+                            <span className="text-xs text-muted-foreground">• {record.lokasi}</span>
                           </div>
-                          <Badge className={record.karyawanSiapBekerja ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-700 hover:bg-red-200"}>
+                          <Badge className={record.karyawanSiapBekerja ? "bg-muted text-foreground hover:bg-muted" : "bg-red-100 text-red-700 hover:bg-red-200"}>
                             {record.karyawanSiapBekerja ? "FIT" : "UNFIT"}
                           </Badge>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3 text-sm">
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Clock className="w-3 h-3" /> Jam Tidur
                             </span>
                             <span className="font-medium">{record.jamTidur} Jam</span>
                           </div>
 
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Activity className="w-3 h-3" /> Respon
                             </span>
-                            <span className={record.pemeriksaanRespon ? "text-green-600 font-medium" : "text-red-600 font-bold"}>
+                            <span className={record.pemeriksaanRespon ? "text-foreground font-medium" : "text-red-600 font-bold"}>
                               {record.pemeriksaanRespon ? "Baik" : "Lambat"}
                             </span>
                           </div>
 
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-gray-500">Konsentrasi</span>
-                            <span className={record.pemeriksaanKonsentrasi ? "text-green-600 font-medium" : "text-red-600 font-bold"}>
+                            <span className="text-xs text-muted-foreground">Konsentrasi</span>
+                            <span className={record.pemeriksaanKonsentrasi ? "text-foreground font-medium" : "text-red-600 font-bold"}>
                               {record.pemeriksaanKonsentrasi ? "Fokus" : "Terganggu"}
                             </span>
                           </div>
 
                           <div className="flex flex-col gap-1">
-                            <span className="text-xs text-gray-500">Kesehatan</span>
-                            <span className={record.pemeriksaanKesehatan ? "text-green-600 font-medium" : "text-red-600 font-bold"}>
+                            <span className="text-xs text-muted-foreground">Kesehatan</span>
+                            <span className={record.pemeriksaanKesehatan ? "text-foreground font-medium" : "text-red-600 font-bold"}>
                               {record.pemeriksaanKesehatan ? "Sehat" : "Sakit"}
                             </span>
                           </div>
@@ -730,17 +740,17 @@ export default function EvaluasiDriver() {
                         {(record.konsumiObat || record.masalahPribadi || record.tidakBolehBekerja) && (
                           <div className="mt-3 pt-3 border-t grid gap-2">
                             {record.konsumiObat && (
-                              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-2">
+                              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-2 dark:bg-orange-950/40 dark:text-orange-400">
                                 ⚠️ Sedang mengonsumsi obat
                               </div>
                             )}
                             {record.masalahPribadi && (
-                              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-2">
+                              <div className="text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded flex items-center gap-2 dark:bg-orange-950/40 dark:text-orange-400">
                                 ⚠️ Ada masalah pribadi
                               </div>
                             )}
                             {record.tidakBolehBekerja && (
-                              <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded flex items-center gap-2 font-bold">
+                              <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded flex items-center gap-2 font-bold dark:bg-red-950/40 dark:text-red-400">
                                 ⛔ DILARANG BEKERJA
                               </div>
                             )}
@@ -749,15 +759,15 @@ export default function EvaluasiDriver() {
 
                         {/* Intervention Data */}
                         {(record.catatanIntervensi || record.buktiIntervensi) && (
-                          <div className="mt-3 pt-3 border-t bg-blue-50/50 -mx-4 px-4 pb-2">
-                            <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2 flex items-center gap-2 mt-2">
+                          <div className="mt-3 pt-3 border-t bg-muted/50 -mx-4 px-4 pb-2">
+                            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider mb-2 flex items-center gap-2 mt-2">
                               <Pen className="w-3 h-3" /> Tindak Lanjut & Bukti
                             </h4>
 
                             {record.catatanIntervensi && (
                               <div className="mb-3">
-                                <span className="text-xs text-blue-600 block mb-1">Catatan Intervensi:</span>
-                                <p className="text-sm text-gray-700 bg-white p-2 rounded border border-blue-100">
+                                <span className="text-xs text-muted-foreground block mb-1">Catatan Intervensi:</span>
+                                <p className="text-sm text-foreground bg-card p-2 rounded border border-border">
                                   {record.catatanIntervensi}
                                 </p>
                               </div>
@@ -765,18 +775,18 @@ export default function EvaluasiDriver() {
 
                             {record.buktiIntervensi && (
                               <div>
-                                <span className="text-xs text-blue-600 block mb-1">Bukti Foto:</span>
-                                <div className="relative group overflow-hidden rounded-lg border border-blue-100 max-w-sm">
+                                <span className="text-xs text-muted-foreground block mb-1">Bukti Foto:</span>
+                                <div className="relative group overflow-hidden rounded-lg border border-border max-w-sm">
                                   <img
                                     src={record.buktiIntervensi}
                                     alt="Bukti Intervensi"
-                                    className="w-full h-auto object-cover max-h-[200px] hover:scale-105 transition-transform duration-300"
+                                    className="w-full h-auto object-cover max-h-[200px] transition-transform duration-300"
                                   />
                                   <a
                                     href={record.buktiIntervensi}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded hover:bg-black/70 backdrop-blur-sm"
+                                    className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded hover:bg-black/70"
                                   >
                                     Lihat Full
                                   </a>

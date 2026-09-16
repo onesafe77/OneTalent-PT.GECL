@@ -184,8 +184,8 @@ export default function ApprovalsPage() {
         <div className="p-12 text-center text-gray-400 text-sm">Memuat…</div>
       ) : filtered.length === 0 ? (
         <div className="border border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-12 text-center bg-white dark:bg-gray-900">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-green-50 mb-4">
-            <CheckCircle className="w-7 h-7 text-green-500" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-muted mb-4">
+            <CheckCircle className="w-7 h-7 text-foreground" />
           </div>
           <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
             Tidak ada yang perlu disetujui
@@ -246,8 +246,8 @@ export default function ApprovalsPage() {
                   onClick={() => setDecision("APPROVED")}
                   className={`flex items-center justify-center gap-2 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
                     decision === "APPROVED"
-                      ? "bg-green-50 border-green-500 text-green-700"
-                      : "border-gray-200 text-gray-600 hover:border-green-300"
+                      ? "bg-muted border-border text-foreground"
+                      : "border-gray-200 text-gray-600 hover:border-border"
                   }`}
                 >
                   <ThumbsUp className="w-4 h-4" /> Setujui
@@ -295,7 +295,7 @@ export default function ApprovalsPage() {
               onClick={() => decisionMutation.mutate()}
               className={
                 decision === "APPROVED"
-                  ? "bg-green-600 hover:bg-green-700"
+                  ? "bg-primary hover:bg-primary/90"
                   : decision === "REJECTED"
                     ? "bg-red-600 hover:bg-red-700"
                     : "bg-gray-600 hover:bg-gray-700"

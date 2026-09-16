@@ -27,7 +27,7 @@ interface InductionStatsProps {
     year: string;
 }
 
-const COLORS = ['#dc2626', '#ea580c', '#d97706', '#65a30d', '#059669', '#0891b2', '#2563eb', '#7c3aed', '#db2777'];
+const COLORS = ['#dc2626', '#D98806', '#d97706', '#65a30d', '#731116', '#969696', '#2A2A2A', '#96161C', '#db2777'];
 
 export function InductionStats({ data, year }: InductionStatsProps) {
     // --- 1. Summary Cards Logic ---
@@ -126,8 +126,8 @@ export function InductionStats({ data, year }: InductionStatsProps) {
                                 <div className="text-3xl font-bold mt-1 text-gray-900">{summary.totalParticipants}</div>
                                 <p className="text-[10px] text-gray-400 mt-1">Karyawan terdata</p>
                             </div>
-                            <div className="p-2 bg-red-50 rounded-lg">
-                                <Users className="h-5 w-5 text-red-600" />
+                            <div className="p-2 bg-gray-50 rounded-lg">
+                                <Users className="h-5 w-5 text-gray-950" />
                             </div>
                         </div>
                     </CardContent>
@@ -146,7 +146,7 @@ export function InductionStats({ data, year }: InductionStatsProps) {
                         </div>
                     </CardContent>
                 </Card>
-                <Card className="bg-white border-l-4 border-l-green-600 shadow-sm">
+                <Card className="bg-white border-l-4 border-l-primary shadow-sm">
                     <CardContent className="p-4">
                         <div className="flex justify-between items-start">
                             <div>
@@ -154,8 +154,8 @@ export function InductionStats({ data, year }: InductionStatsProps) {
                                 <div className="text-3xl font-bold mt-1 text-gray-900">{summary.todayCount}</div>
                                 <p className="text-[10px] text-gray-400 mt-1">Sedang berlangsung</p>
                             </div>
-                            <div className="p-2 bg-green-50 rounded-lg">
-                                <Clock className="h-5 w-5 text-green-600" />
+                            <div className="p-2 bg-muted rounded-lg">
+                                <Clock className="h-5 w-5 text-foreground" />
                             </div>
                         </div>
                     </CardContent>
@@ -275,8 +275,8 @@ export function InductionStats({ data, year }: InductionStatsProps) {
                         <AreaChart data={hourlyData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
                             <defs>
                                 <linearGradient id="colorTime" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                                    <stop offset="5%" stopColor="#DF2A33" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#DF2A33" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
@@ -298,7 +298,7 @@ export function InductionStats({ data, year }: InductionStatsProps) {
                             <Area
                                 type="monotone"
                                 dataKey="count"
-                                stroke="#2563eb"
+                                stroke="#DF2A33"
                                 strokeWidth={2}
                                 fillOpacity={1}
                                 fill="url(#colorTime)"

@@ -26,6 +26,11 @@ const AvatarImage = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
+    /* Foto karyawan disimpan ukuran penuh (rata-rata 372 KB) padahal ditampilkan
+       sebesar beberapa puluh piksel. Tanpa muat-malas, satu tabel bisa menarik
+       puluhan MB sekaligus dan avatarnya tampak kosong. Bisa ditimpa per pemakaian. */
+    loading="lazy"
+    decoding="async"
     className={cn("aspect-square h-full w-full", className)}
     {...props}
   />

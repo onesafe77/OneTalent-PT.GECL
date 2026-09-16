@@ -1,12 +1,10 @@
-import { Switch, Route } from "wouter";
-import { useState, useEffect, lazy, Suspense } from "react";
+import { Switch, Route, useLocation, useSearch, Redirect } from "wouter";
+import { useState, useEffect, useRef, lazy, Suspense, startTransition } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { PermissionGuard } from "@/components/PermissionGuard";
 import { Permission } from "@shared/rbac";
 
-import Dashboard from "@/pages/dashboard";
 import QRGenerator from "@/pages/qr-generator";
 import Scanner from "@/pages/scanner";
 import EmployeesDashboard from "@/pages/employees-dashboard";
@@ -63,9 +61,18 @@ import SidakSopKritisHistory from "@/pages/sidak-sop-kritis-history";
 import SidakIntercomForm from "@/pages/sidak-intercom-form";
 import SidakIntercomHistory from "@/pages/sidak-intercom-history";
 import EvaluasiDriver from "@/pages/evaluasi-driver";
+import FmsDatabase from "@/pages/hse/fms-database";
+import SdDatabase from "@/pages/hse/sd-database";
+import RiwayatPelanggaran from "@/pages/hse/riwayat-pelanggaran";
+import RekamJejak from "@/pages/hse/rekam-jejak";
+import RekamJejakDetail from "@/pages/hse/rekam-jejak-detail";
 import DashboardOverspeed from "@/pages/dashboard-overspeed";
-import DashboardJarak from "@/pages/dashboard-jarak";
+import DashboardSafeDistance from "@/pages/hse/sd-dashboard";
 import DashboardStatistics from "@/pages/dashboard-statistics";
+import PengaturanManHour from "@/pages/hse/incident/manhours";
+import DetailIncident from "@/pages/hse/incident/detail";
+import ReportIncident from "@/pages/hse/incident/report";
+import FormInsiden from "@/pages/hse/incident/form";
 import GoogleSheetsConfig from "@/pages/google-sheets-config";
 import EvaluasiPvt from "@/pages/evaluasi-pvt";
 import SidakStandJackForm from "@/pages/sidak-stand-jack-form";
@@ -124,6 +131,7 @@ import K3DocumentDetail from "@/pages/hse/k3/documents/detail";
 import ApprovalsPage from "@/pages/approvals";
 import ExternalRegisterPage from "@/pages/external-register";
 import SiAsefChatPage from "@/pages/si-asef-chat";
+import Beranda from "@/pages/beranda";
 import SiAsefAdminPage from "@/pages/si-asef-admin";
 import SiAsefProjectsPage from "@/pages/si-asef-projects";
 import SiAsefArtifactsPage from "@/pages/si-asef-artifacts";
@@ -149,6 +157,7 @@ import InductionAdmin from "@/pages/hse/induction-admin";
 import InductionQuiz from "@/pages/hse/induction-quiz";
 import SPIPPeralatan from "@/pages/hse/ko/spip/peralatan";
 import SPIPPrasarana from "@/pages/hse/ko/spip/prasarana-list";
+import SpipPeralatanDashboard from "@/pages/hse/ko/spip/peralatan-dashboard";
 import SPIPInstalasi from "@/pages/hse/ko/spip/instalasi-list";
 import { InstalasiFormPage, InstalasiViewPage } from "@/pages/hse/ko/spip/instalasi-detail-page";
 import SPIPPeralatanTidakBergerak from "@/pages/hse/ko/spip/peralatan-tidak-bergerak-list";
@@ -159,7 +168,7 @@ import InvestorEvaluationPage from "@/pages/hse/investor-evaluation";
 
 const workspaceRoutes = [
   { path: "/workspace", component: WorkspaceHome, title: "Beranda" },
-  { path: "/workspace/dashboard", component: Dashboard, title: "Dashboard Karyawan PT.GECL" },
+  { path: "/workspace/dashboard", component: Beranda, title: "Beranda" },
   { path: "/workspace/qr-generator", component: QRGenerator, title: "Generate QR Code" },
   { path: "/workspace/scanner", component: Scanner, title: "Scan QR Code" },
   { path: "/workspace/employees/dashboard", component: EmployeesDashboard, title: "Dashboard Karyawan" },
@@ -232,6 +241,16 @@ const workspaceRoutes = [
   { path: "/workspace/zero-harm/programs", component: ZeroHarmPrograms, title: "Zero Harm — Program Monitoring" },
   { path: "/workspace/zero-harm/attendance-kpi", component: ZeroHarmAttendanceKpi, title: "Zero Harm — KPI Kehadiran" },
   { path: "/workspace/zero-harm/workbook", component: ZeroHarmWorkbook, title: "Zero Harm — Workbook (Excel)" },
+  { path: "/workspace/hse/fms-database", component: FmsDatabase, title: "Database Violation FMS" },
+  { path: "/workspace/hse/jarak", component: DashboardSafeDistance, title: "Dashboard Safe Distance" },
+  { path: "/workspace/hse/sd-database", component: SdDatabase, title: "Database Violation Safe Distance" },
+  { path: "/workspace/hse/riwayat-pelanggaran", component: RiwayatPelanggaran, title: "Riwayat Pelanggaran Semua Kontraktor" },
+  { path: "/workspace/hse/rekam-jejak", component: RekamJejak, title: "Rekam Jejak Karyawan" },
+  { path: "/workspace/hse/statistics", component: DashboardStatistics, title: "Statistik Keselamatan" },
+  { path: "/workspace/hse/manhours", component: PengaturanManHour, title: "Pengaturan Man Hour" },
+  { path: "/workspace/hse/incident-detail", component: DetailIncident, title: "Detail Incident" },
+  { path: "/workspace/hse/incident-report", component: ReportIncident, title: "Report Incident" },
+  { path: "/workspace/hse/incident-form/new", component: FormInsiden, title: "Insiden Baru" },
   { path: "/workspace/hse/sick-leave", component: SickLeavePage, title: "Data Ijin Sakit" },
   { path: "/workspace/hse/profil-kesehatan", component: ProfilKesehatan, title: "Profil Kesehatan Karyawan" },
   { path: "/workspace/hse/indikator-kesehatan", component: IndikatorKesehatan, title: "Indikator Kesehatan K3" },
@@ -265,12 +284,13 @@ const workspaceRoutes = [
   { path: "/workspace/si-asef/admin", component: SiAsefAdminPage, title: "Mystic Knowledge Base" },
   { path: "/workspace/si-asef/projects", component: SiAsefProjectsPage, title: "Mystic Projects" },
   { path: "/workspace/si-asef/artifacts", component: SiAsefArtifactsPage, title: "Mystic Artifacts" },
-  { path: "/workspace/hse/fms-dashboard", component: FmsDashboard, title: "FMS Violation Command Center" },
+  { path: "/workspace/hse/fms-dashboard", component: FmsDashboard, title: "FMS Validation" },
   { path: "/workspace/hse/induction-admin", component: InductionAdmin, title: "Admin Induksi K3" },
   { path: "/workspace/hse/induction-quiz", component: InductionQuiz, title: "Quiz Induksi K3" },
   { path: "/workspace/hr/induction-attendance", component: HrInductionAttendance, title: "Monitoring Absensi Induksi" },
   { path: "/workspace/hse/ko/spip/peralatan", component: SPIPPeralatan, title: "SPIP - Peralatan" },
   { path: "/workspace/hse/ko/spip/prasarana", component: SPIPPrasarana, title: "SPIP - Sarana & Prasarana" },
+  { path: "/workspace/hse/ko/spip/peralatan/dashboard", component: SpipPeralatanDashboard, title: "Dashboard Peralatan" },
   { path: "/workspace/hse/ko/spip/instalasi", component: SPIPInstalasi, title: "SPIP - Instalasi" },
   { path: "/workspace/hse/ko/spip/peralatan/tidak-bergerak", component: SPIPPeralatanTidakBergerak, title: "SPIP - Peralatan Tidak Bergerak" },
   { path: "/workspace/hse/investor-evaluation", component: InvestorEvaluationPage, title: "Evaluasi Investor Group" },
@@ -285,8 +305,36 @@ const workspaceRoutes = [
 
 export function Workspace() {
   // Initialize based on window width - Default OPEN for desktop, CLOSED for mobile
+  const [location] = useLocation();
+  // Kunci pemasangan ulang isi halaman.
+  // - Halaman chat (/workspace/dashboard): ikut query saat ini, supaya klik riwayat (?sesi=…) membuka percakapannya.
+  // - Halaman lain: query hanya dibaca SAAT PINDAH halaman (perilaku lama). Kalau ikut berubah setiap saat,
+  //   Document Control (?tab=), detail dokumen K3 (?action=) & Rekap Sidak akan terpasang ulang dan kehilangan state.
+  const search = useSearch();
+  const lokasiLalu = useRef(location);
+  const querySaatPindah = useRef(search);
+  if (lokasiLalu.current !== location) { lokasiLalu.current = location; querySaatPindah.current = search; }
+  const kunciHalaman = location === "/workspace/dashboard" ? `${location}?${search}` : `${location}?${querySaatPindah.current}`;
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
-  const [isLoading, setIsLoading] = useState(true);
+  // Lebar sidebar (258px / rail 64px) dikabarkan sidebar lewat event.
+  const [sidebarLipat, setSidebarLipat] = useState(() => localStorage.getItem("sidebarLipat") === "1");
+  useEffect(() => {
+    const onLipat = (e: any) => setSidebarLipat(!!e.detail);
+    window.addEventListener("sidebar-lipat", onLipat);
+    return () => window.removeEventListener("sidebar-lipat", onLipat);
+  }, []);
+  const [isLoading, setIsLoading] = useState(() => !sessionStorage.getItem("splashTampil"));
+  useEffect(() => { if (!isLoading) sessionStorage.setItem("splashTampil", "1"); }, [isLoading]);
+  // Dulu sidebar + halaman + widget dipasang di commit yang SAMA dengan layar masuk.
+  // Semua 160-an halaman diimpor statis, jadi commit itu berat: halaman login membeku
+  // sejenak lalu tirai muncul sudah setengah jalan. Sekarang isi baru dipasang setelah
+  // tirai menutup layar (520 ms), sebagai transisi berprioritas rendah.
+  const [isiSiap, setIsiSiap] = useState(() => !isLoading);
+  useEffect(() => {
+    if (isiSiap) return;
+    const t = setTimeout(() => startTransition(() => setIsiSiap(true)), 560);
+    return () => clearTimeout(t);
+  }, [isiSiap]);
 
   // Handle resize events to auto-adjust if needed (optional UX polisher)
   useEffect(() => {
@@ -312,6 +360,9 @@ export function Workspace() {
     return "AttendanceQR Workspace";
   };
 
+  // Judul halaman kini tampil di tab peramban, bukan di bilah atas yang dibuang.
+  useEffect(() => { document.title = "OneTalent"; }, [location]);
+
   // Loading state is now controlled by LoadingScreen's onComplete callback
   // No external timer needed - LoadingScreen handles its own timing
 
@@ -328,23 +379,23 @@ export function Workspace() {
       {/* Notification Prompt - muncul setelah loading selesai */}
       {!isLoading && <NotificationPrompt />}
 
-      {/* Workspace Content - selalu render tapi invisible saat loading */}
+      {/* Isi workspace — dipasang di balik tirai (lihat isiSiap) */}
+      {isiSiap && <>
       <div
-        className={`h-screen flex bg-gray-50 dark:bg-gray-900 transition-opacity duration-300 ${isLoading ? 'opacity-100 pointer-events-none' : 'opacity-100 pointer-events-auto'
+        className={`h-screen flex bg-gray-100 dark:bg-gray-900 transition-opacity duration-300 ${isLoading ? 'opacity-100 pointer-events-none' : 'opacity-100 pointer-events-auto'
           }`}
       >
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-        <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-0'}`}>
-          <Header
-            title={getCurrentTitle()}
-            onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-          />
+        <div className={`flex-1 flex flex-col overflow-hidden ${!sidebarOpen ? 'lg:ml-0' : sidebarLipat ? 'lg:ml-16' : 'lg:ml-[244px]'}`}>
+          {/* Header dibuang: judul, notifikasi, tema, dan keluar semuanya sudah ada
+              di sidebar — prototipe pun tidak punya bilah atas. */}
 
-          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900 p-0 sm:p-4 lg:p-6 pb-20 sm:pb-4 lg:pb-6">
-            <Switch>
-              <Route path="/workspace" component={WorkspaceHome} />
-              <Route path="/workspace/dashboard" component={Dashboard} />
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900 p-0 sm:p-4 lg:p-6 pb-20 sm:pb-4 lg:pb-6">
+            <Switch key={kunciHalaman}>
+              {/* 17 Sep 2026: /workspace (beranda kartu lama) dialihkan ke chat — halaman awal kini chat. */}
+              <Route path="/workspace"><Redirect to="/workspace/dashboard" /></Route>
+              <Route path="/workspace/dashboard" component={Beranda} />
               <Route path="/workspace/qr-generator">
                 <PermissionGuard requiredPermissions={[Permission.VIEW_QR, Permission.GENERATE_QR]} requireAll={true}>
                   <QRGenerator />
@@ -514,7 +565,12 @@ export function Workspace() {
               <Route path="/workspace/mobile-driver" component={MobileDriverView} />
               <Route path="/workspace/employee-personal" component={EmployeePersonalData} />
               <Route path="/workspace/hse/overspeed" component={DashboardOverspeed} />
-              <Route path="/workspace/hse/jarak" component={DashboardJarak} />
+              <Route path="/workspace/hse/fms-database" component={FmsDatabase} />
+              <Route path="/workspace/hse/sd-database" component={SdDatabase} />
+              <Route path="/workspace/hse/riwayat-pelanggaran" component={RiwayatPelanggaran} />
+              <Route path="/workspace/hse/rekam-jejak" component={RekamJejak} />
+              <Route path="/workspace/hse/rekam-jejak/:nik" component={RekamJejakDetail} />
+              <Route path="/workspace/hse/jarak" component={DashboardSafeDistance} />
 
               <Route path="/workspace/hse/fatigue-monitoring" component={FmsFatigueMonitoringDashboard} />
               <Route path="/workspace/hse/fms-violation-validation" component={ViolationValidationDashboard} />
@@ -526,6 +582,10 @@ export function Workspace() {
                 </PermissionGuard>
               </Route>
               <Route path="/workspace/hse/statistics" component={DashboardStatistics} />
+              <Route path="/workspace/hse/manhours" component={PengaturanManHour} />
+              <Route path="/workspace/hse/incident-detail" component={DetailIncident} />
+              <Route path="/workspace/hse/incident-report" component={ReportIncident} />
+              <Route path="/workspace/hse/incident-form/:id" component={FormInsiden} />
               <Route path="/workspace/settings/google-sheets" component={GoogleSheetsConfig} />
 
               {/* TNA Routes */}
@@ -536,7 +596,8 @@ export function Workspace() {
               <Route path="/workspace/hse/tna/monitoring" component={MonitoringKompetensi} />
 
               {/* Mystic AI Chatbot Routes */}
-              <Route path="/workspace/si-asef" component={SiAsefChatPage} />
+              {/* 17 Sep 2026: halaman chat lama ditutup — chat kini berjalan langsung di Beranda. */}
+              <Route path="/workspace/si-asef"><Redirect to="/workspace/dashboard" /></Route>
               <Route path="/workspace/si-asef/admin" component={SiAsefAdminPage} />
               {/* Projects route was seemingly here before, I will keep it but point to the reverted page if I can, or just remove if I want to be safe. 
                  Step 75 showed the file existed. So I should probably keep the route for SiAsefProjectsPage but remove Detail page.
@@ -587,6 +648,9 @@ export function Workspace() {
 
               <Route path="/workspace/hse/ko/spip/peralatan/tambah" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/tidak-bergerak" component={SPIPPeralatanTidakBergerak} />
+              {/* Sub-path literal wajib di atas ":id" — kalau tidak, wouter membaca
+                  "dashboard" sebagai id unit dan halaman detail membalas "Data tidak ditemukan". */}
+              <Route path="/workspace/hse/ko/spip/peralatan/dashboard" component={SpipPeralatanDashboard} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id/edit" component={PeralatanFormPage} />
               <Route path="/workspace/hse/ko/spip/peralatan/:id" component={PeralatanViewPage} />
               <Route path="/workspace/hse/ko/spip/peralatan" component={SPIPPeralatan} />
@@ -613,7 +677,8 @@ export function Workspace() {
               </Route>
               <Route path="/workspace/hse/ko/spip/instalasi" component={SPIPInstalasi} />
 
-              <Route component={Dashboard} />
+              {/* Rute tak dikenal dialihkan ke beranda (dulu menampilkan Command Center). */}
+              <Route><Redirect to="/workspace" /></Route>
             </Switch>
           </main>
 
@@ -625,6 +690,7 @@ export function Workspace() {
       <div className="hidden lg:block">
         <MysticWidget />
       </div>
+      </>}
     </div>
   );
 }

@@ -345,7 +345,7 @@ export default function TnaInput() {
                         <div className="flex items-center gap-6 text-sm text-gray-500">
                             <span className="flex items-center gap-2"><Briefcase className="w-4 h-4 text-gray-400" /> {selectedEmployee.position || "No Position"}</span>
                             <span className="flex items-center gap-2"><Building2 className="w-4 h-4 text-gray-400" /> {selectedEmployee.department || "No Dept"}</span>
-                            <span className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-medium border border-green-100">Active Employee</span>
+                            <span className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-muted text-foreground text-xs font-medium border border-border">Active Employee</span>
                         </div>
                     </div>
                 )}
@@ -411,7 +411,7 @@ export default function TnaInput() {
                 <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-zinc-900/50">
                     <div className="overflow-x-auto">
                         <Table>
-                            <TableHeader className="bg-gray-50/50 dark:bg-zinc-900/50">
+                            <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[15%]">Category</TableHead>
                                     <TableHead className="w-[30%]">Training Name</TableHead>
@@ -475,13 +475,13 @@ export default function TnaInput() {
                                                 >
                                                     <SelectTrigger className={cn(
                                                         "w-[90px] mx-auto h-8 shadow-sm transition-colors",
-                                                        row.actual === 'C' ? "bg-green-50 text-green-700 border-green-200" :
+                                                        row.actual === 'C' ? "bg-muted text-foreground border-border" :
                                                             row.actual === 'NC' ? "bg-zinc-100 text-zinc-600 border-zinc-200" : ""
                                                     )}>
                                                         <SelectValue placeholder="-" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="C"><span className="flex items-center gap-2 font-medium text-green-600"><CheckCircle2 className="w-3 h-3" /> Complied</span></SelectItem>
+                                                        <SelectItem value="C"><span className="flex items-center gap-2 font-medium text-foreground"><CheckCircle2 className="w-3 h-3" /> Complied</span></SelectItem>
                                                         <SelectItem value="NC"><span className="flex items-center gap-2 font-medium text-red-600"><AlertCircle className="w-3 h-3" /> Not Yet</span></SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -601,7 +601,7 @@ export default function TnaInput() {
                                                             </Select>
                                                         ) : (
                                                             row.actualStatus === 'C' ? (
-                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-muted text-foreground border border-border">
                                                                     <CheckCircle2 className="w-3 h-3" /> Complied
                                                                 </span>
                                                             ) : row.actualStatus === 'NC' ? (
@@ -622,7 +622,7 @@ export default function TnaInput() {
                                                     <td className="px-3 py-2 text-center">
                                                         {editingEntry === row.id ? (
                                                             <div className="flex items-center justify-center gap-1">
-                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => saveEditing(row.id)}>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-foreground hover:text-primary hover:bg-muted" onClick={() => saveEditing(row.id)}>
                                                                     <Check className="w-4 h-4" />
                                                                 </Button>
                                                                 <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={cancelEditing}>

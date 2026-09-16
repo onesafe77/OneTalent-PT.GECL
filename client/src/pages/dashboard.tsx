@@ -134,7 +134,7 @@ export default function Dashboard() {
             </Button>
             <Button variant="ghost" size="icon" className="rounded-full bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 relative text-gray-600 dark:text-gray-300">
               <Bell className="w-5 h-5" />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-gray-900"></span>
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-gray-950 rounded-full border border-white dark:border-gray-900"></span>
             </Button>
           </div>
         </div>
@@ -199,14 +199,14 @@ export default function Dashboard() {
         <div className="space-y-4">
           <div className="flex items-center justify-between px-6">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">Daily Statistics</h3>
-            <Button variant="link" className="text-xs text-red-500 font-semibold p-0 h-auto hover:text-red-600">
+            <Button variant="link" className="text-xs text-gray-600 font-semibold p-0 h-auto hover:text-gray-950">
               See all
             </Button>
           </div>
 
           <div className="flex justify-between gap-4 overflow-x-auto pb-4 no-scrollbar px-6">
             <div className="flex flex-col items-center gap-3 min-w-[72px] group cursor-pointer snap-center">
-              <div className="w-[4.5rem] h-[4.5rem] rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center text-red-500 shadow-sm group-hover:bg-red-100 transition-colors border border-red-100 dark:border-red-900/30">
+              <div className="w-[4.5rem] h-[4.5rem] rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-600 shadow-sm group-hover:bg-muted transition-colors border border-gray-200 dark:border-red-900/30">
                 <Users className="w-7 h-7" />
               </div>
               <div className="text-center"><p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-0.5">Total</p><p className="text-sm font-bold text-gray-900 dark:text-white">{stats?.totalEmployees || 0}</p></div>
@@ -218,7 +218,7 @@ export default function Dashboard() {
               <div className="text-center"><p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-0.5">Hadir</p><p className="text-sm font-bold text-gray-900 dark:text-white">{stats?.presentToday || 0}</p></div>
             </div>
             <div className="flex flex-col items-center gap-3 min-w-[72px] group cursor-pointer snap-center">
-              <div className="w-[4.5rem] h-[4.5rem] rounded-full bg-green-50 dark:bg-green-900/20 flex items-center justify-center text-green-500 shadow-sm group-hover:bg-green-100 transition-colors border border-green-100 dark:border-green-900/30">
+              <div className="w-[4.5rem] h-[4.5rem] rounded-full bg-muted flex items-center justify-center text-foreground shadow-sm group-hover:bg-muted transition-colors border border-border">
                 <Clock className="w-7 h-7" />
               </div>
               <div className="text-center"><p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-0.5">Belum</p><p className="text-sm font-bold text-gray-900 dark:text-white">{stats?.absentToday || 0}</p></div>
@@ -236,7 +236,7 @@ export default function Dashboard() {
         <div className="space-y-4 px-4 sm:px-6">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-lg text-gray-900 dark:text-white">Recent Activity</h3>
-            <Button variant="link" className="text-xs text-red-500 font-semibold p-0 h-auto hover:text-red-600">See all</Button>
+            <Button variant="link" className="text-xs text-gray-600 font-semibold p-0 h-auto hover:text-gray-950">See all</Button>
           </div>
           <div className="space-y-3">
             {recentActivities && recentActivities.length > 0 ? (
@@ -254,7 +254,7 @@ export default function Dashboard() {
                       <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300">Fit: {activity.fitToWork} • {activity.jamTidur} Jam</span>
                     </div>
                   </div>
-                  <Button variant="secondary" size="sm" className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-xl px-4 h-9 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">Details</Button>
+                  <Button variant="secondary" size="sm" className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded-xl px-4 h-9 text-[11px] font-bold hover:bg-gray-100 dark:hover:bg-red-900/30 transition-colors">Details</Button>
                 </div>
               ))
             ) : (
@@ -266,7 +266,7 @@ export default function Dashboard() {
         {/* 5. Floating Bottom Navigation */}
         <div className="fixed bottom-6 left-6 right-6 bg-white dark:bg-gray-800 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] p-4 flex justify-between items-center z-40 border border-gray-100 dark:border-gray-700">
           <Link href="/workspace/dashboard">
-            <Button variant="ghost" size="icon" className="flex flex-col gap-1 h-auto text-red-500 hover:text-red-600 hover:bg-transparent p-0">
+            <Button variant="ghost" size="icon" className="flex flex-col gap-1 h-auto text-gray-600 hover:text-gray-950 hover:bg-transparent p-0">
               <Home className="w-6 h-6 fill-current" />
               <span className="text-[10px] font-bold">Home</span>
             </Button>
@@ -317,7 +317,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.totalEmployees || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center text-green-600 bg-green-50 w-fit px-2 py-0.5 rounded-full">
+              <p className="text-xs text-muted-foreground mt-1 flex items-center text-foreground bg-muted w-fit px-2 py-0.5 rounded-full">
                 <ArrowUpRight className="w-3 h-3 mr-1" /> Active
               </p>
             </CardContent>

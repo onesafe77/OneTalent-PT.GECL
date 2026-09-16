@@ -363,7 +363,7 @@ export default function SidakMesinLasForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.inspectors.length === 0}
                 >
@@ -515,7 +515,7 @@ export default function SidakMesinLasForm() {
                                     <div className="flex items-center justify-between">
                                         <Label className="text-sm font-bold text-gray-700 dark:text-gray-200">Checklist Inspeksi</Label>
                                         <div className="flex gap-2 text-xs">
-                                            <span className="text-green-600 font-bold">S</span>
+                                            <span className="text-foreground font-bold">S</span>
                                             <span className="text-red-600 font-bold">TS</span>
                                         </div>
                                     </div>
@@ -537,7 +537,7 @@ export default function SidakMesinLasForm() {
                                                                             variant={currentEquipment.inspectionResults[item.id] === 'S' ? 'default' : 'outline'}
                                                                             className={cn(
                                                                                 "flex-1 h-9 font-bold",
-                                                                                currentEquipment.inspectionResults[item.id] === 'S' && "bg-green-600 hover:bg-green-700"
+                                                                                currentEquipment.inspectionResults[item.id] === 'S' && "bg-primary hover:bg-primary/90"
                                                                             )}
                                                                             onClick={() => updateInspectionResult(item.id, 'S')}
                                                                         >
@@ -619,14 +619,14 @@ export default function SidakMesinLasForm() {
                                                     <div>
                                                         <p className="font-bold text-sm text-gray-900 dark:text-white">Reg: {eq.noRegisterMesinLas}</p>
                                                         <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                                                            Status: {tsCount > 0 ? <span className="text-red-500 font-bold">{tsCount} Temuan</span> : <span className="text-green-500 font-bold text-[8px]">AMAN</span>}
+                                                            Status: {tsCount > 0 ? <span className="text-red-500 font-bold">{tsCount} Temuan</span> : <span className="text-foreground font-bold text-[8px]">AMAN</span>}
                                                         </p>
                                                     </div>
                                                 </div>
                                                 {tsCount > 0 ? (
                                                     <Badge variant="destructive" className="rounded-full h-6 w-6 p-0 flex items-center justify-center text-[10px] font-bold">!</Badge>
                                                 ) : (
-                                                    <Check className="h-5 w-5 text-green-500" />
+                                                    <Check className="h-5 w-5 text-foreground" />
                                                 )}
                                             </div>
                                         );
@@ -642,7 +642,7 @@ export default function SidakMesinLasForm() {
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-6">
                             <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600">
+                                <div className="h-10 w-10 bg-muted rounded-2xl flex items-center justify-center text-foreground">
                                     <Shield className="h-6 w-6" />
                                 </div>
                                 <div>
@@ -654,17 +654,17 @@ export default function SidakMesinLasForm() {
                             {draft.inspectors.length > 0 && (
                                 <div className="space-y-3">
                                     {draft.inspectors.map((ins, idx) => (
-                                        <div key={idx} className="p-4 bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-800 flex items-center justify-between animate-in zoom-in-95 duration-300">
+                                        <div key={idx} className="p-4 bg-muted rounded-2xl border border-border flex items-center justify-between animate-in zoom-in-95 duration-300">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 bg-green-200 dark:bg-green-800 rounded-full flex items-center justify-center font-bold text-green-700">
+                                                <div className="h-10 w-10 bg-muted dark:bg-primary rounded-full flex items-center justify-center font-bold text-foreground">
                                                     {ins.nama.charAt(0)}
                                                 </div>
                                                 <div>
-                                                    <p className="font-bold text-sm text-green-900 dark:text-green-100">{ins.nama}</p>
-                                                    <p className="text-[10px] text-green-600 dark:text-green-400 uppercase">{ins.perusahaan}</p>
+                                                    <p className="font-bold text-sm text-foreground">{ins.nama}</p>
+                                                    <p className="text-[10px] text-foreground uppercase">{ins.perusahaan}</p>
                                                 </div>
                                             </div>
-                                            <Check className="h-6 w-6 text-green-600" />
+                                            <Check className="h-6 w-6 text-foreground" />
                                         </div>
                                     ))}
                                 </div>
@@ -745,7 +745,7 @@ export default function SidakMesinLasForm() {
                                         </div>
                                     ))}
                                     {activityPhotos.length < 6 && (
-                                        <Label className="flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                                        <Label className="flex flex-col items-center justify-center aspect-square bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-muted transition-colors">
                                             <Camera className="w-6 h-6 text-gray-400 mb-2" />
                                             <span className="text-[10px] font-bold text-gray-500">TAMBAH FOTO</span>
                                             <Input

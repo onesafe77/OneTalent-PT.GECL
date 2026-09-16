@@ -5,10 +5,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { CakraMark } from "@/components/brand/CakraMark";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Loader2, Eye, EyeOff, ShieldCheck, ArrowRight, UserRound, LockKeyhole, IdCard } from "lucide-react";
 
 // Foto slideshow panel kiri (auto-slide, crossfade tiap 5 detik).
 const LOGIN_SLIDES = [
@@ -78,7 +79,7 @@ export default function LoginPage() {
       if (saved && saved.startsWith("/") && user?.accountType !== "subcon") {
         setLocation(saved);
       } else {
-        setLocation(user?.accountType === "subcon" ? "/workspace/hse/mcu" : "/workspace");
+        setLocation(user?.accountType === "subcon" ? "/workspace/hse/mcu" : "/workspace/dashboard");
       }
     }
   }, [isAuthenticated, isLoading, setLocation, user]);
@@ -87,7 +88,8 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(data.nik, data.password, loginType);
-      toast({ title: "Login Berhasil", description: "Selamat datang kembali!" });
+      // Layar masuk (tirai + cakra) diputar sekali tiap selesai login, bukan tiap buka menu.
+      try { sessionStorage.removeItem("splashTampil"); } catch { /* abaikan */ }
     } catch (error) {
       toast({ title: "Login Gagal", description: error instanceof Error ? error.message : "NIK atau password salah", variant: "destructive" });
     } finally {
@@ -116,243 +118,255 @@ export default function LoginPage() {
     }
   }
 
-  const inputCls = "h-12 rounded-xl border-slate-200 bg-slate-50/60 focus:bg-white focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-colors";
-  const labelCls = "text-slate-600 text-[11px] font-bold uppercase tracking-[0.12em]";
+  // Gaya input prototipe: tanpa kotak, hanya garis bawah yang "tergambar" dari kiri saat fokus.
+  // Kolom isian lembut: latar abu tipis, saat fokus berubah putih dengan cincin merah transparan.
+  const inputCls = "peer h-12 rounded-xl border border-gray-200 bg-gray-50 pl-11 pr-4 text-[15px] text-gray-950 shadow-none transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-gray-400 hover:border-gray-300 focus:border-primary focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary/10 focus-visible:ring-4 focus-visible:ring-primary/10 focus-visible:ring-offset-0";
+  const ikonIsian = "pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-400 transition-colors peer-focus:text-primary";
+  const labelCls = "font-sans normal-case tracking-normal text-[13px] font-medium text-gray-700";
 
   return (
-    <div className="min-h-screen w-full flex bg-white font-sans">
+    <div className="grid min-h-screen w-full bg-white md:grid-cols-[42%_58%] lg:grid-cols-2">
+      <style>{`
+        @keyframes lg-naik{to{transform:none}}
+        @keyframes lg-fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+        @keyframes lg-sapu{0%{transform:translateY(-100%)}17%{transform:translateY(760%)}100%{transform:translateY(760%)}}
+        @keyframes lg-kursor{0%,49%{opacity:1}50%,100%{opacity:0}}
+        @keyframes lg-huruf{from{opacity:0;transform:translateY(0.12em);filter:blur(2px)}to{opacity:1;transform:none;filter:none}}
+        .lg-huruf{display:inline-block;animation:lg-huruf 180ms cubic-bezier(.23,1,.32,1) both}
+        .lg-fade{animation:lg-fade 260ms cubic-bezier(.32,.72,0,1) 400ms both}
+        .lg-form input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #fff inset;-webkit-text-fill-color:#0A0A0A;transition:background-color 9999s}
+        @media (prefers-reduced-motion:reduce){.lg-fade,.lg-huruf{animation:none;transform:none;opacity:1;filter:none}.lg-sapu{display:none}}
+      `}</style>
 
-      {/* ===== Panel Kiri: Gambar + Branding (desktop) ===== */}
-      <div className="relative hidden md:flex md:w-1/2 lg:w-[55%] overflow-hidden">
-        {/* Slideshow crossfade */}
+      {/* ===== Panel kiri: tinta gelap (prototipe) + foto lapangan sebagai tekstur ===== */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gray-800 px-12 py-14 text-[#EDEDED] md:flex lg:px-[72px]">
         {LOGIN_SLIDES.map((src, i) => (
-          <div
-            key={src}
-            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out ${i === slide ? "opacity-100" : "opacity-0"}`}
-            style={{ backgroundImage: `url('${src}')` }}
-          />
+          <div key={src}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ${i === slide ? "opacity-100" : "opacity-0"}`}
+            style={{ backgroundImage: `url('${src}')` }} />
         ))}
-        {/* Overlay gradient merah korporat agar teks terbaca */}
-        <div className="absolute inset-0 bg-gradient-to-br from-red-700/80 via-red-800/75 to-red-950/85" />
-        <div className="absolute inset-0 bg-black/10" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-black/25 to-black/70" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/50 to-transparent" />
+        <div className="absolute bottom-0 right-0 top-0 w-px overflow-hidden bg-white/10">
+          <span className="lg-sapu block h-[12%] w-px bg-gradient-to-b from-transparent via-primary to-transparent [animation:lg-sapu_7s_linear_300ms_infinite]" />
+        </div>
 
-        <div className="relative z-10 flex flex-col justify-between p-12 lg:p-16 text-white w-full">
-          {/* Logo + nama */}
+        <div className="lg-fade relative flex items-center gap-2.5">
+          <CakraMark size={30} />
+          <span className="text-2xl font-medium tracking-[-0.02em]">OneTalent</span>
+        </div>
+
+        <div className="relative">
+          <h2 className="m-0 text-[clamp(32px,3.4vw,46px)] font-medium leading-[1.14] tracking-[-0.032em] [text-shadow:0_2px_18px_rgba(0,0,0,.55)]">
+            <JudulMengetik />
+          </h2>
+          <div className="lg-fade mt-8 flex items-center gap-1.5">
+            {LOGIN_SLIDES.map((_, i) => (
+              <button key={i} type="button" aria-label={`Foto ${i + 1}`} onClick={() => setSlide(i)}
+                className={`h-[3px] rounded-full transition-all duration-300 ${i === slide ? "w-6 bg-primary" : "w-2 bg-white/25 hover:bg-white/50"}`} />
+            ))}
+          </div>
+        </div>
+
+        <div className="lg-fade relative flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
           <div className="flex items-center gap-3">
-            <div className="bg-white/95 rounded-2xl p-2.5 shadow-lg">
-              <img src="/images/brand-logo.png" alt="OneTalent" className="h-9 w-auto object-contain" />
-            </div>
-            <div className="leading-none drop-shadow-sm">
-              <div className="text-2xl tracking-tight">
-                <span className="font-light text-white/90">One</span><span className="font-extrabold text-white">Talent</span>
-              </div>
-              <div className="mt-1.5 text-[9px] font-semibold uppercase tracking-[0.3em] text-white/65">
-                HSE &amp; Talent System
-              </div>
-            </div>
-          </div>
-
-          {/* Headline */}
-          <div className="max-w-md">
-            <h2 className="text-4xl lg:text-5xl font-extrabold leading-[1.1] tracking-tight drop-shadow-sm">
-              Satu Platform<br />HSE &amp; Talenta GECL
-            </h2>
-            <p className="mt-4 text-white/85 text-base leading-relaxed">
-              Kelola keselamatan, pengawasan, dan data karyawan dalam satu sistem terintegrasi.
-            </p>
-            <div className="mt-6 inline-flex items-center gap-2 text-white/80 text-sm bg-white/10 backdrop-blur px-3.5 py-2 rounded-full border border-white/15">
-              <ShieldCheck className="h-4 w-4" />
-              Akses aman khusus karyawan GECL
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] text-white/60 tracking-wide">
-                &copy; 2026 PT. Golden Energi Cemerlang Lestari
-              </p>
-              <p className="text-[10px] text-white/45 tracking-wide mt-0.5">
-                Dirancang &amp; dikembangkan oleh <span className="font-semibold text-white/70">Bagus Andyka Firmansyah</span>
-              </p>
-            </div>
-            {/* Titik indikator slideshow */}
-            <div className="flex items-center gap-2">
-              {LOGIN_SLIDES.map((_, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  aria-label={`Slide ${i + 1}`}
-                  onClick={() => setSlide(i)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${i === slide ? "w-6 bg-white" : "w-1.5 bg-white/40 hover:bg-white/70"}`}
-                />
-              ))}
-            </div>
+            <img src="/images/gecl-logo.png" alt="Logo PT Golden Energi Cemerlang Lestari"
+              className="h-9 w-9 flex-none object-contain drop-shadow-[0_1px_6px_rgba(0,0,0,.45)]" />
+            <span className="flex flex-col gap-1 font-mono uppercase tracking-[0.14em]">
+              <span className="text-[9px] text-white/50">Powered by</span>
+              <span className="whitespace-nowrap text-[11px] text-white/90">PT Golden Energi Cemerlang Lestari</span>
+              <span className="whitespace-nowrap text-[9px] text-white/50">Site PT Borneo Indobara</span>
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ===== Panel Kanan: Form ===== */}
-      <div className="flex-1 flex flex-col justify-center px-6 py-10 sm:px-10 md:px-12 lg:px-16">
-        <div className="w-full max-w-sm mx-auto">
-
-          {/* Logo (mobile saja) */}
-          <div className="flex md:hidden justify-center mb-8">
-            <div className="bg-white p-4 rounded-3xl shadow-[0_10px_40px_-12px_rgba(220,38,38,0.35)] border border-slate-100">
-              <img src="/images/brand-logo.png" alt="OneTalent" className="h-14 w-auto object-contain" />
-            </div>
-          </div>
-
-          <div className="mb-8">
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-              {mode === 'login' ? 'Selamat datang' : 'Reset Password'}
-            </h1>
-            <p className="text-slate-500 mt-2 text-[15px]">
-              {mode === 'login'
-                ? 'Masuk dengan NIK dan password Anda untuk melanjutkan.'
-                : 'Verifikasi identitas Anda untuk mengganti password.'}
-            </p>
-          </div>
+      {/* ===== Panel kanan: formulir ===== */}
+      <div className="lg-form flex items-center px-6 py-10 sm:px-12">
+        <div className="mx-auto w-full max-w-[360px]">
+          <h1 className="m-0 text-[30px] font-semibold leading-[1.1] tracking-[-0.03em] text-gray-950">
+            {mode === 'login' ? 'Masuk ke OneTalent' : 'Reset kata sandi'}
+          </h1>
+          <p className="mt-2.5 text-[14px] leading-relaxed text-gray-500">
+            {mode === 'login'
+              ? (loginType === 'subcon' ? 'Gunakan username akun subcon Anda.' : 'Gunakan NIK karyawan dan kata sandi Anda.')
+              : 'Verifikasi identitas Anda untuk mengganti kata sandi.'}
+          </p>
 
           {mode === 'login' ? (
             <Form {...loginForm}>
-              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-5">
-                {/* Toggle jenis akun */}
-                <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-slate-100">
-                  {([['karyawan', 'Karyawan'], ['subcon', 'Subcon']] as const).map(([val, lbl]) => (
-                    <button
-                      key={val}
-                      type="button"
-                      onClick={() => setLoginType(val)}
-                      className={`h-9 rounded-lg text-sm font-semibold transition-colors ${loginType === val ? 'bg-white text-red-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="flex flex-col">
+                {/* Jenis akun — gaya tab bergaris bawah, senada dengan input */}
+                <div className="relative mt-8 grid grid-cols-2 rounded-xl bg-gray-100 p-1">
+                  <span aria-hidden
+                    className="absolute bottom-1 left-1 top-1 w-[calc(50%-4px)] rounded-lg bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_1px_8px_-2px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-[cubic-bezier(.32,.72,0,1)]"
+                    style={{ transform: loginType === 'subcon' ? 'translateX(100%)' : 'none' }} />
+                  {([['karyawan', 'Karyawan', IdCard], ['subcon', 'Subcon', UserRound]] as const).map(([val, lbl, Ikon]) => (
+                    <button key={val} type="button" onClick={() => setLoginType(val)}
+                      className={`relative flex h-9 items-center justify-center gap-2 rounded-lg text-[13px] font-medium transition-colors ${loginType === val ? 'text-gray-950' : 'text-gray-500 hover:text-gray-800'}`}>
+                      <Ikon className={`h-4 w-4 ${loginType === val ? 'text-primary' : ''}`} />
                       {lbl}
                     </button>
                   ))}
                 </div>
 
-                <FormField
-                  control={loginForm.control}
-                  name="nik"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className={labelCls}>{loginType === 'subcon' ? 'USERNAME' : 'NIK'}</FormLabel>
-                      <FormControl>
-                        <Input {...field} placeholder={loginType === 'subcon' ? 'Masukkan username subcon' : 'Masukkan NIK Anda'} disabled={isLoading} className={inputCls} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <FormField control={loginForm.control} name="nik" render={({ field }) => (
+                  <FormItem className="mt-6 space-y-2">
+                    <FormLabel className={labelCls}>{loginType === 'subcon' ? 'Username' : 'NIK Karyawan'}</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Input {...field} autoComplete="username" placeholder={loginType === 'subcon' ? 'nama.subcon' : 'C-000000'} disabled={isLoading} className={inputCls} />
+                        <UserRound className={ikonIsian} />
+                      </div>
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )} />
+
+                <FormField control={loginForm.control} name="password" render={({ field }) => (
+                  <FormItem className="mt-5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <FormLabel className={labelCls}>Kata sandi</FormLabel>
+                      <button type="button" onClick={() => setMode('reset')}
+                        className="text-[13px] font-medium text-primary hover:underline hover:underline-offset-4">
+                        Lupa kata sandi?
+                      </button>
+                    </div>
+                    <FormControl>
+                      <div className="relative">
+                        <Input {...field} type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Masukkan kata sandi" disabled={isLoading} className={`${inputCls} pr-12`} />
+                        <LockKeyhole className={ikonIsian} />
+                        <button type="button" aria-label={showPassword ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"}
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-900">
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )} />
+
+                <Button type="submit" disabled={isLoading}
+                  className="group mt-7 h-12 rounded-xl bg-primary text-[15px] font-medium tracking-[-0.006em] text-white shadow-[0_1px_2px_rgba(0,0,0,0.08),0_8px_20px_-8px_hsl(var(--primary)/0.55)] transition-[background-color,transform,box-shadow] duration-150 hover:bg-primary/90 active:scale-[0.99]">
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                    <span className="flex items-center gap-2">
+                      Masuk
+                      <ArrowRight className="h-4 w-4 transition-transform duration-150 group-hover:translate-x-0.5" />
+                    </span>
                   )}
-                />
-
-                <FormField
-                  control={loginForm.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className={labelCls}>Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input {...field} type={showPassword ? "text" : "password"} placeholder="Masukkan password Anda" disabled={isLoading} className={`${inputCls} pr-11`} />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end -mt-1">
-                  <button type="button" onClick={() => setMode('reset')} className="text-xs font-semibold text-red-600 hover:text-red-700 transition-colors">
-                    Lupa Password?
-                  </button>
-                </div>
-
-                <Button type="submit" disabled={isLoading} className="w-full h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[15px] shadow-md shadow-red-600/20 hover:shadow-lg hover:shadow-red-600/30 transition-all">
-                  {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Masuk"}
                 </Button>
+
+                <div className="mt-8 flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-[12.5px] text-gray-500">
+                  <ShieldCheck className="h-4 w-4 flex-none text-gray-400" />
+                  Akses khusus karyawan &amp; mitra PT GECL. Aktivitas masuk tercatat.
+                </div>
               </form>
             </Form>
           ) : (
             <Form {...resetForm}>
-              <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="space-y-4">
-                <FormField
-                  control={resetForm.control}
-                  name="nik"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className={labelCls}>NIK</FormLabel>
+              <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className="mt-8 flex flex-col gap-5">
+                {([
+                  ["nik", "NIK", "text", "C-000000"],
+                  ["oldPassword", "Kata sandi lama", "password", "••••••••"],
+                  ["newPassword", "Kata sandi baru (min. 8)", "password", "••••••••"],
+                  ["confirmPassword", "Ulangi kata sandi baru", "password", "••••••••"],
+                ] as const).map(([name, label, type, ph]) => (
+                  <FormField key={name} control={resetForm.control} name={name} render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className={labelCls}>{label}</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="Masukkan NIK" className={inputCls} />
+                        <div className="relative">
+                          <Input {...field} type={type} placeholder={ph} disabled={isLoading} className={inputCls} />
+                          {name === "nik" ? <UserRound className={ikonIsian} /> : <LockKeyhole className={ikonIsian} />}
+                        </div>
                       </FormControl>
-                      <FormMessage />
+                      <FormMessage className="text-xs" />
                     </FormItem>
-                  )}
-                />
-                <FormField
-                  control={resetForm.control}
-                  name="oldPassword"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className={labelCls}>Password Lama</FormLabel>
-                      <FormControl>
-                        <Input {...field} type="password" placeholder="Password Lama" className={inputCls} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={resetForm.control}
-                    name="newPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={labelCls}>Pass Baru</FormLabel>
-                        <FormControl>
-                          <Input {...field} type="password" placeholder="Baru" className={inputCls} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={resetForm.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className={labelCls}>Konfirmasi</FormLabel>
-                        <FormControl>
-                          <Input {...field} type="password" placeholder="Ulangi" className={inputCls} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                <div className="pt-2 gap-3 flex flex-col">
-                  <Button type="submit" disabled={isLoading} className="w-full h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold">
-                    {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : "Reset Sekarang"}
-                  </Button>
-                  <button type="button" onClick={() => setMode('login')} className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors">
-                    Kembali ke Login
-                  </button>
-                </div>
+                  )} />
+                ))}
+                <Button type="submit" disabled={isLoading}
+                  className="mt-2 h-12 rounded-xl bg-primary text-[15px] font-medium text-white hover:bg-primary/90 active:scale-[0.99]">
+                  {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Reset kata sandi"}
+                </Button>
+                <button type="button" onClick={() => setMode('login')}
+                  className="self-center text-[13px] font-medium text-gray-500 hover:text-gray-950">
+                  Kembali ke halaman masuk
+                </button>
               </form>
             </Form>
           )}
 
-          <div className="md:hidden text-center mt-10">
-            <p className="text-[10px] text-slate-400 tracking-wide">
-              &copy; 2026 PT. Golden Energi Cemerlang Lestari
-            </p>
-            <p className="text-[10px] text-slate-400 tracking-wide mt-1">
-              Dirancang &amp; dikembangkan oleh <span className="font-semibold text-slate-500">Bagus Andyka Firmansyah</span>
-            </p>
-          </div>
+          <p className="mt-12 font-mono text-[10px] uppercase tracking-[0.14em] text-gray-300 md:hidden">
+            Powered by PT Golden Energi Cemerlang Lestari
+            <span className="mt-1 block">Site PT Borneo Indobara</span>
+          </p>
         </div>
       </div>
     </div>
+  );
+}
+
+// Judul panel kiri: beberapa kalimat diketik, ditahan, dihapus, lalu kalimat berikutnya —
+// berulang terus. Tiap huruf muncul dengan fade singkat supaya ketikan terasa halus,
+// dan kursor diam (tidak berkedip) selama mengetik agar tidak terasa "tersendat".
+const KALIMAT: string[][] = [
+  ["Kerja Aman", "& Keselamatan", "Nomer One."],
+  ["Keselamatan", "Nomer Satu,", "Produksi Mengikuti."],
+];
+const KETIK_MS = 48;     // per huruf saat mengetik
+const HAPUS_MS = 22;     // per huruf saat menghapus (lebih cepat, seperti manusia)
+const TAHAN_MS = 2600;   // lama kalimat utuh ditampilkan
+const JEDA_MS = 450;     // jeda sebelum kalimat berikutnya mulai diketik
+
+function JudulMengetik() {
+  const hemat = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const [k, setK] = useState(0);                       // kalimat ke-
+  const [n, setN] = useState(0);                       // jumlah huruf tampil
+  const [fase, setFase] = useState<"ketik" | "tahan" | "hapus">("ketik");
+
+  const baris = KALIMAT[k];
+  const total = baris.join("").length;
+
+  useEffect(() => {
+    if (hemat) return;
+    let t: ReturnType<typeof setTimeout>;
+    if (fase === "ketik") {
+      t = n < total
+        ? setTimeout(() => setN(n + 1), n === 0 ? JEDA_MS : KETIK_MS)
+        : setTimeout(() => setFase("hapus"), TAHAN_MS);
+    } else if (fase === "hapus") {
+      t = n > 0
+        ? setTimeout(() => setN(n - 1), HAPUS_MS)
+        : setTimeout(() => { setK((k + 1) % KALIMAT.length); setFase("ketik"); }, 0);
+    }
+    return () => clearTimeout(t!);
+  }, [n, fase, total, k, hemat]);
+
+  const tampilN = hemat ? total : n;
+  const selesai = tampilN >= total;
+  // Baris tempat kursor berada = baris terakhir yang sudah mulai terisi.
+  let sisa = tampilN;
+  let barisKursor = 0;
+  baris.forEach((b, i) => { if (sisa > 0) barisKursor = i; sisa -= b.length; });
+  sisa = tampilN;
+
+  return (
+    <span aria-label={KALIMAT.map((b) => b.join(" ")).join(" — ")} className="block">
+      {baris.map((teks, i) => {
+        const jumlah = Math.max(0, Math.min(teks.length, sisa));
+        sisa -= teks.length;
+        return (
+          <span key={`${k}-${i}`} aria-hidden className={`block min-h-[1.14em] whitespace-pre ${i === baris.length - 1 ? "text-white/80" : ""}`}>
+            {Array.from(teks.slice(0, jumlah)).map((h, j) => (
+              <span key={j} className={`lg-huruf ${h === "&" ? "text-primary" : ""}`}>{h}</span>
+            ))}
+            {i === barisKursor && (
+              <span className={`ml-1 inline-block h-[0.9em] w-[3px] translate-y-[0.1em] rounded-full bg-primary ${selesai ? "[animation:lg-kursor_1s_steps(1)_infinite]" : ""}`} />
+            )}
+          </span>
+        );
+      })}
+    </span>
   );
 }

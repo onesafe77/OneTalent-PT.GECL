@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { StatTile } from "@/components/ui/stat-tile";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertEmployeeSchema } from "@shared/schema";
 import type { Employee, InsertEmployee } from "@shared/schema";
-import { Plus, Search, Edit, Trash2, Upload, AlertCircle, Download, Eye, QrCode, ArrowLeft } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Upload, AlertCircle, Download, Eye, QrCode, ArrowLeft, Users, UserCheck, UserX, Briefcase, Building2 } from "lucide-react";
 import { Link } from "wouter";
 import { z } from "zod";
 import * as XLSX from "xlsx";
@@ -137,6 +138,9 @@ export default function Employees() {
 
   const { data: employees = [], isLoading } = useQuery<Employee[]>({
     queryKey: ["/api/employees"],
+        // /api/employees mengembalikan {data,total}, bukan array. Tanpa select ini
+        // `employees.find(...)` melempar TypeError dan seluruh halaman jatuh.
+        select: (d: any) => (Array.isArray(d) ? d : d?.data ?? []),
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -699,7 +703,7 @@ export default function Employees() {
 
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList>
             <TabsTrigger value="dashboard" data-testid="dashboard-tab">Dashboard</TabsTrigger>
             <TabsTrigger value="list" data-testid="list-tab">List</TabsTrigger>
             <TabsTrigger value="qr-generator" data-testid="qr-generator-tab">QR Generator</TabsTrigger>
@@ -752,87 +756,16 @@ export default function Employees() {
               </Button>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-4">
-              <Card>
-                <CardContent className="flex items-center p-3 sm:p-6">
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <div className="p-1.5 sm:p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-blue-600 rounded"></div>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Total</p>
-                      <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid="card-total-employees">
-                        {dashboardStats.totalEmployees}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex items-center p-3 sm:p-6">
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <div className="p-1.5 sm:p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-600 rounded"></div>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Aktif</p>
-                      <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid="card-active">
-                        {dashboardStats.activeEmployees}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex items-center p-3 sm:p-6">
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <div className="p-1.5 sm:p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-red-600 rounded"></div>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Non-Aktif</p>
-                      <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid="card-inactive">
-                        {dashboardStats.inactiveEmployees}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="flex items-center p-3 sm:p-6">
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <div className="p-1.5 sm:p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-purple-600 rounded"></div>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Posisi</p>
-                      <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid="card-unique-positions">
-                        {dashboardStats.uniquePositions}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="col-span-2 sm:col-span-1">
-                <CardContent className="flex items-center p-3 sm:p-6">
-                  <div className="flex items-center space-x-2 sm:space-x-4">
-                    <div className="p-1.5 sm:p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                      <div className="w-3 h-3 sm:w-4 sm:h-4 bg-orange-600 rounded"></div>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">Dept</p>
-                      <p className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white" data-testid="card-unique-departments">
-                        {dashboardStats.uniqueDepartments}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Ringkasan — memakai StatTile bersama supaya bentuknya sama dengan
+                Roster, Laporan, dan Dashboard Karyawan. Kotak ikon warna-warni
+                (biru/hijau/merah/ungu/kuning) dibuang: lima hitungan ini bukan lima
+                tingkat status. */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <StatTile label="Total" value={dashboardStats.totalEmployees} icon={Users} />
+              <StatTile label="Aktif" value={dashboardStats.activeEmployees} icon={UserCheck} />
+              <StatTile label="Non-Aktif" value={dashboardStats.inactiveEmployees} icon={UserX} />
+              <StatTile label="Posisi" value={dashboardStats.uniquePositions} icon={Briefcase} />
+              <StatTile label="Departemen" value={dashboardStats.uniqueDepartments} icon={Building2} />
             </div>
 
             {/* Position and Department Tables */}
@@ -1012,7 +945,7 @@ export default function Employees() {
                           variant="ghost"
                           size="sm"
                           onClick={() => generateDriverQR(employee)}
-                          className="text-blue-600 hover:text-blue-700 h-9 w-9 p-0"
+                          className="h-9 w-9 p-0"
                           title="Generate QR Driver View"
                           data-testid={`qr-driver-mobile-${employee.id}`}
                         >
@@ -1104,7 +1037,7 @@ export default function Employees() {
                               variant="ghost"
                               size="sm"
                               onClick={() => generateDriverQR(employee)}
-                              className="text-blue-600 hover:text-blue-700"
+                              
                               title="Generate QR Driver View"
                               data-testid={`qr-driver-${employee.id}`}
                             >

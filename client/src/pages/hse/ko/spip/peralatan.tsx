@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -9,7 +9,6 @@ import * as z from "zod";
 import { format, differenceInMonths, differenceInDays } from "date-fns";
 import { id } from "date-fns/locale";
 import * as XLSX from "xlsx";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import {
     Building,
     Car,
@@ -28,7 +27,9 @@ import {
     CheckCircle,
     Clock,
     ArrowUpDown,
-} from "lucide-react";
+    BarChart3,
+
+    ChevronDown,} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,30 +46,40 @@ import { Progress } from "@/components/ui/progress";
 
 // Status Badges Colors
 const statusUnitColors: Record<string, string> = {
-    "ACTIVE": "bg-green-100 text-green-700",
+    "ACTIVE": "bg-muted text-foreground",
     "SPARE": "bg-yellow-100 text-yellow-700",
     "DISMANTLED": "bg-gray-100 text-gray-700",
 };
 
 const statusCommColors: Record<string, string> = {
-    ACTIVE: "bg-green-100 text-green-700 border-green-200",
+    ACTIVE: "bg-muted text-foreground border-border",
     "NEAR EXPIRED": "bg-yellow-100 text-yellow-700 border-yellow-200",
     EXPIRED: "bg-red-100 text-red-700 border-red-200",
-    CLOSE: "bg-green-100 text-green-700 border-green-200",
+    CLOSE: "bg-muted text-foreground border-border",
     OPEN: "bg-orange-100 text-orange-700 border-orange-200",
 };
 
+/**
+ * Status stiker yang ditampilkan.
+ *
+ * Kolom status diisi petugas dan itulah yang dipakai. Sebelumnya fungsi ini
+ * mengabaikan kolom status begitu tanggalnya ada, lalu menyimpulkan EXPIRED
+ * semata dari selisih tanggal — akibatnya seluruh 90 unit ditandai EXPIRED
+ * padahal catatan resminya CLOSE 86, NEAR EXPIRED 3, EXPIRED 1. Tanggal BIB
+ * yang lewat itu wajar setelah komisioning selesai.
+ *
+ * Perhitungan tanggal hanya dipakai sebagai cadangan saat kolom status kosong.
+ */
 const computeDisplayStatus = (dateString: string | null | undefined, rawStatus: string | null | undefined) => {
-    if (!dateString) return rawStatus || "-";
+    const tercatat = String(rawStatus || "").trim();
+    if (tercatat) return tercatat.toUpperCase();
+    if (!dateString) return "-";
+
     const expDate = new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    const diffTime = expDate.getTime() - today.getTime();
-    if (diffTime < 0) return "EXPIRED";
-
-    const months = differenceInMonths(expDate, today);
-    return months < 2 ? "NEAR EXPIRED" : "ACTIVE";
+    if (expDate.getTime() - today.getTime() < 0) return "EXPIRED";
+    return differenceInMonths(expDate, today) < 2 ? "NEAR EXPIRED" : "ACTIVE";
 };
 
 // Helper function to calculate months and days until expiry
@@ -147,6 +158,8 @@ export default function SPIPPeralatan() {
     const [merk, setMerk] = useState<string>("all");
     const [statusUnit, setStatusUnit] = useState<string>("all");
     const [statusBib, setStatusBib] = useState<string>("all");
+    const [statusTia, setStatusTia] = useState<string>("all");
+    const [statusTma, setStatusTma] = useState<string>("all");
     // Urutan bawaan: nomor lambung menaik (9002 → 9156). Sebelumnya urut waktu input
     // sehingga daftar terlihat acak dan sulit dicek kelengkapannya.
     const [sortBy, setSortBy] = useState<string>("lambung");
@@ -168,6 +181,8 @@ export default function SPIPPeralatan() {
         ...(merk !== "all" ? { merk } : {}),
         ...(statusUnit !== "all" ? { status_unit: statusUnit } : {}),
         ...(statusBib !== "all" ? { status_bib: statusBib } : {}),
+        ...(statusTia !== "all" ? { status_tia: statusTia } : {}),
+        ...(statusTma !== "all" ? { status_tma: statusTma } : {}),
         sort_by: sortBy,
         sort_dir: sortDir,
         ...(lambungMin.trim() ? { lambung_min: lambungMin.trim() } : {}),
@@ -203,54 +218,36 @@ export default function SPIPPeralatan() {
     const unitEv = allItems.filter((i: any) => i.jenisUnit && i.jenisUnit.includes("ELECTRIC")).length;
     const unitKonv = allItems.filter((i: any) => i.jenisUnit && i.jenisUnit.includes("KONVENSIONAL")).length;
 
-    let stikerActive = 0;
-    let stikerNearExp = 0;
-    let stikerExpired = 0;
-
-    allItems.forEach((i: any) => {
-        const bib = computeDisplayStatus(i.expiredBib, i.statusBib);
-        const tia = computeDisplayStatus(i.expiredTia, i.statusTia);
-        const statuses = [bib, tia];
-        if (statuses.includes("EXPIRED")) stikerExpired++;
-        else if (statuses.includes("NEAR EXPIRED")) stikerNearExp++;
-        else if (statuses.includes("ACTIVE")) stikerActive++;
-    });
+    /* Dihitung dari kolom status yang diisi petugas. Menghitung dari selisih
+       tanggal membuat seluruh unit terbaca kedaluwarsa — lihat catatan di JSX. */
+    const perluTindakan = allItems.filter((i: any) =>
+        ["EXPIRED", "NEAR EXPIRED"].includes(String(i.statusBib || "").toUpperCase())
+    ).length;
 
     // Chart Data Generation
-    const expiryByMonth = allItems.reduce((acc: any, item: any) => {
-        if (item.expiredBib) {
-            const date = new Date(item.expiredBib);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
 
-            if (date >= today) {
-                const numMonths = differenceInMonths(date, today);
-                if (numMonths >= 0 && numMonths <= 12) {
-                    const label = format(date, 'MMM yyyy', { locale: id });
-                    acc[label] = (acc[label] || 0) + 1;
-                }
-            } else {
-                const label = "Expired";
-                acc[label] = (acc[label] || 0) + 1;
-            }
-        }
-        return acc;
-    }, {});
+    /* Pilihan status diurut menurut tingkat keparahan, bukan abjad. Abjad
+       menaruh EXPIRED di tengah (CLOSE, EXPIRED, NEAR EXPIRED) sehingga daftar
+       terbaca melompat-lompat. Status tak dikenal ditaruh di belakang. */
+    const URUTAN_STATUS = ["CLOSE", "ACTIVE", "OPEN", "NEAR EXPIRED", "EXPIRED"];
+    const opsiStatus = (ambil: (i: any) => string) =>
+        Array.from(new Set(allItems.map(ambil).filter(Boolean) as string[]))
+            .sort((a, b) => {
+                const ia = URUTAN_STATUS.indexOf(a.toUpperCase());
+                const ib = URUTAN_STATUS.indexOf(b.toUpperCase());
+                return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+            });
 
-    const chartData = Object.keys(expiryByMonth).map(key => ({
-        name: key,
-        jumlah: expiryByMonth[key]
-    })).sort((a, b) => {
-        if (a.name === "Expired") return -1;
-        if (b.name === "Expired") return 1;
-        const dateA = new Date(`1 ${a.name}`);
-        const dateB = new Date(`1 ${b.name}`);
-        return dateA.getTime() - dateB.getTime();
-    });
+    const adaSaringan = search.trim() !== "" || lambungMin.trim() !== "" || lambungMax.trim() !== ""
+        || [jenisUnit, merk, statusUnit, statusBib, statusTia, statusTma].some((v) => v !== "all");
 
     // Handlers
     const handleExport = () => {
-        window.open("/api/spip/peralatan/export", "_blank");
+        /* Ekspor mengikuti penyaring & urutan yang sedang aktif — parameternya
+           sama persis dengan kueri tabel, minus paging. */
+        const p = new URLSearchParams(queryParams);
+        p.delete("page"); p.delete("limit");
+        window.open(`/api/spip/peralatan/export?${p.toString()}`, "_blank");
     };
 
     const getStatusKomisioning = (expiredDateStr: string | null | undefined, tglPengajuan: string | null | undefined) => {
@@ -280,206 +277,158 @@ export default function SPIPPeralatan() {
                 <p className="text-gray-500">Sarana Prasarana Instalasi Peralatan — Manajemen Unit Dump Truck.</p>
             </div>
 
-            {/* SECTION C — ALERT BANNER */}
-            {stikerExpired > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-                    <div className="bg-red-100 p-2 rounded-full">
-                        <AlertTriangle className="w-5 h-5 text-red-600 animate-pulse" />
-                    </div>
-                    <div>
-                        <h4 className="font-medium text-red-800">Perhatian: {stikerExpired} unit memiliki stiker komisioning EXPIRED</h4>
-                        <p className="text-sm text-red-600">Segera lakukan perpanjangan komisioning untuk unit-unit tersebut.</p>
-                    </div>
-                </div>
-            )}
+            {/* ── Ringkas ────────────────────────────────────────────────────
+                Halaman ini adalah DATABASE; analisisnya pindah ke Dashboard
+                Peralatan. Yang tersisa cuma penanda ringkas.
 
-            {/* SECTION B — SUMMARY CARDS */}
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-4">
-                <Card>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-gray-500 mb-1">Total Unit</p>
-                        <p className="text-2xl font-bold text-slate-800">{totalUnit}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-gray-500 mb-1">Unit Aktif</p>
-                        <p className="text-2xl font-bold text-emerald-600">{unitActive}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-gray-500 mb-1">Unit Spare</p>
-                        <p className="text-2xl font-bold text-amber-500">{unitSpare}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-gray-500 mb-1">DT-EV</p>
-                        <p className="text-2xl font-bold text-blue-600">{unitEv}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-gray-500 mb-1">Konvensional</p>
-                        <p className="text-2xl font-bold text-slate-600">{unitKonv}</p>
-                    </CardContent>
-                </Card>
-                <Card className="border-green-200 bg-green-50/30">
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-green-700 font-medium mb-1">Stiker Active</p>
-                        <p className="text-2xl font-bold text-green-600">{stikerActive}</p>
-                    </CardContent>
-                </Card>
-                <Card className={`${stikerNearExp > 0 ? "border-yellow-300" : "border-gray-200"} bg-yellow-50/30`}>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-yellow-700 font-medium mb-1">Near Expired</p>
-                        <p className={`text-2xl font-bold ${stikerNearExp > 0 ? "text-yellow-600" : "text-gray-400"}`}>
-                            {stikerNearExp}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className={`${stikerExpired > 0 ? "border-red-300 shadow-sm" : "border-gray-200"} bg-red-50/20`}>
-                    <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                        <p className="text-xs text-red-700 font-medium mb-1">Stiker Expired</p>
-                        <p className={`text-2xl font-bold ${stikerExpired > 0 ? "text-red-600 animate-pulse" : "text-gray-400"}`}>
-                            {stikerExpired}
-                        </p>
-                    </CardContent>
-                </Card>
+                Spanduk "N unit stiker EXPIRED", delapan kartu KPI, dan grafik
+                proyeksi dihapus 14 Sep 2026: ketiganya menghitung kedaluwarsa
+                dari selisih tanggal, sehingga 90 unit terbaca expired. Padahal
+                kolom status yang diisi petugas menyebut CLOSE 86, NEAR 3,
+                EXPIRED 1 — tanggal BIB yang lewat memang wajar setelah
+                komisioning selesai. Grafiknya pun hanya menghasilkan satu
+                batang karena semua tanggal BIB ada di masa lalu. */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card px-4 py-3">
+                {[
+                    ["Total unit", totalUnit, ""],
+                    ["Aktif", unitActive, ""],
+                    ["Spare", unitSpare, ""],
+                    ["DT-EV", unitEv, ""],
+                    ["Konvensional", unitKonv, ""],
+                    ["Perlu tindakan", perluTindakan, perluTindakan > 0 ? "aksen" : ""],
+                ].map(([label, nilai, nada]: any) => (
+                    <div key={label} className="flex items-baseline gap-2">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+                        <span className={`text-[17px] font-semibold tabular-nums ${nada === "aksen" ? "text-primary" : "text-foreground"}`}>
+                            {nilai}
+                        </span>
+                    </div>
+                ))}
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                    <Link href="/workspace/hse/ko/spip/peralatan/dashboard"
+                        className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-foreground transition-colors hover:bg-muted">
+                        <BarChart3 className="h-3.5 w-3.5" /> Dashboard
+                    </Link>
+                    <span className="mx-1 h-5 w-px bg-border" />
+                    <button type="button" onClick={handleExport}
+                        className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-foreground transition-colors hover:bg-muted">
+                        <Download className="h-3.5 w-3.5" /> Export
+                    </button>
+                    <button type="button" onClick={() => setIsImportOpen(true)}
+                        className="flex h-8 items-center gap-1.5 rounded-lg border border-border px-3 text-[12px] text-foreground transition-colors hover:bg-muted">
+                        <Upload className="h-3.5 w-3.5" /> Import
+                    </button>
+                    <button type="button" onClick={() => navigate("/workspace/hse/ko/spip/peralatan/tambah")}
+                        className="flex h-8 items-center gap-1.5 rounded-lg bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+                        <Plus className="h-3.5 w-3.5" /> Tambah Unit
+                    </button>
+                </div>
             </div>
 
-            {/* SECTION: CHART ANALYTICS */}
-            <Card className="shadow-sm border-gray-100">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Proyeksi Kedaluwarsa Stiker (1 Tahun Kedepan)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="h-[250px] w-full pt-4">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: -20 }}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                                <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                                <RechartsTooltip
-                                    cursor={{ fill: '#f1f5f9' }}
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                />
-                                <Bar dataKey="jumlah" radius={[4, 4, 0, 0]} fill="#3b82f6" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* SECTION D — ACTION BAR */}
-            <Card>
-                <CardContent className="p-4">
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                        <div className="flex flex-wrap items-center gap-2 flex-1">
-                            <div className="relative w-full lg:w-64">
-                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                                <Input
-                                    placeholder="Cari no lambung, merk, owner..."
-                                    className="pl-9"
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                            </div>
-                            <Select value={jenisUnit} onValueChange={setJenisUnit}>
-                                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Jenis Unit" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Semua Jenis</SelectItem>
-                                    <SelectItem value="DT - ELECTRIC VEHICLE">DT - EV</SelectItem>
-                                    <SelectItem value="DT - KONVENSIONAL">DT - Konvensional</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={merk} onValueChange={setMerk}>
-                                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Merk" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Semua Merk</SelectItem>
-                                    <SelectItem value="XCMG">XCMG</SelectItem>
-                                    <SelectItem value="FAW">FAW</SelectItem>
-                                    <SelectItem value="DONGFENG">DONGFENG</SelectItem>
-                                    <SelectItem value="SHACMAN">SHACMAN</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={statusUnit} onValueChange={setStatusUnit}>
-                                <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Semua Status</SelectItem>
-                                    <SelectItem value="ACTIVE">Active</SelectItem>
-                                    <SelectItem value="SPARE">Spare</SelectItem>
-                                    <SelectItem value="DISMANTLED">Dismantled</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <Select value={statusBib} onValueChange={setStatusBib}>
-                                <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status Stiker" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Semua Stiker</SelectItem>
-                                    <SelectItem value="ACTIVE">Stiker: Active</SelectItem>
-                                    <SelectItem value="NEAR EXPIRED">Stiker: Near Exp</SelectItem>
-                                    <SelectItem value="EXPIRED">Stiker: Expired</SelectItem>
-                                </SelectContent>
-                            </Select>
-
-                            {/* Rentang nomor lambung — disaring dari ANGKA-nya, jadi 9090-9110
-                                mengambil tepat unit di rentang itu berapa pun panjang teksnya. */}
-                            <div className="flex items-center gap-1 rounded-md border px-2 h-10">
-                                <span className="text-xs text-gray-400 whitespace-nowrap">Lambung</span>
-                                <Input type="number" placeholder="9000" value={lambungMin}
-                                    onChange={(e) => { setLambungMin(e.target.value); setPage(1); }}
-                                    className="h-7 w-[74px] border-0 px-1 text-xs shadow-none focus-visible:ring-0" />
-                                <span className="text-gray-300">–</span>
-                                <Input type="number" placeholder="9999" value={lambungMax}
-                                    onChange={(e) => { setLambungMax(e.target.value); setPage(1); }}
-                                    className="h-7 w-[74px] border-0 px-1 text-xs shadow-none focus-visible:ring-0" />
-                                {(lambungMin || lambungMax) && (
-                                    <button type="button" title="Hapus rentang"
-                                        onClick={() => { setLambungMin(""); setLambungMax(""); setPage(1); }}
-                                        className="text-gray-400 hover:text-gray-700"><X className="h-3.5 w-3.5" /></button>
-                                )}
-                            </div>
-
-                            <Select value={`${sortBy}:${sortDir}`}
-                                onValueChange={(v) => { const [b, d] = v.split(":"); setSortBy(b); setSortDir(d as "asc" | "desc"); setPage(1); }}>
-                                <SelectTrigger className="w-[185px]"><SelectValue placeholder="Urutkan" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="lambung:asc">Lambung terkecil → besar</SelectItem>
-                                    <SelectItem value="lambung:desc">Lambung terbesar → kecil</SelectItem>
-                                    <SelectItem value="expired_bib:asc">BIB paling dekat expired</SelectItem>
-                                    <SelectItem value="expired_tia:asc">TIA paling dekat expired</SelectItem>
-                                    <SelectItem value="tahun:desc">Tahun terbaru</SelectItem>
-                                    <SelectItem value="jenis:asc">Jenis unit (A-Z)</SelectItem>
-                                    <SelectItem value="terbaru:desc">Terakhir ditambahkan</SelectItem>
-                                </SelectContent>
-                            </Select>
+            {/* ── Penyaring ──────────────────────────────────────────────────
+                Aksi (Export/Import/Tambah) dipindah ke bilah ringkas di atas:
+                tombol yang MENGUBAH data tidak boleh sebaris dengan kendali yang
+                hanya MENYARING tampilan. Label ditaruh di atas kendali, bukan
+                sebagai teks "Semua X" di dalamnya, supaya nama penyaring dan
+                nilainya terbaca terpisah. Yang aktif ditandai merah. */}
+            <div className="rounded-xl border border-border bg-card p-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <label className="block xl:col-span-2">
+                        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Cari</span>
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <input
+                                value={search}
+                                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                                placeholder="No lambung, merek, owner, komisioner…"
+                                className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/40" />
                         </div>
+                    </label>
 
-                        <div className="flex items-center gap-2 w-full lg:w-auto">
-                            <Button variant="outline" onClick={handleExport} className="whitespace-nowrap flex-1 lg:flex-none">
-                                <Download className="w-4 h-4 mr-2" />
-                                Export
-                            </Button>
-                            <Button variant="outline" onClick={() => setIsImportOpen(true)} className="whitespace-nowrap flex-1 lg:flex-none">
-                                <Upload className="w-4 h-4 mr-2" />
-                                Import Excel
-                            </Button>
-                            <Button onClick={() => navigate("/workspace/hse/ko/spip/peralatan/tambah")} className="bg-red-600 hover:bg-red-700 text-white whitespace-nowrap flex-1 lg:flex-none">
-                                <Plus className="w-4 h-4 mr-2" />
-                                Tambah Unit
-                            </Button>
+                    {([
+                        ["Jenis unit", jenisUnit, setJenisUnit, ["DT - ELECTRIC VEHICLE", "DT - KONVENSIONAL"]],
+                        ["Merek", merk, setMerk, Array.from(new Set(allItems.map((i: any) => i.merk).filter(Boolean))).sort() as string[]],
+                        ["Status unit", statusUnit, setStatusUnit, ["ACTIVE", "SPARE"]],
+                        ["Status BIB", statusBib, setStatusBib, opsiStatus((i: any) => i.statusBib)],
+                        ["Status TIA", statusTia, setStatusTia, opsiStatus((i: any) => i.statusTia)],
+                        ["Status TMA", statusTma, setStatusTma, opsiStatus((i: any) => i.statusTma)],
+                    ] as const).map(([label, nilai, set, opsi]) => (
+                        <label key={label} className="block">
+                            <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+                            <div className="relative">
+                                <select
+                                    value={nilai}
+                                    onChange={(e) => { (set as any)(e.target.value); setPage(1); }}
+                                    className={`h-9 w-full appearance-none rounded-lg border pl-3 pr-8 text-[13px] outline-none transition-colors ${
+                                        nilai !== "all"
+                                            ? "border-primary/40 bg-primary/10 font-medium text-primary"
+                                            : "border-border bg-background text-foreground hover:bg-muted"}`}>
+                                    <option value="all">Semua</option>
+                                    {(opsi as string[]).map((o) => <option key={o} value={o}>{o}</option>)}
+                                </select>
+                                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-50" />
+                            </div>
+                        </label>
+                    ))}
+
+                    <label className="block">
+                        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Rentang no lambung</span>
+                        <div className={`flex h-9 items-center rounded-lg border ${
+                            lambungMin || lambungMax ? "border-primary/40 bg-primary/10" : "border-border bg-background"}`}>
+                            <input inputMode="numeric" placeholder="9000" value={lambungMin}
+                                onChange={(e) => { setLambungMin(e.target.value); setPage(1); }}
+                                className="w-full bg-transparent px-3 text-[13px] tabular-nums outline-none placeholder:text-muted-foreground" />
+                            <span className="text-muted-foreground">–</span>
+                            <input inputMode="numeric" placeholder="9999" value={lambungMax}
+                                onChange={(e) => { setLambungMax(e.target.value); setPage(1); }}
+                                className="w-full bg-transparent px-3 text-[13px] tabular-nums outline-none placeholder:text-muted-foreground" />
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    </label>
+
+                    <label className="block">
+                        <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">Urutkan</span>
+                        <div className="relative">
+                            <select
+                                value={`${sortBy}:${sortDir}`}
+                                onChange={(e) => { const [b, d] = e.target.value.split(":"); setSortBy(b); setSortDir(d as "asc" | "desc"); setPage(1); }}
+                                className="h-9 w-full appearance-none rounded-lg border border-border bg-background pl-3 pr-8 text-[13px] text-foreground outline-none transition-colors hover:bg-muted">
+                                <option value="lambung:asc">Lambung terkecil → besar</option>
+                                <option value="lambung:desc">Lambung terbesar → kecil</option>
+                                <option value="expired_bib:asc">BIB paling dekat expired</option>
+                                <option value="expired_tia:asc">TIA paling dekat expired</option>
+                                <option value="tahun:desc">Tahun terbaru</option>
+                                <option value="jenis:asc">Jenis unit (A–Z)</option>
+                                <option value="terbaru:desc">Terakhir ditambahkan</option>
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-50" />
+                        </div>
+                    </label>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                    {adaSaringan && (
+                        <button type="button"
+                            onClick={() => {
+                                setSearch(""); setJenisUnit("all"); setMerk("all"); setStatusUnit("all");
+                                setStatusBib("all"); setStatusTia("all"); setStatusTma("all");
+                                setLambungMin(""); setLambungMax(""); setPage(1);
+                            }}
+                            className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary">
+                            <X className="h-3.5 w-3.5" /> Bersihkan penyaring
+                        </button>
+                    )}
+                    <span className="text-[12px] text-muted-foreground">
+                        {adaSaringan ? <>Menemukan <b className="text-primary">{total}</b> dari {totalUnit} unit.</> : <>Menampilkan seluruh {totalUnit} unit.</>}
+                    </span>
+                </div>
+            </div>
 
             {/* SECTION E — TABEL DATA */}
             <Card>
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow className="bg-gray-50/50">
+                            <TableRow>
                                 <TableHead className="w-12 text-center">No</TableHead>
                                 <TableHead className="w-[140px] whitespace-nowrap">
                                     <button type="button"
@@ -511,7 +460,7 @@ export default function SPIPPeralatan() {
                                 items.map((item: any, index: number) => {
                                     const isExpired = computeDisplayStatus(item.expiredBib, item.statusBib) === "EXPIRED" || computeDisplayStatus(item.expiredTia, item.statusTia) === "EXPIRED";
                                     return (
-                                        <TableRow key={item.id} className={`hover:bg-gray-50 ${isExpired ? 'bg-red-50/30' : ''}`}>
+                                        <TableRow key={item.id} className={`hover:bg-muted ${isExpired ? 'bg-red-50 dark:bg-red-950/40' : ''}`}>
                                             <TableCell className="text-center">{(page - 1) * limit + index + 1}</TableCell>
                                             <TableCell className="whitespace-nowrap font-semibold text-gray-900">{item.noLambung}</TableCell>
                                             <TableCell className="text-xs text-gray-600">{item.jenisUnit}</TableCell>
@@ -581,7 +530,16 @@ export default function SPIPPeralatan() {
                 <ModalImportPeralatan
                     isOpen={isImportOpen}
                     onClose={() => setIsImportOpen(false)}
-                    onSuccess={() => { refetch(); setIsImportOpen(false); }}
+                    onSuccess={() => {
+                        /* refetch() hanya menyegarkan kueri tabel yang berhalaman.
+                           Ringkasan di atas dan isi dropdown penyaring diambil dari
+                           kueri "/all" yang terpisah — tanpa invalidasi ini, sesudah
+                           impor jumlah unit dan daftar merek tetap angka lama. */
+                        refetch();
+                        queryClient.invalidateQueries({ queryKey: ["/api/spip/peralatan"] });
+                        queryClient.invalidateQueries({ queryKey: ["/api/spip/peralatan/all"] });
+                        setIsImportOpen(false);
+                    }}
                 />
             )}
 
@@ -750,7 +708,7 @@ function ModalImportPeralatan({ isOpen, onClose, onSuccess }: { isOpen: boolean,
                             </Button>
                         </div>
                         <input type="file" id="fileImport" className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
-                        {file && <p className="text-sm text-green-600 font-medium">{file.name} ({(file.size / 1024).toFixed(2)} KB)</p>}
+                        {file && <p className="text-sm text-foreground font-medium">{file.name} ({(file.size / 1024).toFixed(2)} KB)</p>}
                     </div>
 
                     {/* STEP 2 */}
@@ -760,7 +718,7 @@ function ModalImportPeralatan({ isOpen, onClose, onSuccess }: { isOpen: boolean,
                             <div className="border rounded-md overflow-x-auto">
                                 <Table className="text-xs">
                                     <TableHeader>
-                                        <TableRow className="bg-gray-100">
+                                        <TableRow>
                                             {Object.keys(preview[0]).map(key => <TableHead key={key} className="whitespace-nowrap">{key}</TableHead>)}
                                         </TableRow>
                                     </TableHeader>
@@ -885,7 +843,7 @@ function ModalFormPeralatan({ isOpen, onClose, unit, onSuccess }: { isOpen: bool
 
                 <form id="peralatan-form" onSubmit={form.handleSubmit(onSubmit)}>
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-4">
-                        <TabsList className="grid w-full grid-cols-4 bg-gray-100">
+                        <TabsList>
                             <TabsTrigger value="identitas">Identitas Unit</TabsTrigger>
                             <TabsTrigger value="spesifikasi">Spesifikasi Vessel</TabsTrigger>
                             <TabsTrigger value="komisioning">Komisioning</TabsTrigger>
@@ -999,7 +957,7 @@ function ModalFormPeralatan({ isOpen, onClose, unit, onSuccess }: { isOpen: bool
                                         <div className="space-y-2">
                                             <Label>Status BIB</Label>
                                             <div className="h-10 border rounded-md px-3 py-2 bg-gray-50 flex items-center">
-                                                <span className={`text-xs font-semibold ${form.watch("statusBib") === "EXPIRED" ? "text-red-500" : form.watch("statusBib") === "CLOSE" ? "text-green-500" : "text-gray-500"}`}>
+                                                <span className={`text-xs font-semibold ${form.watch("statusBib") === "EXPIRED" ? "text-red-500" : form.watch("statusBib") === "CLOSE" ? "text-foreground" : "text-gray-500"}`}>
                                                     {form.watch("statusBib") || "-"}
                                                 </span>
                                             </div>
@@ -1018,7 +976,7 @@ function ModalFormPeralatan({ isOpen, onClose, unit, onSuccess }: { isOpen: bool
                                         <div className="space-y-2">
                                             <Label>Status TIA</Label>
                                             <div className="h-10 border rounded-md px-3 py-2 bg-gray-50 flex items-center">
-                                                <span className={`text-xs font-semibold ${form.watch("statusTia") === "EXPIRED" ? "text-red-500" : form.watch("statusTia") === "CLOSE" ? "text-green-500" : "text-gray-500"}`}>
+                                                <span className={`text-xs font-semibold ${form.watch("statusTia") === "EXPIRED" ? "text-red-500" : form.watch("statusTia") === "CLOSE" ? "text-foreground" : "text-gray-500"}`}>
                                                     {form.watch("statusTia") || "-"}
                                                 </span>
                                             </div>

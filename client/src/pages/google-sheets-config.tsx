@@ -170,7 +170,7 @@ export default function GoogleSheetsConfig() {
           {availableSheets.length > 0 && (
             <>
               {spreadsheetTitle && (
-                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                <div className="flex items-center gap-2 text-sm text-foreground">
                   <Check className="h-4 w-4" />
                   Terhubung ke: <strong>{spreadsheetTitle}</strong>
                 </div>

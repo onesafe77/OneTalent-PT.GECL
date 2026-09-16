@@ -93,12 +93,12 @@ export default function ResetPasswordPage() {
           </Button>
 
           {/* Icon */}
-          <div className="mx-auto w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
+          <div className="mx-auto w-20 h-20 bg-gradient-to-br from-[#DF2A33] to-[#96161C] rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform">
             <KeyRound className="w-12 h-12 text-white" />
           </div>
           
           <div className="space-y-2">
-            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-[#DF2A33] to-[#96161C] bg-clip-text text-transparent">
               Ubah Password
             </CardTitle>
             <CardDescription className="text-base">
@@ -209,7 +209,7 @@ export default function ResetPasswordPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transition-all"
+                className="w-full h-12 text-base font-semibold bg-gradient-to-r from-[#DF2A33] to-[#96161C] hover:from-[#DF2A33] hover:to-[#96161C] shadow-lg hover:shadow-xl transition-all"
                 data-testid="button-submit"
               >
                 {isLoading ? (

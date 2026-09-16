@@ -574,7 +574,7 @@ export default function BlastWhatsApp() {
         >
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <motion.div variants={itemVariants}>
-                    <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400">
+                    <h1 className="text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-[#DF2A33] to-[#96161C] dark:from-[#DF2A33] dark:to-[#96161C]">
                         Blast WhatsApp
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-2 text-lg">
@@ -585,7 +585,7 @@ export default function BlastWhatsApp() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <motion.div variants={itemVariants}>
-                    <TabsList className="grid w-full grid-cols-4 lg:w-[640px] p-1 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-200/50 dark:border-gray-700/50 rounded-xl shadow-sm">
+                    <TabsList>
                         <TabsTrigger
                             value="compose"
                             className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 data-[state=active]:shadow-sm transition-all duration-300"
@@ -606,7 +606,7 @@ export default function BlastWhatsApp() {
                         </TabsTrigger>
                         <TabsTrigger
                             value="evaluation"
-                            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-green-600 dark:data-[state=active]:text-green-400 data-[state=active]:shadow-sm transition-all duration-300"
+                            className="rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-gray-700 data-[state=active]:text-foreground dark:data-[state=active]:text-muted-foreground data-[state=active]:shadow-sm transition-all duration-300"
                         >
                             <div className="flex items-center gap-2">
                                 <BarChart3 className="w-4 h-4" />
@@ -719,7 +719,7 @@ export default function BlastWhatsApp() {
                                                 onChange={(e) => setUploadedUrls([e.target.value])}
                                             />
                                             {uploadedUrls[0] && (
-                                                <div className="flex items-center gap-2 text-sm text-green-600">
+                                                <div className="flex items-center gap-2 text-sm text-foreground">
                                                     <CheckCircle className="w-4 h-4" /> URL siap digunakan
                                                 </div>
                                             )}
@@ -757,7 +757,7 @@ export default function BlastWhatsApp() {
                                             </Button>
                                         </div>
                                         {testResult && (
-                                            <p className={`text-xs ${testResult.success ? 'text-green-600' : 'text-red-600'}`}>
+                                            <p className={`text-xs ${testResult.success ? 'text-foreground' : 'text-red-600'}`}>
                                                 {testResult.message}
                                             </p>
                                         )}
@@ -781,7 +781,7 @@ export default function BlastWhatsApp() {
                                                 ) : jobStatus.status === 'cancelled' ? (
                                                     <StopCircle className="w-5 h-5 text-red-500" />
                                                 ) : (
-                                                    <CheckCircle className="w-5 h-5 text-green-500" />
+                                                    <CheckCircle className="w-5 h-5 text-foreground" />
                                                 )}
                                                 {jobStatus.status === 'processing' ? 'Mengirim Pesan...' :
                                                     jobStatus.status === 'cancelled' ? 'Dibatalkan' :
@@ -810,9 +810,9 @@ export default function BlastWhatsApp() {
                                             <Progress value={(jobStatus.sent + jobStatus.failed) / jobStatus.total * 100} className="h-2" />
 
                                             <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                                                <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
-                                                    <div className="text-xl font-bold text-green-600">{jobStatus.sent}</div>
-                                                    <div className="text-xs text-green-600/80">Berhasil</div>
+                                                <div className="bg-muted p-2 rounded-lg">
+                                                    <div className="text-xl font-bold text-foreground">{jobStatus.sent}</div>
+                                                    <div className="text-xs text-foreground/80">Berhasil</div>
                                                 </div>
                                                 <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
                                                     <div className="text-xl font-bold text-red-600">{jobStatus.failed}</div>
@@ -1043,9 +1043,9 @@ export default function BlastWhatsApp() {
                                                     <p className="font-bold text-gray-700">{result.totalRecipients}</p>
                                                     <p className="text-[10px] text-gray-400 uppercase">Total</p>
                                                 </div>
-                                                <div className="p-2 bg-green-50 rounded-lg shadow-sm border border-green-100">
-                                                    <p className="font-bold text-green-600">{result.sent}</p>
-                                                    <p className="text-[10px] text-green-600/70 uppercase">Sukses</p>
+                                                <div className="p-2 bg-muted rounded-lg shadow-sm border border-border">
+                                                    <p className="font-bold text-foreground">{result.sent}</p>
+                                                    <p className="text-[10px] text-foreground/70 uppercase">Sukses</p>
                                                 </div>
                                                 <div className="p-2 bg-red-50 rounded-lg shadow-sm border border-red-100">
                                                     <p className="font-bold text-red-600">{result.failed}</p>
@@ -1062,7 +1062,7 @@ export default function BlastWhatsApp() {
                                         <Button
                                             onClick={handleBlast}
                                             disabled={blastMutation.isPending || !message.trim() || !!currentJobId}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/25 h-12 text-base font-semibold group transition-all duration-300 hover:scale-[1.02]"
+                                            className="w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C] hover:from-[#DF2A33] hover:to-[#96161C] text-white shadow-lg shadow-blue-500/25 h-12 text-base font-semibold group transition-all duration-300 hover:scale-[1.02]"
                                         >
                                             {blastMutation.isPending ? (
                                                 <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Memproses...</>
@@ -1129,7 +1129,7 @@ export default function BlastWhatsApp() {
                                                 </div>
                                                 <div className="flex items-center gap-6 text-center">
                                                     <div className="hidden sm:block">
-                                                        <p className="text-lg font-bold text-green-600">{blast.sentCount}</p>
+                                                        <p className="text-lg font-bold text-foreground">{blast.sentCount}</p>
                                                         <p className="text-[10px] text-gray-400 uppercase tracking-widest">Sent</p>
                                                     </div>
                                                     <div className="hidden sm:block">
@@ -1165,21 +1165,21 @@ export default function BlastWhatsApp() {
                                     <>
                                         {/* Summary Cards */}
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200 dark:border-blue-800">
+                                            <Card className="bg-gradient-to-br from-blue-50 to-[#96161C] dark:from-[#DF2A33]/20 dark:to-[#96161C]/20 border-blue-200 dark:border-blue-800">
                                                 <CardContent className="p-4 text-center">
                                                     <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{evaluationStats.totalBlasts}</p>
                                                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total Blast</p>
                                                 </CardContent>
                                             </Card>
-                                            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
+                                            <Card className="bg-gradient-to-br from-purple-50 to-[#96161C] dark:from-[#DF2A33]/20 dark:to-[#96161C]/20 border-purple-200 dark:border-purple-800">
                                                 <CardContent className="p-4 text-center">
                                                     <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">{evaluationStats.totalRecipients}</p>
                                                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Total Penerima</p>
                                                 </CardContent>
                                             </Card>
-                                            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800">
+                                            <Card className="bg-gradient-to-br from-primary to-primary dark:from-primary dark:to-primary border-border">
                                                 <CardContent className="p-4 text-center">
-                                                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{evaluationStats.totalSent}</p>
+                                                    <p className="text-3xl font-bold text-foreground">{evaluationStats.totalSent}</p>
                                                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Berhasil Terkirim</p>
                                                 </CardContent>
                                             </Card>
@@ -1192,12 +1192,12 @@ export default function BlastWhatsApp() {
                                         </div>
 
                                         {/* Success Rate */}
-                                        <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border-indigo-200 dark:border-indigo-800">
+                                        <Card className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-[#DF2A33]/20 dark:to-[#96161C]/20 border-indigo-200 dark:border-indigo-800">
                                             <CardContent className="p-6">
                                                 <div className="flex items-center justify-between mb-3">
                                                     <h3 className="font-semibold text-gray-700 dark:text-gray-300">Success Rate</h3>
                                                     <div className="flex items-center gap-2">
-                                                        <TrendingUp className="w-5 h-5 text-green-500" />
+                                                        <TrendingUp className="w-5 h-5 text-foreground" />
                                                         <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
                                                             {evaluationStats.successRate.toFixed(1)}%
                                                         </span>
@@ -1222,7 +1222,7 @@ export default function BlastWhatsApp() {
                                                                 </div>
                                                                 <div className="flex items-center gap-4">
                                                                     <div className="text-right">
-                                                                        <p className="text-sm text-green-600 dark:text-green-400 font-semibold">{blast.sent} sent</p>
+                                                                        <p className="text-sm text-foreground font-semibold">{blast.sent} sent</p>
                                                                     </div>
                                                                     <div className="text-right">
                                                                         <p className="text-sm text-red-600 dark:text-red-400 font-semibold">{blast.failed} failed</p>
@@ -1391,8 +1391,8 @@ export default function BlastWhatsApp() {
                                     <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">{blastDetail.blast.totalRecipients}</p>
                                     <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Total</p>
                                 </div>
-                                <div className="p-4 bg-green-50/50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800">
-                                    <p className="text-3xl font-bold text-green-600 dark:text-green-400">{blastDetail.blast.sentCount}</p>
+                                <div className="p-4 bg-muted rounded-xl border border-border">
+                                    <p className="text-3xl font-bold text-foreground">{blastDetail.blast.sentCount}</p>
                                     <p className="text-xs text-gray-500 uppercase tracking-widest mt-1">Terkirim</p>
                                 </div>
                                 <div className="p-4 bg-red-50/50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800">
@@ -1412,7 +1412,7 @@ export default function BlastWhatsApp() {
                                 <ScrollArea className="h-[300px] border rounded-lg">
                                     <div className="p-2 space-y-1">
                                         {blastDetail.recipients.map((r: any) => (
-                                            <div key={r.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded text-sm">
+                                            <div key={r.id} className="flex items-center justify-between p-2 hover:bg-muted rounded text-sm">
                                                 <div>
                                                     <p className="font-medium">{r.employeeName}</p>
                                                     <p className="text-gray-500">{r.phone}</p>

@@ -136,7 +136,7 @@ export default function TnaRekap() {
                     <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
                         <RefreshCw className="w-4 h-4" /> Refresh
                     </Button>
-                    <Button onClick={handleExport} className="gap-2 bg-green-600 hover:bg-green-700">
+                    <Button onClick={handleExport} className="gap-2 bg-primary hover:bg-primary/90">
                         <Download className="w-4 h-4" /> Export CSV
                     </Button>
                 </div>
@@ -168,8 +168,8 @@ export default function TnaRekap() {
                 </Card>
                 <Card className="border-none shadow-sm">
                     <CardContent className="p-4 flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/20">
-                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        <div className="p-2 rounded-lg bg-muted">
+                            <CheckCircle2 className="w-5 h-5 text-foreground" />
                         </div>
                         <div>
                             <p className="text-xs text-gray-500">Total Complied</p>
@@ -264,7 +264,7 @@ export default function TnaRekap() {
                         <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
-                                    <TableRow className="bg-gray-50 dark:bg-zinc-900">
+                                    <TableRow>
                                         <TableHead className="font-semibold text-xs">NIK</TableHead>
                                         <TableHead className="font-semibold text-xs">Nama Karyawan</TableHead>
                                         <TableHead className="font-semibold text-xs">Jabatan</TableHead>
@@ -299,7 +299,7 @@ export default function TnaRekap() {
                                                 </span>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                                                <span className="px-2 py-0.5 rounded text-xs font-medium bg-muted text-foreground">
                                                     {row.actualComplied}
                                                 </span>
                                             </TableCell>
@@ -307,7 +307,7 @@ export default function TnaRekap() {
                                                 {row.planMandatory > 0 ? (
                                                     <span className={cn(
                                                         "px-2 py-0.5 rounded text-xs font-bold",
-                                                        (row.mandatoryCompliance ?? 0) >= 100 ? "bg-green-100 text-green-700" :
+                                                        (row.mandatoryCompliance ?? 0) >= 100 ? "bg-muted text-foreground" :
                                                             (row.mandatoryCompliance ?? 0) >= 50 ? "bg-yellow-100 text-yellow-700" :
                                                                 "bg-red-100 text-red-700"
                                                     )}>

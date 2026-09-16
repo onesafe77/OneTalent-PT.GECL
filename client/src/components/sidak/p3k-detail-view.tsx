@@ -76,7 +76,7 @@ export function P3kDetailView({ session, items }: P3kDetailViewProps) {
                                         className={cn(
                                             "px-3 py-1 text-xs font-bold uppercase",
                                             item.isAvailable
-                                                ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800"
+                                                ? "bg-muted text-foreground border-border"
                                                 : "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
                                         )}
                                     >

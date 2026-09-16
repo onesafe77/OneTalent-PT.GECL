@@ -13,7 +13,6 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  BookOpen,
   LayoutList,
   Download,
   AlertTriangle,
@@ -29,7 +28,6 @@ import {
   ClipboardList,
   BarChart3,
 } from "lucide-react";
-import SafetyPatrolTemplates from "@/components/safety-patrol-templates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -346,34 +344,45 @@ export default function SafetyPatrol() {
 
   const isAnyParsing = batchReparseMutation.isPending || reParseAllMutation.isPending;
 
+  // Kesehatan jalur masuk: laporan terakhir & berapa hari tanpa laporan.
+  // Ditampilkan agar "bot diam" terlihat di halaman, bukan disimpulkan dari angka 0.
+  const tanggalTerakhir = reports?.length
+    ? reports.map(r => r.tanggal).sort().slice(-1)[0]
+    : null;
+  const hariSenyap = tanggalTerakhir
+    ? Math.floor((Date.now() - new Date(tanggalTerakhir + "T00:00:00").getTime()) / 86400000)
+    : null;
+
   return (
-    <div className="min-h-screen bg-gray-50/50">
+    <div className="min-h-screen bg-muted/30">
       {/* ── PAGE HEADER ─────────────────────────────────────────── */}
-      <div className="bg-white border-b px-4 py-4 sm:px-6 sm:py-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 shrink-0 bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-sm">
-              <Shield className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-900">Safety Patrol Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-0.5">Rekap laporan dari WhatsApp secara real-time</p>
-            </div>
+      <div className="border-b border-border bg-card px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              HSE &middot; Safety Patrol
+            </p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+              Safety Patrol
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Laporan lapangan masuk otomatis lewat bot Telegram
+            </p>
           </div>
-          <div className="w-full sm:w-auto grid grid-cols-3 sm:flex gap-2">
-            <Button asChild variant="outline" size="sm" className="h-10 sm:h-9 rounded-xl bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-700 text-xs sm:text-sm px-2 sm:px-3">
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button onClick={() => refetch()} variant="ghost" size="sm" className="h-9 px-2.5 text-muted-foreground">
+              <RefreshCw className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Button onClick={handleExportExcel} variant="outline" size="sm" className="h-9 flex-1 sm:flex-none">
+              <Download className="mr-1.5 h-4 w-4 shrink-0" />
+              Export Excel
+            </Button>
+            <Button asChild size="sm" className="h-9 flex-1 sm:flex-none">
               <a href="/workspace/safety-patrol/kpi">
-                <BarChart2 className="h-4 w-4 mr-1 sm:mr-1.5 shrink-0" />
-                <span className="truncate">KPI Evaluasi</span>
+                <BarChart2 className="mr-1.5 h-4 w-4 shrink-0" />
+                KPI Evaluasi
               </a>
-            </Button>
-            <Button onClick={handleExportExcel} variant="outline" size="sm" className="h-10 sm:h-9 rounded-xl text-xs sm:text-sm px-2 sm:px-3">
-              <Download className="h-4 w-4 mr-1 sm:mr-1.5 shrink-0" />
-              <span className="truncate">Export Excel</span>
-            </Button>
-            <Button onClick={() => refetch()} variant="outline" size="sm" className="h-10 sm:h-9 rounded-xl text-xs sm:text-sm px-2 sm:px-3">
-              <RefreshCw className="h-4 w-4 mr-1 sm:mr-1.5 shrink-0" />
-              <span className="truncate">Refresh</span>
             </Button>
           </div>
         </div>
@@ -381,20 +390,16 @@ export default function SafetyPatrol() {
 
       <div className="p-4 sm:p-6 pb-24 lg:pb-6 space-y-6">
         <Tabs defaultValue="reports" className="w-full">
-          <TabsList className="h-10 bg-white border w-full sm:w-auto justify-start overflow-x-auto">
-            <TabsTrigger value="reports" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+          <TabsList className="h-10 justify-start overflow-x-auto">
+            <TabsTrigger value="reports" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               <LayoutList className="h-4 w-4" />
               Laporan
             </TabsTrigger>
-            <TabsTrigger value="templates" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
-              <BookOpen className="h-4 w-4" />
-              Knowledge Templates
-            </TabsTrigger>
-            <TabsTrigger value="job" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <TabsTrigger value="job" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               <CheckCircle className="h-4 w-4" />
               Pencapaian Job
             </TabsTrigger>
-            <TabsTrigger value="analisis" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-orange-50 data-[state=active]:text-orange-700">
+            <TabsTrigger value="analisis" className="flex items-center gap-2 whitespace-nowrap shrink-0 text-xs sm:text-sm data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               <BarChart3 className="h-4 w-4" />
               Analisis Kegiatan
             </TabsTrigger>
@@ -410,33 +415,46 @@ export default function SafetyPatrol() {
 
           <TabsContent value="reports" className="mt-5 space-y-5">
 
-            {/* ── STAT CARDS ──────────────────────────────────────── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: "Total Laporan", value: stats?.totalReports || 0, color: "text-gray-900", bg: "bg-white", icon: <FileText className="h-5 w-5 text-gray-400" />, border: "border" },
-                { label: "Daily Briefing", value: briefingCount, color: "text-blue-700", bg: "bg-blue-50", icon: <MessageSquare className="h-5 w-5 text-blue-500" />, border: "border-blue-100" },
-                { label: "Temuan", value: temuanCount, color: "text-orange-700", bg: "bg-orange-50", icon: <AlertTriangle className="h-5 w-5 text-orange-500" />, border: "border-orange-100" },
-                { label: "Laporan Lain", value: otherCount, color: "text-gray-700", bg: "bg-gray-50", icon: <Activity className="h-5 w-5 text-gray-400" />, border: "border" },
-              ].map((s) => (
-                <Card key={s.label} className={`${s.bg} ${s.border} shadow-none`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">{s.label}</span>
-                      {s.icon}
-                    </div>
-                    <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {/* ── RINGKASAN + STATUS JALUR MASUK ───────────────────── */}
+            <div className="rounded-lg border border-border bg-card">
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-3 px-5 py-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Laporan</p>
+                  <p className="text-2xl font-semibold tabular-nums text-foreground">{stats?.totalReports || 0}</p>
+                </div>
+                <div className="hidden h-9 w-px bg-border sm:block" />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Daily Briefing</p>
+                  <p className="text-2xl font-semibold tabular-nums text-foreground">{briefingCount}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Temuan</p>
+                  <p className={`text-2xl font-semibold tabular-nums ${temuanCount > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                    {temuanCount}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Laporan Lain</p>
+                  <p className="text-2xl font-semibold tabular-nums text-foreground">{otherCount}</p>
+                </div>
+                <div className="hidden h-9 w-px bg-border sm:block" />
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Laporan Terakhir</p>
+                  <p className={`text-sm font-medium ${hariSenyap !== null && hariSenyap > 2 ? "text-destructive" : "text-foreground"}`}>
+                    {tanggalTerakhir ? formatDate(tanggalTerakhir) : "—"}
+                  </p>
+                </div>
+              </div>
 
-            {/* ── WEBHOOK INFO ─────────────────────────────────────── */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-              <MessageSquare className="h-4 w-4 text-blue-600 shrink-0" />
-              <span className="text-blue-700 font-medium">Webhook URL:</span>
-              <code className="text-blue-800 bg-white border border-blue-200 px-2 py-0.5 rounded text-xs break-all flex-1">
-                {window.location.origin}/api/webhook/whatsapp
-              </code>
+              {hariSenyap !== null && hariSenyap > 2 && (
+                <div className="flex items-start gap-2 border-t border-border px-5 py-3 text-sm text-destructive">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p>
+                    Tidak ada laporan masuk selama <span className="font-semibold">{hariSenyap} hari</span>.
+                    Periksa apakah petugas masih mengirim ke bot Telegram.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* ── FILTER BAR ───────────────────────────────────────── */}
@@ -496,10 +514,10 @@ export default function SafetyPatrol() {
 
             {/* ── REPORTS TABLE ────────────────────────────────────── */}
             <Card className="shadow-none border">
-              <CardHeader className="px-5 py-4 border-b bg-gray-50/60">
+              <CardHeader className="border-b border-border px-5 py-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <h2 className="font-semibold text-gray-800">
+                    <h2 className="font-semibold text-foreground">
                       Daftar Laporan
                       <span className="ml-2 text-gray-400 font-normal text-sm">({filteredReports.length})</span>
                     </h2>
@@ -517,7 +535,7 @@ export default function SafetyPatrol() {
                       <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${batchReparseMutation.isPending ? 'animate-spin' : ''}`} />
                       Re-parse 50
                     </Button>
-                    <Button size="sm" className="h-8 text-xs bg-amber-600 hover:bg-amber-700"
+                    <Button size="sm" variant="outline" className="h-8 text-xs"
                       onClick={() => reParseAllMutation.mutate()}
                       disabled={isAnyParsing || emptyCount === 0}>
                       <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${reParseAllMutation.isPending ? 'animate-spin' : ''}`} />
@@ -543,29 +561,29 @@ export default function SafetyPatrol() {
                   <div className="flex flex-col items-center justify-center py-16 text-gray-400">
                     <MessageSquare className="h-12 w-12 mb-3 opacity-20" />
                     <p className="font-medium text-gray-500">Belum ada laporan masuk</p>
-                    <p className="text-sm mt-1">Kirim pesan ke WhatsApp untuk mulai</p>
+                    <p className="text-sm mt-1">Kirim laporan ke bot Telegram untuk mulai</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
-                        <TableRow className="bg-gray-50 border-b hover:bg-gray-50">
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[110px] pl-5">Tanggal</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[100px]">Waktu</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[80px]">Shift</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Lokasi</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Kegiatan</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Pelaksana</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[80px]">Foto</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Temuan</TableHead>
-                          <TableHead className="text-xs font-semibold text-gray-600 uppercase tracking-wide w-[80px] pr-5 text-right">Aksi</TableHead>
+                        <TableRow className="border-b">
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide w-[110px] pl-5">Tanggal</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide w-[100px]">Waktu</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide w-[80px]">Shift</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide">Lokasi</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide">Kegiatan</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide">Pelaksana</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide w-[80px]">Foto</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide">Temuan</TableHead>
+                          <TableHead className="text-xs font-semibold uppercase tracking-wide w-[80px] pr-5 text-right">Aksi</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredReports.map((report) => (
                           <TableRow
                             key={report.id}
-                            className="cursor-pointer hover:bg-orange-50/40 transition-colors border-b"
+                            className="cursor-pointer hover:bg-muted/50 transition-colors border-b"
                             onClick={() => handleViewDetail(report)}
                           >
                             {/* Tanggal */}
@@ -651,7 +669,7 @@ export default function SafetyPatrol() {
                             {/* Aksi */}
                             <TableCell className="py-3 pr-5 text-right">
                               <div className="flex justify-end gap-1">
-                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-orange-100"
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-muted"
                                   onClick={e => { e.stopPropagation(); handleViewDetail(report); }}>
                                   <ChevronRight className="h-4 w-4 text-gray-500" />
                                 </Button>
@@ -691,7 +709,7 @@ export default function SafetyPatrol() {
 
                 {selectedReport && (
                   <Tabs defaultValue="info" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4 h-9">
+                    <TabsList>
                       <TabsTrigger value="info" className="text-xs">Info</TabsTrigger>
                       <TabsTrigger value="attendance" className="text-xs">Kehadiran ({selectedReport.attendance?.length || 0})</TabsTrigger>
                       <TabsTrigger value="raw" className="text-xs">Pesan Asli</TabsTrigger>
@@ -729,11 +747,11 @@ export default function SafetyPatrol() {
 
                         {/* Temuan */}
                         {selectedReport.temuan && (
-                          <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
-                            <p className="text-xs font-medium text-orange-600 mb-1 flex items-center gap-1">
+                          <div className="mb-4 rounded-lg border-l-2 border-destructive bg-destructive/5 p-3">
+                            <p className="mb-1 flex items-center gap-1 text-xs font-medium text-destructive">
                               <AlertTriangle className="h-3.5 w-3.5" /> Temuan
                             </p>
-                            <p className="text-sm text-orange-900">{selectedReport.temuan}</p>
+                            <p className="text-sm text-foreground">{selectedReport.temuan}</p>
                           </div>
                         )}
 
@@ -777,7 +795,7 @@ export default function SafetyPatrol() {
                         {selectedReport.attendance?.length ? (
                           <Table>
                             <TableHeader>
-                              <TableRow className="bg-gray-50">
+                              <TableRow>
                                 <TableHead className="text-xs">Unit</TableHead>
                                 <TableHead className="text-xs">Shift</TableHead>
                                 <TableHead className="text-xs">Status</TableHead>
@@ -818,10 +836,10 @@ export default function SafetyPatrol() {
 
                     <TabsContent value="ai" className="mt-4">
                       <ScrollArea className="h-[380px]">
-                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                          <p className="text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">Analisis AI</p>
-                          <p className="text-sm text-blue-900 leading-relaxed">
-                            {selectedReport.aiAnalysis || <span className="text-blue-400 italic">Tidak ada analisis tersedia</span>}
+                        <div className="rounded-lg border border-border bg-muted/40 p-4">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analisis AI</p>
+                          <p className="text-sm leading-relaxed text-foreground">
+                            {selectedReport.aiAnalysis || <span className="italic text-muted-foreground">Tidak ada analisis tersedia</span>}
                           </p>
                         </div>
                       </ScrollArea>
@@ -833,9 +851,6 @@ export default function SafetyPatrol() {
 
           </TabsContent>
 
-          <TabsContent value="templates" className="mt-5">
-            <SafetyPatrolTemplates />
-          </TabsContent>
         </Tabs>
       </div>
     </div>
@@ -901,25 +916,25 @@ function JobAchievementTab() {
             const initials = String(o.officerName || "?")
               .split(/\s+/).map((w: string) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase();
             const tone = o.pct >= 80
-              ? { badge: "bg-green-100 text-green-700", bar: "from-green-500 to-emerald-400", avatar: "from-green-500 to-emerald-500", ring: "ring-green-400" }
+              ? { badge: "bg-muted text-foreground", bar: "bg-foreground/70", avatar: "bg-muted text-foreground", ring: "ring-border" }
               : o.pct >= 50
-                ? { badge: "bg-amber-100 text-amber-700", bar: "from-amber-500 to-orange-400", avatar: "from-amber-500 to-orange-500", ring: "ring-amber-400" }
-                : { badge: "bg-red-100 text-red-700", bar: "from-red-500 to-rose-400", avatar: "from-red-500 to-rose-500", ring: "ring-red-400" };
+                ? { badge: "bg-amber-100 text-amber-800", bar: "bg-amber-500", avatar: "bg-amber-100 text-amber-800", ring: "ring-amber-300" }
+                : { badge: "bg-destructive/10 text-destructive", bar: "bg-destructive", avatar: "bg-destructive/10 text-destructive", ring: "ring-destructive/40" };
             return (
             <div key={`${o.officerName}-${o.shift}`}
-              className="rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:shadow-md hover:border-gray-200 hover:-translate-y-0.5">
+              className="rounded-lg border border-border bg-card p-5 transition-colors hover:border-foreground/20">
               <div className="flex items-center gap-3 mb-1.5">
                 {o.photoUrl ? (
                   <img src={o.photoUrl} alt={o.officerName}
                     className={`h-10 w-10 shrink-0 rounded-xl object-cover ring-2 ring-offset-1 ${tone.ring} shadow-sm`}
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                 ) : (
-                  <div className={`h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br ${tone.avatar} text-white flex items-center justify-center text-sm font-bold shadow-sm`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-sm font-semibold ${tone.avatar}`}>
                     {initials}
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <div className="font-bold tracking-tight text-gray-900 truncate">{o.officerName}</div>
+                  <div className="truncate font-semibold tracking-tight text-foreground">{o.officerName}</div>
                   <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400 truncate">
                     {o.team || "-"} · {o.shift} · {o.lokasi || "-"}
                   </div>
@@ -928,15 +943,15 @@ function JobAchievementTab() {
                   {o.done}/{o.total} · {o.pct}%
                 </span>
               </div>
-              <div className="h-2 w-full bg-gray-100 rounded-full my-3 overflow-hidden">
-                <div className={`h-full rounded-full bg-gradient-to-r ${tone.bar} transition-all`} style={{ width: `${o.pct}%` }} />
+              <div className="my-3 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className={`h-full rounded-full ${tone.bar} transition-all`} style={{ width: `${o.pct}%` }} />
               </div>
               <ul className="space-y-2.5">
                 {o.items.map((it: any, idx: number) => (
                   <li key={idx} className="text-sm">
                     <div className="flex items-center gap-2.5">
                       {it.achieved
-                        ? <CheckCircle className="h-[18px] w-[18px] text-green-600 flex-shrink-0" />
+                        ? <CheckCircle className="h-[18px] w-[18px] text-foreground flex-shrink-0" />
                         : <span className="h-[18px] w-[18px] rounded-full border-2 border-dashed border-gray-300 flex-shrink-0" />}
                       <span className={it.achieved ? "font-semibold text-gray-800" : "text-gray-400"}>{it.activity}</span>
                     </div>

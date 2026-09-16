@@ -253,7 +253,7 @@ export default function ActivityCalendar() {
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 z-50 relative"
+                    className="text-gray-600 hover:text-gray-900 hover:bg-muted z-50 relative"
                     onMouseDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                     onClick={(e) => {
@@ -270,7 +270,7 @@ export default function ActivityCalendar() {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 p-2 md:p-6">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-indigo-600 to-violet-600 p-6 rounded-2xl shadow-lg text-white">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-[#DF2A33] to-[#96161C] p-6 rounded-2xl shadow-lg text-white">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Activity Calendar</h1>
                     <p className="text-indigo-100 text-sm max-w-xl">
@@ -327,8 +327,8 @@ export default function ActivityCalendar() {
                             </div>
                             <div className="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-100">
                                 <Label className="flex items-center gap-2 text-slate-600">
-                                    <div className="p-1.5 bg-green-100 rounded-full">
-                                        <Smartphone className="w-4 h-4 text-green-600" />
+                                    <div className="p-1.5 bg-muted rounded-full">
+                                        <Smartphone className="w-4 h-4 text-foreground" />
                                     </div>
                                     Ingatkan via WhatsApp
                                 </Label>

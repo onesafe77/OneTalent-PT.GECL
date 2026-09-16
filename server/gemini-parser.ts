@@ -137,13 +137,41 @@ export function resolveReportDate(textDate: string | undefined, rawText: string,
 function stripInvisible(s: string): string {
   return (s || "").replace(/[​‌‍‎‏﻿]/g, "");
 }
+// Label metadata yang boleh MENGAKHIRI nilai label lain. Sebagian petugas menulis
+// beberapa field dalam SATU baris:
+//   "Tanggal. : Selasa,15 Sep 2026 Shift. : I ( siang ) Waktu. : 09:10 Lokasi. : Hauling Road Phase 4"
+// Tanpa pemotong ini, nilai "Tanggal" menelan sisa baris sampai ujung.
+const LABEL_PEMOTONG =
+  /\s+(?:hari\s*\/?\s*(?:tgl|tanggal)|tanggal|tgl|shift|waktu(?:\s+pelaksanaan)?|jam|lokasi|location|total\s+samp[el]{2}|samp[el]{2}|sempel|pelaksana|nama\s+pelaksana|team|kegiatan|temuan|pemateri)\s*\.?\s*[:\-]/i;
+
+/** Potong nilai di label berikutnya (bila ada) lalu rapikan tanda baca menggantung. */
+function potongDiLabelBerikut(nilai: string): string {
+  const m = nilai.match(LABEL_PEMOTONG);
+  const potong = m ? nilai.slice(0, m.index) : nilai;
+  return potong.trim().replace(/[\-–,;.]+$/, "").trim();
+}
+
 function lineVal(text: string, ...labels: string[]): string {
-  for (const raw of stripInvisible(text).split(/\r?\n/)) {
-    const ln = raw;
+  const baris = stripInvisible(text).split(/\r?\n/);
+
+  // Tahap 1 — label di AWAL baris. Bentuk normal, dicoba lebih dulu agar
+  // laporan yang sudah rapi tidak berubah perilakunya.
+  for (const ln of baris) {
     for (const lab of labels) {
       // Izinkan kata tambahan antara label & ':' (mis. "Waktu pelaksanaan :", "Lokasi sidak :")
       const mm = ln.match(new RegExp(`^\\s*\\**\\s*${lab}[^:\\n*]*\\**\\s*[:\\-]\\s*(.+)$`, "i"));
-      if (mm) return mm[1].replace(/\*/g, "").trim();
+      if (mm) return potongDiLabelBerikut(mm[1].replace(/\*/g, ""));
+    }
+  }
+
+  // Tahap 2 — label di TENGAH baris. Dulu dilewati karena jangkar `^`, sehingga
+  // "Lokasi" yang berdempet di belakang "Waktu" tak pernah terbaca dan bot
+  // menanyakan lokasi padahal sudah tertulis (4/4 laporan 15 Sep 2026).
+  // Tetap menuntut bentuk "<label> :" agar prosa biasa tidak ikut tertangkap.
+  for (const ln of baris) {
+    for (const lab of labels) {
+      const mm = ln.match(new RegExp(`(?:^|\\s)${lab}\\s*\\.?\\s*[:\\-]\\s*(.+)$`, "i"));
+      if (mm) return potongDiLabelBerikut(mm[1].replace(/\*/g, ""));
     }
   }
   return "";
@@ -258,7 +286,7 @@ export function extractTemuan(text: string): string {
   return "";
 }
 
-function heuristicExtract(text: string): Partial<ParsedReport> {
+export function heuristicExtract(text: string): Partial<ParsedReport> {
   const out: Partial<ParsedReport> = {};
   const titleM = text.match(/^\s*\*([^*\n]{3,60})\*/m); // judul *...* di baris pertama
   if (titleM) out.kegiatan = titleM[1].trim();

@@ -77,7 +77,7 @@ const statusColors: Record<string, string> = {
     "IN_REVIEW": "bg-amber-100 text-amber-700 border-amber-300",
     "APPROVED": "bg-blue-100 text-blue-700 border-blue-300",
     "ESIGN_PENDING": "bg-purple-100 text-purple-700 border-purple-300",
-    "SIGNED": "bg-green-100 text-green-700 border-green-300",
+    "SIGNED": "bg-muted text-foreground border-border",
     "PUBLISHED": "bg-teal-100 text-teal-700 border-teal-300",
     "ARCHIVED": "bg-slate-100 text-slate-700 border-slate-300",
     "OBSOLETE": "bg-red-100 text-red-700 border-red-300",
@@ -856,7 +856,7 @@ export default function DocumentControlPage() {
                             </div>
                         ) : inbox.length === 0 ? (
                             <div className="text-center py-12">
-                                <CheckCircle className="w-16 h-16 text-green-300 mx-auto mb-4" />
+                                <CheckCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                                 <p className="text-gray-500 font-medium">Tidak ada dokumen menunggu approval</p>
                                 <p className="text-gray-400 text-sm mt-1">Semua dokumen sudah diproses</p>
                             </div>
@@ -939,7 +939,7 @@ export default function DocumentControlPage() {
                                                 </Button>
                                                 <Button
                                                     size="sm"
-                                                    className="bg-green-600 hover:bg-green-700"
+                                                    className="bg-primary hover:bg-primary/90"
                                                     onClick={() => {
                                                         setSelectedInboxItem(item);
                                                         setDecisionData({ decision: "APPROVED", comments: "" });
@@ -986,7 +986,7 @@ export default function DocumentControlPage() {
                                     <div
                                         key={doc.distribution_id}
                                         className={`border rounded-lg p-4 transition-colors ${doc.acknowledged_at
-                                            ? 'bg-green-50 border-green-200'
+                                            ? 'bg-muted border-border'
                                             : doc.is_mandatory
                                                 ? 'bg-amber-50 border-amber-200'
                                                 : 'bg-white border-gray-200'
@@ -999,7 +999,7 @@ export default function DocumentControlPage() {
                                                         {doc.document_code}
                                                     </span>
                                                     {doc.acknowledged_at ? (
-                                                        <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                                                        <Badge variant="outline" className="text-xs bg-muted text-foreground border-border">
                                                             Sudah Baca
                                                         </Badge>
                                                     ) : doc.is_mandatory ? (
@@ -1024,7 +1024,7 @@ export default function DocumentControlPage() {
                                                         </span>
                                                     )}
                                                     {doc.acknowledged_at && (
-                                                        <span className="text-green-600">
+                                                        <span className="text-foreground">
                                                             Dibaca: {format(new Date(doc.acknowledged_at), "dd MMM yyyy HH:mm", { locale: id })}
                                                         </span>
                                                     )}
@@ -1046,7 +1046,7 @@ export default function DocumentControlPage() {
                                                 {!doc.acknowledged_at && (
                                                     <Button
                                                         size="sm"
-                                                        className="bg-green-600 hover:bg-green-700"
+                                                        className="bg-primary hover:bg-primary/90"
                                                         onClick={() => acknowledgeMutation.mutate(doc.distribution_id)}
                                                         disabled={acknowledgeMutation.isPending}
                                                     >
@@ -1097,14 +1097,14 @@ export default function DocumentControlPage() {
                                     </thead>
                                     <tbody>
                                         {externalDocs.map((doc: any) => (
-                                            <tr key={doc.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => doc.file_url && window.open(doc.file_url, '_blank')}>
+                                            <tr key={doc.id} className="border-b hover:bg-muted cursor-pointer" onClick={() => doc.file_url && window.open(doc.file_url, '_blank')}>
                                                 <td className="py-2 px-3 font-mono text-xs">{doc.document_code}</td>
                                                 <td className="py-2 px-3">{doc.title}</td>
                                                 <td className="py-2 px-3 text-gray-500">{doc.source}</td>
                                                 <td className="py-2 px-3">{doc.version_number || "-"}</td>
                                                 <td className="py-2 px-3">
                                                     <Badge variant="outline" className={
-                                                        doc.status === "ACTIVE" ? "bg-green-100 text-green-700" :
+                                                        doc.status === "ACTIVE" ? "bg-muted text-foreground" :
                                                             "bg-gray-100 text-gray-700"
                                                     }>
                                                         {doc.status}
@@ -1199,8 +1199,8 @@ export default function DocumentControlPage() {
                                 </p>
                                 <p className="text-xs text-gray-500">Uncontrolled</p>
                             </div>
-                            <div className="bg-green-50 rounded-lg p-3 border border-green-100">
-                                <p className="text-xl font-bold text-green-600">
+                            <div className="bg-muted rounded-lg p-3 border border-border">
+                                <p className="text-xl font-bold text-foreground">
                                     {masterlist.filter((d: any) => d.lifecycle_status === "PUBLISHED").length}
                                 </p>
                                 <p className="text-xs text-gray-500">Published</p>
@@ -1244,7 +1244,7 @@ export default function DocumentControlPage() {
                                 </thead>
                                 <tbody>
                                     {controlFilteredDocs.map((doc: any) => (
-                                        <tr key={doc.id} className="border-b hover:bg-gray-50 cursor-pointer" onClick={() => setLocation(`/workspace/hse/k3/document/${doc.id}`)}>
+                                        <tr key={doc.id} className="border-b hover:bg-muted cursor-pointer" onClick={() => setLocation(`/workspace/hse/k3/document/${doc.id}`)}>
                                             <td className="py-2 px-3 font-mono text-xs">{doc.document_code}</td>
                                             <td className="py-2 px-3">{doc.title}</td>
                                             <td className="py-2 px-3">
@@ -1331,7 +1331,7 @@ export default function DocumentControlPage() {
                                     </div>
                                 ) : retentionCandidates.length === 0 ? (
                                     <div className="p-12 text-center">
-                                        <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
+                                        <CheckCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                                         <p className="font-medium text-gray-900 dark:text-white">Semua Aman</p>
                                         <p className="text-sm text-gray-500">Belum ada dokumen yang memasuki masa retensi</p>
                                     </div>
@@ -1603,7 +1603,7 @@ export default function DocumentControlPage() {
                                         <button
                                             key={emp.id}
                                             onClick={() => addApprover(emp)}
-                                            className="w-full px-3 py-2 text-left hover:bg-gray-50 text-sm flex items-center gap-2"
+                                            className="w-full px-3 py-2 text-left hover:bg-muted text-sm flex items-center gap-2"
                                         >
                                             <User className="w-4 h-4 text-gray-400" />
                                             <span>{emp.name}</span>
@@ -1669,7 +1669,7 @@ export default function DocumentControlPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             {decisionData.decision === "APPROVED" ? (
-                                <CheckCircle className="w-5 h-5 text-green-500" />
+                                <CheckCircle className="w-5 h-5 text-foreground" />
                             ) : (
                                 <XCircle className="w-5 h-5 text-red-500" />
                             )}
@@ -1705,7 +1705,7 @@ export default function DocumentControlPage() {
                             onClick={handleDecision}
                             disabled={decisionMutation.isPending || (decisionData.decision === "REJECTED" && !decisionData.comments)}
                             className={decisionData.decision === "APPROVED"
-                                ? "bg-green-600 hover:bg-green-700"
+                                ? "bg-primary hover:bg-primary/90"
                                 : "bg-red-600 hover:bg-red-700"}
                         >
                             {decisionMutation.isPending
@@ -1724,7 +1724,7 @@ export default function DocumentControlPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             {decisionData.decision === "APPROVED" ? (
-                                <CheckCircle className="w-5 h-5 text-green-500" />
+                                <CheckCircle className="w-5 h-5 text-foreground" />
                             ) : (
                                 <XCircle className="w-5 h-5 text-red-500" />
                             )}
@@ -1757,7 +1757,7 @@ export default function DocumentControlPage() {
                         <Button
                             onClick={handleChangeRequestDecision}
                             disabled={changeRequestDecisionMutation.isPending || (decisionData.decision === "REJECTED" && !decisionData.comments)}
-                            className={decisionData.decision === "APPROVED" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}
+                            className={decisionData.decision === "APPROVED" ? "bg-primary hover:bg-primary/90" : "bg-red-600 hover:bg-red-700"}
                         >
                             {changeRequestDecisionMutation.isPending ? "Memproses..." : decisionData.decision === "APPROVED" ? "Setujui" : "Tolak"}
                         </Button>

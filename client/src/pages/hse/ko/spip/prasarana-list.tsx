@@ -115,75 +115,42 @@ export default function PrasaranaList() {
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-2">
-                <h1 className="text-3xl font-bold tracking-tight text-red-600">SPIP Sarana & Prasarana</h1>
-                <p className="text-muted-foreground">Data Fasilitas & Bangunan Area Tambang PT GECL</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">HSE · KO · SPIP</p>
+                <h1 className="mt-1 text-[26px] font-semibold tracking-[-0.02em] text-foreground">Sarana & Prasarana</h1>
+                <p className="mt-1 text-[14px] text-muted-foreground">Data fasilitas dan bangunan area tambang PT GECL.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                <Card className="border-l-4 border-l-blue-500 shadow-sm">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><Building2 className="w-6 h-6" /></div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground">Total Unit</p>
-                                <h3 className="text-2xl font-bold">{total}</h3>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-green-500 shadow-sm">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-green-100 rounded-lg text-green-600"><CheckCircle2 className="w-6 h-6" /></div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground">Sertifikat Aktif</p>
-                                <h3 className="text-2xl font-bold">{total - expiredCount}</h3>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className={`border-l-4 border-l-red-500 shadow-sm ${expiredCount > 0 ? 'animate-pulse' : ''}`}>
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-red-100 rounded-lg text-red-600"><AlertCircle className="w-6 h-6" /></div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground">Sertifikat Expired</p>
-                                <h3 className="text-2xl font-bold text-red-600">{expiredCount}</h3>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-orange-500 shadow-sm">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-orange-100 rounded-lg text-orange-600"><Clock className="w-6 h-6" /></div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground">Maintenance Pending</p>
-                                <h3 className="text-2xl font-bold text-orange-600">{pendingMaintenance}</h3>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-l-purple-500 shadow-sm">
-                    <CardContent className="pt-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-2 bg-purple-100 rounded-lg text-purple-600"><MapPin className="w-6 h-6" /></div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground">Lokasi Area</p>
-                                <h3 className="text-2xl font-bold">{areaCount}</h3>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* Bilah ringkas satu baris. Sebelumnya lima kartu, masing-masing dengan
+                bingkai kiri dan kotak ikon berwarna sendiri — biru, merah, oranye,
+                ungu — padahal warnanya tidak menandakan apa pun. Kini hanya angka
+                yang menuntut tindakan yang diberi warna. */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-border bg-card px-4 py-3">
+                {[
+                    { label: "Total unit", nilai: total, nada: "" },
+                    { label: "Sertifikat aktif", nilai: total - expiredCount, nada: "" },
+                    { label: "Sertifikat expired", nilai: expiredCount, nada: "aksen" },
+                    { label: "Maintenance pending", nilai: pendingMaintenance, nada: "kuning" },
+                    { label: "Lokasi area", nilai: areaCount, nada: "" },
+                ].map((k) => (
+                    <div key={k.label} className="flex items-baseline gap-2">
+                        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{k.label}</span>
+                        <span className={`text-[17px] font-semibold tabular-nums ${
+                            k.nada === "aksen" && Number(k.nilai) > 0 ? "text-primary"
+                            : k.nada === "kuning" && Number(k.nilai) > 0 ? "text-amber-600"
+                            : "text-foreground"}`}>
+                            {k.nilai}
+                        </span>
+                    </div>
+                ))}
             </div>
 
             {/* Action Bar */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 md:flex-row md:items-end md:justify-between">
                 <div className="flex flex-wrap gap-2 items-center flex-1">
                     <div className="relative w-full md:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
-                            placeholder="Cari no lambung..."
+                            placeholder="Cari no lambung, lokasi…"
                             className="pl-9"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -194,15 +161,15 @@ export default function PrasaranaList() {
                     <Button variant="outline" onClick={handleExport}>
                         <FileDown className="w-4 h-4 mr-2" /> Export
                     </Button>
-                    <Button className="bg-red-600 hover:bg-red-700 font-bold" onClick={() => navigate("/workspace/hse/ko/spip/prasarana/tambah")}>
+                    <Button className="bg-primary hover:bg-primary/90" onClick={() => navigate("/workspace/hse/ko/spip/prasarana/tambah")}>
                         <Plus className="w-4 h-4 mr-2" /> Tambah Data
                     </Button>
                 </div>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
                 <Table>
-                    <TableHeader className="bg-gray-50/50">
+                    <TableHeader>
                         <TableRow>
                             <TableHead className="w-12 text-center uppercase text-[10px] font-bold">No</TableHead>
                             <TableHead className="font-bold uppercase text-[10px]">No Lambung</TableHead>
@@ -228,9 +195,9 @@ export default function PrasaranaList() {
                             items.map((item: any, index: number) => {
                                 const isExpired = item.expSertifikat && new Date(item.expSertifikat) <= new Date();
                                 return (
-                                    <TableRow key={item.id} className="hover:bg-gray-50/50">
+                                    <TableRow key={item.id} className="hover:bg-muted/50">
                                         <TableCell className="text-center text-xs font-semibold">{index + 1}</TableCell>
-                                        <TableCell className="font-bold text-red-600 text-sm hover:underline cursor-pointer" onClick={() => navigate(`/workspace/hse/ko/spip/prasarana/${item.id}`)}>
+                                        <TableCell className="cursor-pointer text-sm font-semibold text-primary hover:underline" onClick={() => navigate(`/workspace/hse/ko/spip/prasarana/${item.id}`)}>
                                             {item.noLambung}
                                         </TableCell>
                                         <TableCell className="text-xs font-medium">{item.jenisUnit}</TableCell>
@@ -239,7 +206,7 @@ export default function PrasaranaList() {
                                             <div className="flex flex-col gap-1">
                                                 <span className="text-xs font-semibold">{item.noSertifikat || "-"}</span>
                                                 {item.expSertifikat && (
-                                                    <Badge variant="outline" className={`w-fit text-[9px] font-bold ${isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                                                    <Badge variant="outline" className={`w-fit text-[9px] font-bold ${isExpired ? 'bg-red-100 text-red-700' : 'bg-muted text-foreground'}`}>
                                                         {format(new Date(item.expSertifikat), "dd/MM/yyyy", { locale: localeId })}
                                                     </Badge>
                                                 )}
@@ -247,10 +214,10 @@ export default function PrasaranaList() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex gap-1">
-                                                <Badge variant="outline" className={`text-[9px] font-bold ${item.statusPerawatanS1 === 'DONE' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                <Badge variant="outline" className={`text-[9px] font-bold ${item.statusPerawatanS1 === 'DONE' ? 'bg-muted text-foreground' : 'bg-orange-100 text-orange-700'}`}>
                                                     S1: {item.statusPerawatanS1 || "PENDING"}
                                                 </Badge>
-                                                <Badge variant="outline" className={`text-[9px] font-bold ${item.statusPerawatanS2 === 'DONE' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                <Badge variant="outline" className={`text-[9px] font-bold ${item.statusPerawatanS2 === 'DONE' ? 'bg-muted text-foreground' : 'bg-orange-100 text-orange-700'}`}>
                                                     S2: {item.statusPerawatanS2 || "PENDING"}
                                                 </Badge>
                                             </div>
@@ -267,7 +234,7 @@ export default function PrasaranaList() {
                                                     <DropdownMenuItem onClick={() => navigate(`/workspace/hse/ko/spip/prasarana/${item.id}/edit`)}>
                                                         <Edit className="w-4 h-4 mr-2" /> Edit
                                                     </DropdownMenuItem>
-                                                    <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => handleDelete(item.id)}>
+                                                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDelete(item.id)}>
                                                         <Trash2 className="w-4 h-4 mr-2" /> Hapus
                                                     </DropdownMenuItem>
                                                 </DropdownMenuContent>

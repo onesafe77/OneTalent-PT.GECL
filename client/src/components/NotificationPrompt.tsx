@@ -24,7 +24,7 @@ export function NotificationPrompt() {
     if (!hasShownPrompt && permission === "default" && !isSubscribed) {
       const timer = setTimeout(() => {
         setIsOpen(true);
-      }, 2000);
+      }, 8000); // beri waktu pengguna melihat workspace dulu sebelum diminta izin
       return () => clearTimeout(timer);
     }
   }, [isSupported, permission, isSubscribed]);
@@ -49,7 +49,7 @@ export function NotificationPrompt() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-[#DF2A33] to-[#96161C] rounded-full flex items-center justify-center">
               <Bell className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -70,11 +70,11 @@ export function NotificationPrompt() {
                 <p className="text-xs text-blue-600 dark:text-blue-400">Informasi penting dari perusahaan</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <Bell className="h-5 w-5 text-green-600 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
+              <Bell className="h-5 w-5 text-foreground mt-0.5" />
               <div>
-                <p className="font-medium text-sm text-green-800 dark:text-green-200">Pengingat Shift</p>
-                <p className="text-xs text-green-600 dark:text-green-400">Notifikasi jadwal kerja Anda</p>
+                <p className="font-medium text-sm text-foreground">Pengingat Shift</p>
+                <p className="text-xs text-foreground">Notifikasi jadwal kerja Anda</p>
               </div>
             </div>
             <div className="flex items-start gap-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
@@ -90,7 +90,7 @@ export function NotificationPrompt() {
             <Button 
               onClick={handleEnableNotifications} 
               disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C] hover:from-[#DF2A33] hover:to-[#96161C]"
               data-testid="button-enable-notifications"
             >
               {isLoading ? (

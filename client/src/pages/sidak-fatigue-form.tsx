@@ -252,7 +252,7 @@ export default function SidakFatigueForm() {
             toast({
               title: "Tes Ulang Lulus ✅",
               description: "Karyawan dinyatakan FIT. Data intervensi tersimpan otomatis.",
-              className: "bg-green-50 border-green-200 text-green-800"
+              className: "bg-muted border-border text-foreground"
             });
           } catch (error) {
             console.error('[RETEST] Failed to auto-patch record:', error);
@@ -274,7 +274,7 @@ export default function SidakFatigueForm() {
           toast({
             title: "Tes Ulang Lulus",
             description: "Karyawan dinyatakan FIT. Data disimpan secara lokal.",
-            className: "bg-green-50 border-green-200 text-green-800"
+            className: "bg-muted border-border text-foreground"
           });
         }
 
@@ -316,7 +316,7 @@ export default function SidakFatigueForm() {
           toast({
             title: "Tes Lulus",
             description: `Respons sangat baik (${result.meanRT} ms). Data otomatis diisi.`,
-            className: "bg-green-50 border-green-200 text-green-800"
+            className: "bg-muted border-border text-foreground"
           });
         }
       }
@@ -1029,7 +1029,7 @@ export default function SidakFatigueForm() {
             clearDraft();
             navigate("/workspace/sidak");
           }}
-          className="w-full h-12 bg-green-600 hover:bg-green-700 text-white"
+          className="w-full h-12 bg-primary hover:bg-primary/90 text-white"
         >
           Selesai & Kembali
           <Check className="ml-2 h-5 w-5" />
@@ -1284,7 +1284,7 @@ export default function SidakFatigueForm() {
                           Tindak Lanjut
                         </Button>
                       ) : (
-                        <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center text-green-600">
+                        <div className="h-8 w-8 bg-muted rounded-full flex items-center justify-center text-foreground">
                           <Check className="h-4 w-4" />
                         </div>
                       )}
@@ -1340,7 +1340,7 @@ export default function SidakFatigueForm() {
                     "h-6 w-6 rounded-full flex items-center justify-center",
                     currentEmployee.rosterSesuai == null
                       ? "bg-gray-100 text-gray-400"
-                      : currentEmployee.rosterSesuai ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                      : currentEmployee.rosterSesuai ? "bg-muted text-foreground" : "bg-red-100 text-red-600"
                   )}>
                     {currentEmployee.rosterSesuai == null
                       ? <span className="text-xs font-bold">?</span>
@@ -1355,7 +1355,7 @@ export default function SidakFatigueForm() {
                       "py-3 rounded-lg font-medium text-sm transition-all border",
                       !isLoadedFromQr && "opacity-50 cursor-not-allowed",
                       currentEmployee.rosterSesuai === true
-                        ? "bg-green-50 border-green-500 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                        ? "bg-muted border-border text-foreground"
                         : "bg-white border-gray-200 text-gray-500 dark:bg-gray-800 dark:border-gray-700"
                     )}
                   >
@@ -1431,7 +1431,7 @@ export default function SidakFatigueForm() {
                         {value !== null && (
                           <div className={cn(
                             "h-6 w-6 rounded-full flex items-center justify-center",
-                            value ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"
+                            value ? "bg-muted text-foreground" : "bg-red-100 text-red-600"
                           )}>
                             {value ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
                           </div>
@@ -1452,8 +1452,8 @@ export default function SidakFatigueForm() {
                           className={cn(
                             "py-3 rounded-lg font-medium text-sm transition-all border",
                             value === true
-                              ? "bg-green-600 text-white border-green-600 shadow-lg shadow-green-200 dark:shadow-none"
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+                              ? "bg-primary text-white border-border shadow-lg shadow-primary/20 dark:shadow-none"
+                              : "bg-card text-muted-foreground border-border hover:bg-muted",
                             isPVTField && "opacity-60"
                           )}
                         >
@@ -1466,7 +1466,7 @@ export default function SidakFatigueForm() {
                             "py-3 rounded-lg font-medium text-sm transition-all border",
                             value === false
                               ? "bg-red-600 text-white border-red-600 shadow-lg shadow-red-200 dark:shadow-none"
-                              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50",
+                              : "bg-card text-muted-foreground border-border hover:bg-muted",
                             isPVTField && "opacity-60"
                           )}
                         >
@@ -1483,7 +1483,7 @@ export default function SidakFatigueForm() {
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-gray-900 dark:text-white">Tanda Tangan</h3>
                   {currentEmployee.employeeSignature ? (
-                    <span className="text-xs text-green-600 flex items-center gap-1 font-medium bg-green-50 px-2 py-1 rounded">
+                    <span className="text-xs text-foreground flex items-center gap-1 font-medium bg-muted px-2 py-1 rounded">
                       <Check className="h-3 w-3" /> Tersimpan
                     </span>
                   ) : (
@@ -1515,12 +1515,12 @@ export default function SidakFatigueForm() {
               {observers.length > 0 ? (
                 <div className="grid gap-3">
                   {observers.map((obs, idx) => (
-                    <div key={idx} className="bg-green-50 dark:bg-green-900/10 p-4 rounded-xl border border-green-100 dark:border-green-900/30 flex items-center justify-between">
+                    <div key={idx} className="bg-muted p-4 rounded-xl border border-border flex items-center justify-between">
                       <div>
                         <p className="font-semibold text-gray-900 dark:text-white">{obs.nama}</p>
                         <p className="text-xs text-gray-500">{obs.perusahaan}</p>
                       </div>
-                      <Check className="h-5 w-5 text-green-600" />
+                      <Check className="h-5 w-5 text-foreground" />
                     </div>
                   ))}
                 </div>
@@ -1577,12 +1577,12 @@ export default function SidakFatigueForm() {
 
         {step === 4 && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
-            <div className="bg-green-50 dark:bg-green-900/20 p-6 rounded-2xl border border-green-200 dark:border-green-900 text-center space-y-2">
-              <div className="h-16 w-16 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center mx-auto text-green-600 dark:text-green-300">
+            <div className="bg-muted p-6 rounded-2xl border border-border text-center space-y-2">
+              <div className="h-16 w-16 bg-muted dark:bg-primary rounded-full flex items-center justify-center mx-auto text-foreground">
                 <Check className="h-8 w-8" />
               </div>
-              <h2 className="text-xl font-bold text-green-800 dark:text-green-200">Data Siap Disimpan</h2>
-              <p className="text-sm text-green-700 dark:text-green-300">
+              <h2 className="text-xl font-bold text-foreground">Data Siap Disimpan</h2>
+              <p className="text-sm text-foreground">
                 {employees.length} karyawan dan {observers.length} observer berhasil didata.
               </p>
             </div>

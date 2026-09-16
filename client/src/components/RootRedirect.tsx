@@ -9,5 +9,5 @@ export function RootRedirect() {
     return <LoadingScreen isLoading={true} />;
   }
 
-  return <Redirect to={isAuthenticated ? "/workspace" : "/login"} />;
+  return <Redirect to={isAuthenticated ? "/workspace/dashboard" : "/login"} />;
 }

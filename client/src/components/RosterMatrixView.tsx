@@ -77,18 +77,26 @@ export function RosterMatrixView({ year, month, rosterData, onOpenUploadForPerso
         return `${shiftAbbr}${hariKerja}`;
     };
 
+    /**
+     * Warna sel roster.
+     *
+     * Dulu memakai hex Excel apa adanya (#A9D08E, #FFD966, #FF0000) — merah murni
+     * di ratusan sel membuat CUTI terbaca seperti kecelakaan kerja, dan tak satu pun
+     * punya varian mode gelap. Kini memakai semburat yang sama dengan lencana
+     * SIM/SIMPER di aplikasi: latar tipis, teks pekat, tetap terbeda sekilas.
+     */
     const getShiftCellColor = (roster: RosterSchedule | undefined) => {
-        if (!roster) return "bg-white dark:bg-gray-800";
+        if (!roster) return "bg-card";
 
         const shiftUpper = roster.shift.toUpperCase();
         if (shiftUpper.includes("SHIFT 1") || shiftUpper.includes("SHIFT 2")) {
-            return "bg-[#A9D08E] text-black font-semibold"; // Excel Green
+            return "bg-muted text-foreground font-medium";
         } else if (shiftUpper.includes("OVER")) {
-            return "bg-[#FFD966] text-black font-semibold"; // Excel Yellow
+            return "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-400 font-medium";
         } else if (shiftUpper.includes("CUTI")) {
-            return "bg-[#FF0000] text-white font-semibold"; // Excel Red
+            return "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400 font-medium";
         }
-        return "bg-gray-100 text-black";
+        return "bg-muted text-muted-foreground";
     };
 
     // Get active Nomor Lambung logic (same as roster.tsx fallback chain)
@@ -190,25 +198,25 @@ export function RosterMatrixView({ year, month, rosterData, onOpenUploadForPerso
                     <thead>
                         {/* Top Header Row for Month */}
                         <tr>
-                            <th className="bg-[#5B9BD5] border border-gray-400 p-2 text-white font-bold" colSpan={5}>
+                            <th className="border border-primary/30 bg-primary p-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground" colSpan={5}>
                                 {/* Empty span over fixed columns */}
                             </th>
-                            <th className="bg-[#5B9BD5] border border-gray-400 p-2 text-white font-bold" colSpan={daysInMonth.length}>
+                            <th className="border border-primary/30 bg-primary p-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground" colSpan={daysInMonth.length}>
                                 {format(monthStart, 'MMMM yyyy')}
                             </th>
                         </tr>
                         {/* Second Header Row for Columns */}
-                        <tr className="bg-[#5B9BD5] text-white">
-                            <th className="border border-gray-400 p-1 w-12">NO</th>
-                            <th className="border border-gray-400 p-1 min-w-[150px]">NAMA DRIVER</th>
-                            <th className="border border-gray-400 p-1 min-w-[100px]">NIK</th>
-                            <th className="border border-gray-400 p-1 min-w-[100px]">Nomor Lambung</th>
-                            <th className="border border-gray-400 p-1 min-w-[100px]">MITRA</th>
-                            <th className="border border-gray-400 p-1 min-w-[80px]">AKSI</th>
+                        <tr className="bg-primary">
+                            <th className="border border-primary/30 bg-primary p-1 w-12 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground">NO</th>
+                            <th className="border border-primary/30 bg-primary p-1 min-w-[150px] font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground">NAMA DRIVER</th>
+                            <th className="border border-primary/30 bg-primary p-1 min-w-[100px] font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground">NIK</th>
+                            <th className="border border-primary/30 bg-primary p-1 min-w-[100px] font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground">Nomor Lambung</th>
+                            <th className="border border-primary/30 bg-primary p-1 min-w-[100px] font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground">MITRA</th>
+                            <th className="border border-primary/30 bg-primary p-1 min-w-[80px] font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-primary-foreground">AKSI</th>
 
                             {/* Date Columns */}
                             {daysInMonth.map(date => (
-                                <th key={format(date, 'yyyy-MM-dd')} className="border border-gray-400 p-1 min-w-[35px] text-center">
+                                <th key={format(date, 'yyyy-MM-dd')} className="border border-primary/30 bg-primary p-1 min-w-[35px] text-center font-mono text-[10px] font-medium tabular-nums text-primary-foreground">
                                     {format(date, 'dd')}
                                 </th>
                             ))}
@@ -223,7 +231,7 @@ export function RosterMatrixView({ year, month, rosterData, onOpenUploadForPerso
                             </tr>
                         ) : (
                             uniqueEmployees.map((employee, index) => (
-                                <tr key={employee.id} className="hover:bg-gray-50">
+                                <tr key={employee.id} className="hover:bg-muted">
                                     <td className="border border-gray-300 p-1 text-center">{index + 1}</td>
                                     <td className="border border-gray-300 p-1">{employee.name}</td>
                                     <td className="border border-gray-300 p-1 text-center">{employee.id}</td>
@@ -232,7 +240,7 @@ export function RosterMatrixView({ year, month, rosterData, onOpenUploadForPerso
                                     <td className="border border-gray-300 p-1 text-center">
                                         {editingEmployeeId === employee.id ? (
                                             <div className="flex items-center justify-center gap-1">
-                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => handleSaveRow(employee.id, employee.name)} disabled={isSaving}>
+                                                <Button size="icon" variant="ghost" className="h-6 w-6 text-foreground hover:text-primary hover:bg-muted" onClick={() => handleSaveRow(employee.id, employee.name)} disabled={isSaving}>
                                                     {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                                 </Button>
                                                 <Button size="icon" variant="ghost" className="h-6 w-6 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={handleCancelEdit} disabled={isSaving}>
@@ -241,11 +249,11 @@ export function RosterMatrixView({ year, month, rosterData, onOpenUploadForPerso
                                             </div>
                                         ) : (
                                             <div className="flex items-center justify-center gap-1">
-                                                <Button size="icon" variant="ghost" title="Edit Inline" className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => handleEditClick(employee.id)}>
+                                                <Button size="icon" variant="ghost" title="Edit Inline" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => handleEditClick(employee.id)}>
                                                     <Edit2 className="h-4 w-4" />
                                                 </Button>
                                                 {onOpenUploadForPerson && (
-                                                    <Button size="icon" variant="ghost" title="Upload Excel Roster Karyawan" className="h-6 w-6 text-orange-600 hover:text-orange-700 hover:bg-orange-50" onClick={() => onOpenUploadForPerson(employee.id)}>
+                                                    <Button size="icon" variant="ghost" title="Upload Excel Roster Karyawan" className="h-6 w-6 text-muted-foreground hover:text-foreground" onClick={() => onOpenUploadForPerson(employee.id)}>
                                                         <Upload className="h-4 w-4" />
                                                     </Button>
                                                 )}

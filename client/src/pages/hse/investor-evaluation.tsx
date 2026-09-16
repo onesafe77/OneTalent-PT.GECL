@@ -88,7 +88,7 @@ export default function InvestorEvaluationPage() {
         plugins: {
             legend: { position: 'top' as const },
             datalabels: {
-                color: '#475569',
+                color: '#575757',
                 font: { weight: 'bold' as const },
                 formatter: (value: number) => value > 0 ? value : ''
             }
@@ -151,8 +151,8 @@ export default function InvestorEvaluationPage() {
                 <KPICard
                     title="Monitoring Fatigue"
                     value={data?.summary?.fatigue || 0}
-                    icon={<Activity className="w-6 h-6 text-emerald-600" />}
-                    color="bg-emerald-600"
+                    icon={<Activity className="w-6 h-6 text-foreground" />}
+                    color="bg-primary"
                     description="Indikasi kelelahan/mengantuk"
                 />
             </div>
@@ -248,13 +248,13 @@ export default function InvestorEvaluationPage() {
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
-                                <TableRow className="bg-slate-50/80 border-slate-100 hover:bg-slate-50/80">
+                                <TableRow className="border-slate-100">
                                     <TableHead className="w-[80px] p-6 text-center font-bold text-slate-500 uppercase tracking-wider text-xs">No</TableHead>
                                     <TableHead className="p-6 font-bold text-slate-500 uppercase tracking-wider text-xs">Nomor Lambung</TableHead>
                                     <TableHead className="p-6 font-bold text-slate-500 uppercase tracking-wider text-xs text-center">Pemilik Unit / Investor</TableHead>
                                     <TableHead className="p-6 font-bold text-orange-600 uppercase tracking-wider text-xs text-center bg-orange-50/30">Overspeed</TableHead>
                                     <TableHead className="p-6 font-bold text-rose-600 uppercase tracking-wider text-xs text-center bg-rose-50/30">Jarak Aman</TableHead>
-                                    <TableHead className="p-6 font-bold text-emerald-600 uppercase tracking-wider text-xs text-center bg-emerald-50/30">Fatigue</TableHead>
+                                    <TableHead className="p-6 font-bold text-foreground uppercase tracking-wider text-xs text-center bg-muted">Fatigue</TableHead>
                                     <TableHead className="p-6 font-bold text-slate-900 uppercase tracking-wider text-xs text-center bg-slate-100/50">Total Valid</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -278,7 +278,7 @@ export default function InvestorEvaluationPage() {
                                         </TableCell>
                                         <TableCell className="p-6 text-center text-orange-700 font-black text-xl bg-orange-50/20">{unit.overspeed || 0}</TableCell>
                                         <TableCell className="p-6 text-center text-rose-700 font-black text-xl bg-rose-50/20">{unit.jarakAman || 0}</TableCell>
-                                        <TableCell className="p-6 text-center text-emerald-700 font-black text-xl bg-emerald-50/20">{unit.fatigue || 0}</TableCell>
+                                        <TableCell className="p-6 text-center text-foreground font-black text-xl bg-muted">{unit.fatigue || 0}</TableCell>
                                         <TableCell className="p-6 text-center text-slate-900 font-black text-xl bg-slate-100/30 group-hover:bg-blue-100/50 transition-colors">
                                             {unit.total || 0}
                                         </TableCell>

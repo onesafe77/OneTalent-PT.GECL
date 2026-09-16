@@ -74,7 +74,7 @@ export default function AbsensiInduksiPublic() {
                     form.setValue("jabatan", data.position);
                     toast({
                         description: "Data karyawan ditemukan!",
-                        className: "bg-green-50 border-green-200 text-green-800",
+                        className: "bg-muted border-border text-foreground",
                     });
                     return data;
                 }
@@ -97,7 +97,7 @@ export default function AbsensiInduksiPublic() {
                 title: "Berhasil!",
                 description: "Absensi induksi Anda telah tercatat.",
                 variant: "default",
-                className: "bg-green-600 text-white border-none",
+                className: "bg-primary text-white border-none",
             });
         },
         onError: (error: any) => {
@@ -169,7 +169,7 @@ export default function AbsensiInduksiPublic() {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
                 <Card className="w-full max-w-sm text-center shadow-xl border-none overflow-hidden">
-                    <div className="bg-green-600 h-24 flex items-center justify-center">
+                    <div className="bg-primary h-24 flex items-center justify-center">
                         <CheckCircle2 className="w-12 h-12 text-white" />
                     </div>
                     <CardContent className="pt-8 pb-8 px-6 space-y-6">

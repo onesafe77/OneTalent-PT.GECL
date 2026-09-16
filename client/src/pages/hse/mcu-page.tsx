@@ -126,7 +126,7 @@ export default function McuPage() {
         if (s.includes("UNFIT")) return <Badge variant="destructive">{status}</Badge>;
         if (s.includes("TEMPORARY")) return <Badge className="bg-orange-500">{status}</Badge>;
         if (s.includes("NOTE")) return <Badge className="bg-yellow-500">{status}</Badge>;
-        return <Badge className="bg-green-500">{status}</Badge>;
+        return <Badge className="bg-primary">{status}</Badge>;
     };
 
     return (
@@ -163,7 +163,7 @@ export default function McuPage() {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Fit to Work</CardTitle>
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        <CheckCircle2 className="h-4 w-4 text-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{stats?.fit || 0}</div>

@@ -29,12 +29,12 @@ import * as XLSX from "xlsx";
 
 // Status colors mapping
 const statusColors: Record<string, string> = {
-    "Belum Diproses": "bg-gray-500",
-    "Dalam Proses": "bg-blue-500",
-    "Menunggu Approval": "bg-yellow-500",
-    "Approved": "bg-green-500",
-    "Rejected": "bg-red-500",
-    "Selesai": "bg-emerald-600",
+ "Belum Diproses": "bg-gray-500",
+ "Dalam Proses": "bg-blue-500",
+ "Menunggu Approval": "bg-yellow-500",
+ "Approved": "bg-primary",
+ "Rejected": "bg-gray-950",
+ "Selesai": "bg-primary",
 };
 
 // Jenis SIMPER options
@@ -46,363 +46,363 @@ const jenisSimperOptions = [
 
 // Status options
 const statusOptions = [
-    "Belum Diproses",
-    "Dalam Proses",
-    "Menunggu Approval",
-    "Approved",
-    "Rejected",
-    "Selesai",
+ "Belum Diproses",
+ "Dalam Proses",
+ "Menunggu Approval",
+ "Approved",
+ "Rejected",
+ "Selesai",
 ];
 
 // Tahapan workflow options
 const tahapanOptions = [
-    "Submit by Admin Mitra Kerja",
-    "Waiting Approval by PJO Mitra Kerja",
-    "Waiting Approval by Head Custodioan",
-    "Waiting Approval by Dokter Perusahan",
-    "Waiting Approval by Admin STC",
-    "Simper can be picked up at the office GECL",
-    "Selesai",
+ "Submit by Admin Mitra Kerja",
+ "Waiting Approval by PJO Mitra Kerja",
+ "Waiting Approval by Head Custodioan",
+ "Waiting Approval by Dokter Perusahan",
+ "Waiting Approval by Admin STC",
+ "Simper can be picked up at the office GECL",
+ "Selesai",
 ];
 
 export default function MonitoringSimperPerpanjangan() {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [statusFilter, setStatusFilter] = useState("all");
-    const [jenisFilter, setJenisFilter] = useState("all");
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+ const [searchTerm, setSearchTerm] = useState("");
+ const [statusFilter, setStatusFilter] = useState("all");
+ const [jenisFilter, setJenisFilter] = useState("all");
+ const [page, setPage] = useState(1);
+ const [pageSize, setPageSize] = useState(10);
 
     // Dialog states
-    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
-    const [selectedRecord, setSelectedRecord] = useState<SimperPerpanjangan | null>(null);
-    const [isQrDialogOpen, setIsQrDialogOpen] = useState(false);
-    const qrCanvasRef = useRef<HTMLCanvasElement>(null);
+ const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+ const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+ const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+ const [selectedRecord, setSelectedRecord] = useState<SimperPerpanjangan | null>(null);
+ const [isQrDialogOpen, setIsQrDialogOpen] = useState(false);
+ const qrCanvasRef = useRef<HTMLCanvasElement>(null);
 
-    const publicMonitoringUrl = `${window.location.origin}/monitoring-perpanjangan-simper`;
+ const publicMonitoringUrl = `${window.location.origin}/monitoring-perpanjangan-simper`;
 
     // Form state
-    const [formData, setFormData] = useState({
-        nama: "",
-        nik: "",
-        jabatan: "",
-        departemen: "",
-        perusahaan: "",
-        noHp: "",
-        jenisSimper: "BIB",
-        expiredSimperBib: "",
-        statusPerpanjangan: "Belum Diproses",
-        tahapanWorkflow: "",
-        catatan: "",
+ const [formData, setFormData] = useState({
+ nama: "",
+ nik: "",
+ jabatan: "",
+ departemen: "",
+ perusahaan: "",
+ noHp: "",
+ jenisSimper: "BIB",
+ expiredSimperBib: "",
+ statusPerpanjangan: "Belum Diproses",
+ tahapanWorkflow: "",
+ catatan: "",
     });
 
-    const { toast } = useToast();
+ const { toast } = useToast();
 
     // Fetch all records
-    const { data: queryData, isLoading, refetch } = useQuery<{ data: SimperPerpanjangan[], total: number }>({
-        queryKey: ["simper-perpanjangan", page, pageSize, searchTerm, statusFilter, jenisFilter],
-        queryFn: async () => {
-            const params = new URLSearchParams({
-                page: page.toString(),
-                limit: pageSize.toString(),
-                search: searchTerm,
-                status: statusFilter,
-                jenis: jenisFilter,
+ const { data: queryData, isLoading, refetch } = useQuery<{ data: SimperPerpanjangan[], total: number }>({
+ queryKey: ["simper-perpanjangan", page, pageSize, searchTerm, statusFilter, jenisFilter],
+ queryFn: async () => {
+ const params = new URLSearchParams({
+ page: page.toString(),
+ limit: pageSize.toString(),
+ search: searchTerm,
+ status: statusFilter,
+ jenis: jenisFilter,
             });
-            const data = await apiRequest(`/api/simper-perpanjangan?${params.toString()}`, "GET");
-            if (Array.isArray(data)) return { data, total: data.length };
-            return data;
+ const data = await apiRequest(`/api/simper-perpanjangan?${params.toString()}`, "GET");
+ if (Array.isArray(data)) return { data, total: data.length };
+ return data;
         },
     });
 
-    const records = queryData?.data || [];
-    const totalItems = queryData?.total || 0;
-    const totalPages = Math.ceil(totalItems / pageSize);
+ const records = queryData?.data || [];
+ const totalItems = queryData?.total || 0;
+ const totalPages = Math.ceil(totalItems / pageSize);
 
     // Fetch history for selected record
-    const { data: historyRecords = [], refetch: refetchHistory } = useQuery<SimperPerpanjanganHistory[]>({
-        queryKey: ["simper-perpanjangan-history", selectedRecord?.id],
-        queryFn: async () => {
-            if (!selectedRecord?.id) return [];
-            return await apiRequest(`/api/simper-perpanjangan/${selectedRecord.id}/history`, "GET");
+ const { data: historyRecords = [], refetch: refetchHistory } = useQuery<SimperPerpanjanganHistory[]>({
+ queryKey: ["simper-perpanjangan-history", selectedRecord?.id],
+ queryFn: async () => {
+ if (!selectedRecord?.id) return [];
+ return await apiRequest(`/api/simper-perpanjangan/${selectedRecord.id}/history`, "GET");
         },
-        enabled: !!selectedRecord?.id && isHistoryDialogOpen,
+ enabled: !!selectedRecord?.id && isHistoryDialogOpen,
     });
 
     // Fetch Mitras
-    const { data: mitras = [] } = useQuery<SimperMitra[]>({
-        queryKey: ["simper-mitras"],
-        queryFn: async () => {
-            return await apiRequest("/api/simper-mitra", "GET");
+ const { data: mitras = [] } = useQuery<SimperMitra[]>({
+ queryKey: ["simper-mitras"],
+ queryFn: async () => {
+ return await apiRequest("/api/simper-mitra", "GET");
         },
     });
 
     // Create mutation
-    const createMutation = useMutation({
-        mutationFn: async (data: any) => {
-            return await apiRequest("/api/simper-perpanjangan", "POST", data);
+ const createMutation = useMutation({
+ mutationFn: async (data: any) => {
+ return await apiRequest("/api/simper-perpanjangan", "POST", data);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-perpanjangan"] });
-            setIsAddDialogOpen(false);
-            resetForm();
-            toast({ title: "Berhasil", description: "Data berhasil ditambahkan" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-perpanjangan"] });
+ setIsAddDialogOpen(false);
+ resetForm();
+ toast({ title: "Berhasil", description: "Data berhasil ditambahkan" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         },
     });
 
     // Generate QR Code when dialog opens
-    useEffect(() => {
-        if (isQrDialogOpen) {
-            const timer = setTimeout(() => {
-                if (qrCanvasRef.current) {
-                    generateQRCodeCanvas(publicMonitoringUrl, qrCanvasRef.current, {
-                        width: 300,
-                        margin: 2
+ useEffect(() => {
+ if (isQrDialogOpen) {
+ const timer = setTimeout(() => {
+ if (qrCanvasRef.current) {
+ generateQRCodeCanvas(publicMonitoringUrl, qrCanvasRef.current, {
+ width: 300,
+ margin: 2
                     });
                 }
             }, 100);
-            return () => clearTimeout(timer);
+ return () => clearTimeout(timer);
         }
     }, [isQrDialogOpen, publicMonitoringUrl]);
 
-    const handleCopyPublicLink = () => {
-        navigator.clipboard.writeText(publicMonitoringUrl);
-        toast({
-            title: "Link Tersalin",
-            description: "Link monitoring publik telah disalin ke clipboard",
+ const handleCopyPublicLink = () => {
+ navigator.clipboard.writeText(publicMonitoringUrl);
+ toast({
+ title: "Link Tersalin",
+ description: "Link monitoring publik telah disalin ke clipboard",
         });
     };
 
     // Update mutation
-    const updateMutation = useMutation({
-        mutationFn: async (data: any) => {
-            return await apiRequest(`/api/simper-perpanjangan/${data.id}`, "PUT", data);
+ const updateMutation = useMutation({
+ mutationFn: async (data: any) => {
+ return await apiRequest(`/api/simper-perpanjangan/${data.id}`, "PUT", data);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-perpanjangan"] });
-            setIsEditDialogOpen(false);
-            resetForm();
-            toast({ title: "Berhasil", description: "Data berhasil diperbarui" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-perpanjangan"] });
+ setIsEditDialogOpen(false);
+ resetForm();
+ toast({ title: "Berhasil", description: "Data berhasil diperbarui" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         },
     });
 
     // Delete mutation
-    const deleteMutation = useMutation({
-        mutationFn: async (id: string) => {
-            return await apiRequest(`/api/simper-perpanjangan/${id}`, "DELETE");
+ const deleteMutation = useMutation({
+ mutationFn: async (id: string) => {
+ return await apiRequest(`/api/simper-perpanjangan/${id}`, "DELETE");
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["simper-perpanjangan"] });
-            toast({ title: "Berhasil", description: "Data berhasil dihapus" });
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["simper-perpanjangan"] });
+ toast({ title: "Berhasil", description: "Data berhasil dihapus" });
         },
-        onError: (err: any) => {
-            toast({ title: "Gagal", description: err.message, variant: "destructive" });
+ onError: (err: any) => {
+ toast({ title: "Gagal", description: err.message, variant: "destructive" });
         },
     });
 
     // Reset form
-    const resetForm = () => {
-        setFormData({
-            nama: "",
-            nik: "",
-            jabatan: "",
-            departemen: "",
-            perusahaan: "",
-            noHp: "",
-            jenisSimper: "BIB",
-            expiredSimperBib: "",
-            statusPerpanjangan: "Belum Diproses",
-            tahapanWorkflow: "",
-            catatan: "",
+ const resetForm = () => {
+ setFormData({
+ nama: "",
+ nik: "",
+ jabatan: "",
+ departemen: "",
+ perusahaan: "",
+ noHp: "",
+ jenisSimper: "BIB",
+ expiredSimperBib: "",
+ statusPerpanjangan: "Belum Diproses",
+ tahapanWorkflow: "",
+ catatan: "",
         });
-        setSelectedRecord(null);
+ setSelectedRecord(null);
     };
 
     // Handle edit
-    const handleEdit = (record: SimperPerpanjangan) => {
-        setSelectedRecord(record);
-        setFormData({
-            nama: record.nama || "",
-            nik: record.nik || "",
-            jabatan: record.jabatan || "",
-            departemen: record.departemen || "",
-            perusahaan: record.perusahaan || "",
-            noHp: record.noHp || "",
-            jenisSimper: record.jenisSimper || "BIB",
-            expiredSimperBib: record.expiredSimperBib || "",
-            statusPerpanjangan: record.statusPerpanjangan || "Belum Diproses",
-            tahapanWorkflow: record.tahapanWorkflow || "",
-            catatan: record.catatan || "",
+ const handleEdit = (record: SimperPerpanjangan) => {
+ setSelectedRecord(record);
+ setFormData({
+ nama: record.nama || "",
+ nik: record.nik || "",
+ jabatan: record.jabatan || "",
+ departemen: record.departemen || "",
+ perusahaan: record.perusahaan || "",
+ noHp: record.noHp || "",
+ jenisSimper: record.jenisSimper || "BIB",
+ expiredSimperBib: record.expiredSimperBib || "",
+ statusPerpanjangan: record.statusPerpanjangan || "Belum Diproses",
+ tahapanWorkflow: record.tahapanWorkflow || "",
+ catatan: record.catatan || "",
         });
-        setIsEditDialogOpen(true);
+ setIsEditDialogOpen(true);
     };
 
     // Handle view history
-    const handleViewHistory = (record: SimperPerpanjangan) => {
-        setSelectedRecord(record);
-        setIsHistoryDialogOpen(true);
+ const handleViewHistory = (record: SimperPerpanjangan) => {
+ setSelectedRecord(record);
+ setIsHistoryDialogOpen(true);
     };
 
     // Handle submit
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (selectedRecord) {
-            updateMutation.mutate({ id: selectedRecord.id, ...formData });
+ const handleSubmit = (e: React.FormEvent) => {
+ e.preventDefault();
+ if (selectedRecord) {
+ updateMutation.mutate({ id: selectedRecord.id, ...formData });
         } else {
-            createMutation.mutate(formData);
+ createMutation.mutate(formData);
         }
     };
 
     // Handle delete
-    const handleDelete = (id: string) => {
-        if (confirm("Apakah Anda yakin ingin menghapus data ini?")) {
-            deleteMutation.mutate(id);
+ const handleDelete = (id: string) => {
+ if (confirm("Apakah Anda yakin ingin menghapus data ini?")) {
+ deleteMutation.mutate(id);
         }
     };
 
     // Handle copy tracking link
-    const handleCopyLink = (token: string | null | undefined) => {
-        if (!token) {
-            toast({
-                title: "Gagal",
-                description: "Token tracking tidak tersedia untuk data ini (hanya untuk data baru/dimigrasi)",
-                variant: "destructive"
+ const handleCopyLink = (token: string | null | undefined) => {
+ if (!token) {
+ toast({
+ title: "Gagal",
+ description: "Token tracking tidak tersedia untuk data ini (hanya untuk data baru/dimigrasi)",
+ variant: "destructive"
             });
-            return;
+ return;
         }
 
-        const host = window.location.host;
-        const protocol = window.location.protocol;
-        const link = `${protocol}//${host}/public/simper-tracking/${token}`;
+ const host = window.location.host;
+ const protocol = window.location.protocol;
+ const link = `${protocol}//${host}/public/simper-tracking/${token}`;
 
-        navigator.clipboard.writeText(link).then(() => {
-            toast({ title: "Berhasil", description: "Tautan pelacakan telah disalin ke clipboard" });
+ navigator.clipboard.writeText(link).then(() => {
+ toast({ title: "Berhasil", description: "Tautan pelacakan telah disalin ke clipboard" });
         }).catch(() => {
-            toast({ title: "Gagal", description: "Gagal menyalin tautan", variant: "destructive" });
+ toast({ title: "Gagal", description: "Gagal menyalin tautan", variant: "destructive" });
         });
     };
 
     // Get days until expiry
-    const getDaysUntilExpiry = (dateStr: string | null | undefined) => {
-        if (!dateStr) return null;
-        try {
-            const date = parseISO(dateStr);
-            return differenceInDays(date, new Date());
+ const getDaysUntilExpiry = (dateStr: string | null | undefined) => {
+ if (!dateStr) return null;
+ try {
+ const date = parseISO(dateStr);
+ return differenceInDays(date, new Date());
         } catch {
-            return null;
+ return null;
         }
     };
 
     // Get expiry status
-    const getExpiryStatus = (days: number | null) => {
-        if (days === null) return { label: "-", color: "bg-gray-400" };
-        if (days < 0) return { label: "Expired", color: "bg-red-600" };
-        if (days <= 7) return { label: "Segera", color: "bg-red-500" };
-        if (days <= 30) return { label: "Mendekati", color: "bg-yellow-500" };
-        if (days <= 60) return { label: "Menuju", color: "bg-orange-500" };
-        return { label: "Aktif", color: "bg-green-500" };
+ const getExpiryStatus = (days: number | null) => {
+ if (days === null) return { label: "-", color: "bg-gray-400" };
+ if (days < 0) return { label: "Expired", color: "bg-red-600" };
+ if (days <= 7) return { label: "Segera", color: "bg-gray-950" };
+ if (days <= 30) return { label: "Mendekati", color: "bg-yellow-500" };
+ if (days <= 60) return { label: "Menuju", color: "bg-orange-500" };
+ return { label: "Aktif", color: "bg-primary" };
     };
 
     // Download Excel template
-    const downloadTemplate = () => {
-        const templateData = [
+ const downloadTemplate = () => {
+ const templateData = [
             {
-                "Nama": "Contoh Nama",
-                "NIK": "C-000001",
-                "Jabatan": "Driver",
-                "Departemen": "Operasional",
-                "Mitra": "PT. XYZ",
-                "No HP": "08123456789",
-                "Jenis SIMPER": "BIB",
-                "Expired SIMPER BIB": "2025-12-31",
+ "Nama": "Contoh Nama",
+ "NIK": "C-000001",
+ "Jabatan": "Driver",
+ "Departemen": "Operasional",
+ "Mitra": "PT. XYZ",
+ "No HP": "08123456789",
+ "Jenis SIMPER": "BIB",
+ "Expired SIMPER BIB": "2025-12-31",
             }
         ];
 
-        const ws = XLSX.utils.json_to_sheet(templateData);
-        const wb = XLSX.utils.book_new();
+ const ws = XLSX.utils.json_to_sheet(templateData);
+ const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Template");
         XLSX.writeFile(wb, "Template_Monitoring_Perpanjangan_SIMPER.xlsx");
     };
 
     // Export to Excel
-    const exportToExcel = () => {
-        const exportData = records.map((r, idx) => ({
-            "No": idx + 1,
-            "Nama": r.nama,
-            "NIK": r.nik,
-            "Jabatan": r.jabatan || "-",
-            "Departemen": r.departemen || "-",
-            "Mitra": r.perusahaan || "-",
-            "No HP": r.noHp || "-",
-            "Jenis SIMPER": r.jenisSimper,
-            "Expired BIB": r.expiredSimperBib || "-",
-            "Status": r.statusPerpanjangan,
-            "Tahapan": r.tahapanWorkflow || "-",
-            "Catatan": r.catatan || "-",
+ const exportToExcel = () => {
+ const exportData = records.map((r, idx) => ({
+ "No": idx + 1,
+ "Nama": r.nama,
+ "NIK": r.nik,
+ "Jabatan": r.jabatan || "-",
+ "Departemen": r.departemen || "-",
+ "Mitra": r.perusahaan || "-",
+ "No HP": r.noHp || "-",
+ "Jenis SIMPER": r.jenisSimper,
+ "Expired BIB": r.expiredSimperBib || "-",
+ "Status": r.statusPerpanjangan,
+ "Tahapan": r.tahapanWorkflow || "-",
+ "Catatan": r.catatan || "-",
         }));
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
+ const ws = XLSX.utils.json_to_sheet(exportData);
+ const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Data Perpanjangan SIMPER");
         XLSX.writeFile(wb, `Monitoring_Perpanjangan_SIMPER_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
     };
 
     // Statistics calculation
-    const stats = useMemo(() => {
-        const statusCount: Record<string, number> = {};
-        const jenisCount: Record<string, number> = {};
-        let expiredBib = 0;
-        let nearExpiryBib = 0;
+ const stats = useMemo(() => {
+ const statusCount: Record<string, number> = {};
+ const jenisCount: Record<string, number> = {};
+ let expiredBib = 0;
+ let nearExpiryBib = 0;
 
-        records.forEach((r) => {
+ records.forEach((r) => {
             // Status count
-            statusCount[r.statusPerpanjangan] = (statusCount[r.statusPerpanjangan] || 0) + 1;
+ statusCount[r.statusPerpanjangan] = (statusCount[r.statusPerpanjangan] || 0) + 1;
 
             // Jenis count
-            jenisCount[r.jenisSimper] = (jenisCount[r.jenisSimper] || 0) + 1;
+ jenisCount[r.jenisSimper] = (jenisCount[r.jenisSimper] || 0) + 1;
 
             // Check BIB expiry
-            const bibDays = getDaysUntilExpiry(r.expiredSimperBib);
-            if (bibDays !== null) {
-                if (bibDays < 0) expiredBib++;
-                else if (bibDays <= 30) nearExpiryBib++;
+ const bibDays = getDaysUntilExpiry(r.expiredSimperBib);
+ if (bibDays !== null) {
+ if (bibDays < 0) expiredBib++;
+ else if (bibDays <= 30) nearExpiryBib++;
             }
         });
 
-        return {
-            total: records.length,
-            statusCount,
-            jenisCount,
-            expiredBib,
-            nearExpiryBib,
+ return {
+ total: records.length,
+ statusCount,
+ jenisCount,
+ expiredBib,
+ nearExpiryBib,
         };
     }, [records]);
 
     // Chart data
-    const statusChartData = Object.entries(stats.statusCount).map(([name, value]) => ({
-        name,
-        value,
-        color: statusColors[name] || "#6b7280",
+ const statusChartData = Object.entries(stats.statusCount).map(([name, value]) => ({
+ name,
+ value,
+ color: statusColors[name] || "var(--grafik-3)",
     }));
 
-    return (
-        <div className="min-h-screen bg-slate-50/50 space-y-6 pb-20">
+ return (
+        <div className="min-h-screen bg-muted/50 space-y-6 pb-20">
             {/* Header */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-30 bg-white/80 backdrop-blur-md">
+            <div className="bg-white border-b border-border sticky top-0 z-30 bg-card">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div>
-                            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-700 to-orange-600">
+                            <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-foreground">
                                 Monitoring Perpanjangan SIMPER
                             </h1>
-                            <p className="text-slate-500 text-sm mt-1">
+                            <p className="text-muted-foreground text-sm mt-1">
                                 Kelola dan pantau status perpanjangan SIMPER karyawan
                             </p>
                         </div>
@@ -420,9 +420,9 @@ export default function MonitoringSimperPerpanjangan() {
                                 Export
                             </Button>
                             <Button
-                                size="sm"
-                                className="bg-amber-600 hover:bg-amber-700"
-                                onClick={() => { resetForm(); setIsAddDialogOpen(true); }}
+ size="sm"
+ className="bg-amber-600 hover:bg-amber-700"
+ onClick={() => { resetForm(); setIsAddDialogOpen(true); }}
                             >
                                 <Plus className="mr-2 h-3.5 w-3.5" />
                                 Tambah Data
@@ -435,7 +435,7 @@ export default function MonitoringSimperPerpanjangan() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-none shadow-lg">
+                    <Card className="border border-border bg-card">
                         <CardContent className="p-4">
                             <p className="text-amber-100 text-sm font-medium">Total Data</p>
                             <h3 className="text-3xl font-bold mt-1">{stats.total}</h3>
@@ -458,9 +458,9 @@ export default function MonitoringSimperPerpanjangan() {
                         <CardContent className="p-4">
                             <p className="text-gray-500 text-sm font-medium">Status Selesai</p>
                             <div className="flex items-end gap-2 mt-1">
-                                <span className="text-2xl font-bold text-green-600">{stats.statusCount["Selesai"] || 0}</span>
+                                <span className="text-2xl font-bold text-foreground">{stats.statusCount["Selesai"] || 0}</span>
                             </div>
-                            <CheckCircle2 className="h-6 w-6 text-green-500 mt-1" />
+                            <CheckCircle2 className="h-6 w-6 text-foreground mt-1" />
                         </CardContent>
                     </Card>
                 </div>
@@ -476,14 +476,14 @@ export default function MonitoringSimperPerpanjangan() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
-                                            data={statusChartData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={3}
-                                            dataKey="value"
-                                            label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+ data={statusChartData}
+ cx="50%"
+ cy="50%"
+ innerRadius={60}
+ outerRadius={80}
+ paddingAngle={3}
+ dataKey="value"
+ label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
                                         >
                                             {statusChartData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={entry.color.replace('bg-', '#').replace('-500', '')} />
@@ -508,7 +508,7 @@ export default function MonitoringSimperPerpanjangan() {
                                         <XAxis dataKey="name" />
                                         <YAxis />
                                         <RechartsTooltip />
-                                        <Bar dataKey="value" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                                        <Bar dataKey="value" fill="var(--grafik-4)" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
@@ -524,10 +524,10 @@ export default function MonitoringSimperPerpanjangan() {
                                 <div className="relative">
                                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                                     <Input
-                                        placeholder="Cari nama, NIK, atau nomor lambung..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="pl-10"
+ placeholder="Cari nama, NIK, atau nomor lambung..."
+ value={searchTerm}
+ onChange={(e) => setSearchTerm(e.target.value)}
+ className="pl-10"
                                     />
                                 </div>
                             </div>
@@ -558,11 +558,11 @@ export default function MonitoringSimperPerpanjangan() {
                 </Card>
 
                 {/* Portal Monitoring Publik Banner */}
-                <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-6 mb-6 shadow-xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative group">
+                <div className="relative mb-6 flex flex-col items-center justify-between gap-6 overflow-hidden rounded-xl border border-border bg-card p-6 md:flex-row">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(99,102,241,0.15),transparent_50%)]" />
 
                     <div className="flex items-center gap-5 relative z-10">
-                        <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-inner group-hover:scale-110 transition-transform duration-500">
+                        <div className="w-14 h-14 bg-card rounded-xl flex items-center justify-center border border-white/20 shadow-inner group- transition-transform duration-500">
                             <Share2 className="text-indigo-300 w-7 h-7" />
                         </div>
                         <div className="space-y-1">
@@ -576,36 +576,36 @@ export default function MonitoringSimperPerpanjangan() {
                     <div className="flex flex-wrap items-center gap-3 relative z-10 w-full md:w-auto">
                         <Dialog open={isQrDialogOpen} onOpenChange={setIsQrDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="bg-white hover:bg-indigo-50 text-indigo-900 font-bold border-none h-12 px-6 rounded-xl shadow-lg transition-all active:scale-95 flex-1 md:flex-none">
+                                <Button className="bg-white hover:bg-indigo-50 text-indigo-900 font-bold border-none h-12 px-6 rounded-xl transition-all active:scale-95 flex-1 md:flex-none">
                                     <QrCode className="w-4 h-4 mr-2" />
                                     Tampilkan Barcode
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-md p-8 bg-white rounded-3xl border-none shadow-2xl">
+                            <DialogContent className="sm:max-w-md p-8 bg-white rounded-xl border border-border">
                                 <DialogHeader className="space-y-3 text-center pb-4">
-                                    <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                                    <div className="w-16 h-16 bg-indigo-50 rounded-xl flex items-center justify-center mx-auto mb-2">
                                         <QrCode className="text-indigo-600 w-8 h-8" />
                                     </div>
-                                    <DialogTitle className="text-2xl font-black text-slate-900 uppercase tracking-tight">QR Code Monitoring</DialogTitle>
-                                    <DialogDescription className="text-slate-500 font-medium">
+                                    <DialogTitle className="text-2xl font-black text-foreground uppercase tracking-tight">QR Code Monitoring</DialogTitle>
+                                    <DialogDescription className="text-muted-foreground font-medium">
                                         Scan barcode ini untuk mengakses halaman monitoring publik secara langsung.
                                     </DialogDescription>
                                 </DialogHeader>
-                                <div className="flex justify-center py-6 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                                <div className="flex justify-center py-6 bg-muted rounded-xl border-2 border-dashed border-border">
                                     <canvas ref={qrCanvasRef} className="rounded-xl shadow-sm bg-white p-2" />
                                 </div>
                                 <div className="mt-8 space-y-3">
                                     <Button
-                                        onClick={handleCopyPublicLink}
-                                        variant="outline"
-                                        className="w-full h-14 rounded-2xl border-slate-200 text-slate-700 font-bold hover:bg-slate-50 transition-all text-lg"
+ onClick={handleCopyPublicLink}
+ variant="outline"
+ className="w-full h-14 rounded-xl border-border text-foreground font-bold hover:bg-muted transition-all text-lg"
                                     >
                                         <Copy className="w-5 h-5 mr-3 text-indigo-500" />
                                         Salin Link Portal
                                     </Button>
                                     <Button
-                                        onClick={() => setIsQrDialogOpen(false)}
-                                        className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-lg shadow-xl transition-all"
+ onClick={() => setIsQrDialogOpen(false)}
+ className="h-14 w-full rounded-xl text-base font-medium"
                                     >
                                         Tutup
                                     </Button>
@@ -614,16 +614,16 @@ export default function MonitoringSimperPerpanjangan() {
                         </Dialog>
 
                         <Button
-                            onClick={handleCopyPublicLink}
-                            className="bg-slate-800/50 hover:bg-slate-800 text-white font-bold border border-white/10 h-12 px-6 rounded-xl backdrop-blur-sm transition-all active:scale-95 flex-1 md:flex-none"
+ onClick={handleCopyPublicLink}
+ variant="outline" className="h-12 flex-1 rounded-xl px-6 md:flex-none"
                         >
                             <Copy className="w-4 h-4 mr-2 text-indigo-300" />
                             Salin Link
                         </Button>
 
                         <Button
-                            onClick={() => window.open(publicMonitoringUrl, '_blank')}
-                            className="bg-slate-800/50 hover:bg-slate-800 text-white font-bold border border-white/10 h-12 px-6 rounded-xl backdrop-blur-sm transition-all active:scale-95 flex-1 md:flex-none"
+ onClick={() => window.open(publicMonitoringUrl, '_blank')}
+ variant="outline" className="h-12 flex-1 rounded-xl px-6 md:flex-none"
                         >
                             <ExternalLink className="w-4 h-4 mr-2 text-indigo-300" />
                             Buka
@@ -667,14 +667,14 @@ export default function MonitoringSimperPerpanjangan() {
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
-                                                records.map((record, idx) => {
-                                                    const bibDays = getDaysUntilExpiry(record.expiredSimperBib);
-                                                    const tiaDays = getDaysUntilExpiry(record.expiredSimperTia);
-                                                    const bibStatus = getExpiryStatus(bibDays);
-                                                    const tiaStatus = getExpiryStatus(tiaDays);
+ records.map((record, idx) => {
+ const bibDays = getDaysUntilExpiry(record.expiredSimperBib);
+ const tiaDays = getDaysUntilExpiry(record.expiredSimperTia);
+ const bibStatus = getExpiryStatus(bibDays);
+ const tiaStatus = getExpiryStatus(tiaDays);
 
-                                                    return (
-                                                        <TableRow key={record.id} className="hover:bg-slate-50">
+ return (
+                                                        <TableRow key={record.id} className="hover:bg-muted">
                                                             <TableCell className="font-medium">{(page - 1) * pageSize + idx + 1}</TableCell>
                                                             <TableCell className="font-medium">{record.nama}</TableCell>
                                                             <TableCell>{record.nik}</TableCell>
@@ -703,34 +703,34 @@ export default function MonitoringSimperPerpanjangan() {
                                                             <TableCell className="text-right">
                                                                 <div className="flex justify-end gap-1">
                                                                     <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        onClick={() => handleCopyLink(record.trackingToken)}
-                                                                        title="Salin Link Tracking"
+ variant="ghost"
+ size="icon"
+ onClick={() => handleCopyLink(record.trackingToken)}
+ title="Salin Link Tracking"
                                                                     >
-                                                                        <Share2 className="h-4 w-4 text-emerald-600" />
+                                                                        <Share2 className="h-4 w-4 text-foreground" />
                                                                     </Button>
                                                                     <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        onClick={() => handleViewHistory(record)}
-                                                                        title="Lihat Riwayat"
+ variant="ghost"
+ size="icon"
+ onClick={() => handleViewHistory(record)}
+ title="Lihat Riwayat"
                                                                     >
                                                                         <History className="h-4 w-4 text-blue-600" />
                                                                     </Button>
                                                                     <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        onClick={() => handleEdit(record)}
-                                                                        title="Edit"
+ variant="ghost"
+ size="icon"
+ onClick={() => handleEdit(record)}
+ title="Edit"
                                                                     >
                                                                         <Edit className="h-4 w-4 text-orange-600" />
                                                                     </Button>
                                                                     <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        onClick={() => handleDelete(record.id)}
-                                                                        title="Hapus"
+ variant="ghost"
+ size="icon"
+ onClick={() => handleDelete(record.id)}
+ title="Hapus"
                                                                     >
                                                                         <Trash2 className="h-4 w-4 text-red-600" />
                                                                     </Button>
@@ -752,18 +752,18 @@ export default function MonitoringSimperPerpanjangan() {
                                         </p>
                                         <div className="flex items-center gap-1">
                                             <Button
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() => setPage(1)}
-                                                disabled={page === 1}
+ variant="outline"
+ size="icon"
+ onClick={() => setPage(1)}
+ disabled={page === 1}
                                             >
                                                 <ChevronsLeft className="h-4 w-4" />
                                             </Button>
                                             <Button
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() => setPage(page - 1)}
-                                                disabled={page === 1}
+ variant="outline"
+ size="icon"
+ onClick={() => setPage(page - 1)}
+ disabled={page === 1}
                                             >
                                                 <ChevronLeft className="h-4 w-4" />
                                             </Button>
@@ -771,18 +771,18 @@ export default function MonitoringSimperPerpanjangan() {
                                                 {page} / {totalPages}
                                             </span>
                                             <Button
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() => setPage(page + 1)}
-                                                disabled={page === totalPages}
+ variant="outline"
+ size="icon"
+ onClick={() => setPage(page + 1)}
+ disabled={page === totalPages}
                                             >
                                                 <ChevronRight className="h-4 w-4" />
                                             </Button>
                                             <Button
-                                                variant="outline"
-                                                size="icon"
-                                                onClick={() => setPage(totalPages)}
-                                                disabled={page === totalPages}
+ variant="outline"
+ size="icon"
+ onClick={() => setPage(totalPages)}
+ disabled={page === totalPages}
                                             >
                                                 <ChevronsRight className="h-4 w-4" />
                                             </Button>
@@ -797,10 +797,10 @@ export default function MonitoringSimperPerpanjangan() {
 
             {/* Add/Edit Dialog */}
             <Dialog open={isAddDialogOpen || isEditDialogOpen} onOpenChange={(open) => {
-                if (!open) {
-                    setIsAddDialogOpen(false);
-                    setIsEditDialogOpen(false);
-                    resetForm();
+ if (!open) {
+ setIsAddDialogOpen(false);
+ setIsEditDialogOpen(false);
+ resetForm();
                 }
             }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -818,47 +818,47 @@ export default function MonitoringSimperPerpanjangan() {
                             <div className="space-y-2">
                                 <Label htmlFor="nama">Nama Karyawan *</Label>
                                 <Input
-                                    id="nama"
-                                    value={formData.nama}
-                                    onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                                    required
+ id="nama"
+ value={formData.nama}
+ onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+ required
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="nik">NIK *</Label>
                                 <Input
-                                    id="nik"
-                                    value={formData.nik}
-                                    onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
-                                    required
+ id="nik"
+ value={formData.nik}
+ onChange={(e) => setFormData({ ...formData, nik: e.target.value })}
+ required
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="jabatan">Jabatan</Label>
                                 <Input
-                                    id="jabatan"
-                                    value={formData.jabatan}
-                                    onChange={(e) => setFormData({ ...formData, jabatan: e.target.value })}
+ id="jabatan"
+ value={formData.jabatan}
+ onChange={(e) => setFormData({ ...formData, jabatan: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="departemen">Departemen</Label>
                                 <Input
-                                    id="departemen"
-                                    value={formData.departemen}
-                                    onChange={(e) => setFormData({ ...formData, departemen: e.target.value })}
+ id="departemen"
+ value={formData.departemen}
+ onChange={(e) => setFormData({ ...formData, departemen: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="mitra">Mitra</Label>
                                 <Select
-                                    value={formData.perusahaan}
-                                    onValueChange={(value) => {
-                                        const selectedMitra = mitras.find(m => m.name === value);
-                                        setFormData({
+ value={formData.perusahaan}
+ onValueChange={(value) => {
+ const selectedMitra = mitras.find(m => m.name === value);
+ setFormData({
                                             ...formData,
-                                            perusahaan: value,
-                                            noHp: selectedMitra?.phoneNumber || formData.noHp
+ perusahaan: value,
+ noHp: selectedMitra?.phoneNumber || formData.noHp
                                         });
                                     }}
                                 >
@@ -875,16 +875,16 @@ export default function MonitoringSimperPerpanjangan() {
                             <div className="space-y-2">
                                 <Label htmlFor="noHp">No. HP</Label>
                                 <Input
-                                    id="noHp"
-                                    value={formData.noHp}
-                                    onChange={(e) => setFormData({ ...formData, noHp: e.target.value })}
+ id="noHp"
+ value={formData.noHp}
+ onChange={(e) => setFormData({ ...formData, noHp: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="jenisSimper">Jenis SIMPER *</Label>
                                 <Select
-                                    value={formData.jenisSimper}
-                                    onValueChange={(value) => setFormData({ ...formData, jenisSimper: value })}
+ value={formData.jenisSimper}
+ onValueChange={(value) => setFormData({ ...formData, jenisSimper: value })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />
@@ -899,17 +899,17 @@ export default function MonitoringSimperPerpanjangan() {
                             <div className="space-y-2">
                                 <Label htmlFor="expiredSimperBib">Expired SIMPER BIB</Label>
                                 <Input
-                                    id="expiredSimperBib"
-                                    type="date"
-                                    value={formData.expiredSimperBib}
-                                    onChange={(e) => setFormData({ ...formData, expiredSimperBib: e.target.value })}
+ id="expiredSimperBib"
+ type="date"
+ value={formData.expiredSimperBib}
+ onChange={(e) => setFormData({ ...formData, expiredSimperBib: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="statusPerpanjangan">Status Perpanjangan</Label>
                                 <Select
-                                    value={formData.statusPerpanjangan}
-                                    onValueChange={(value) => setFormData({ ...formData, statusPerpanjangan: value })}
+ value={formData.statusPerpanjangan}
+ onValueChange={(value) => setFormData({ ...formData, statusPerpanjangan: value })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />
@@ -924,8 +924,8 @@ export default function MonitoringSimperPerpanjangan() {
                             <div className="space-y-2">
                                 <Label htmlFor="tahapanWorkflow">Tahapan Workflow</Label>
                                 <Select
-                                    value={formData.tahapanWorkflow}
-                                    onValueChange={(value) => setFormData({ ...formData, tahapanWorkflow: value })}
+ value={formData.tahapanWorkflow}
+ onValueChange={(value) => setFormData({ ...formData, tahapanWorkflow: value })}
                                 >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Pilih tahapan..." />
@@ -942,29 +942,29 @@ export default function MonitoringSimperPerpanjangan() {
                         <div className="space-y-2">
                             <Label htmlFor="catatan">Catatan</Label>
                             <Textarea
-                                id="catatan"
-                                value={formData.catatan}
-                                onChange={(e) => setFormData({ ...formData, catatan: e.target.value })}
-                                rows={3}
+ id="catatan"
+ value={formData.catatan}
+ onChange={(e) => setFormData({ ...formData, catatan: e.target.value })}
+ rows={3}
                             />
                         </div>
 
                         <div className="flex justify-end gap-2 pt-4">
                             <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                    setIsAddDialogOpen(false);
-                                    setIsEditDialogOpen(false);
-                                    resetForm();
+ type="button"
+ variant="outline"
+ onClick={() => {
+ setIsAddDialogOpen(false);
+ setIsEditDialogOpen(false);
+ resetForm();
                                 }}
                             >
                                 Batal
                             </Button>
                             <Button
-                                type="submit"
-                                className="bg-amber-600 hover:bg-amber-700"
-                                disabled={createMutation.isPending || updateMutation.isPending}
+ type="submit"
+ className="bg-amber-600 hover:bg-amber-700"
+ disabled={createMutation.isPending || updateMutation.isPending}
                             >
                                 {(createMutation.isPending || updateMutation.isPending) && (
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -992,7 +992,7 @@ export default function MonitoringSimperPerpanjangan() {
                         ) : (
                             <div className="space-y-3">
                                 {historyRecords.map((history, idx) => (
-                                    <div key={history.id} className="border rounded-lg p-3 bg-slate-50">
+                                    <div key={history.id} className="border rounded-lg p-3 bg-muted">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 {history.statusSebelum && (

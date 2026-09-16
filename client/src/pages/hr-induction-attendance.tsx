@@ -20,131 +20,131 @@ import { InductionStats } from "@/components/hr/induction-stats";
 import { apiRequest } from "@/lib/queryClient";
 
 interface InductionAttendance {
-    id: string;
-    nik: string;
-    namaKaryawan: string;
-    jabatan: string;
-    nomorTelepon: string | null;
-    pemateri: string;
-    tandaTangan: string;
-    fotoSelfie: string | null;
-    tanggalRefreshInduksi: string;
-    waktu: string | null;
-    createdAt: string;
+ id: string;
+ nik: string;
+ namaKaryawan: string;
+ jabatan: string;
+ nomorTelepon: string | null;
+ pemateri: string;
+ tandaTangan: string;
+ fotoSelfie: string | null;
+ tanggalRefreshInduksi: string;
+ waktu: string | null;
+ createdAt: string;
 }
 
 export default function HrInductionAttendance() {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
-    const [qrDataUrl, setQrDataUrl] = useState<string>("");
-    const [isCopied, setIsCopied] = useState(false);
-    const { toast } = useToast();
-    const [syncResult, setSyncResult] = useState<any>(null);
+ const [searchTerm, setSearchTerm] = useState("");
+ const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
+ const [qrDataUrl, setQrDataUrl] = useState<string>("");
+ const [isCopied, setIsCopied] = useState(false);
+ const { toast } = useToast();
+ const [syncResult, setSyncResult] = useState<any>(null);
 
-    const syncPhonesMutation = useMutation({
-        mutationFn: async () => apiRequest("/api/induction-attendance/sync-phones", "POST", {}),
-        onSuccess: (data) => {
-            setSyncResult(data);
-            toast({
-                title: "Sinkron Selesai",
-                description: data.message,
+ const syncPhonesMutation = useMutation({
+ mutationFn: async () => apiRequest("/api/induction-attendance/sync-phones", "POST", {}),
+ onSuccess: (data) => {
+ setSyncResult(data);
+ toast({
+ title: "Sinkron Selesai",
+ description: data.message,
             });
         },
-        onError: (error: Error) => {
-            toast({ title: "Gagal Sinkron", description: error.message, variant: "destructive" });
+ onError: (error: Error) => {
+ toast({ title: "Gagal Sinkron", description: error.message, variant: "destructive" });
         }
     });
 
-    const publicInductionUrl = `${window.location.origin}/absensi-induksi`;
+ const publicInductionUrl = `${window.location.origin}/absensi-induksi`;
 
-    const handleShowQr = async () => {
-        try {
-            const dataUrl = await generateQRCodeDataURL(publicInductionUrl, { width: 300 });
-            setQrDataUrl(dataUrl);
+ const handleShowQr = async () => {
+ try {
+ const dataUrl = await generateQRCodeDataURL(publicInductionUrl, { width: 300 });
+ setQrDataUrl(dataUrl);
         } catch (error) {
-            console.error("Failed to generate QR:", error);
+ console.error("Failed to generate QR:", error);
         }
     };
 
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(publicInductionUrl);
-        setIsCopied(true);
-        toast({
-            title: "Link disalin",
-            description: "Link absensi induksi telah disalin ke clipboard.",
+ const copyToClipboard = () => {
+ navigator.clipboard.writeText(publicInductionUrl);
+ setIsCopied(true);
+ toast({
+ title: "Link disalin",
+ description: "Link absensi induksi telah disalin ke clipboard.",
         });
-        setTimeout(() => setIsCopied(false), 2000);
+ setTimeout(() => setIsCopied(false), 2000);
     };
 
-    const { data: attendanceData, isLoading } = useQuery<InductionAttendance[]>({
-        queryKey: ["/api/induction-attendance/all", { year: yearFilter, search: searchTerm }],
-        queryFn: async ({ queryKey }) => {
-            const [_url, params] = queryKey as [string, { year: string, search: string }];
-            const searchParams = new URLSearchParams();
-            if (params.year) searchParams.append("year", params.year);
-            if (params.search) searchParams.append("search", params.search);
+ const { data: attendanceData, isLoading } = useQuery<InductionAttendance[]>({
+ queryKey: ["/api/induction-attendance/all", { year: yearFilter, search: searchTerm }],
+ queryFn: async ({ queryKey }) => {
+ const [_url, params] = queryKey as [string, { year: string, search: string }];
+ const searchParams = new URLSearchParams();
+ if (params.year) searchParams.append("year", params.year);
+ if (params.search) searchParams.append("search", params.search);
 
-            const response = await fetch(`/api/induction-attendance/all?${searchParams.toString()}`);
-            if (!response.ok) throw new Error("Gagal mengambil data");
-            return response.json();
+ const response = await fetch(`/api/induction-attendance/all?${searchParams.toString()}`);
+ if (!response.ok) throw new Error("Gagal mengambil data");
+ return response.json();
         },
     });
 
-    const years = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
+ const years = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString());
 
-    const handleExportExcel = () => {
-        if (!attendanceData) return;
+ const handleExportExcel = () => {
+ if (!attendanceData) return;
 
-        const exportData = attendanceData.map((item) => ({
-            "Tanggal Refresh Induksi": item.tanggalRefreshInduksi,
-            "Waktu": item.waktu || "-",
-            "NIK": item.nik,
-            "Nama Karyawan": item.namaKaryawan,
-            "Jabatan": item.jabatan,
-            "Nomor Telepon": item.nomorTelepon || "-",
-            "Pemateri": item.pemateri,
-            "Waktu Submit": format(new Date(item.createdAt), "dd/MM/yyyy HH:mm"),
+ const exportData = attendanceData.map((item) => ({
+ "Tanggal Refresh Induksi": item.tanggalRefreshInduksi,
+ "Waktu": item.waktu || "-",
+ "NIK": item.nik,
+ "Nama Karyawan": item.namaKaryawan,
+ "Jabatan": item.jabatan,
+ "Nomor Telepon": item.nomorTelepon || "-",
+ "Pemateri": item.pemateri,
+ "Waktu Submit": format(new Date(item.createdAt), "dd/MM/yyyy HH:mm"),
         }));
 
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        const wb = XLSX.utils.book_new();
+ const ws = XLSX.utils.json_to_sheet(exportData);
+ const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Absensi Induksi");
         XLSX.writeFile(wb, `Absensi_Induksi_${yearFilter}_${format(new Date(), "yyyyMMdd")}.xlsx`);
     };
 
-    const handleExportPdf = () => {
-        if (!attendanceData) return;
+ const handleExportPdf = () => {
+ if (!attendanceData) return;
 
-        const doc = new jsPDF("landscape");
-        doc.text(`Rekap Absensi Induksi - Tahun ${yearFilter}`, 14, 15);
+ const doc = new jsPDF("landscape");
+ doc.text(`Rekap Absensi Induksi - Tahun ${yearFilter}`, 14, 15);
 
-        const tableData = attendanceData.map((item) => [
-            item.tanggalRefreshInduksi,
-            item.waktu || "-",
-            item.nik,
-            item.namaKaryawan,
-            item.jabatan,
-            item.nomorTelepon || "-",
-            item.pemateri,
+ const tableData = attendanceData.map((item) => [
+ item.tanggalRefreshInduksi,
+ item.waktu || "-",
+ item.nik,
+ item.namaKaryawan,
+ item.jabatan,
+ item.nomorTelepon || "-",
+ item.pemateri,
         ]);
 
-        autoTable(doc, {
-            head: [["Tanggal", "Waktu", "NIK", "Nama Karyawan", "Jabatan", "No. Telepon", "Pemateri"]],
-            body: tableData,
-            startY: 20,
-            theme: "striped",
-            headStyles: { fillColor: [220, 38, 38] }, // Red-600
+ autoTable(doc, {
+ head: [["Tanggal", "Waktu", "NIK", "Nama Karyawan", "Jabatan", "No. Telepon", "Pemateri"]],
+ body: tableData,
+ startY: 20,
+ theme: "striped",
+ headStyles: { fillColor: [220, 38, 38] }, // Red-600
         });
 
-        doc.save(`Absensi_Induksi_${yearFilter}.pdf`);
+ doc.save(`Absensi_Induksi_${yearFilter}.pdf`);
     };
 
-    return (
+ return (
         <div className="p-4 sm:-mx-4 lg:-mx-6 px-4 space-y-6 w-auto max-w-none">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                        <UserCheck className="w-8 h-8 text-red-600" />
+                        <UserCheck className="w-8 h-8 text-gray-950" />
                         Monitoring Absensi Induksi
                     </h1>
                     <p className="text-gray-500">
@@ -153,31 +153,31 @@ export default function HrInductionAttendance() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={handleExportExcel} disabled={isLoading || !attendanceData?.length}>
-                        <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+                        <FileSpreadsheet className="w-4 h-4 mr-2 text-foreground" />
                         Export Excel
                     </Button>
                     <Button variant="outline" onClick={handleExportPdf} disabled={isLoading || !attendanceData?.length}>
-                        <FileText className="w-4 h-4 mr-2 text-red-600" />
+                        <FileText className="w-4 h-4 mr-2 text-gray-950" />
                         Export PDF
                     </Button>
                     <Button
-                        variant="outline"
-                        className="bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
-                        onClick={() => {
-                            if (confirm("Update nomor telepon karyawan dari data absensi induksi? Hanya nomor yang kosong atau berbeda yang akan diperbarui."))
-                                syncPhonesMutation.mutate();
+ variant="outline"
+ className="bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
+ onClick={() => {
+ if (confirm("Update nomor telepon karyawan dari data absensi induksi? Hanya nomor yang kosong atau berbeda yang akan diperbarui."))
+ syncPhonesMutation.mutate();
                         }}
-                        disabled={syncPhonesMutation.isPending}
+ disabled={syncPhonesMutation.isPending}
                     >
                         {syncPhonesMutation.isPending
                             ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Menyinkron...</>
-                            : <><Phone className="w-4 h-4 mr-2" />Sinkron No. Telepon</>
+ : <><Phone className="w-4 h-4 mr-2" />Sinkron No. Telepon</>
                         }
                     </Button>
 
                     <Dialog onOpenChange={(open) => open && handleShowQr()}>
                         <DialogTrigger asChild>
-                            <Button className="bg-red-600 hover:bg-red-700 text-white">
+                            <Button className="bg-gray-950 hover:bg-gray-950 text-white">
                                 <QrCode className="w-4 h-4 mr-2" />
                                 Share Link & QR
                             </Button>
@@ -201,10 +201,10 @@ export default function HrInductionAttendance() {
                                 <div className="flex w-full items-center space-x-2">
                                     <div className="grid flex-1 gap-2">
                                         <Input
-                                            id="link"
-                                            defaultValue={publicInductionUrl}
-                                            readOnly
-                                            className="h-9 text-xs"
+ id="link"
+ defaultValue={publicInductionUrl}
+ readOnly
+ className="h-9 text-xs"
                                         />
                                     </div>
                                     <Button size="sm" className="px-3" onClick={copyToClipboard}>
@@ -239,7 +239,7 @@ export default function HrInductionAttendance() {
                                     <div key={i} className="text-xs text-blue-700 flex gap-3">
                                         <span className="font-mono">{item.nik}</span>
                                         <span className="font-medium">{item.name}</span>
-                                        <span className="text-green-700">→ {item.phone}</span>
+                                        <span className="text-foreground">→ {item.phone}</span>
                                     </div>
                                 ))}
                             </div>
@@ -273,10 +273,10 @@ export default function HrInductionAttendance() {
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                     <Input
-                                        placeholder="Cari Nama atau NIK..."
-                                        className="pl-9"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
+ placeholder="Cari Nama atau NIK..."
+ className="pl-9"
+ value={searchTerm}
+ onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
                                 <div className="w-full md:w-48">
@@ -299,7 +299,7 @@ export default function HrInductionAttendance() {
                     <Card className="shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
                             <Table>
-                                <TableHeader className="bg-gray-50">
+                                <TableHeader>
                                     <TableRow>
                                         <TableHead className="w-[150px]">Tanggal Refresh</TableHead>
                                         <TableHead>Waktu</TableHead>
@@ -326,11 +326,11 @@ export default function HrInductionAttendance() {
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        attendanceData?.map((item) => (
-                                            <TableRow key={item.id} className="hover:bg-gray-50/50">
+ attendanceData?.map((item) => (
+                                            <TableRow key={item.id} className="hover:bg-muted/50">
                                                 <TableCell className="font-medium">
                                                     <div className="flex items-center gap-2">
-                                                        <Calendar className="w-3 h-3 text-red-600" />
+                                                        <Calendar className="w-3 h-3 text-gray-950" />
                                                         {item.tanggalRefreshInduksi}
                                                     </div>
                                                 </TableCell>
@@ -363,9 +363,9 @@ export default function HrInductionAttendance() {
                                                     {item.tandaTangan && (
                                                         <div className="flex justify-center">
                                                             <img
-                                                                src={item.tandaTangan}
-                                                                alt="TTD"
-                                                                className="h-10 w-20 object-contain border rounded bg-white p-0.5"
+ src={item.tandaTangan}
+ alt="TTD"
+ className="h-10 w-20 object-contain border rounded bg-white p-0.5"
                                                             />
                                                         </div>
                                                     )}
@@ -374,9 +374,9 @@ export default function HrInductionAttendance() {
                                                     {item.fotoSelfie ? (
                                                         <a href={item.fotoSelfie} target="_blank" rel="noopener noreferrer" className="inline-block">
                                                             <img
-                                                                src={item.fotoSelfie}
-                                                                alt="Foto Selfie"
-                                                                className="h-12 w-12 object-cover border rounded-full bg-white hover:scale-150 transition-transform"
+ src={item.fotoSelfie}
+ alt="Foto Selfie"
+ className="h-12 w-12 object-cover border rounded-full bg-white transition-transform"
                                                             />
                                                         </a>
                                                     ) : (

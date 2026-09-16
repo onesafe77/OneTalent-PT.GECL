@@ -93,17 +93,17 @@ export default function SidakDashboard() {
           {(searchQuery === "" || "sidak seatbelt kepatuhan seatbelt".includes(searchQuery.toLowerCase())) && (
             <Link href="/workspace/sidak/seatbelt/new" data-testid="link-sidak-seatbelt">
               <div className="group relative bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-200 border border-gray-100 dark:border-gray-700 h-full flex flex-row items-center cursor-pointer overflow-hidden">
-                <div className="h-16 w-16 rounded-xl bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400 mr-4 flex-shrink-0">
+                <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center text-foreground mr-4 flex-shrink-0">
                   <ClipboardCheck className="h-8 w-8" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-green-600 transition-colors">Sidak Seatbelt</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white group-hover:text-primary transition-colors">Sidak Seatbelt</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Kepatuhan Seatbelt</p>
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-foreground">
                     Unlimited
                   </span>
                 </div>
-                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-green-100 group-hover:text-green-600 transition-colors">
+                <div className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-700 flex items-center justify-center text-gray-400 group-hover:bg-muted group-hover:text-primary transition-colors">
                   <ChevronRight className="w-4 h-4" />
                 </div>
               </div>

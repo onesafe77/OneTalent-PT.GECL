@@ -4960,6 +4960,14 @@ export type InsertPicaRecord = z.infer<typeof insertPicaRecordSchema>;
 // Butuh ekstensi pgvector — dibuat oleh migrations/2026-09-17_pengetahuan_potongan.sql,
 // JANGAN hanya mengandalkan db:push (push tidak membuat ekstensi).
 // Isi tabel dikelola skrip/penyinkron pengetahuan, bukan diedit manual.
+// Kunci baris Google Sheet (FMS; Safe Distance berawalan "sd:") yang sudah
+// dicatat — penjaga agar notifikasi pelanggaran baru tidak terkirim ulang.
+export const fmsSheetTerlihat = pgTable("fms_sheet_terlihat", {
+  kunci: text("kunci").primaryKey(),
+  tanggal: date("tanggal"),
+  dicatat: timestamp("dicatat", { withTimezone: true }).defaultNow(),
+});
+
 export const pengetahuanPotongan = pgTable("pengetahuan_potongan", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   koleksi: varchar("koleksi", { length: 40 }).notNull(),

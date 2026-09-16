@@ -763,10 +763,10 @@ export function QRScanner() {
                 scanResult.status === 'processing' 
                   ? 'bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-700'
                   : scanResult.status === 'success'
-                  ? 'bg-green-50 dark:bg-green-900 border-green-200 dark:border-green-700'
+                  ? 'bg-muted border-border'
                   : scanResult.status === 'error'
                   ? 'bg-red-50 dark:bg-red-900 border-red-200 dark:border-red-700'
-                  : 'bg-green-50 dark:bg-green-900 border-green-200 dark:border-green-700'
+                  : 'bg-muted border-border'
               }`}>
                 <div className="flex items-center">
                   {scanResult.status === 'processing' ? (
@@ -776,8 +776,8 @@ export function QRScanner() {
                     </>
                   ) : scanResult.status === 'success' ? (
                     <>
-                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300 mr-2" />
-                      <span className="text-green-800 dark:text-green-200 font-medium">Absensi Berhasil</span>
+                      <CheckCircle className="w-5 h-5 text-foreground mr-2" />
+                      <span className="text-foreground font-medium">Absensi Berhasil</span>
                     </>
                   ) : scanResult.status === 'error' ? (
                     <>
@@ -786,8 +786,8 @@ export function QRScanner() {
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300 mr-2" />
-                      <span className="text-green-800 dark:text-green-200 font-medium">QR Code Valid</span>
+                      <CheckCircle className="w-5 h-5 text-foreground mr-2" />
+                      <span className="text-foreground font-medium">QR Code Valid</span>
                     </>
                   )}
                 </div>
@@ -848,7 +848,7 @@ export function QRScanner() {
                   <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Jam Tidur <span className="text-red-500">*</span>
+                        Jam Tidur <span className="text-gray-600">*</span>
                       </label>
                       <select
                         value={attendanceForm.jamTidur}
@@ -869,7 +869,7 @@ export function QRScanner() {
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Status Fit To Work <span className="text-red-500">*</span>
+                        Status Fit To Work <span className="text-gray-600">*</span>
                       </label>
                       <select
                         value={attendanceForm.fitToWork}
@@ -888,7 +888,7 @@ export function QRScanner() {
                     {scanResult.nomorLambung === 'SPARE' && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Nomor Lambung Baru <span className="text-red-500">*</span>
+                          Nomor Lambung Baru <span className="text-gray-600">*</span>
                         </label>
                         <Input
                           type="text"
@@ -979,7 +979,7 @@ export function QRScanner() {
                 >
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
                       <span className="font-medium text-sm text-gray-900 dark:text-white">
                         {activity.employeeName}
                       </span>
@@ -1009,7 +1009,7 @@ export function QRScanner() {
                   <div className="flex flex-col items-end">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                       activity.status === 'present' 
-                        ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+                        ? 'bg-muted text-foreground'
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'
                     }`}>
                       {activity.status === 'present' ? 'Hadir' : activity.status}

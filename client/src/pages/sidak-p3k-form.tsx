@@ -279,7 +279,7 @@ export default function SidakP3kForm() {
                     <Button
                         onClick={handleSubmit}
                         disabled={submitMutation.isPending}
-                        className="flex-1 h-12 text-lg font-medium bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-200 dark:shadow-none"
+                        className="flex-1 h-12 text-lg font-medium bg-primary hover:bg-primary/90 text-white shadow-md shadow-primary/20 dark:shadow-none"
                     >
                         {submitMutation.isPending ? "Menyimpan..." : "Simpan Laporan"}
                         <Save className="ml-2 h-5 w-5" />
@@ -409,7 +409,7 @@ export default function SidakP3kForm() {
                                                     className={cn(
                                                         "flex-1 py-2.5 px-4 rounded-lg text-sm font-medium transition-all duration-200 border",
                                                         item.isAvailable
-                                                            ? "bg-green-600 border-green-600 text-white shadow-md shadow-green-200 dark:shadow-none"
+                                                            ? "bg-primary border-border text-white shadow-md shadow-primary/20 dark:shadow-none"
                                                             : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                                                     )}
                                                 >
@@ -498,7 +498,7 @@ export default function SidakP3kForm() {
                                 <CardHeader className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800 py-3">
                                     <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100 flex items-center justify-between">
                                         <span>Tanda Tangan Inspektor</span>
-                                        {form.inspectorSignature && <Check className="h-4 w-4 text-green-600" />}
+                                        {form.inspectorSignature && <Check className="h-4 w-4 text-foreground" />}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="p-4 space-y-4">

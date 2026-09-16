@@ -35,117 +35,117 @@ import { Card } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, HardHat, Loader2, KeyRound } from "lucide-react";
 
 interface SubconAccount {
-  id: string;
-  username: string;
-  name: string;
-  company: string | null;
-  isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+ id: string;
+ username: string;
+ name: string;
+ company: string | null;
+ isActive: boolean;
+ createdAt?: string;
+ updatedAt?: string;
 }
 
 export default function KelolaSubcon() {
-  const { toast } = useToast();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<SubconAccount | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<SubconAccount | null>(null);
+ const { toast } = useToast();
+ const [dialogOpen, setDialogOpen] = useState(false);
+ const [editing, setEditing] = useState<SubconAccount | null>(null);
+ const [deleteTarget, setDeleteTarget] = useState<SubconAccount | null>(null);
 
-  const [form, setForm] = useState({
-    name: "",
-    company: "",
-    username: "",
-    password: "",
-    isActive: true,
+ const [form, setForm] = useState({
+ name: "",
+ company: "",
+ username: "",
+ password: "",
+ isActive: true,
   });
 
-  const { data: accounts = [], isLoading } = useQuery<SubconAccount[]>({
-    queryKey: ["/api/subcon-accounts"],
+ const { data: accounts = [], isLoading } = useQuery<SubconAccount[]>({
+ queryKey: ["/api/subcon-accounts"],
   });
 
-  const resetForm = () => {
-    setForm({ name: "", company: "", username: "", password: "", isActive: true });
-    setEditing(null);
+ const resetForm = () => {
+ setForm({ name: "", company: "", username: "", password: "", isActive: true });
+ setEditing(null);
   };
 
-  const openCreate = () => {
-    resetForm();
-    setDialogOpen(true);
+ const openCreate = () => {
+ resetForm();
+ setDialogOpen(true);
   };
 
-  const openEdit = (acc: SubconAccount) => {
-    setEditing(acc);
-    setForm({
-      name: acc.name,
-      company: acc.company || "",
-      username: acc.username,
-      password: "",
-      isActive: acc.isActive,
+ const openEdit = (acc: SubconAccount) => {
+ setEditing(acc);
+ setForm({
+ name: acc.name,
+ company: acc.company || "",
+ username: acc.username,
+ password: "",
+ isActive: acc.isActive,
     });
-    setDialogOpen(true);
+ setDialogOpen(true);
   };
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (editing) {
-        const body: any = {
-          name: form.name,
-          company: form.company || null,
-          username: form.username,
-          isActive: form.isActive,
+ const saveMutation = useMutation({
+ mutationFn: async () => {
+ if (editing) {
+ const body: any = {
+ name: form.name,
+ company: form.company || null,
+ username: form.username,
+ isActive: form.isActive,
         };
-        if (form.password) body.password = form.password;
-        return apiRequest(`/api/subcon-accounts/${editing.id}`, "PUT", body);
+ if (form.password) body.password = form.password;
+ return apiRequest(`/api/subcon-accounts/${editing.id}`, "PUT", body);
       }
-      return apiRequest("/api/subcon-accounts", "POST", {
-        name: form.name,
-        company: form.company || null,
-        username: form.username,
-        password: form.password,
-        isActive: form.isActive,
+ return apiRequest("/api/subcon-accounts", "POST", {
+ name: form.name,
+ company: form.company || null,
+ username: form.username,
+ password: form.password,
+ isActive: form.isActive,
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/subcon-accounts"] });
-      toast({ title: editing ? "Akun subcon diperbarui" : "Akun subcon dibuat" });
-      setDialogOpen(false);
-      resetForm();
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/subcon-accounts"] });
+ toast({ title: editing ? "Akun subcon diperbarui" : "Akun subcon dibuat" });
+ setDialogOpen(false);
+ resetForm();
     },
-    onError: (err: any) => {
-      toast({
-        title: "Gagal menyimpan",
-        description: err?.message || "Terjadi kesalahan",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => apiRequest(`/api/subcon-accounts/${id}`, "DELETE"),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/subcon-accounts"] });
-      toast({ title: "Akun subcon dihapus" });
-      setDeleteTarget(null);
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Gagal menghapus",
-        description: err?.message || "Terjadi kesalahan",
-        variant: "destructive",
+ onError: (err: any) => {
+ toast({
+ title: "Gagal menyimpan",
+ description: err?.message || "Terjadi kesalahan",
+ variant: "destructive",
       });
     },
   });
 
-  const canSubmit =
-    form.name.trim() &&
-    form.username.trim() &&
+ const deleteMutation = useMutation({
+ mutationFn: async (id: string) => apiRequest(`/api/subcon-accounts/${id}`, "DELETE"),
+ onSuccess: () => {
+ queryClient.invalidateQueries({ queryKey: ["/api/subcon-accounts"] });
+ toast({ title: "Akun subcon dihapus" });
+ setDeleteTarget(null);
+    },
+ onError: (err: any) => {
+ toast({
+ title: "Gagal menghapus",
+ description: err?.message || "Terjadi kesalahan",
+ variant: "destructive",
+      });
+    },
+  });
+
+ const canSubmit =
+ form.name.trim() &&
+ form.username.trim() &&
     (editing || form.password.trim());
 
-  return (
+ return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-red-50 dark:bg-red-950 flex items-center justify-center">
-            <HardHat className="w-6 h-6 text-red-600" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-muted">
+            <HardHat className="h-5 w-5 text-muted-foreground" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">
@@ -189,10 +189,10 @@ export default function KelolaSubcon() {
                   <TableCell className="font-mono text-sm">{acc.username}</TableCell>
                   <TableCell>
                     <span
-                      className={
-                        acc.isActive
-                          ? "inline-flex px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700"
-                          : "inline-flex px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500"
+ className={
+ acc.isActive
+                          ? "inline-flex px-2 py-0.5 rounded-full text-xs bg-muted text-foreground"
+ : "inline-flex px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500"
                       }
                     >
                       {acc.isActive ? "Aktif" : "Nonaktif"}
@@ -200,17 +200,17 @@ export default function KelolaSubcon() {
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(acc)}
+ variant="ghost"
+ size="icon"
+ onClick={() => openEdit(acc)}
                     >
                       <Pencil className="w-4 h-4" />
                     </Button>
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => setDeleteTarget(acc)}
+ variant="ghost"
+ size="icon"
+ className="text-red-600 hover:text-red-700"
+ onClick={() => setDeleteTarget(acc)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -234,26 +234,26 @@ export default function KelolaSubcon() {
             <div className="space-y-1.5">
               <Label>Nama</Label>
               <Input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Nama lengkap"
+ value={form.name}
+ onChange={(e) => setForm({ ...form, name: e.target.value })}
+ placeholder="Nama lengkap"
               />
             </div>
             <div className="space-y-1.5">
               <Label>Perusahaan</Label>
               <Input
-                value={form.company}
-                onChange={(e) => setForm({ ...form, company: e.target.value })}
-                placeholder="Nama perusahaan subcon"
+ value={form.company}
+ onChange={(e) => setForm({ ...form, company: e.target.value })}
+ placeholder="Nama perusahaan subcon"
               />
             </div>
             <div className="space-y-1.5">
               <Label>Username / Kode</Label>
               <Input
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="username untuk login"
-                autoCapitalize="none"
+ value={form.username}
+ onChange={(e) => setForm({ ...form, username: e.target.value })}
+ placeholder="username untuk login"
+ autoCapitalize="none"
               />
             </div>
             <div className="space-y-1.5">
@@ -262,17 +262,17 @@ export default function KelolaSubcon() {
                 Password {editing && <span className="text-xs text-gray-400">(kosongkan jika tidak diubah)</span>}
               </Label>
               <Input
-                type="text"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder={editing ? "•••••• (tidak diubah)" : "Password login"}
+ type="text"
+ value={form.password}
+ onChange={(e) => setForm({ ...form, password: e.target.value })}
+ placeholder={editing ? "•••••• (tidak diubah)" : "Password login"}
               />
             </div>
             <div className="flex items-center justify-between pt-1">
               <Label>Akun Aktif</Label>
               <Switch
-                checked={form.isActive}
-                onCheckedChange={(v) => setForm({ ...form, isActive: v })}
+ checked={form.isActive}
+ onCheckedChange={(v) => setForm({ ...form, isActive: v })}
               />
             </div>
           </div>
@@ -281,9 +281,9 @@ export default function KelolaSubcon() {
               Batal
             </Button>
             <Button
-              className="bg-red-600 hover:bg-red-700"
-              disabled={!canSubmit || saveMutation.isPending}
-              onClick={() => saveMutation.mutate()}
+ className="bg-red-600 hover:bg-red-700"
+ disabled={!canSubmit || saveMutation.isPending}
+ onClick={() => saveMutation.mutate()}
             >
               {saveMutation.isPending && (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -296,23 +296,23 @@ export default function KelolaSubcon() {
 
       {/* Delete confirm */}
       <AlertDialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => !o && setDeleteTarget(null)}
+ open={!!deleteTarget}
+ onOpenChange={(o) => !o && setDeleteTarget(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus akun subcon?</AlertDialogTitle>
             <AlertDialogDescription>
               Akun <b>{deleteTarget?.name}</b> ({deleteTarget?.username}) akan
-              dihapus permanen dan tidak bisa login lagi.
+ dihapus permanen dan tidak bisa login lagi.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={() =>
-                deleteTarget && deleteMutation.mutate(deleteTarget.id)
+ className="bg-red-600 hover:bg-red-700"
+ onClick={() =>
+ deleteTarget && deleteMutation.mutate(deleteTarget.id)
               }
             >
               Hapus

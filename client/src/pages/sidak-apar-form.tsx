@@ -365,7 +365,7 @@ export default function SidakAparForm() {
         if (draft.step === 3) {
             return (
                 <Button
-                    className="w-full h-12 bg-green-600 hover:bg-green-700 text-white font-bold shadow-lg shadow-green-200 dark:shadow-none"
+                    className="w-full h-12 bg-primary hover:bg-primary/90 text-white font-bold shadow-lg shadow-primary/20 dark:shadow-none"
                     onClick={handleFinish}
                     disabled={draft.inspectors.length === 0}
                 >
@@ -517,7 +517,7 @@ export default function SidakAparForm() {
                                     <div className="flex items-center justify-between">
                                         <Label className="text-sm font-bold text-gray-700 dark:text-gray-200">Checklist Inspeksi</Label>
                                         <div className="flex gap-2 text-xs">
-                                            <span className="text-green-600">S = Sesuai</span>
+                                            <span className="text-foreground">S = Sesuai</span>
                                             <span className="text-red-600">TS = Tidak Sesuai</span>
                                         </div>
                                     </div>
@@ -598,7 +598,7 @@ export default function SidakAparForm() {
                                                     {tsCount > 0 && (
                                                         <Badge variant="destructive" className="text-xs">{tsCount} TS</Badge>
                                                     )}
-                                                    <Check className="h-5 w-5 text-green-600" />
+                                                    <Check className="h-5 w-5 text-foreground" />
                                                 </div>
                                             </div>
                                         );
@@ -621,12 +621,12 @@ export default function SidakAparForm() {
                             {draft.inspectors.length > 0 && (
                                 <div className="space-y-3">
                                     {draft.inspectors.map((ins, idx) => (
-                                        <div key={idx} className="p-3 bg-green-50 rounded-xl border border-green-100 flex items-center justify-between">
+                                        <div key={idx} className="p-3 bg-muted rounded-xl border border-border flex items-center justify-between">
                                             <div>
-                                                <p className="font-bold text-sm text-green-900">{ins.nama}</p>
-                                                <p className="text-[10px] text-green-700">{ins.perusahaan}</p>
+                                                <p className="font-bold text-sm text-foreground">{ins.nama}</p>
+                                                <p className="text-[10px] text-foreground">{ins.perusahaan}</p>
                                             </div>
-                                            <Check className="h-5 w-5 text-green-600" />
+                                            <Check className="h-5 w-5 text-foreground" />
                                         </div>
                                     ))}
                                 </div>

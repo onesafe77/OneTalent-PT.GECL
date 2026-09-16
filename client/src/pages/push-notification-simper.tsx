@@ -340,7 +340,7 @@ export default function PushNotificationSimper() {
                                         value={apiKey}
                                         onChange={(e) => setApiKey(e.target.value)}
                                     />
-                                    {settings?.isConfigured && <p className="text-xs text-green-600 flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Terkonfigurasi</p>}
+                                    {settings?.isConfigured && <p className="text-xs text-foreground flex items-center"><CheckCircle2 className="w-3 h-3 mr-1" /> Terkonfigurasi</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="adminPhone">Nomor WhatsApp Admin (untuk notifikasi sistem)</Label>
@@ -588,7 +588,7 @@ JANGAN tulis nama asli, PAKAI {nama}.`,
                     <div className="max-h-[500px] overflow-y-auto space-y-2">
                         {filteredDocs.length === 0 ? (
                             <div className="text-center py-8 text-muted-foreground">
-                                <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-emerald-500" />
+                                <CheckCircle2 className="w-12 h-12 mx-auto mb-2 text-foreground" />
                                 <p>Tidak ada dokumen yang akan expired</p>
                             </div>
                         ) : (

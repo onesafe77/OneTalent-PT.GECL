@@ -225,15 +225,15 @@ export default function SidakReminderInspeksi() {
                         <p className="text-xs text-gray-400 mt-1">periode {formatMonthLabel(selectedMonth)}</p>
                     </CardContent>
                 </Card>
-                <Card className="border-green-200 bg-green-50">
+                <Card className="border-border bg-muted">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-green-700 flex items-center gap-1">
+                        <CardTitle className="text-sm font-medium text-foreground flex items-center gap-1">
                             <CheckCircle2 className="h-4 w-4" /> Sudah Dilakukan
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-bold text-green-700">{doneCount}</p>
-                        <p className="text-xs text-green-600 mt-1">dari {sidakTypes.length} jenis</p>
+                        <p className="text-3xl font-bold text-foreground">{doneCount}</p>
+                        <p className="text-xs text-foreground mt-1">dari {sidakTypes.length} jenis</p>
                     </CardContent>
                 </Card>
                 <Card className="border-red-200 bg-red-50">
@@ -294,7 +294,7 @@ export default function SidakReminderInspeksi() {
                                         ]}
                                     />
                                     <Legend formatter={(v) => v === "done" ? "Terlaksana" : "Belum Terlaksana"} />
-                                    <Bar dataKey="done" fill="#22c55e" radius={[4, 4, 0, 0]} stackId="a">
+                                    <Bar dataKey="done" fill="#E15A61" radius={[4, 4, 0, 0]} stackId="a">
                                         <LabelList dataKey="done" position="inside" style={{ fontSize: 11, fontWeight: 700, fill: "#fff" }} />
                                     </Bar>
                                     <Bar dataKey="notDone" fill="#fca5a5" radius={[4, 4, 0, 0]} stackId="a">
@@ -323,10 +323,10 @@ export default function SidakReminderInspeksi() {
                                     <Line
                                         type="monotone"
                                         dataKey="percentage"
-                                        stroke="#f97316"
+                                        stroke="#F59E0B"
                                         strokeWidth={2.5}
-                                        dot={{ r: 5, fill: "#f97316" }}
-                                        label={{ position: "top", fontSize: 11, fontWeight: 700, fill: "#f97316", formatter: (v: number) => `${v}%` }}
+                                        dot={{ r: 5, fill: "#F59E0B" }}
+                                        label={{ position: "top", fontSize: 11, fontWeight: 700, fill: "#F59E0B", formatter: (v: number) => `${v}%` }}
                                     />
                                 </LineChart>
                             </ResponsiveContainer>
@@ -352,23 +352,23 @@ export default function SidakReminderInspeksi() {
                                 <div
                                     key={s.type}
                                     className={`rounded-lg border-2 p-3 ${s.done
-                                        ? 'border-green-200 bg-green-50'
+                                        ? 'border-border bg-muted'
                                         : 'border-red-200 bg-red-50'
                                     }`}
                                 >
                                     <div className="flex items-start justify-between gap-1 mb-1">
                                         <span className="text-xs font-semibold leading-tight">{s.label}</span>
                                         {s.done
-                                            ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                                            ? <CheckCircle2 className="h-4 w-4 text-foreground shrink-0 mt-0.5" />
                                             : <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                                         }
                                     </div>
                                     {s.done ? (
                                         <>
-                                            <Badge className="bg-green-100 text-green-800 border-green-200 text-[10px] px-1.5">
+                                            <Badge className="bg-muted text-foreground border-border text-[10px] px-1.5">
                                                 {s.count}x dilakukan
                                             </Badge>
-                                            <p className="text-[10px] text-green-700 mt-1">
+                                            <p className="text-[10px] text-foreground mt-1">
                                                 Terakhir: {formatDate(s.lastDate)}
                                             </p>
                                         </>
@@ -453,7 +453,7 @@ export default function SidakReminderInspeksi() {
                                             <TableCell>
                                                 {result ? (
                                                     result.status === 'sent'
-                                                        ? <Badge className="bg-green-100 text-green-800 border-green-200">Terkirim</Badge>
+                                                        ? <Badge className="bg-muted text-foreground border-border">Terkirim</Badge>
                                                         : <Badge className="bg-red-100 text-red-800 border-red-200">Gagal</Badge>
                                                 ) : (
                                                     <Badge variant="outline" className="text-gray-400">Belum dikirim</Badge>
@@ -472,7 +472,7 @@ export default function SidakReminderInspeksi() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-base">
-                        <Send className="h-5 w-5 text-green-600" />
+                        <Send className="h-5 w-5 text-foreground" />
                         Pesan WhatsApp
                         {customMessage && (
                             <Button
@@ -504,7 +504,7 @@ export default function SidakReminderInspeksi() {
                         <Button
                             onClick={() => sendMutation.mutate()}
                             disabled={selectedSupervisors.length === 0 || !message || sendMutation.isPending}
-                            className="bg-green-600 hover:bg-green-700 text-white"
+                            className="bg-primary hover:bg-primary/90 text-white"
                         >
                             {sendMutation.isPending ? (
                                 <><RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Mengirim...</>

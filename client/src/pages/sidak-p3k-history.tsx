@@ -37,7 +37,7 @@ export default function SidakP3kHistory() {
     });
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 pb-20">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-[#96161C] dark:from-gray-900 dark:to-gray-800 pb-20">
             {/* Header */}
             <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-700">
                 <div className="max-w-2xl mx-auto px-4 h-16 flex items-center gap-3">
@@ -228,7 +228,7 @@ function HistoryCard({ session }: { session: SidakP3kSession }) {
 
     return (
         <Card className="group overflow-hidden border-none shadow-lg rounded-xl bg-white dark:bg-gray-800 ring-1 ring-gray-200 dark:ring-gray-700 hover:ring-blue-300 dark:hover:ring-blue-700 transition-all duration-300">
-            <div className="h-1.5 w-full bg-gradient-to-r from-blue-500 to-indigo-500" />
+            <div className="h-1.5 w-full bg-gradient-to-r from-[#DF2A33] to-[#96161C]" />
             <CardContent className="p-5">
                 <div className="flex justify-between items-start mb-4">
                     <div className="flex-1">

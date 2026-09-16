@@ -252,7 +252,7 @@ export default function SiAsefAdminPage() {
                             </Badge>
                         </RouterLink>
                         <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-zinc-200 shadow-sm">
-                            <Database className="w-5 h-5 text-emerald-600" />
+                            <Database className="w-5 h-5 text-foreground" />
                             <div>
                                 <p className="text-xs text-zinc-400 font-bold uppercase">Total Dokumen</p>
                                 <p className="text-lg font-bold text-zinc-900 leading-none">{documents.length}</p>
@@ -270,8 +270,8 @@ export default function SiAsefAdminPage() {
                                 key={folder}
                                 onClick={() => setSelectedFolder(folder)}
                                 className={`px-4 py-2 rounded-xl font-medium text-sm transition-all flex items-center gap-2 ${selectedFolder === folder
-                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
-                                    : 'bg-white border border-zinc-200 text-zinc-600 hover:border-emerald-400 hover:text-emerald-600'
+                                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                    : 'bg-white border border-zinc-200 text-zinc-600 hover:border-border hover:text-primary'
                                     }`}
                             >
                                 <FolderOpen className="w-4 h-4" />
@@ -293,7 +293,7 @@ export default function SiAsefAdminPage() {
                 </button>
                 <button
                     onClick={() => setUploadMode('sheet')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${uploadMode === 'sheet' ? 'bg-emerald-600 text-white shadow-sm glow-emerald' : 'text-zinc-500 hover:text-zinc-900'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${uploadMode === 'sheet' ? 'bg-primary text-white shadow-sm glow-emerald' : 'text-zinc-500 hover:text-zinc-900'}`}
                 >
                     <Link className="w-4 h-4" />
                     Google Sheet Link
@@ -305,7 +305,7 @@ export default function SiAsefAdminPage() {
                 <div
                     className={`
                 mb-10 border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center text-center transition-all
-                ${isUploading ? 'border-emerald-500 bg-emerald-50 cursor-wait' : isDragging ? 'border-emerald-500 bg-emerald-50 scale-[1.01] cursor-pointer' : 'border-zinc-300 bg-white hover:border-emerald-400 hover:bg-zinc-50 cursor-pointer'}
+                ${isUploading ? 'border-border bg-muted cursor-wait' : isDragging ? 'border-border bg-muted scale-[1.01] cursor-pointer' : 'border-zinc-300 bg-white hover:border-border hover:bg-zinc-50 cursor-pointer'}
             `}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -321,7 +321,7 @@ export default function SiAsefAdminPage() {
                         onChange={handleFileSelect}
                         multiple
                     />
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm ${isUploading ? 'bg-emerald-200 text-emerald-700' : 'bg-emerald-100 text-emerald-600'}`}>
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm ${isUploading ? 'bg-muted text-foreground' : 'bg-muted text-foreground'}`}>
                         {isUploading ? <Loader2 className="w-8 h-8 animate-spin" /> : <UploadCloud className="w-8 h-8" />}
                     </div>
                     <h3 className="text-xl font-bold text-zinc-800 mb-2">
@@ -331,11 +331,11 @@ export default function SiAsefAdminPage() {
                         <div className="w-full max-w-md mb-4">
                             <div className="h-3 bg-zinc-200 rounded-full overflow-hidden">
                                 <div
-                                    className="h-full bg-emerald-500 transition-all duration-300 ease-out"
+                                    className="h-full bg-primary transition-all duration-300 ease-out"
                                     style={{ width: `${uploadProgress}%` }}
                                 />
                             </div>
-                            <p className="text-sm text-emerald-600 font-medium mt-2">
+                            <p className="text-sm text-foreground font-medium mt-2">
                                 {uploadProgress < 100 ? 'Mengunggah file...' : 'Memproses dan mengindeks dokumen...'}
                             </p>
                         </div>
@@ -350,8 +350,8 @@ export default function SiAsefAdminPage() {
                             {uploadQueue.map((item, idx) => (
                                 <div key={idx} className="flex items-center gap-2 text-xs">
                                     {item.status === 'pending' && <span className="w-2 h-2 rounded-full bg-zinc-300" />}
-                                    {item.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />}
-                                    {item.status === 'done' && <CheckCircle2 className="w-3 h-3 text-emerald-600" />}
+                                    {item.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-foreground" />}
+                                    {item.status === 'done' && <CheckCircle2 className="w-3 h-3 text-foreground" />}
                                     {item.status === 'error' && <AlertCircle className="w-3 h-3 text-red-500" />}
                                     <span className={item.status === 'error' ? 'text-red-600' : 'text-zinc-600'}>{item.name}</span>
                                 </div>
@@ -359,7 +359,7 @@ export default function SiAsefAdminPage() {
                         </div>
                     )}
                     <button
-                        className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-zinc-900/10 ${isUploading ? 'bg-zinc-400 text-white cursor-not-allowed' : 'bg-zinc-900 text-white hover:bg-emerald-600'}`}
+                        className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-zinc-900/10 ${isUploading ? 'bg-zinc-400 text-white cursor-not-allowed' : 'bg-zinc-900 text-white hover:bg-primary/90'}`}
                         disabled={isUploading}
                     >
                         {isUploading ? `Mengupload...` : 'Pilih File dari Komputer'}
@@ -368,7 +368,7 @@ export default function SiAsefAdminPage() {
             ) : (
                 <div className="mb-10 bg-white rounded-3xl p-10 border border-zinc-200 shadow-sm">
                     <div className="flex flex-col items-center text-center max-w-xl mx-auto">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-sm bg-emerald-100 text-emerald-600`}>
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-sm bg-muted text-foreground`}>
                             <FileSpreadsheet className="w-8 h-8" />
                         </div>
                         <h3 className="text-xl font-bold text-zinc-800 mb-2">Sync Google Sheet</h3>
@@ -382,7 +382,7 @@ export default function SiAsefAdminPage() {
                                 <input
                                     type="text"
                                     placeholder="Paste link https://docs.google.com/spreadsheets/..."
-                                    className="w-full pl-10 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all font-mono text-sm"
+                                    className="w-full pl-10 pr-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-border transition-all font-mono text-sm"
                                     value={sheetUrl}
                                     onChange={(e) => setSheetUrl(e.target.value)}
                                 />
@@ -390,7 +390,7 @@ export default function SiAsefAdminPage() {
                             <button
                                 onClick={handleSheetUpload}
                                 disabled={!sheetUrl || isUploading}
-                                className={`px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap shadow-lg ${!sheetUrl || isUploading ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-500/20'}`}
+                                className={`px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap shadow-lg ${!sheetUrl || isUploading ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed' : 'bg-primary text-white hover:bg-primary/90 shadow-primary/20'}`}
                             >
                                 {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sync Data'}
                             </button>
@@ -404,9 +404,9 @@ export default function SiAsefAdminPage() {
 
             {/* Success/Error Notifications */}
             {uploadSuccess && (
-                <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <p className="text-emerald-700 font-medium">{uploadSuccess}</p>
+                <div className="mb-6 p-4 bg-muted border border-border rounded-xl flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-foreground shrink-0" />
+                    <p className="text-foreground font-medium">{uploadSuccess}</p>
                 </div>
             )}
             {uploadError && (
@@ -420,7 +420,7 @@ export default function SiAsefAdminPage() {
             <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm overflow-hidden">
                 <div className="px-8 py-6 border-b border-zinc-100 flex items-center justify-between">
                     <h3 className="font-bold text-lg text-zinc-800 flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-emerald-600" />
+                        <FileText className="w-5 h-5 text-foreground" />
                         Dokumen Aktif
                     </h3>
                     <div className="relative">
@@ -430,7 +430,7 @@ export default function SiAsefAdminPage() {
                             placeholder="Cari dokumen..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-64"
+                            className="pl-9 pr-4 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-border w-64"
                         />
                     </div>
                 </div>
@@ -461,9 +461,9 @@ export default function SiAsefAdminPage() {
                                             ) : (
                                                 <ChevronRight className="w-5 h-5 text-zinc-400" />
                                             )}
-                                            <FolderOpen className="w-5 h-5 text-emerald-600" />
+                                            <FolderOpen className="w-5 h-5 text-foreground" />
                                             <span className="font-bold text-zinc-800">{folder}</span>
-                                            <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold">
+                                            <span className="text-xs bg-muted text-foreground px-2 py-0.5 rounded-full font-bold">
                                                 {folderDocs.length} dokumen
                                             </span>
                                         </div>
@@ -485,7 +485,7 @@ export default function SiAsefAdminPage() {
                                                         <tr key={doc.id} className="hover:bg-white transition-colors group">
                                                             <td className="px-4 py-4 pl-8">
                                                                 <div className="flex items-center gap-4">
-                                                                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+                                                                    <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center text-foreground">
                                                                         <FileText className="w-5 h-5" />
                                                                     </div>
                                                                     <div>
@@ -513,8 +513,8 @@ export default function SiAsefAdminPage() {
                                                                             handleDelete(doc.id);
                                                                         }}
                                                                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 border ${deletingId === doc.id
-                                                                            ? 'bg-red-50 text-red-400 border-red-100 cursor-wait'
-                                                                            : 'bg-white text-red-600 border-red-200 hover:bg-red-600 hover:text-white hover:border-red-600'
+                                                                            ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-wait'
+                                                                            : 'bg-white text-gray-950 border-gray-200 hover:bg-gray-950 hover:text-white hover:border-gray-950'
                                                                             }`}
                                                                         title="Hapus Dokumen"
                                                                         disabled={deletingId === doc.id}

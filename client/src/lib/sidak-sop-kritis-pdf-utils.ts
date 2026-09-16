@@ -27,9 +27,9 @@ function escapeHtml(str: any): string {
 
 const riskColor = (tingkat?: string) => {
     switch ((tingkat || '').toLowerCase()) {
-        case 'rendah': return '#22c55e';
+        case 'rendah': return '#E15A61';
         case 'sedang': return '#eab308';
-        case 'tinggi': return '#f97316';
+        case 'tinggi': return '#F59E0B';
         case 'ekstrem': return '#dc2626';
         default: return '#ffffff';
     }

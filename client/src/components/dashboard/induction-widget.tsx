@@ -78,11 +78,11 @@ export function InductionWidget() {
                         <AreaChart data={stats.chartData.length ? stats.chartData : [{ val: 0 }]}>
                             <defs>
                                 <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    <stop offset="5%" stopColor="#DF2A33" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#DF2A33" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <Area type="monotone" dataKey="val" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorVal)" />
+                            <Area type="monotone" dataKey="val" stroke="#DF2A33" strokeWidth={2} fillOpacity={1} fill="url(#colorVal)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>

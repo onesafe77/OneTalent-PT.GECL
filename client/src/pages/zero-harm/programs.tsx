@@ -14,13 +14,13 @@ interface Resp { year: number; pillars: Record<number, string>; programs: Row[];
 const pct = (v: number | null) => (v == null ? "—" : Math.round(v * 100) + "%");
 const color = (v: number | null) => {
   if (v == null) return "text-slate-400";
-  if (v >= 0.8) return "text-green-600";
+  if (v >= 0.8) return "text-foreground";
   if (v >= 0.5) return "text-amber-600";
   return "text-red-600";
 };
 const barColor = (v: number | null) => {
   if (v == null) return "bg-slate-200";
-  if (v >= 0.8) return "bg-green-500";
+  if (v >= 0.8) return "bg-primary";
   if (v >= 0.5) return "bg-amber-500";
   return "bg-red-500";
 };
@@ -47,7 +47,7 @@ export default function ZeroHarmPrograms() {
   return (
     <div className="p-4 sm:p-6 space-y-5">
       {/* Header banner SIMANTIK */}
-      <div className="rounded-2xl p-5 bg-gradient-to-r from-teal-600 to-violet-600 text-white">
+      <div className="rounded-2xl p-5 bg-gradient-to-r from-teal-600 to-[#96161C] text-white">
         <h1 className="text-xl font-bold flex items-center gap-2"><ShieldCheck className="w-6 h-6" /> Zero Harm 2.0 — Program Monitoring</h1>
         <p className="text-sm opacity-90">SIMANTIK · Monitoring {programs.length} program dalam 18 pilar · Tahun {data?.year ?? 2026}</p>
       </div>

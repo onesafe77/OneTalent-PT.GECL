@@ -116,8 +116,8 @@ export default function SickLeavePage() {
     // --- Chart Data ---
     const statusChartData = [
         { name: "Menunggu", value: stats?.pending || 0, color: "#f59e0b" },
-        { name: "Disetujui", value: stats?.approved || 0, color: "#22c55e" },
-        { name: "Ditolak", value: stats?.rejected || 0, color: "#ef4444" },
+        { name: "Disetujui", value: stats?.approved || 0, color: "#E15A61" },
+        { name: "Ditolak", value: stats?.rejected || 0, color: "#df2a33" },
     ].filter(d => d.value > 0);
 
     const monthlyChartData = (() => {
@@ -156,10 +156,10 @@ export default function SickLeavePage() {
             else rendah++;
         });
         return [
-            { label: "Tinggi (≥80%)", jumlah: tinggi, color: "#22c55e" },
+            { label: "Tinggi (≥80%)", jumlah: tinggi, color: "#E15A61" },
             { label: "Sedang (50–79%)", jumlah: sedang, color: "#f59e0b" },
-            { label: "Rendah (<50%)", jumlah: rendah, color: "#ef4444" },
-            { label: "Tidak Ada", jumlah: tidakAda, color: "#9ca3af" },
+            { label: "Rendah (<50%)", jumlah: rendah, color: "#df2a33" },
+            { label: "Tidak Ada", jumlah: tidakAda, color: "#e9858a" },
         ];
     })();
 
@@ -217,7 +217,7 @@ export default function SickLeavePage() {
     const getStatusBadge = (status: string) => {
         switch (status.toLowerCase()) {
             case "approved":
-                return <Badge className="bg-green-100 text-green-800 border-green-200">Disetujui</Badge>;
+                return <Badge className="bg-muted text-foreground border-border">Disetujui</Badge>;
             case "rejected":
                 return <Badge className="bg-red-100 text-red-800 border-red-200">Ditolak</Badge>;
             default:
@@ -302,7 +302,7 @@ export default function SickLeavePage() {
                         <CardTitle className="text-sm font-medium text-gray-500">Disetujui</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-3xl font-bold text-green-600">
+                        <p className="text-3xl font-bold text-foreground">
                             {stats?.approved || 0}
                         </p>
                     </CardContent>
@@ -356,8 +356,8 @@ export default function SickLeavePage() {
                                     <XAxis dataKey="bulan" tick={{ fontSize: 11 }} />
                                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                                     <Tooltip formatter={(v: number) => [`${v} pengajuan`, "Jumlah"]} />
-                                    <Bar dataKey="jumlah" fill="#f97316" radius={[4, 4, 0, 0]}>
-                                        <LabelList dataKey="jumlah" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#374151" }} />
+                                    <Bar dataKey="jumlah" fill="#F59E0B" radius={[4, 4, 0, 0]}>
+                                        <LabelList dataKey="jumlah" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#96161C" }} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -376,8 +376,8 @@ export default function SickLeavePage() {
                                     <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
                                     <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
                                     <Tooltip formatter={(v: number) => [`${v} pengajuan`, "Jumlah"]} />
-                                    <Bar dataKey="jumlah" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                                        <LabelList dataKey="jumlah" position="right" style={{ fontSize: 12, fontWeight: 700, fill: "#1d4ed8" }} />
+                                    <Bar dataKey="jumlah" fill="#DF2A33" radius={[0, 4, 4, 0]}>
+                                        <LabelList dataKey="jumlah" position="right" style={{ fontSize: 12, fontWeight: 700, fill: "#DF2A33" }} />
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
@@ -397,7 +397,7 @@ export default function SickLeavePage() {
                                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
                                     <Tooltip formatter={(v: number) => [`${v} pengajuan`, "Jumlah"]} />
                                     <Bar dataKey="jumlah" radius={[4, 4, 0, 0]}>
-                                        <LabelList dataKey="jumlah" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#374151" }} />
+                                        <LabelList dataKey="jumlah" position="top" style={{ fontSize: 11, fontWeight: 600, fill: "#96161C" }} />
                                         {confidenceChartData.map((entry, i) => (
                                             <Cell key={i} fill={entry.color} />
                                         ))}
@@ -482,7 +482,7 @@ export default function SickLeavePage() {
                                 </TableHeader>
                                 <TableBody>
                                     {filteredLeaves.map((leave) => (
-                                        <TableRow key={leave.id} className="cursor-pointer hover:bg-gray-50" onClick={() => handleViewDetail(leave)}>
+                                        <TableRow key={leave.id} className="cursor-pointer hover:bg-muted" onClick={() => handleViewDetail(leave)}>
                                             <TableCell className="font-medium">
                                                 {format(new Date(leave.date), "dd MMM yyyy", { locale: idLocale })}
                                             </TableCell>
@@ -504,7 +504,7 @@ export default function SickLeavePage() {
                                                 {leave.aiConfidence ? (
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                            <div className={`h-full ${leave.aiConfidence > 80 ? 'bg-green-500' : leave.aiConfidence > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${leave.aiConfidence}%` }} />
+                                                            <div className={`h-full ${leave.aiConfidence > 80 ? 'bg-primary' : leave.aiConfidence > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${leave.aiConfidence}%` }} />
                                                         </div>
                                                         <span className="text-xs text-gray-500">{leave.aiConfidence}%</span>
                                                     </div>
@@ -549,7 +549,7 @@ export default function SickLeavePage() {
 
                     {selectedLeave && (
                         <Tabs defaultValue="info" className="w-full">
-                            <TabsList className="grid w-full grid-cols-3">
+                            <TabsList>
                                 <TabsTrigger value="info">Info</TabsTrigger>
                                 <TabsTrigger value="raw">Pesan Asli</TabsTrigger>
                                 <TabsTrigger value="ai">Analisis AI</TabsTrigger>

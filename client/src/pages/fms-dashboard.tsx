@@ -1,5 +1,5 @@
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -22,7 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Upload, Calendar, AlertTriangle, CheckCircle, XCircle, FileSpreadsheet, Sparkles, Filter } from "lucide-react";
+import { Loader2, Upload, Calendar, AlertTriangle, CheckCircle, XCircle, FileSpreadsheet, ChevronDown, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -39,6 +40,62 @@ ChartJS.register(
     Legend,
     ChartDataLabels
 );
+
+/**
+ * Chart.js butuh warna nyata, tidak bisa membaca var() CSS. Jadi nilainya
+ * diambil dari token --grafik-* saat render, supaya grafik ikut berubah
+ * ketika tema terang/gelap berganti — bukan hex keras yang hilang di gelap.
+ */
+const warnaGrafik = (nama: string, cadangan: string) => {
+    if (typeof window === "undefined") return cadangan;
+    const v = getComputedStyle(document.documentElement).getPropertyValue(nama).trim();
+    return v || cadangan;
+};
+
+/* ── Penyaring ───────────────────────────────────────────────────────────
+   Satu bentuk untuk semua penyaring. Sebelumnya tiap dropdown ditulis
+   ulang dengan gaya sendiri (ada rounded-lg, ada rounded-xl) dan semuanya
+   menampilkan "Semua X" — sehingga tidak ada yang menandakan penyaring mana
+   yang sedang hidup. Kini yang aktif berwarna merah dan membawa hitungan. */
+function Saringan({ label, ringkas, jumlah, lebar = "w-56", children }: {
+    label: string; ringkas: string; jumlah: number; lebar?: string; children: React.ReactNode;
+}) {
+    const aktif = jumlah > 0;
+    return (
+        <div className="relative">
+            <span className="mb-1 block font-mono text-[9px] uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+            <details className="group" name="saringan-fms">
+                <summary className={cn(
+                    "flex h-9 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 text-[13px] transition-colors",
+                    aktif
+                        ? "border-primary/40 bg-primary/10 font-medium text-primary"
+                        : "border-border bg-background text-foreground hover:bg-muted"
+                )}>
+                    <span className="max-w-[10rem] truncate">{ringkas}</span>
+                    {aktif && (
+                        <span className="grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 font-mono text-[9px] text-primary-foreground">
+                            {jumlah}
+                        </span>
+                    )}
+                    <ChevronDown className="ml-auto h-3.5 w-3.5 flex-none opacity-50 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className={cn("absolute z-50 mt-1.5 rounded-lg border border-border bg-popover p-1.5 shadow-lg", lebar)}>
+                    {children}
+                </div>
+            </details>
+        </div>
+    );
+}
+
+function Pilihan({ teks, dipilih, onUbah }: { teks: string; dipilih: boolean; onUbah: (v: boolean) => void }) {
+    return (
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 transition-colors hover:bg-muted">
+            <input type="checkbox" checked={dipilih} onChange={(e) => onUbah(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-border accent-[hsl(var(--primary))]" />
+            <span className="text-[13px] text-foreground">{teks}</span>
+        </label>
+    );
+}
 
 export default function FmsDashboard() {
     const { toast } = useToast();
@@ -105,6 +162,11 @@ export default function FmsDashboard() {
         finally { setBackfillBusy(false); }
     };
 
+    /* Berapa penyaring yang sedang hidup — dipakai untuk tombol bersihkan. */
+    const jumlahSaringanAktif = filters.categories.length + filters.violationTypes.length
+        + filters.shifts.length + filters.validationStatuses.length + filters.weeks.length;
+
+
     // Build query string from state
     const buildQueryString = () => {
         const params = new URLSearchParams();
@@ -170,22 +232,59 @@ export default function FmsDashboard() {
         }
     };
 
-
     // derived data for charts
+    // Warna teks grafik ikut tema; 'black' membuat angka hilang di mode gelap.
+    const tinta = warnaGrafik("--grafik-tinta", "#2A2A2A");
+    /* Label angka duduk DI ATAS batang. Warnanya harus ikut isi batang:
+       putih di atas merah tua, tinta di atas merah muda. Dipatok satu warna
+       akan selalu salah di salah satu sisi. */
+    const terang = (warna: string) => {
+        const m = String(warna || "").trim().match(/^#?([0-9a-f]{6})$/i);
+        if (!m) return true;
+        const n = parseInt(m[1], 16);
+        const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+            const c = v / 255;
+            return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.35;   // ambang: di atas ini dianggap terang
+    };
+    const labelKontras = (ctx: any) => {
+        const bg = ctx?.dataset?.backgroundColor;
+        const w = Array.isArray(bg) ? bg[ctx.dataIndex] : bg;
+        return terang(w) ? tinta : "#FFFFFF";
+    };
+    const label = warnaGrafik("--grafik-label", "#757575");
+    // <details> bawaan tidak menutup saat klik di luar — panelnya menggantung
+    // menutupi grafik. Ini menutup semuanya begitu klik jatuh di luar bar saringan.
+    const barSaringan = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const tutup = (e: MouseEvent) => {
+            const bar = barSaringan.current;
+            if (!bar || bar.contains(e.target as Node)) return;
+            bar.querySelectorAll("details[open]").forEach((d) => d.removeAttribute("open"));
+        };
+        document.addEventListener("click", tutup);
+        return () => document.removeEventListener("click", tutup);
+    }, []);
+
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'top' as const },
+            legend: { position: 'top' as const, labels: { color: label } },
             datalabels: {
-                color: 'black',
+                color: labelKontras,
                 font: { weight: 'bold' as const },
                 formatter: (value: number) => value > 0 ? value : ''
             }
-        }
+        },
+        scales: {
+            x: { ticks: { color: label }, grid: { display: false }, border: { display: false } },
+            y: { ticks: { color: label }, grid: { color: warnaGrafik("--grafik-garis", "#E0E0E0") }, border: { display: false } },
+        },
     };
 
-    if (isLoading && !analytics) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-10 h-10 animate-spin text-blue-500" /></div>;
+    if (isLoading && !analytics) return <div className="flex items-center justify-center h-screen"><Loader2 className="w-10 h-10 animate-spin text-muted-foreground" /></div>;
 
     if (isError) {
         return (
@@ -198,34 +297,65 @@ export default function FmsDashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-100 pb-12">
+        <div className="min-h-screen bg-background font-sans pb-12">
             {/* HEADER */}
-            <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200/60 shadow-sm transition-all duration-300">
+            <div className="sticky top-0 z-50 bg-card border-b border-border shadow-sm">
                 <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-1.5 h-6 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full"></div>
-                                <h1 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-700 uppercase tracking-tight">FMS Command Center</h1>
-                            </div>
-                            <p className="text-slate-500 text-xs font-medium mt-1 ml-3.5 tracking-wide">Monitoring & Validasi Keselamatan Operasional</p>
+                            <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-foreground">FMS Validation</h1>
+                            <p className="mt-1 text-[15px] text-muted-foreground">Monitoring dan validasi pelanggaran keselamatan operasional</p>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-2 bg-slate-100/50 p-1.5 rounded-full border border-slate-200 shadow-inner">
-                                <Calendar className="w-4 h-4 text-slate-400 ml-2" />
-                                <input
-                                    type="datetime-local"
-                                    className="bg-transparent text-xs font-bold text-slate-600 outline-none w-36 px-1"
-                                    value={dateTimeRange.start}
-                                    onChange={(e) => setDateTimeRange(prev => ({ ...prev, start: e.target.value }))}
-                                />
-                                <span className="text-slate-300 text-xs mx-1">to</span>
-                                <input
-                                    type="datetime-local"
-                                    className="bg-transparent text-xs font-bold text-slate-600 outline-none w-36 px-1"
-                                    value={dateTimeRange.end}
-                                    onChange={(e) => setDateTimeRange(prev => ({ ...prev, end: e.target.value }))}
-                                />
+                            <div className="flex items-center gap-2">
+                                {/* Pintasan rentang sejajar dgn kotak tanggal — mengetik sendiri mudah meleset. */}
+                                <div className="hidden items-center gap-0.5 md:flex">
+                                    {([["Hari ini", 0], ["7 hari", 6], ["30 hari", 29]] as const).map(([teks, mundur]) => (
+                                        <button
+                                            key={teks}
+                                            type="button"
+                                            onClick={() => {
+                                                const kini = new Date();
+                                                const awal = new Date(kini); awal.setDate(kini.getDate() - mundur);
+                                                setDateTimeRange({
+                                                    start: `${format(awal, "yyyy-MM-dd")}T00:00`,
+                                                    end: `${format(kini, "yyyy-MM-dd")}T23:59`,
+                                                });
+                                            }}
+                                            className="rounded-md px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary">
+                                            {teks}
+                                        </button>
+                                    ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setDateTimeRange({
+                                            start: `${format(startOfMonth(new Date()), "yyyy-MM-dd")}T00:00`,
+                                            end: `${format(endOfMonth(new Date()), "yyyy-MM-dd")}T23:59`,
+                                        })}
+                                        className="rounded-md px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary">
+                                        Bulan ini
+                                    </button>
+                                    <span className="mx-1 h-4 w-px bg-border" />
+                                </div>
+
+                                <div className="flex h-9 items-center rounded-lg border border-border bg-background">
+                                    <Calendar className="ml-3 h-3.5 w-3.5 flex-none text-muted-foreground" />
+                                    <input
+                                        type="datetime-local"
+                                        aria-label="Mulai"
+                                        className="w-[11.75rem] bg-transparent px-2 text-[13px] tabular-nums text-foreground outline-none"
+                                        value={dateTimeRange.start}
+                                        onChange={(e) => setDateTimeRange(prev => ({ ...prev, start: e.target.value }))}
+                                    />
+                                    <span className="h-4 w-px flex-none bg-border" />
+                                    <input
+                                        type="datetime-local"
+                                        aria-label="Sampai"
+                                        className="w-[11.75rem] bg-transparent px-2 text-[13px] tabular-nums text-foreground outline-none"
+                                        value={dateTimeRange.end}
+                                        onChange={(e) => setDateTimeRange(prev => ({ ...prev, end: e.target.value }))}
+                                    />
+                                </div>
                             </div>
 
                             {isFetching && (
@@ -237,33 +367,33 @@ export default function FmsDashboard() {
 
                             <Dialog open={tokenOpen} onOpenChange={(o) => { setTokenOpen(o); if (o) loadTokenStatus(); }}>
                                 <DialogTrigger asChild>
-                                    <Button variant="outline" className="rounded-full px-5 mr-2">🔑 Token FMS</Button>
+                                    <Button variant="outline" className="rounded-full px-5 mr-2">Token FMS</Button>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-lg bg-white">
+                                <DialogContent className="sm:max-w-lg bg-card">
                                     <DialogHeader><DialogTitle>Token FMS (Auto-pull FAMOUS)</DialogTitle></DialogHeader>
                                     <div className="space-y-3 mt-2 text-sm">
-                                        <div className="rounded-lg bg-slate-50 border p-3">
+                                        <div className="rounded-lg bg-background border p-3">
                                             {tokenStatus?.hasToken
-                                                ? <span>Status: {tokenStatus.expired ? <b className="text-red-600">KEDALUWARSA</b> : <b className="text-green-600">Aktif</b>}{tokenStatus.expiresInHours != null && !tokenStatus.expired ? ` · berlaku ~${tokenStatus.expiresInHours} jam lagi` : ""}</span>
-                                                : <span className="text-amber-600">Belum ada token — tempel di bawah.</span>}
+                                                ? <span>Status: {tokenStatus.expired ? <b className="text-red-600">KEDALUWARSA</b> : <b className="text-foreground">Aktif</b>}{tokenStatus.expiresInHours != null && !tokenStatus.expired ? ` · berlaku ~${tokenStatus.expiresInHours} jam lagi` : ""}</span>
+                                                : <span className="text-amber-700 dark:text-amber-400">Belum ada token — tempel di bawah.</span>}
                                         </div>
-                                        <ol className="list-decimal ml-4 text-xs text-slate-500 space-y-1">
+                                        <ol className="list-decimal ml-4 text-xs text-muted-foreground space-y-1">
                                             <li>Buka FAMOUS (sudah login) → DevTools Console (Cmd+Opt+J)</li>
-                                            <li>Ketik: <code className="bg-slate-100 px-1">localStorage.jwt_access_token</code> → salin nilainya (tanpa tanda kutip)</li>
+                                            <li>Ketik: <code className="bg-muted px-1">localStorage.jwt_access_token</code> → salin nilainya (tanpa tanda kutip)</li>
                                             <li>Tempel di sini → Simpan. (Token berlaku ~24 jam, perbarui bila kedaluwarsa)</li>
                                         </ol>
                                         <textarea value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Tempel token (eyJ...)" rows={3}
                                             className="w-full border rounded-lg p-2 text-xs font-mono" />
                                         <div className="flex gap-2">
-                                            <Button onClick={saveToken} disabled={tokenBusy || !tokenInput.trim()} style={{ background: "#0e7490" }} className="text-white">Simpan Token</Button>
+                                            <Button onClick={saveToken} disabled={tokenBusy || !tokenInput.trim()}>Simpan Token</Button>
                                             <Button onClick={scrapeNow} disabled={tokenBusy} variant="outline" title="Tarik semua data untuk rentang tanggal yang dipilih di atas">{tokenBusy ? "Menarik…" : "Tarik Rentang Ini"}</Button>
                                         </div>
-                                        <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
-                                            <div className="font-semibold text-slate-700 text-xs">📥 Lengkapi Data Lama (alarm Level-2)</div>
-                                            <p className="text-[11px] text-slate-500 leading-snug">
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/40 p-3 space-y-2">
+                                            <div className="font-semibold text-foreground text-xs">Lengkapi Data Lama (alarm Level-2)</div>
+                                            <p className="text-[11px] text-muted-foreground leading-snug">
                                                 Upload Excel hanya berisi alarm Level-1. Tombol ini menarik <b>alarm Level-2</b> yang hilang dari FAMOUS untuk rentang tanggal yang sedang dipilih di atas (<b>{dateTimeRange.start.split("T")[0]}</b> s/d <b>{dateTimeRange.end.split("T")[0]}</b>). Aman: tidak menghapus & tidak menggandakan data lama.
                                             </p>
-                                            <Button onClick={backfillGap} disabled={backfillBusy || tokenBusy} variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-100">
+                                            <Button onClick={backfillGap} disabled={backfillBusy || tokenBusy} variant="outline" className="w-full border-amber-300 text-amber-700 hover:bg-amber-100 dark:border-amber-900/60 dark:text-amber-400 dark:hover:bg-amber-950/40">
                                                 {backfillBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                                                 {backfillBusy ? "Melengkapi…" : "Lengkapi Sekarang"}
                                             </Button>
@@ -274,27 +404,27 @@ export default function FmsDashboard() {
 
                             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
                                 <DialogTrigger asChild>
-                                    <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg shadow-blue-500/30 rounded-full px-6 transition-all hover:scale-105 active:scale-95">
+                                    <Button className="rounded-full px-6">
                                         <Upload className="w-3.5 h-3.5 mr-2" />
                                         Upload Data
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent className="sm:max-w-md bg-white/95 backdrop-blur-xl border-white/20 shadow-2xl">
+                                <DialogContent className="sm:max-w-md bg-popover border-border">
                                     <DialogHeader>
-                                        <DialogTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Upload Data FMS</DialogTitle>
+                                        <DialogTitle className="text-[17px] font-medium text-foreground">Upload Data FMS</DialogTitle>
                                     </DialogHeader>
-                                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 leading-snug">
-                                        ⚠️ Sumber utama kini <b>auto-pull FAMOUS</b> (otomatis tiap jam, Level-1 + Level-2). Upload Excel hanya untuk data lama/cadangan — <b>hindari mengunggah hari yang sudah ditarik otomatis</b> agar tidak terjadi data ganda.
+                                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[11px] text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300 leading-snug">
+                                        Sumber utama kini <b>auto-pull FAMOUS</b> (otomatis tiap jam, Level-1 + Level-2). Upload Excel hanya untuk data lama/cadangan — <b>hindari mengunggah hari yang sudah ditarik otomatis</b> agar tidak terjadi data ganda.
                                     </div>
                                     <div
-                                        className="mt-4 border-2 border-dashed border-indigo-100 rounded-2xl p-10 text-center hover:bg-slate-50/50 hover:border-indigo-300 transition-all cursor-pointer group"
+                                        className="mt-4 cursor-pointer rounded-xl border-2 border-dashed border-border p-10 text-center transition-colors hover:border-foreground/30 hover:bg-muted/50"
                                         onClick={() => fileInputRef.current?.click()}
                                     >
-                                        <div className="w-16 h-16 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                                            <FileSpreadsheet className="w-8 h-8 text-indigo-500" />
+                                        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4 transition-transform">
+                                            <FileSpreadsheet className="w-8 h-8 text-muted-foreground" />
                                         </div>
-                                        <p className="text-sm text-slate-700 font-semibold">Klik untuk upload file Excel</p>
-                                        <p className="text-xs text-slate-400 mt-2">Format .xlsx atau .xls (Smart Upsert enabled)</p>
+                                        <p className="text-sm text-foreground font-semibold">Klik untuk upload file Excel</p>
+                                        <p className="text-xs text-muted-foreground mt-2">Format .xlsx atau .xls (Smart Upsert enabled)</p>
                                         <input
                                             ref={fileInputRef}
                                             type="file"
@@ -304,7 +434,7 @@ export default function FmsDashboard() {
                                         />
                                     </div>
                                     {uploadMutation.isPending && (
-                                        <div className="flex items-center justify-center gap-2 mt-4 text-sm font-medium text-indigo-600 animate-pulse">
+                                        <div className="flex items-center justify-center gap-2 mt-4 text-sm font-medium text-muted-foreground">
                                             <Loader2 className="w-4 h-4 animate-spin" />
                                             Memproses data...
                                         </div>
@@ -319,169 +449,77 @@ export default function FmsDashboard() {
 
             <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 mt-8 space-y-8">
 
-                {/* FILTER CARD */}
-                <div className="relative z-40 bg-white/60 backdrop-blur-md rounded-2xl p-2 shadow-sm border border-white/40 flex flex-wrap items-center gap-2">
-                    <div className="px-4 py-2 flex items-center gap-2 text-slate-400 border-r border-slate-200/60 mr-2">
-                        <Filter className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Filters</span>
-                    </div>
-                    {/* Filter Dropdowns - Using standard styles but clean */}
-                    {/* Violation Type Multi-Select */}
-                    {/* Category / Tab Multi-Select (FAMOUS) */}
-                    <div className="relative">
-                        <details className="group">
-                            <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[160px] shadow-sm">
-                                <span className="truncate">
-                                    {filters.categories.length === 0 ? "Semua Kategori" : filters.categories.join(", ")}
-                                </span>
-                                <span className="ml-auto opacity-50 text-[10px]">▼</span>
-                            </summary>
-                            <div className="absolute z-20 mt-2 w-56 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 ring-1 ring-black/5">
-                                {FMS_CATEGORIES.map((cat) => (
-                                    <label key={cat} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.categories.includes(cat)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) setFilters(prev => ({ ...prev, categories: [...prev.categories, cat] }));
-                                                else setFilters(prev => ({ ...prev, categories: prev.categories.filter(c => c !== cat) }));
-                                            }}
-                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-sm text-slate-700">{cat}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </details>
-                    </div>
+                {/* ── Baris penyaring ────────────────────────────────────────────
+                    Label di atas kendali, bukan teks "Semua X" di dalamnya —
+                    supaya nama penyaring dan nilainya bisa dibaca terpisah.
+                    Tombol bersih hanya muncul saat ada yang aktif. */}
+                <div ref={barSaringan} className="relative z-40 rounded-xl border border-border bg-card px-4 py-3">
+                    <div className="flex flex-wrap items-end gap-x-3 gap-y-3">
+                        <Saringan
+                            label="Kategori"
+                            ringkas={filters.categories.length === 0 ? "Semua" : filters.categories.join(", ")}
+                            jumlah={filters.categories.length}>
+                            {FMS_CATEGORIES.map((cat) => (
+                                <Pilihan key={cat} teks={cat} dipilih={filters.categories.includes(cat)}
+                                    onUbah={(v) => setFilters(prev => ({ ...prev, categories: v ? [...prev.categories, cat] : prev.categories.filter(c => c !== cat) }))} />
+                            ))}
+                        </Saringan>
 
-                    <div className="relative">
-                        <details className="group">
-                            <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[160px] shadow-sm">
-                                <span className="truncate">
-                                    {filters.violationTypes.length === 0
-                                        ? "Semua Jenis"
-                                        : `${filters.violationTypes.length} Jenis Dipilih`}
-                                </span>
-                                <span className="ml-auto opacity-50 text-[10px]">▼</span>
-                            </summary>
-                            <div className="absolute z-20 mt-2 w-72 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 max-h-80 overflow-y-auto ring-1 ring-black/5">
+                        <Saringan
+                            label="Jenis pelanggaran"
+                            ringkas={filters.violationTypes.length === 0 ? "Semua" : filters.violationTypes.length === 1 ? filters.violationTypes[0] : `${filters.violationTypes.length} jenis`}
+                            jumlah={filters.violationTypes.length}
+                            lebar="w-72">
+                            <div className="max-h-72 overflow-y-auto">
                                 {(analytics?.availableViolationTypes || analytics?.byViolation)?.map((v: any) => (
-                                    <label key={v.type} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
-                                        <div className="relative flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                checked={filters.violationTypes.includes(v.type)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setFilters(prev => ({ ...prev, violationTypes: [...prev.violationTypes, v.type] }));
-                                                    else setFilters(prev => ({ ...prev, violationTypes: prev.violationTypes.filter(t => t !== v.type) }));
-                                                }}
-                                                className="peer h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                        </div>
-                                        <span className="text-sm text-slate-700">{v.type}</span>
-                                    </label>
+                                    <Pilihan key={v.type} teks={v.type} dipilih={filters.violationTypes.includes(v.type)}
+                                        onUbah={(c) => setFilters(prev => ({ ...prev, violationTypes: c ? [...prev.violationTypes, v.type] : prev.violationTypes.filter(t => t !== v.type) }))} />
                                 ))}
                             </div>
-                        </details>
-                    </div>
+                        </Saringan>
 
-                    {/* Shift Multi-Select */}
-                    <div className="relative">
-                        <details className="group">
-                            <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[140px] shadow-sm">
-                                <span className="truncate">
-                                    {filters.shifts.length === 0 ? "Semua Shift" : filters.shifts.join(", ")}
-                                </span>
-                                <span className="ml-auto opacity-50 text-[10px]">▼</span>
-                            </summary>
-                            <div className="absolute z-20 mt-2 w-48 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 ring-1 ring-black/5">
-                                {["Shift 1", "Shift 2"].map((shift) => (
-                                    <label key={shift} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.shifts.includes(shift)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) setFilters(prev => ({ ...prev, shifts: [...prev.shifts, shift] }));
-                                                else setFilters(prev => ({ ...prev, shifts: prev.shifts.filter(s => s !== shift) }));
-                                            }}
-                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-sm text-slate-700">{shift}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </details>
-                    </div>
+                        <Saringan
+                            label="Shift"
+                            ringkas={filters.shifts.length === 0 ? "Semua" : filters.shifts.join(", ")}
+                            jumlah={filters.shifts.length}
+                            lebar="w-44">
+                            {["Shift 1", "Shift 2"].map((sh) => (
+                                <Pilihan key={sh} teks={sh} dipilih={filters.shifts.includes(sh)}
+                                    onUbah={(v) => setFilters(prev => ({ ...prev, shifts: v ? [...prev.shifts, sh] : prev.shifts.filter(x => x !== sh) }))} />
+                            ))}
+                        </Saringan>
 
-                    {/* Validation Status Multi-Select */}
-                    <div className="relative">
-                        <details className="group">
-                            <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[150px] shadow-sm">
-                                <span className="truncate">
-                                    {filters.validationStatuses.length === 0 ? "Semua Status" : filters.validationStatuses.join(", ")}
-                                </span>
-                                <span className="ml-auto opacity-50 text-[10px]">▼</span>
-                            </summary>
-                            <div className="absolute z-20 mt-2 w-52 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 ring-1 ring-black/5">
-                                {["Valid", "Tidak Valid"].map((status) => (
-                                    <label key={status} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.validationStatuses.includes(status)}
-                                            onChange={(e) => {
-                                                if (e.target.checked) setFilters(prev => ({ ...prev, validationStatuses: [...prev.validationStatuses, status] }));
-                                                else setFilters(prev => ({ ...prev, validationStatuses: prev.validationStatuses.filter(s => s !== status) }));
-                                            }}
-                                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <span className="text-sm text-slate-700">{status}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </details>
-                    </div>
+                        <Saringan
+                            label="Status validasi"
+                            ringkas={filters.validationStatuses.length === 0 ? "Semua" : filters.validationStatuses.join(", ")}
+                            jumlah={filters.validationStatuses.length}
+                            lebar="w-48">
+                            {["Valid", "Tidak Valid"].map((st) => (
+                                <Pilihan key={st} teks={st} dipilih={filters.validationStatuses.includes(st)}
+                                    onUbah={(v) => setFilters(prev => ({ ...prev, validationStatuses: v ? [...prev.validationStatuses, st] : prev.validationStatuses.filter(x => x !== st) }))} />
+                            ))}
+                        </Saringan>
 
-                    {/* Week Multi-Select */}
-                    <div className="relative">
-                        <details className="group">
-                            <summary className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl cursor-pointer text-sm font-medium text-slate-600 transition-colors min-w-[140px] shadow-sm">
-                                <span className="truncate">
-                                    {filters.weeks.length === 0 ? "Semua Week" : `Week ${filters.weeks.sort((a, b) => a - b).join(", ")}`}
-                                </span>
-                                <span className="ml-auto opacity-50 text-[10px]">▼</span>
-                            </summary>
-                            <div className="absolute z-20 mt-2 w-48 bg-white/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-3 ring-1 ring-black/5">
-                                {(analytics?.availableWeeks || [1, 2, 3, 4, 5])
-                                    .map((w: any) => Number(w))
-                                    .sort((a: number, b: number) => a - b)
-                                    .map((week: number) => (
-                                        <label key={week} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-100/80 rounded-lg cursor-pointer transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                checked={filters.weeks.includes(week)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) setFilters(prev => ({ ...prev, weeks: [...prev.weeks, week] }));
-                                                    else setFilters(prev => ({ ...prev, weeks: prev.weeks.filter(w => w !== week) }));
-                                                }}
-                                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                            />
-                                            <span className="text-sm text-slate-700">Week {week}</span>
-                                        </label>
-                                    ))}
-                            </div>
-                        </details>
-                    </div>
+                        <Saringan
+                            label="Pekan"
+                            ringkas={filters.weeks.length === 0 ? "Semua" : `Pekan ${[...filters.weeks].sort((a, b) => a - b).join(", ")}`}
+                            jumlah={filters.weeks.length}
+                            lebar="w-44">
+                            {(analytics?.availableWeeks || [1, 2, 3, 4, 5]).map((w: any) => Number(w)).sort((a: number, b: number) => a - b).map((week: number) => (
+                                <Pilihan key={week} teks={`Pekan ${week}`} dipilih={filters.weeks.includes(week)}
+                                    onUbah={(v) => setFilters(prev => ({ ...prev, weeks: v ? [...prev.weeks, week] : prev.weeks.filter(x => x !== week) }))} />
+                            ))}
+                        </Saringan>
 
-                    <div className="ml-auto">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-slate-400 hover:text-red-500 hover:bg-red-50"
-                            onClick={() => setFilters({ categories: [], violationTypes: [], shifts: [], validationStatuses: [], weeks: [] })}
-                        >
-                            Reset Filter
-                        </Button>
+                        {jumlahSaringanAktif > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => setFilters({ categories: [], violationTypes: [], shifts: [], validationStatuses: [], weeks: [] })}
+                                className="ml-auto flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary">
+                                <X className="h-3.5 w-3.5" />
+                                Bersihkan {jumlahSaringanAktif} penyaring
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -490,29 +528,26 @@ export default function FmsDashboard() {
                     <KPICard
                         title="Total Violation"
                         value={analytics?.summary?.totalViolations || 0}
-                        icon={<AlertTriangle className="w-8 h-8 text-rose-500" />}
+                        icon={<AlertTriangle className="w-8 h-8 text-muted-foreground" />}
                         trend="vs Last Month"
-                        color="bg-rose-500 text-rose-700"
                     />
                     <KPICard
                         title="Valid Data"
                         value={analytics?.summary?.validCount || 0}
-                        icon={<CheckCircle className="w-8 h-8 text-emerald-500" />}
+                        icon={<CheckCircle className="w-8 h-8 text-muted-foreground" />}
                         subValue={`${((analytics?.summary?.validCount / (analytics?.summary?.totalViolations || 1)) * 100).toFixed(1)}%`}
-                        color="bg-emerald-500 text-emerald-700"
                     />
                     <KPICard
                         title="Invalid Data"
                         value={analytics?.summary?.invalidCount || 0}
-                        icon={<XCircle className="w-8 h-8 text-slate-500" />}
+                        icon={<XCircle className="w-8 h-8 text-muted-foreground" />}
                         subValue={`${((analytics?.summary?.invalidCount / (analytics?.summary?.totalViolations || 1)) * 100).toFixed(1)}%`}
-                        color="bg-slate-500 text-slate-700"
+                        color="bg-background0 text-foreground"
                     />
                     <KPICard
                         title="Unit Terlibat"
                         value={analytics?.summary?.totalUnits || 0}
-                        icon={<FileSpreadsheet className="w-8 h-8 text-indigo-500" />}
-                        color="bg-indigo-500 text-indigo-700"
+                        icon={<FileSpreadsheet className="w-8 h-8 text-muted-foreground" />}
                     />
                 </div>
 
@@ -520,9 +555,9 @@ export default function FmsDashboard() {
                     {/* LEFT COLUMN: Main Charts */}
                     <div className="xl:col-span-2 space-y-8">
                         {/* PARETO CHART */}
-                        <Card className="bg-white/80 backdrop-blur-md shadow-lg shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
-                            <CardHeader className="bg-white/50 border-b border-white/20 pb-4">
-                                <CardTitle className="text-lg font-bold text-slate-800">Pareto Jenis Pelanggaran</CardTitle>
+                        <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                            <CardHeader className="bg-card border-b border-border pb-4">
+                                <CardTitle className="text-lg font-bold text-foreground">Pareto Jenis Pelanggaran</CardTitle>
                                 <CardDescription>Analisa frekuensi berdasarkan tipe pelanggaran</CardDescription>
                             </CardHeader>
                             <CardContent className="h-[350px] p-6">
@@ -532,13 +567,7 @@ export default function FmsDashboard() {
                                         datasets: [{
                                             label: 'Jumlah Pelanggaran',
                                             data: analytics?.byViolation?.map((v: any) => v.count),
-                                            backgroundColor: (context) => {
-                                                const ctx = context.chart.ctx;
-                                                const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-                                                gradient.addColorStop(0, '#3b82f6');
-                                                gradient.addColorStop(1, '#60a5fa');
-                                                return gradient;
-                                            },
+                                            backgroundColor: warnaGrafik('--grafik-2', '#575757'),
                                             borderRadius: 8,
                                             borderSkipped: false,
                                             barThickness: 40
@@ -547,8 +576,8 @@ export default function FmsDashboard() {
                                     options={{
                                         ...chartOptions,
                                         scales: {
-                                            y: { beginAtZero: true, grid: { color: '#f1f5f9' }, border: { display: false } },
-                                            x: { grid: { display: false }, border: { display: false } }
+                                            y: { beginAtZero: true, ticks: { color: label }, grid: { color: warnaGrafik('--grafik-garis', '#E0E0E0') }, border: { display: false } },
+                                            x: { ticks: { color: label }, grid: { display: false }, border: { display: false } }
                                         }
                                     }}
                                 />
@@ -557,9 +586,9 @@ export default function FmsDashboard() {
 
                         {/* SHIFT ANALYSIS CHART */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <Card className="bg-white/80 backdrop-blur-md shadow-lg shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
-                                <CardHeader className="bg-white/50 border-b border-white/20 pb-4">
-                                    <CardTitle className="text-lg font-bold text-slate-800">Distribusi per Shift</CardTitle>
+                            <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                                <CardHeader className="bg-card border-b border-border pb-4">
+                                    <CardTitle className="text-lg font-bold text-foreground">Distribusi per Shift</CardTitle>
                                 </CardHeader>
                                 <CardContent className="h-[250px] p-6">
                                     <Bar
@@ -568,103 +597,106 @@ export default function FmsDashboard() {
                                             datasets: [{
                                                 label: 'Jumlah',
                                                 data: analytics?.byShift?.map((v: any) => v.count),
-                                                backgroundColor: ['#8b5cf6', '#ec4899', '#f59e0b'],
+                                                backgroundColor: [warnaGrafik('--grafik-1', '#2A2A2A'), warnaGrafik('--grafik-3', '#757575'), warnaGrafik('--grafik-5', '#B4B4B4')],
                                                 borderRadius: 20
                                             }]
                                         }}
                                         options={{
                                             responsive: true,
                                             maintainAspectRatio: false,
-                                            plugins: { legend: { display: false } },
+                                            plugins: { legend: { display: false }, datalabels: { color: labelKontras } },
                                             scales: {
                                                 y: { display: false },
-                                                x: { grid: { display: false }, border: { display: false } }
+                                                x: { ticks: { color: label }, grid: { display: false }, border: { display: false } }
                                             }
                                         }}
                                     />
                                 </CardContent>
                             </Card>
 
-                            <Card className="bg-white/80 backdrop-blur-md shadow-lg shadow-slate-200/50 border-none rounded-3xl overflow-hidden">
-                                <CardHeader className="bg-white/50 border-b border-white/20 pb-4">
-                                    <CardTitle className="text-lg font-bold text-slate-800">Validasi Rate</CardTitle>
+                            <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                                <CardHeader className="bg-card border-b border-border pb-4">
+                                    <CardTitle className="text-lg font-bold text-foreground">Validasi Rate</CardTitle>
                                 </CardHeader>
-                                <CardContent className="h-[250px] flex items-center justify-center p-6 bg-slate-50/50">
+                                <CardContent className="h-[250px] flex items-center justify-center p-6 bg-background/50">
                                     <Doughnut
                                         data={{
                                             labels: ['Valid', 'Invalid'],
                                             datasets: [{
                                                 data: [analytics?.summary?.validCount || 0, analytics?.summary?.invalidCount || 0],
-                                                backgroundColor: ['#10b981', '#cbd5e1'],
+                                                backgroundColor: ['#BA1B23', warnaGrafik('--grafik-6', '#C2C2C2')],
                                                 borderWidth: 0,
                                                 hoverOffset: 10
                                             }]
                                         }}
                                         options={{
                                             cutout: '75%',
-                                            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } } }
+                                            plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8 } }, datalabels: { color: labelKontras } }
                                         }}
                                     />
                                     <div className="absolute text-center pointer-events-none">
-                                        <p className="text-3xl font-bold text-slate-800">{((analytics?.summary?.validCount / (analytics?.summary?.totalViolations || 1)) * 100).toFixed(0)}%</p>
-                                        <p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Valid Rate</p>
+                                        <p className="text-3xl font-bold text-foreground">{((analytics?.summary?.validCount / (analytics?.summary?.totalViolations || 1)) * 100).toFixed(0)}%</p>
+                                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Valid Rate</p>
                                     </div>
                                 </CardContent>
                             </Card>
                         </div>
 
                         {/* TABLE MATRIX */}
-                        <Card className="bg-white border-none shadow-xl shadow-slate-200/50 rounded-3xl overflow-hidden">
-                            <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-orange-100/50">
+                        <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                            <CardHeader className="border-b border-border">
                                 <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-orange-100 rounded-lg">
-                                        <FileSpreadsheet className="w-5 h-5 text-orange-600" />
+                                    <div className="rounded-lg bg-muted p-2">
+                                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
                                     </div>
                                     <div>
-                                        <CardTitle className="text-amber-900 font-bold">Alert FMS Summary Matrix</CardTitle>
-                                        <CardDescription className="text-amber-700/60">Rekapitulasi detail validasi pelanggaran</CardDescription>
+                                        <CardTitle className="text-[15px] font-medium text-foreground">Alert FMS Summary Matrix</CardTitle>
+                                        <CardDescription className="text-[12px] text-muted-foreground">Rekapitulasi detail validasi pelanggaran</CardDescription>
                                     </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm text-left">
-                                        <thead className="bg-amber-50/50 text-amber-900 font-bold text-xs uppercase tracking-wider">
+                                        <thead className="bg-muted font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                                             <tr>
-                                                <th className="p-4 border-b border-orange-100 pl-6">Alert FMS Type</th>
-                                                <th className="p-4 border-b border-orange-100 text-center">Total</th>
-                                                <th className="p-4 border-b border-orange-100 text-center text-emerald-600">Valid</th>
-                                                <th className="p-4 border-b border-orange-100 text-center text-rose-600">Invalid</th>
-                                                <th className="p-4 border-b border-orange-100 text-center">Valid %</th>
-                                                <th className="p-4 border-b border-orange-100 text-center">Invalid %</th>
+                                                <th className="p-4 border-b border-border pl-6">Alert FMS Type</th>
+                                                <th className="p-4 border-b border-border text-center">Total</th>
+                                                <th className="p-4 border-b border-border text-center text-foreground">Valid</th>
+                                                <th className="p-4 border-b border-border text-center text-red-600 dark:text-red-500">Invalid</th>
+                                                <th className="p-4 border-b border-border text-center">Valid %</th>
+                                                <th className="p-4 border-b border-border text-center">Invalid %</th>
                                             </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-50">
+                                        <tbody className="divide-y divide-border">
                                             {analytics?.validationStats?.map((row: any, i: number) => {
                                                 const validPct = row.total > 0 ? (row.valid / row.total * 100).toFixed(0) + '%' : '0%';
                                                 const invalidPct = row.total > 0 ? (row.invalid / row.total * 100).toFixed(0) + '%' : '0%';
                                                 return (
-                                                    <tr key={i} className="hover:bg-slate-50 transition-colors group">
-                                                        <td className="p-4 pl-6 font-medium text-slate-700 group-hover:text-indigo-600 transition-colors">{row.violationType}</td>
-                                                        <td className="p-4 text-center font-bold text-slate-600 bg-slate-50/30">{row.total}</td>
-                                                        <td className="p-4 text-center font-bold text-emerald-600 bg-emerald-50/10">{row.valid}</td>
-                                                        <td className="p-4 text-center font-bold text-rose-600 bg-rose-50/10">{row.invalid}</td>
+                                                    <tr key={i} className="transition-colors hover:bg-muted/50">
+                                                        <td className="p-4 pl-6 font-medium text-foreground">{row.violationType}</td>
+                                                        <td className="p-4 text-center font-bold text-muted-foreground">{row.total}</td>
+                                                        <td className="p-4 text-center font-bold text-foreground">{row.valid}</td>
+                                                        <td className="p-4 text-center font-bold text-red-600 dark:text-red-500">{row.invalid}</td>
                                                         <td className="p-4 text-center font-medium">{validPct}</td>
-                                                        <td className="p-4 text-center font-medium text-slate-400">{invalidPct}</td>
+                                                        <td className="p-4 text-center font-medium text-muted-foreground">{invalidPct}</td>
                                                     </tr>
                                                 );
                                             })}
                                         </tbody>
-                                        <tfoot className="bg-slate-900 text-white font-bold text-sm">
+                                        {/* Permukaan terbalik (bg-primary) memaksa SETIAP warna teks di
+                                            dalamnya ikut dibalik. Hijau/merah tidak punya versi terbalik yang
+                                            terbaca di kedua mode, jadi barisnya dibuat sepolaritas: bg-muted. */}
+                                        <tfoot className="border-t border-border bg-muted text-[13px] font-semibold text-foreground">
                                             <tr>
                                                 <td className="p-4 pl-6">Grand Total</td>
-                                                <td className="p-4 text-center bg-white/10">{analytics?.summary?.totalViolations}</td>
-                                                <td className="p-4 text-center text-emerald-400 bg-white/5">{analytics?.summary?.validCount}</td>
-                                                <td className="p-4 text-center text-rose-400 bg-white/5">{analytics?.summary?.invalidCount}</td>
+                                                <td className="p-4 text-center">{analytics?.summary?.totalViolations}</td>
+                                                <td className="p-4 text-center text-foreground">{analytics?.summary?.validCount}</td>
+                                                <td className="p-4 text-center text-red-600 dark:text-red-500">{analytics?.summary?.invalidCount}</td>
                                                 <td className="p-4 text-center">
                                                     {analytics?.summary?.totalViolations ? (analytics.summary.validCount / analytics.summary.totalViolations * 100).toFixed(0) : 0}%
                                                 </td>
-                                                <td className="p-4 text-center text-slate-400">
+                                                <td className="p-4 text-center">
                                                     {analytics?.summary?.totalViolations ? (analytics.summary.invalidCount / analytics.summary.totalViolations * 100).toFixed(0) : 0}%
                                                 </td>
                                             </tr>
@@ -677,13 +709,11 @@ export default function FmsDashboard() {
 
                     {/* RIGHT COLUMN */}
                     <div className="space-y-8">
-                        {/* MYSTIC AI CARD */}
-                        <MysticAnalysisCard data={analytics} />
 
                         {/* HOURLY DISTRIBUTION */}
-                        <Card className="bg-white border-none shadow-lg shadow-slate-200/50 rounded-3xl overflow-hidden">
-                            <CardHeader className="bg-white/50 pb-4 border-b border-slate-100">
-                                <CardTitle className="text-base font-bold text-slate-800">Pola Jam Pelanggaran</CardTitle>
+                        <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                            <CardHeader className="bg-card pb-4 border-b border-border">
+                                <CardTitle className="text-base font-bold text-foreground">Pola Jam Pelanggaran</CardTitle>
                             </CardHeader>
                             <CardContent className="p-6">
                                 <div className="grid grid-cols-4 gap-2">
@@ -693,14 +723,16 @@ export default function FmsDashboard() {
                                         const maxCount = Math.max(...(analytics?.byHour?.map((h: any) => h.count) || [1]));
                                         const intensity = count / maxCount;
 
-                                        let bgClass = "bg-slate-50 text-slate-400";
-                                        if (count > 0) bgClass = "bg-rose-100 text-rose-600";
-                                        if (intensity > 0.3) bgClass = "bg-rose-300 text-rose-800";
-                                        if (intensity > 0.6) bgClass = "bg-rose-400 text-white";
-                                        if (intensity > 0.8) bgClass = "bg-rose-500 text-white shadow-lg shadow-rose-500/30 ring-2 ring-rose-300";
+                                        // Setiap jenjang membawa pasangan terang+gelap sendiri. Tanpa itu
+                                        // jenjang rendah jadi merah muda menyala di atas latar gelap.
+                                        let bgClass = "bg-muted text-muted-foreground";
+                                        if (count > 0) bgClass = "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400";
+                                        if (intensity > 0.3) bgClass = "bg-red-200 text-red-800 dark:bg-red-900/60 dark:text-red-300";
+                                        if (intensity > 0.6) bgClass = "bg-red-400 text-white dark:bg-red-800 dark:text-red-50";
+                                        if (intensity > 0.8) bgClass = "bg-red-600 text-white dark:bg-red-700 dark:text-white";
 
                                         return (
-                                            <div key={hour} className={`aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-bold ${bgClass} transition-all duration-300 hover:scale-110 cursor-help`} title={`${count} violations at ${hour}:00`}>
+                                            <div key={hour} className={`aspect-square rounded-xl flex flex-col items-center justify-center text-xs font-bold ${bgClass} cursor-help`} title={`${count} violations at ${hour}:00`}>
                                                 <span>{String(hour).padStart(2, '0')}</span>
                                                 {count > 0 && <span className="text-[10px] opacity-80 scale-75">{count}</span>}
                                             </div>
@@ -711,34 +743,34 @@ export default function FmsDashboard() {
                         </Card>
 
                         {/* WEEKLY STATS TABLE */}
-                        <Card className="bg-white border-none shadow-lg shadow-slate-200/50 rounded-3xl overflow-hidden">
-                            <CardHeader className="bg-white/50 pb-4 border-b border-slate-100">
+                        <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                            <CardHeader className="bg-card pb-4 border-b border-border">
                                 <CardTitle className="text-base font-bold flex items-center gap-2">
                                     <span>📅</span> Statistik Mingguan
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <table className="w-full text-sm">
-                                    <thead className="bg-slate-50 text-slate-500 font-semibold text-xs uppercase">
+                                    <thead className="bg-background text-muted-foreground font-semibold text-xs uppercase">
                                         <tr>
                                             <th className="p-3 text-left pl-6">Minggu</th>
                                             <th className="p-3 text-center">Total</th>
                                             <th className="p-3 text-center">Valid %</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-50">
+                                    <tbody className="divide-y divide-border">
                                         {analytics?.byWeek?.length > 0 ? analytics.byWeek.map((w: any, idx: number) => (
-                                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                                <td className="p-3 pl-6 font-medium text-slate-600">Week {w.week || "N/A"}</td>
-                                                <td className="p-3 text-center text-slate-800 font-bold">{w.total}</td>
+                                            <tr key={idx} className="hover:bg-background transition-colors">
+                                                <td className="p-3 pl-6 font-medium text-muted-foreground">Week {w.week || "N/A"}</td>
+                                                <td className="p-3 text-center text-foreground font-bold">{w.total}</td>
                                                 <td className="p-3 text-center">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${w.valid / (w.total || 1) > 0.5 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${w.valid / (w.total || 1) > 0.5 ? 'bg-muted text-foreground' : 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400'}`}>
                                                         {((w.valid / (w.total || 1)) * 100).toFixed(0)}%
                                                     </span>
                                                 </td>
                                             </tr>
                                         )) : (
-                                            <tr><td colSpan={3} className="text-center py-6 text-slate-400 italic">No trend data</td></tr>
+                                            <tr><td colSpan={3} className="text-center py-6 text-muted-foreground italic">No trend data</td></tr>
                                         )}
                                     </tbody>
                                 </table>
@@ -746,29 +778,26 @@ export default function FmsDashboard() {
                         </Card>
 
                         {/* DRIVER LEADERBOARD */}
-                        <Card className="bg-white border-none shadow-lg shadow-slate-200/50 rounded-3xl overflow-hidden">
-                            <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 pb-4 border-b border-orange-100">
-                                <CardTitle className="text-base font-bold text-amber-900 flex items-center gap-2">
-                                    <span>🏆</span> Top 10 Violators
+                        <Card className="bg-card border border-border rounded-xl overflow-hidden">
+                            <CardHeader className="pb-4 border-b border-border">
+                                <CardTitle className="text-base font-medium text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                                    <span></span> Top 10 Violators
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 {analytics?.topDrivers?.length > 0 ? (
-                                    <div className="divide-y divide-slate-50">
+                                    <div className="divide-y divide-border">
                                         {analytics.topDrivers.map((d: any, i: number) => (
-                                            <div key={d.rank} className="p-4 flex items-center gap-4 hover:bg-amber-50/30 transition-colors">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i === 0 ? 'bg-yellow-100 text-yellow-700' :
-                                                    i === 1 ? 'bg-slate-200 text-slate-700' :
-                                                        i === 2 ? 'bg-orange-100 text-orange-800' : 'bg-slate-50 text-slate-400'
-                                                    }`}>
+                                            <div key={d.rank} className="p-4 flex items-center gap-4 hover:bg-muted/50 transition-colors">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${i < 3 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                                                     {d.rank}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-bold text-slate-800 truncate">{d.driverName}</p>
-                                                    <p className="text-xs text-slate-500 font-mono">{d.vehicleNo} • {d.driverNik}</p>
+                                                    <p className="text-sm font-bold text-foreground truncate">{d.driverName}</p>
+                                                    <p className="text-xs text-muted-foreground font-mono">{d.vehicleNo} • {d.driverNik}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="bg-rose-100 text-rose-600 px-2 py-1 rounded-lg text-xs font-bold">
+                                                    <span className="rounded-lg bg-red-100 px-2 py-1 text-xs font-bold text-red-700 dark:bg-red-950/60 dark:text-red-400">
                                                         {d.validCount} Valid
                                                     </span>
                                                 </div>
@@ -776,7 +805,7 @@ export default function FmsDashboard() {
                                         ))}
                                     </div>
                                 ) : (
-                                    <div className="text-center py-6 text-slate-400 italic">No violator data</div>
+                                    <div className="text-center py-6 text-muted-foreground italic">No violator data</div>
                                 )}
                             </CardContent>
                         </Card>
@@ -789,110 +818,20 @@ export default function FmsDashboard() {
 
 function KPICard({ title, value, icon, subValue, trend, color }: any) {
     return (
-        <Card className="shadow-sm hover:shadow-lg transition-all duration-300 border-none bg-white/60 backdrop-blur-sm ring-1 ring-slate-100 group">
-            <CardContent className="p-6">
-                <div className="flex justify-between items-start">
-                    <div className="space-y-2">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{title}</p>
-                        <h3 className="text-3xl font-black text-slate-800 tracking-tight">{value}</h3>
-                        {subValue && (
-                            <div className={`text-xs font-bold px-2.5 py-1 rounded-full w-fit flex items-center gap-1 ${color} bg-opacity-10 backdrop-blur-md`}>
-                                {subValue}
-                                <span className="opacity-60 font-normal">rate</span>
-                            </div>
-                        )}
-                    </div>
-                    <div className={`p-4 rounded-2xl ${color} bg-opacity-10 group-hover:scale-110 transition-transform duration-300`}>
-                        {icon}
-                    </div>
+        <Card className="rounded-xl border border-border bg-card">
+            <CardContent className="p-5">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="[&_svg]:h-4 [&_svg]:w-4">{icon}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em]">{title}</span>
                 </div>
-            </CardContent>
-        </Card>
-    )
-}
-
-function MysticAnalysisCard({ data }: any) {
-    // Generate Heuristic Insights
-    const insights = [];
-
-    if (data) {
-        // 1. Dominant Violation
-        const topV = data.byViolation?.[0];
-        if (topV) {
-            insights.push(`Pelanggaran terbanyak adalah "${topV.type}" dengan total ${topV.count} kejadian (${parseInt(topV.percentage)}%).`);
-        }
-
-        // 2. High Invalid Rate
-        const invalidRate = data.summary?.invalidCount / data.summary?.totalViolations;
-        if (invalidRate > 0.5) {
-            insights.push(`⚠️ Perhatian: Tingkat data "Tidak Valid" sangat tinggi (${(invalidRate * 100).toFixed(0)}%). Disarankan review proses validasi.`);
-        }
-
-        // 3. Shift Pattern
-        const shift1 = data.byShift?.find((s: any) => s.shift === 'Shift 1')?.count || 0;
-        const shift2 = data.byShift?.find((s: any) => s.shift === 'Shift 2')?.count || 0;
-
-        if (shift2 > shift1 * 1.5) {
-            insights.push(`🌙 Pola Shift: Shift 2 memiliki pelanggaraan ${(shift2 / shift1).toFixed(1)}x lipat lebih tinggi dibanding Shift 1. Indikasi kelelahan malam hari.`);
-        }
-
-        // 4. Peak Hour
-        // Find hour with max count
-        const peakHour = data.byHour?.reduce((prev: any, current: any) => (prev.count > current.count) ? prev : current, { count: -1 });
-        if (peakHour && peakHour.count > 0) {
-            insights.push(`⏰ Waktu Rawan: Puncak pelanggaran terjadi pada jam ${peakHour.hour}:00.`);
-        }
-    }
-
-    return (
-        <Card className="relative overflow-hidden border-none shadow-2xl group">
-            {/* Gradient Background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-black z-0"></div>
-
-            {/* Animated Glow Effects */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-700"></div>
-
-            <CardHeader className="relative z-10 pb-2 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-yellow-500/10 rounded-lg ring-1 ring-yellow-500/30">
-                        <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-                    </div>
-                    <div>
-                        <CardTitle className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-400">
-                            Mystic AI Insights
-                        </CardTitle>
-                        <CardDescription className="text-slate-400 text-xs font-medium">
-                            Analisa otomatis berbasis pola data
-                        </CardDescription>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="relative z-10 pt-4">
-                {insights.length > 0 ? (
-                    <ul className="space-y-4">
-                        {insights.map((insight, i) => (
-                            <li key={i} className="text-sm leading-relaxed flex gap-3 text-slate-200">
-                                <span className="text-yellow-400 mt-0.5 text-lg">•</span>
-                                <span className="opacity-90 font-light tracking-wide">{insight}</span>
-                            </li>
-                        ))}
-                    </ul>
-                ) : (
-                    <div className="text-center py-8 text-slate-500 text-sm italic">
-                        Belum cukup data untuk analisa mendalam.
-                    </div>
+                <p className="mt-2.5 text-[28px] font-semibold leading-none tabular-nums text-foreground">{value}</p>
+                {subValue && (
+                    <p className="mt-2 text-[12px] text-muted-foreground">
+                        <span className="tabular-nums text-foreground">{subValue}</span> rate
+                    </p>
                 )}
-
-                <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center group-hover:translate-y-0 transition-transform">
-                    <span className="text-[10px] uppercase tracking-widest text-slate-500 font-semibold">
-                        Mystic Engine v2.1
-                    </span>
-                    <Button size="sm" variant="secondary" className="h-8 text-xs bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-white/20 transition-all font-medium backdrop-blur-sm">
-                        Generate Report
-                    </Button>
-                </div>
             </CardContent>
         </Card>
     )
 }
+

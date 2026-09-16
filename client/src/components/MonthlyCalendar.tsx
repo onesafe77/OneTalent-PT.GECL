@@ -66,7 +66,7 @@ export function MonthlyCalendar({ year, month, rosterData, shiftFilter, onDateCl
   
   const getAttendanceBadgeColor = (hasAttended: boolean) => {
     return hasAttended 
-      ? 'bg-green-500 dark:bg-green-600' 
+      ? 'bg-primary dark:bg-primary' 
       : 'bg-red-500 dark:bg-red-600';
   };
   

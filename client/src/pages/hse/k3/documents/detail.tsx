@@ -53,7 +53,7 @@ const statusColors: Record<string, string> = {
   IN_REVIEW: "bg-amber-100 text-amber-700 border-amber-300",
   APPROVED: "bg-blue-100 text-blue-700 border-blue-300",
   ESIGN_PENDING: "bg-purple-100 text-purple-700 border-purple-300",
-  SIGNED: "bg-green-100 text-green-700 border-green-300",
+  SIGNED: "bg-muted text-foreground border-border",
   PUBLISHED: "bg-teal-100 text-teal-700 border-teal-300",
   OBSOLETE: "bg-red-100 text-red-700 border-red-300",
 };

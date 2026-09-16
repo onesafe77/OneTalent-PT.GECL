@@ -64,7 +64,7 @@ import { useToast } from "@/hooks/use-toast";
 
 // Helper to calculate status
 const getMonitoringStatus = (expiryDateStr?: string | null) => {
-    if (!expiryDateStr) return { status: "Aktif", label: "Aktif (No Expiry)", color: "bg-green-100 text-green-700", icon: CheckCircle };
+    if (!expiryDateStr) return { status: "Aktif", label: "Aktif (No Expiry)", color: "bg-muted text-foreground", icon: CheckCircle };
 
     const today = new Date();
     const expiry = parseISO(expiryDateStr);
@@ -78,7 +78,7 @@ const getMonitoringStatus = (expiryDateStr?: string | null) => {
     } else if (diff <= 30) {
         return { status: "Warning", label: `Akan Habis (${format(expiry, "dd MMM yyyy")})`, color: "bg-yellow-100 text-yellow-700", icon: AlertTriangle };
     } else {
-        return { status: "Aktif", label: `Aktif (${format(expiry, "dd MMM yyyy")})`, color: "bg-green-100 text-green-700", icon: CheckCircle };
+        return { status: "Aktif", label: `Aktif (${format(expiry, "dd MMM yyyy")})`, color: "bg-muted text-foreground", icon: CheckCircle };
     }
 };
 

@@ -16,7 +16,7 @@ const WEEKS = Array.from({ length: 53 }, (_, i) => i + 1);
 const SECTION_ORDER = ["Pengawas Hauling", "Pengawas FMS", "Pengawas Workshop"];
 const sectionRank = (s: string) => { const i = SECTION_ORDER.indexOf(s); return i < 0 ? 99 : i; };
 const sectionColor = (s: string) =>
-  /hauling/i.test(s) ? "bg-green-100 text-green-800"
+  /hauling/i.test(s) ? "bg-muted text-foreground"
   : /fms/i.test(s) ? "bg-amber-100 text-amber-800"
   : /workshop/i.test(s) ? "bg-red-100 text-red-800"
   : "bg-slate-100 text-slate-700";

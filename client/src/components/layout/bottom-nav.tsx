@@ -8,7 +8,7 @@ export function BottomNav() {
     const navItems = [
         { name: "Home", href: "/workspace", icon: Home },
         { name: "Sidak", href: "/workspace/sidak", icon: FileText },
-        { name: "Mystic", href: "/workspace/si-asef", icon: Bot, isFloating: true },
+        { name: "Mystic", href: "/workspace/dashboard", icon: Bot, isFloating: true },
         { name: "History", href: "/workspace/history", icon: Clock },
         { name: "Profile", href: "/workspace/employee-personal", icon: User },
     ];
@@ -26,12 +26,12 @@ export function BottomNav() {
                                 <div className="relative -top-5 flex flex-col items-center transition-transform duration-150 ease-out active:scale-95">
                                     <div className={cn(
                                         "flex items-center justify-center w-14 h-14 rounded-full shadow-lg",
-                                        "bg-gradient-to-br from-red-600 to-rose-600 text-white shadow-red-500/30 border-4 border-white/50 dark:border-gray-900/50",
-                                        isActive && "ring-2 ring-red-300 dark:ring-red-500/40"
+                                        "bg-gradient-to-br from-gray-600 to-rose-600 text-white shadow-red-500/30 border-4 border-white/50 dark:border-gray-900/50",
+                                        isActive && "ring-2 ring-red-300 dark:ring-gray-950/40"
                                     )}>
                                         <Icon className="w-7 h-7" />
                                     </div>
-                                    <span className="mt-1 text-[10px] font-bold tracking-tight text-red-600 dark:text-red-500">
+                                    <span className="mt-1 text-[10px] font-bold tracking-tight text-gray-950 dark:text-gray-600">
                                         {item.name}
                                     </span>
                                 </div>
@@ -44,12 +44,12 @@ export function BottomNav() {
                             <div className={cn(
                                 "flex flex-col items-center justify-center w-14 min-h-12 pt-1 transition-transform duration-150 ease-out active:scale-95",
                                 isActive
-                                    ? "text-red-600 dark:text-red-500"
+                                    ? "text-gray-950 dark:text-gray-600"
                                     : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                             )}>
                                 <span className={cn(
                                     "flex items-center justify-center px-4 py-1 rounded-full transition-colors duration-150",
-                                    isActive ? "bg-red-50 dark:bg-red-500/10" : "bg-transparent"
+                                    isActive ? "bg-gray-50 dark:bg-gray-950/10" : "bg-transparent"
                                 )}>
                                     <Icon className="w-5 h-5" strokeWidth={isActive ? 2.5 : 2} />
                                 </span>

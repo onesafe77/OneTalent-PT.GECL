@@ -124,7 +124,7 @@ export default function SPIPPeralatanTidakBergerakList() {
 
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                 <KartuStat label="Total Alat" nilai={stats.total} warna="text-slate-800" />
-                <KartuStat label="Sertifikat Aktif" nilai={stats.aktif} warna="text-emerald-600" />
+                <KartuStat label="Sertifikat Aktif" nilai={stats.aktif} warna="text-foreground" />
                 <KartuStat label="EXPIRED" nilai={stats.expired} warna="text-red-600" tekanan={stats.expired > 0} />
                 <KartuStat label="Jenis Alat" nilai={stats.jenis} warna="text-blue-600" />
                 <KartuStat label="Jumlah Area" nilai={stats.lokasi} warna="text-orange-600" />
@@ -194,7 +194,7 @@ export default function SPIPPeralatanTidakBergerakList() {
             <Card className="overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
-                        <TableHeader className="bg-gray-50/50">
+                        <TableHeader>
                             <TableRow>
                                 {!isGrouped && <TableHead className="w-12 text-center">No</TableHead>}
                                 <TableHead>No. Registrasi</TableHead>
@@ -293,14 +293,14 @@ function DialogLihatAlat({ item, statusText, onClose, onUbah }: any) {
                 </DialogHeader>
 
                 {/* Status sertifikat — bagian yang paling dicari */}
-                <div className={`rounded-xl border p-4 ${merah ? "border-red-200 bg-red-50/60" : "border-emerald-200 bg-emerald-50/50"}`}>
+                <div className={`rounded-xl border p-4 ${merah ? "border-red-200 bg-red-50/60" : "border-border bg-muted"}`}>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Status Sertifikat</p>
-                            <p className={`text-lg font-bold ${merah ? "text-red-700" : "text-emerald-700"}`}>
+                            <p className={`text-lg font-bold ${merah ? "text-red-700" : "text-foreground"}`}>
                                 {merah ? teks : "AKTIF"}
                             </p>
-                            {!merah && <p className="text-[12px] text-emerald-700">Sisa masa berlaku {teks}</p>}
+                            {!merah && <p className="text-[12px] text-foreground">Sisa masa berlaku {teks}</p>}
                         </div>
                         <div className="flex gap-5 text-right">
                             <div>
@@ -369,7 +369,7 @@ function BarisAlat({ item, idx, statusText, onEdit, onHapus, onLihat }: any) {
     const teks = statusText(item);
     const merah = teks === "EXPIRED" || teks === "BELUM ADA";
     return (
-        <TableRow className="hover:bg-gray-50/80 transition-colors">
+        <TableRow className="hover:bg-muted/80 transition-colors">
             {idx && <TableCell className="text-center text-gray-500">{idx}</TableCell>}
             <TableCell className="font-bold text-slate-800">{item.noRegistrasi}</TableCell>
             <TableCell className="text-slate-600 text-xs font-medium">{item.jenisAlat}</TableCell>
@@ -385,14 +385,14 @@ function BarisAlat({ item, idx, statusText, onEdit, onHapus, onLihat }: any) {
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${
                     teks === "EXPIRED" ? "bg-red-100 text-red-700"
                         : teks === "BELUM ADA" ? "bg-slate-100 text-slate-600"
-                            : "bg-emerald-100 text-emerald-700"}`}>
+                            : "bg-muted text-foreground"}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${
-                        teks === "EXPIRED" ? "bg-red-600" : teks === "BELUM ADA" ? "bg-slate-400" : "bg-emerald-600"}`} />
+                        teks === "EXPIRED" ? "bg-red-600" : teks === "BELUM ADA" ? "bg-slate-400" : "bg-primary"}`} />
                     {teks === "EXPIRED" ? "EXPIRED" : teks === "BELUM ADA" ? "BELUM ADA" : "AKTIF"}
                 </span>
             </TableCell>
             <TableCell className="p-0">
-                <div className={`flex items-center justify-center p-2 min-h-[40px] text-xs font-bold ${merah ? "bg-red-600 text-white" : "text-emerald-600"}`}>
+                <div className={`flex items-center justify-center p-2 min-h-[40px] text-xs font-bold ${merah ? "bg-red-600 text-white" : "text-foreground"}`}>
                     {teks}
                 </div>
             </TableCell>
@@ -401,7 +401,7 @@ function BarisAlat({ item, idx, statusText, onEdit, onHapus, onLihat }: any) {
                     <Button variant="ghost" size="icon" title="Lihat detail & evidence" onClick={() => onLihat(item)}
                         className="h-8 w-8 text-slate-500 hover:text-slate-900">
                         <Eye className="h-4 w-4" />
-                        {item.evidenceUrl && <span className="absolute mt-4 ml-4 h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                        {item.evidenceUrl && <span className="absolute mt-4 ml-4 h-1.5 w-1.5 rounded-full bg-primary" />}
                     </Button>
                     <Button variant="ghost" size="icon" title="Ubah" onClick={() => onEdit(item)} className="h-8 w-8 text-amber-600"><Edit className="h-4 w-4" /></Button>
                     <Button variant="ghost" size="icon" title="Hapus" onClick={() => onHapus(item)} className="h-8 w-8 text-red-600"><Trash2 className="h-4 w-4" /></Button>

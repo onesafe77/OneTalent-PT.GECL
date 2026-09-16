@@ -1,1310 +1,286 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import Papa from "papaparse";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    Cell,
-    LineChart,
-    Line,
-    LabelList,
-    PieChart,
-    Pie,
-    Legend,
-} from "recharts";
-import {
-    Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    CardDescription,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
-    RefreshCw,
-    AlertCircle,
-    Unplug,
-    Clock,
-    User,
-    Truck,
-    BrainCircuit,
-    Filter,
-    TrendingUp,
-    CheckCircle,
-    Download,
-    Sparkles,
-    Link2,
-    Settings,
-    Loader2,
-    Search // Add Search icon
-} from "lucide-react";
-import html2canvas from "html2canvas";
-import { saveAs } from "file-saver";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import { RefreshCw, BellRing, Loader2, Search, ShieldAlert, Clock, CheckCircle2, AlertOctagon, Stamp, Users, Repeat, Gauge, X } from "lucide-react";
 import { Link } from "wouter";
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from "@/components/ui/dialog";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Input } from "@/components/ui/input"; // Add Input component
+import { ArrowRight } from "lucide-react";
+import { angka, BULAN } from "@/lib/hse-statistik";
+import { Bab, Kartu, Tegak, Mendatar, DuaDeret, BatangGaris, PetaPanas, Pareto, Bertumpuk, Kosong } from "@/components/fms/grafik";
 
-// --- Configuration ---
-const CSV_URL =
-    "https://docs.google.com/spreadsheets/d/e/2PACX-1vTX9zYvZSIKyKXx-DfhyXZCdTMuqhPY_kXu_WxMWEZ-MHPR779_x_0NklR1VjDGN1e7aoloMaDf5jk9/pub?gid=1467622739&single=true&output=csv";
-// Saklar sambungan spreadsheet Dashboard Overspeed. Set false untuk memutus sambungan sementara.
-const SPREADSHEET_ENABLED = true;
-const COMPANY_FILTER_DEFAULT = "GEC";
-const DASHBOARD_ID = "overspeed";
+/**
+ * Dashboard Pelanggaran FMS — GEC & GECL.
+ * Data dibaca & dibakukan di server (server/lib/fms-sheet.ts).
+ */
 
-interface SheetConfig {
-    id: string;
-    name: string;
-    spreadsheetId: string;
-    sheetName: string;
-    spreadsheetTitle?: string;
-}
+const HARI_URUT = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+const RENTANG_DEV = ["0-5 km/jam", "6-10 km/jam", "11-20 km/jam", "21-30 km/jam", "> 30 km/jam"];
+const EMBER_DURASI = ["0-1 hari", "2-3 hari", "4-7 hari", "8-14 hari", "> 14 hari"];
 
-function getSheetConfig(): SheetConfig | null {
-    try {
-        const saved = localStorage.getItem("google-sheets-configs");
-        if (!saved) return null;
-        const configs: SheetConfig[] = JSON.parse(saved);
-        return configs.find(c => c.id === DASHBOARD_ID) || null;
-    } catch {
-        return null;
-    }
-}
+export default function DashboardFms() {
+    const { toast } = useToast();
+    const [tahun, setTahun] = useState("all");
+    const [bulan, setBulan] = useState("all");
+    const [jenis, setJenis] = useState("all");
+    const [status, setStatus] = useState("all");
+    const [cari, setCari] = useState("");
+    const [memeriksa, setMemeriksa] = useState(false);
 
-// --- Types ---
-interface OverspeedData {
-    No: string;
-    Sumber: string;
-    "Nama Eksekutor": string;
-    "Nama Karyawan": string;
-    Date: string; // "03/01/2026"
-    Time: string; // "12:33:20"
-    "Vehicle No": string;
-    Company: string; // "GEC" or "BIB"
-    Violation: string;
-    "Location (KM)": string;
-    "Date Opr": string;
-    Jalur: string;
-    Week: string;
-    Month: string;
-    Jalur2: string;
-    Coordinat: string;
-    TicketStatus?: string;
-    ValidationStatus?: string;
-    "Durasi Close"?: string;
-    "Tanggal Pemenuhan": string;
-    StatusClosedNC?: string; // New field
-    Shift?: string; // New field
-    Jabatan?: string; // New field from CSV
-    Speed?: number; // New field
-    SpeedLimit?: number; // New field
-    "Masa Berlaku Sanksi"?: string; // New field
-    Level?: number; // New field
-    // Helper fields for easier filtering
-    _dateObj?: Date;
-    _year?: number;
-    _monthIndex?: number; // 0-11
-    [key: string]: any;
-}
+    const kunci = `/api/hse/fms-violations?tahun=${tahun}&bulan=${bulan}&jenis=${jenis}&status=${status}&cari=${encodeURIComponent(cari)}`;
+    const { data, isLoading, refetch, isFetching } = useQuery<any>({ queryKey: [kunci] });
 
-// --- Utils ---
-const washKey = (s?: string) => s?.toString().replace(/\s+/g, "").toUpperCase() || "";
+    const r = data?.ringkas ?? {};
+    const p = data?.pilihan ?? {};
 
-const parseDate = (dateStr: string) => {
-    if (!dateStr) return new Date();
-
-    // Handle DD/MM/YYYY
-    if (dateStr.includes("/")) {
-        const parts = dateStr.split("/");
-        if (parts.length === 3) {
-            return new Date(
-                parseInt(parts[2]),
-                parseInt(parts[1]) - 1,
-                parseInt(parts[0])
-            );
-        }
-    }
-    // Handle YYYY-MM-DD
-    else if (dateStr.includes("-")) {
-        const parts = dateStr.split("-");
-        if (parts.length === 3) {
-            if (parts[0].length === 4) { // YYYY-MM-DD
-                return new Date(
-                    parseInt(parts[0]),
-                    parseInt(parts[1]) - 1,
-                    parseInt(parts[2])
-                );
-            } else if (parts[2].length === 4) { // DD-MM-YYYY
-                return new Date(
-                    parseInt(parts[2]),
-                    parseInt(parts[1]) - 1,
-                    parseInt(parts[0])
-                );
-            }
-        }
-    }
-
-    const parsed = new Date(dateStr);
-    return isNaN(parsed.getTime()) ? new Date() : parsed;
-};
-
-const getMonthName = (monthIndex: number) => {
-    const months = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
-    ];
-    return months[monthIndex];
-};
-
-export default function DashboardOverspeed() {
-    // --- State ---
-    const [rawData, setRawData] = useState<OverspeedData[]>([]);
-
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [sheetConfig, setSheetConfig] = useState<SheetConfig | null>(null);
-    const [dataSource, setDataSource] = useState<"sheets" | "csv">("csv");
-
-    // Filters
-    const [filterYear, setFilterYear] = useState<string>("All");
-    const [filterMonth, setFilterMonth] = useState<string>("All");
-    const [filterUnit, setFilterUnit] = useState<string>("All");
-    const [filterViolation, setFilterViolation] = useState<string>("All");
-
-    // Search and Detail Modal State
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
-    const [isDetailOpen, setIsDetailOpen] = useState(false);
-
-    // Unique options for filters
-    const [availableYears, setAvailableYears] = useState<number[]>([]);
-    const [availableUnits, setAvailableUnits] = useState<string[]>([]);
-    const { data: unitMitraMap } = useQuery({
-        queryKey: ["unit-mitra-map"],
-        queryFn: async () => {
-            const res = await apiRequest("/api/fms/unit-mitra-map", "GET");
-            return res as Record<string, string>;
-        }
-    });
-
-    useEffect(() => {
-        const config = getSheetConfig();
-        setSheetConfig(config);
-    }, []);
-
-    const processRows = (rows: any[], headers: string[]) => {
-        return rows.map(r => {
-            // Find Date - prioritize 'Date' then 'Date Opr'
-            const dStr = r["Date"] || r["Date Opr"] || r["Date Opr "] || "";
-            const d = parseDate(dStr);
-
-            // Parse Speed Numbers
-            const speedValue = parseFloat(r["Speed (Kph)"] || r["Speed"] || r["Speed "] || "0");
-            const limitValue = parseFloat(r["Speed Limit"] || r["SpeedLimit"] || r["Speed Limit "] || r["SpeedLimit "] || "0");
-            const shiftValue = r["Shift"] || r["Shift "] || "Unknown";
-
-            // Fix Mapping Status (Handle unexpected CSV headers)
-            const ticketStatus = r["Status"] || r["Status "] || r["TicketStatus"] || "Open";
-            const validationStatus = r["Status Pelanggaran "] || r["Status Pelanggaran"] || r["ValidationStatus"] || "";
-            const statusClosedNC = r["Status Closed NC "] || r["Status Closed NC"] || r["StatusClosedNC"] || "";
-            const durasiClose = r["Durasi Close"] || r["Durasi Close "] || "0";
-
-            return {
-                ...r,
-                Shift: shiftValue.toString().trim(),
-                Speed: isNaN(speedValue) ? 0 : speedValue,
-                SpeedLimit: isNaN(limitValue) ? 0 : limitValue,
-                _dateObj: d,
-                _year: d.getFullYear() || 0,
-                _monthIndex: d.getMonth() || 0,
-                TicketStatus: ticketStatus,
-                ValidationStatus: validationStatus,
-                StatusClosedNC: statusClosedNC,
-                "Durasi Close": durasiClose,
-                "Masa Berlaku Sanksi": r["Masa Berlaku Sanksi"] || r["Masa Berlaku Sanksi "] || "-"
-            };
-        }).filter(r => {
-            const company = (r.Company || "").toString().trim().toUpperCase();
-            return company === COMPANY_FILTER_DEFAULT || company === "";
-        });
-    };
-
-    const fetchData = async () => {
-        // Sambungan spreadsheet dinonaktifkan sementara → jangan tarik data.
-        if (!SPREADSHEET_ENABLED) { setLoading(false); setError(null); return; }
-        setLoading(true);
-        setError(null);
+    const periksaBaru = async () => {
+        setMemeriksa(true);
         try {
-            // Check for custom config first
-            const config = getSheetConfig();
-            let url = CSV_URL;
-
-            if (config) {
-                // If custom config exists, use our server proxy
-            }
-
-            const res = await fetch(url);
-            if (!res.ok) throw new Error("Gagal mengambil data CSV");
-            const text = await res.text();
-
-            Papa.parse(text, {
-                header: true,
-                skipEmptyLines: true,
-                complete: (results) => {
-                    const rows = processRows(results.data as any[], results.meta.fields || []);
-                    setRawData(rows as OverspeedData[]);
-                    setLastUpdated(new Date());
-
-                    // Extract available filters
-                    const years = Array.from(new Set(rows.map(r => r._year).filter(Boolean))).sort().reverse() as number[];
-                    setAvailableYears(years);
-
-                    const units = Array.from(new Set(rows.map(r => r["Vehicle No"]).filter(Boolean))).sort();
-                    setAvailableUnits(units);
-                },
-                error: (err: any) => {
-                    setError(`Parse Error: ${err.message}`);
-                }
+            const res = await fetch("/api/hse/fms-violations/periksa", { method: "POST" });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.message);
+            toast({
+                title: j.disemai ? `${angka(j.disemai)} pelanggaran dicatat sebagai awal`
+                    : j.baru ? `${angka(j.baru)} pelanggaran baru diberitahukan` : "Tidak ada pelanggaran baru",
+                description: j.disemai ? "Pemeriksaan pertama tidak mengirim notifikasi agar lonceng tidak dibanjiri data lama." : undefined,
             });
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+            refetch();
+        } catch (e: any) {
+            toast({ title: "Gagal memeriksa", description: e?.message, variant: "destructive" });
+        } finally { setMemeriksa(false); }
     };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    const k = r.kpi ?? {};
+    const naik = (k.pelanggaranIni ?? 0) > (k.pelanggaranLalu ?? 0);
+    const adaPembanding = (k.pelanggaranLalu ?? 0) > 0;
 
-    // --- Aggregation ---
-    const filteredData = useMemo(() => {
-        if (!rawData) return [];
-        return rawData.filter((r: any) => {
-            const yearStr = (r?._year !== undefined && r?._year !== null) ? r._year.toString() : "";
-            const monthStr = (r?._monthIndex !== undefined && r?._monthIndex !== null) ? r._monthIndex.toString() : "";
-
-            const matchYear = filterYear === "All" || yearStr === filterYear;
-            const matchMonth = filterMonth === "All" || monthStr === filterMonth;
-            const matchUnit = filterUnit === "All" || r?.["Vehicle No"] === filterUnit;
-            const matchVio = filterViolation === "All" ||
-                (filterViolation === "OverSpeed" && r?.Violation?.toLowerCase().includes("overspeed")) ||
-                (filterViolation === "Merokok" && r?.Violation?.toLowerCase().includes("merokok"));
-
-            return matchYear && matchMonth && matchUnit && matchVio;
-        });
-    }, [rawData, filterYear, filterMonth, filterUnit, filterViolation]);
-
-    const stats = useMemo(() => {
-        if (!filteredData.length) return null;
-
-        // 1. Month Data
-        const monthCounts = Array(12).fill(0);
-        filteredData.forEach(r => {
-            if (r._monthIndex !== undefined) monthCounts[r._monthIndex]++;
-        });
-        const monthData = monthCounts.map((count, i) => ({
-            name: getMonthName(i),
-            count
-        }));
-
-        // 2. Week Data
-        const weekCounts: Record<string, number> = {};
-        filteredData.forEach(r => {
-            const w = r.Week ? `Minggu ${r.Week}` : "Unknown";
-            weekCounts[w] = (weekCounts[w] || 0) + 1;
-        });
-        const weekData = Object.entries(weekCounts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => parseInt(a.name.replace(/\D/g, '')) - parseInt(b.name.replace(/\D/g, '')));
-
-        // 3. Hour Data
-        const hourCounts = Array(24).fill(0);
-        filteredData.forEach(r => {
-            if (r.Time) {
-                const h = parseInt(r.Time.split(":")[0]);
-                if (!isNaN(h)) hourCounts[h]++;
-            }
-        });
-        const hourData = hourCounts.map((count, i) => ({ name: i.toString(), count }));
-
-        // 4. Employees & Units Aggregation
-        const empInfo: Record<string, { count: number, unit: string, role: string }> = {};
-        const unitCounts: Record<string, number> = {};
-        const locationCounts: Record<string, number> = {};
-        const shiftCounts: Record<string, number> = {};
-        const speedData: any[] = [];
-
-        // 5. Status & Duration Metrics
-        let openCount = 0;
-        let closedCount = 0;
-        let validCount = 0;
-        let invalidCount = 0;
-        let totalDuration = 0;
-        let durationCount = 0;
-        let violationMerokok = 0;
-        let violationOverspeed = 0;
-        let closedOntime = 0;
-        let closedOverdue = 0;
-        let waitingCount = 0;
-        const unitMitraFromCsv: Record<string, string> = {};
-
-        filteredData.forEach((row, i) => {
-            // Employee
-            const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
-            // Filter out BIB and #N/A
-            if (name && name !== "BIB" && name !== "#N/A") {
-                if (!empInfo[name]) {
-                    empInfo[name] = { count: 0, unit: row["Vehicle No"] || "-", role: row["Jabatan"] || "-" };
-                }
-                empInfo[name].count++;
-                // Keep latest unit/role
-                if (row["Vehicle No"]) empInfo[name].unit = row["Vehicle No"];
-                if (row["Jabatan"]) empInfo[name].role = row["Jabatan"];
-            }
-
-            const unit = row["Vehicle No"] || "Unknown";
-            if (unit) {
-                unitCounts[unit] = (unitCounts[unit] || 0) + 1;
-                // Capture Mitra from CSV if available
-                const mitraLabel = row["Investor Group"] || row["InvestorGroup"] || row["Company"] || row["Firma"];
-                if (mitraLabel && mitraLabel !== "#N/A" && !unitMitraFromCsv[unit]) {
-                    unitMitraFromCsv[unit] = mitraLabel.toString().trim();
-                }
-            }
-
-            // Location
-            const loc = row["Location (KM)"] || "Unknown";
-            locationCounts[loc] = (locationCounts[loc] || 0) + 1;
-
-            // Shift
-            let shift = row.Shift || "Unknown";
-            if (shift.includes("1")) shift = "Shift 1";
-            else if (shift.includes("2")) shift = "Shift 2";
-            shiftCounts[shift] = (shiftCounts[shift] || 0) + 1;
-
-            // Speed Data
-            if (row.Speed && row.Speed > 0) {
-                speedData.push({
-                    name: unit,
-                    Speed: row.Speed,
-                    Limit: row.SpeedLimit || 60,
-                    Deviasi: (row.Speed || 0) - (row.SpeedLimit || 0)
-                });
-            }
-
-            // Ticket Status
-            const ticketStatus = row.TicketStatus?.trim().toLowerCase();
-            if (ticketStatus === 'open') openCount++;
-            else if (ticketStatus === 'closed') closedCount++;
-            else if (ticketStatus && (ticketStatus.includes('menunggu') || ticketStatus.includes('verifikasi'))) waitingCount++;
-
-            // Validation Status
-            const valStatus = row.ValidationStatus?.trim().toLowerCase();
-            if (valStatus === 'valid') validCount++;
-            else if (valStatus && valStatus.includes('invalid')) invalidCount++;
-
-            // Duration
-            const dur = parseInt(row["Durasi Close"] || "0");
-            if (!isNaN(dur) && dur > 0) {
-                totalDuration += dur;
-                durationCount++;
-            }
-
-            // Violation Breakdown
-            const v = row.Violation?.toLowerCase() || "";
-            if (v.includes("merokok")) violationMerokok++;
-            else if (v.includes("overspeed")) violationOverspeed++;
-
-            // Status Closed NC Breakdown
-            const sc = row.StatusClosedNC?.toLowerCase() || "";
-            if (sc.includes("ontime")) closedOntime++;
-            else if (sc.includes("overdue")) closedOverdue++;
-        });
-
-        const avgDuration = durationCount > 0 ? (totalDuration / durationCount).toFixed(1) : "0";
-
-        const topEmployees = Object.entries(empInfo)
-            .map(([name, data]) => ({ name, count: data.count, unit: data.unit, role: data.role }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
-
-        const topLocations = Object.entries(locationCounts)
-            .map(([name, count]) => ({ name, count }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
-
-        const topUnits = Object.entries(unitCounts)
-            .map(([name, count]) => ({
-                name,
-                count,
-                mitra: unitMitraMap?.[washKey(name)] || unitMitraFromCsv[name] || "-"
-            }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, 10);
-
-        const shiftData = Object.entries(shiftCounts)
-            .map(([name, value]) => ({ name, value }));
-
-        // Sort speed data by deviation
-        speedData.sort((a, b) => b.Deviasi - a.Deviasi).splice(50); // Keep top 50 detailed
-
-        return {
-            monthData, weekData, hourData, topEmployees, topUnits,
-            openCount, closedCount, validCount, invalidCount, avgDuration,
-            violationMerokok, violationOverspeed,
-            closedOntime, closedOverdue, waitingCount,
-            topLocations, shiftData, speedData // New fields
-        };
-    }, [filteredData, unitMitraMap]);
-
-    // --- AI Analysis Logic ---
-    // --- AI Analysis Logic ---
-    const [aiInsights, setAiInsights] = useState<string[]>([]);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-    useEffect(() => {
-        if (!stats) return;
-
-        const analyze = async () => {
-            setIsAnalyzing(true);
-            try {
-                const res = await fetch("/api/ai/analyze-overspeed", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ stats })
-                });
-                const data = await res.json();
-                if (data.insights) setAiInsights(data.insights);
-            } catch (e) {
-                console.error("AI Analysis failed", e);
-                setAiInsights([
-                    `Karyawan dengan pelanggaran terbanyak: ${stats.topEmployees[0]?.name || '-'}`,
-                    `Unit paling sering melanggar: ${stats.topUnits[0]?.name || '-'}`
-                ]);
-            } finally {
-                setIsAnalyzing(false);
-            }
-        };
-
-        // Debounce / Check if already analyzed to avoid spam
-        analyze();
-    }, [stats]);
-
-    const handleExport = async () => {
-        const element = document.getElementById("dashboard-content");
-        if (element) {
-            const canvas = await html2canvas(element);
-            canvas.toBlob((blob) => {
-                if (blob) saveAs(blob, "dashboard-overspeed.jpg");
-            });
-        }
-    };
-
-    // Sambungan spreadsheet dinonaktifkan sementara — tampilkan state netral (bukan error).
-    if (!SPREADSHEET_ENABLED) {
-        return (
-            <div className="flex h-[80vh] items-center justify-center flex-col gap-3 px-6 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-800">
-                    <Unplug className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">Koneksi Spreadsheet Dinonaktifkan Sementara</h3>
-                <p className="max-w-md text-sm text-gray-500">
-                    Dashboard Overspeed untuk sementara tidak menarik data dari Google Sheets.
-                    Sambungan akan diaktifkan kembali saat diperlukan.
-                </p>
-            </div>
-        );
-    }
-
-    if (loading && !rawData.length) {
-        return (
-            <div className="flex h-[80vh] items-center justify-center flex-col gap-4">
-                <RefreshCw className="h-10 w-10 animate-spin text-green-600" />
-                <p className="text-gray-500 font-medium">Mengambil Data Pelanggaran...</p>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-8 text-center text-red-500">
-                <AlertCircle className="h-12 w-12 mx-auto mb-4" />
-                <h3 className="text-lg font-bold">Terjadi Kesalahan</h3>
-                <p>{error}</p>
-                <Button onClick={fetchData} className="mt-4" variant="outline">Coba Lagi</Button>
-            </div>
-        );
-    }
-
-    console.log("Dashboard Rendering", { stats, filteredData });
+    // §3 — enam KPI, masing-masing dengan SATU baris konteks. §1.4: warna hanya
+    // untuk yang bermakna, jadi hanya dua kartu yang boleh berwarna.
+    const KPI = [
+        { l: "Pelanggaran", v: angka(k.pelanggaranIni ?? 0),
+          ket: adaPembanding ? `${k.tahunIni}: ${angka(k.pelanggaranIni)} vs ${k.tahunLalu}: ${angka(k.pelanggaranLalu)}` : "belum ada pembanding",
+          Ikon: ShieldAlert,
+          warna: !adaPembanding ? "" : naik ? "text-red-600 dark:text-red-500" : "text-foreground" },
+        { l: "Pelanggar", v: angka(k.pelanggar ?? 0),
+          ket: `${angka(k.berNik ?? 0)} dari ${angka(data?.total ?? 0)} baris ber-NIK (${angka(k.persenBerNik ?? 0, 1)}%)`,
+          Ikon: Users, warna: "" },
+        { l: "Pengulang", v: angka(k.pengulang ?? 0),
+          ket: `menyumbang ${angka(k.persenDariPengulang ?? 0, 1)}% pelanggaran`,
+          Ikon: Repeat, warna: (k.pengulang ?? 0) > 0 ? "text-amber-600 dark:text-amber-500" : "" },
+        { l: "Rerata deviasi", v: k.rerataDeviasi !== null && k.rerataDeviasi !== undefined ? angka(k.rerataDeviasi, 1) : "—",
+          ket: `km/jam di atas batas${k.batasUmum ? ` (batas umum ${k.batasUmum})` : ""}`, Ikon: Gauge, warna: "" },
+        { l: "Tingkat penutupan", v: k.tingkatPenutupan !== null && k.tingkatPenutupan !== undefined ? `${angka(k.tingkatPenutupan, 1)}%` : "—",
+          ket: `${angka(k.belumDitutup ?? 0)} belum ditutup`, Ikon: CheckCircle2,
+          warna: (k.belumDitutup ?? 0) === 0 ? "text-foreground" : "" },
+        { l: "Rerata penutupan", v: k.rerataPenutupan !== null && k.rerataPenutupan !== undefined ? angka(k.rerataPenutupan, 1) : "—",
+          ket: `hari, dari ${angka(k.durasiTercatat ?? 0)} yang tercatat`, Ikon: Clock, warna: "" },
+    ];
 
     return (
-        <div id="dashboard-content" className="min-h-screen bg-gray-50/50 p-4 md:p-6 space-y-6 font-sans relative overflow-hidden">
-            {/* Ambient Background */}
-            <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-br from-red-500/10 via-orange-500/5 to-transparent pointer-events-none -z-10 blur-3xl" />
-
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/70 backdrop-blur-xl p-6 rounded-2xl shadow-sm border border-white/50 sticky top-0 z-50">
+        <div className="space-y-6 p-6 md:p-8">
+            <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
                 <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
-                        FMS Violation Monitoring
-                    </h1>
-                    <div className="flex items-center gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200 px-3 py-1">
-                            Live Data
-                        </Badge>
-                        <p className="text-gray-500 text-sm font-medium">
-                            Total {rawData.length} records • Updated {lastUpdated ? lastUpdated.toLocaleTimeString() : "-"}
-                        </p>
-                    </div>
+                    <h1 className="text-[28px] font-semibold tracking-[-0.03em] text-foreground">Pelanggaran FMS</h1>
+                    <p className="mt-1 text-[15px] text-muted-foreground">
+                        {isLoading ? "Memuat…" : `${angka(data?.total ?? 0)} pelanggaran GEC & GECL · ${angka(r.jumlahPengemudi ?? 0)} pengemudi`}
+                    </p>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                    {/* Glassy Filters */}
-                    <div className="flex items-center gap-2 bg-white/50 backdrop-blur-md p-1.5 rounded-xl border border-gray-200/50 shadow-sm">
-                        <Filter className="w-4 h-4 text-gray-400 ml-2" />
-                        <Select value={filterYear} onValueChange={setFilterYear}>
-                            <SelectTrigger className="border-none bg-transparent h-9 w-[90px] text-xs font-bold focus:ring-0 text-gray-700">
-                                <SelectValue placeholder="Year" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="All">All Year</SelectItem>
-                                {availableYears.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <div className="w-px h-4 bg-gray-300"></div>
-                        <Select value={filterMonth} onValueChange={setFilterMonth}>
-                            <SelectTrigger className="border-none bg-transparent h-9 w-[110px] text-xs font-bold focus:ring-0 text-gray-700">
-                                <SelectValue placeholder="Bulan" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="All">All Month</SelectItem>
-                                {Array.from({ length: 12 }, (_, i) => (
-                                    <SelectItem key={i} value={i.toString()}>{getMonthName(i)}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="flex items-center gap-2 bg-white/50 backdrop-blur-md p-1.5 rounded-xl border border-gray-200/50 shadow-sm">
-                        <Select value={filterUnit} onValueChange={setFilterUnit}>
-                            <SelectTrigger className="border-none bg-transparent h-9 w-[120px] text-xs font-bold focus:ring-0 text-gray-700">
-                                <SelectValue placeholder="Unit" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="All">All Units</SelectItem>
-                                {availableUnits.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <div className="w-px h-4 bg-gray-300"></div>
-                        <Select value={filterViolation} onValueChange={setFilterViolation}>
-                            <SelectTrigger className="border-none bg-transparent h-9 w-[120px] text-xs font-bold focus:ring-0 text-gray-700">
-                                <SelectValue placeholder="Violation" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="All">All Type</SelectItem>
-                                <SelectItem value="OverSpeed">⚡ OverSpeed</SelectItem>
-                                <SelectItem value="Merokok">🚬 Merokok</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Button variant="outline" size="icon" onClick={fetchData} className="rounded-xl border-gray-200 hover:bg-gray-100 hover:text-red-600 transition-colors">
-                        <RefreshCw className="h-4 w-4" />
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                        {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        Muat ulang
                     </Button>
-                    <Button variant="default" onClick={handleExport} className="rounded-xl bg-gray-900 hover:bg-gray-800 text-white shadow-lg shadow-gray-900/20">
-                        <Download className="h-4 w-4 mr-2" /> Export
+                    <Button onClick={periksaBaru} disabled={memeriksa}>
+                        {memeriksa ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BellRing className="mr-2 h-4 w-4" />}
+                        Periksa pelanggaran baru
                     </Button>
                 </div>
             </div>
 
-            {/* Key Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                    {
-                        title: "TOTAL VIOLATIONS",
-                        value: filteredData.length,
-                        icon: AlertCircle,
-                        color: "red",
-                        subtext: `${stats?.violationOverspeed || 0} OS • ${stats?.violationMerokok || 0} Merokok`
-                    },
-                    {
-                        title: "AVERAGE DURATION",
-                        value: `${stats?.avgDuration || 0}`,
-                        unit: "Days",
-                        icon: Clock,
-                        color: "blue",
-                        subtext: "Case Closing Time"
-                    },
-                    {
-                        title: "CLOSED ONTIME",
-                        value: stats?.closedOntime || 0,
-                        icon: CheckCircle,
-                        color: "emerald",
-                        subtext: `${stats?.closedOverdue || 0} Overdue`
-                    },
-                    {
-                        title: "VALIDATION RATE",
-                        value: `${stats?.validCount || 0}`,
-                        unit: "Valid",
-                        icon: Sparkles,
-                        color: "purple",
-                        subtext: `${stats?.invalidCount || 0} Invalid`
-                    }
-                ].map((metric, i) => (
-                    <Card key={i} className="border-none shadow-lg relative overflow-hidden group hover:shadow-xl transition-all duration-300 bg-white">
-                        <div className={`absolute top-0 left-0 w-1 h-full bg-${metric.color}-500`} />
-                        <div className={`absolute -right-6 -top-6 w-24 h-24 bg-${metric.color}-50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
-
-                        <CardContent className="p-6 relative z-10">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="text-[11px] font-extrabold text-gray-400 uppercase tracking-widest">{metric.title}</p>
-                                    <div className="flex items-baseline gap-1 mt-2">
-                                        <span className={`text-4xl font-black text-${metric.color}-600 tracking-tight`}>
-                                            {metric.value}
-                                        </span>
-                                        {metric.unit && <span className="text-sm font-bold text-gray-400">{metric.unit}</span>}
-                                    </div>
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <Badge variant="secondary" className={`bg-${metric.color}-50 text-${metric.color}-700 border-${metric.color}-100 font-bold`}>
-                                            {metric.subtext}
-                                        </Badge>
-                                    </div>
-                                </div>
-                                <div className={`p-3 rounded-2xl bg-${metric.color}-50 text-${metric.color}-600 shadow-sm group-hover:scale-110 transition-transform`}>
-                                    <metric.icon className="w-6 h-6" />
-                                </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                {KPI.map((k) => (
+                    <Card key={k.l} className="rounded-xl border border-border bg-card">
+                        <CardContent className="p-5">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                                <k.Ikon className="h-4 w-4" />
+                                <span className="font-mono text-[10px] uppercase tracking-[0.14em]">{k.l}</span>
                             </div>
+                            <p className={`mt-2.5 text-[28px] font-semibold leading-none tabular-nums ${k.warna || "text-foreground"}`}>{k.v}</p>
+                            <p className="mt-2 text-[12px] text-muted-foreground">{k.ket}</p>
                         </CardContent>
                     </Card>
                 ))}
             </div>
 
-            {/* Main Content Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* Charts Column (Left) */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Monthly Trend */}
-                    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                        <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-gray-100/50">
-                            <div>
-                                <CardTitle className="text-lg font-bold text-gray-800">Monthly Trends</CardTitle>
-                                <CardDescription>Violation frequency over time</CardDescription>
-                            </div>
-                            <TrendingUp className="w-5 h-5 text-gray-400" />
-                        </CardHeader>
-                        <CardContent className="h-[350px] pt-6">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats?.monthData}>
-                                    <defs>
-                                        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8} />
-                                            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.3} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} dy={10} />
-                                    <Tooltip
-                                        cursor={{ fill: '#f8fafc' }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                    />
-                                    <Bar dataKey="count" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={40}>
-                                        <LabelList dataKey="count" position="top" fill="#ef4444" fontSize={12} fontWeight="bold" formatter={(v: number) => v > 0 ? v : ''} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-
-                    {/* Secondary Charts Row 1 */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Weekly Analysis */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Weekly Distribution</CardTitle>
-                            </CardHeader>
-                            <CardContent className="h-[200px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats?.weekData}>
-                                        <CartesianGrid vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="name" hide />
-                                        <Tooltip cursor={{ fill: 'transparent' }} />
-                                        <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 4, 4]}>
-                                            <LabelList dataKey="count" position="top" fill="#3b82f6" fontSize={11} fontWeight="bold" />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        {/* Hourly Heatmap Equivalent */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Peak Hours</CardTitle>
-                            </CardHeader>
-                            <CardContent className="h-[200px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats?.hourData}>
-                                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-                                        <Tooltip cursor={{ fill: 'transparent' }} />
-                                        <Bar dataKey="count" fill="#f59e0b" radius={[2, 2, 0, 0]}>
-                                            <LabelList dataKey="count" position="top" fill="#f59e0b" fontSize={10} formatter={(v: number) => v > 0 ? v : ''} />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
+            {/* Saringan + pencarian NIK / nama / unit */}
+            <Card className="rounded-xl border border-border bg-card">
+                <CardContent className="flex flex-wrap items-center gap-3 p-4">
+                    <div className="relative min-w-[260px] flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input className="h-9 pl-9" placeholder="Cari NIK, nama, unit, sanksi, kategori, jalur, status…"
+                            value={cari} onChange={(e) => setCari(e.target.value)} />
                     </div>
-
-                    {/* Gap Analysis & Status Breakdown */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Gap Analysis - Ontime vs Overdue */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-0 border-b border-gray-100/50 mb-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle className="text-lg font-bold text-gray-800">Gap Analysis</CardTitle>
-                                        <CardDescription>Penyelesaian Ontime vs Overdue</CardDescription>
-                                    </div>
-                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                                        <TrendingUp className="w-5 h-5" />
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={[
-                                                { name: 'On Time', value: stats?.closedOntime || 0, fill: '#10b981' },
-                                                { name: 'Overdue', value: stats?.closedOverdue || 0, fill: '#ef4444' }
-                                            ]}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={80}
-                                            outerRadius={110}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                            label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                                        >
-                                            <Cell key="cell-ontime" fill="#10b981" strokeWidth={0} />
-                                            <Cell key="cell-overdue" fill="#ef4444" strokeWidth={0} />
-                                        </Pie>
-                                        <Tooltip
-                                            formatter={(value: number) => [value, 'Kasus']}
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                        />
-                                        <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ paddingTop: '20px' }} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        {/* Status Breakdown Bar Chart */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-0 border-b border-gray-100/50 mb-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle className="text-lg font-bold text-gray-800">Status Breakdown</CardTitle>
-                                        <CardDescription>Distribusi Status Tiket & Kualifikasi</CardDescription>
-                                    </div>
-                                    <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
-                                        <Filter className="w-5 h-5" />
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={[
-                                            { name: 'TOTAL', value: filteredData.length, fill: '#6b7280' },
-                                            { name: 'CLOSED', value: stats?.closedCount || 0, fill: '#10b981' },
-                                            { name: 'VERIF', value: stats?.waitingCount || 0, fill: '#8b5cf6' },
-                                            { name: 'OPEN', value: stats?.openCount || 0, fill: '#f59e0b' },
-                                            { name: 'ONTIME', value: stats?.closedOntime || 0, fill: '#059669' },
-                                            { name: 'OVERDUE', value: stats?.closedOverdue || 0, fill: '#ef4444' },
-                                        ]}
-                                        layout="vertical"
-                                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                                        <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={70} tick={{ fontSize: 10, fontWeight: 700, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <Tooltip
-                                            cursor={{ fill: '#f8fafc' }}
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                        />
-                                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24}>
-                                            <LabelList dataKey="value" position="right" fill="#64748b" fontSize={11} fontWeight="bold" />
-                                            {
-                                                [
-                                                    { name: 'TOTAL', fill: '#6b7280' },
-                                                    { name: 'CLOSED', fill: '#10b981' },
-                                                    { name: 'VERIF', fill: '#8b5cf6' },
-                                                    { name: 'OPEN', fill: '#f59e0b' },
-                                                    { name: 'ONTIME', fill: '#059669' },
-                                                    { name: 'OVERDUE', fill: '#ef4444' },
-                                                ].map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                                                ))
-                                            }
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* NEW CHARTS: Top Location & Top Vehicle */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Top 10 Locations */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Top 10 Locations</CardTitle>
-                            </CardHeader>
-                            <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={stats?.topLocations}
-                                        layout="vertical"
-                                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                                        <XAxis type="number" hide />
-                                        <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                                        <Tooltip cursor={{ fill: '#f8fafc' }} />
-                                        <Bar dataKey="count" fill="#ec4899" radius={[0, 4, 4, 0]} barSize={20}>
-                                            <LabelList dataKey="count" position="right" fill="#ec4899" fontSize={10} fontWeight="bold" />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        {/* Top 10 Vehicle No */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Top 10 Vehicles</CardTitle>
-                            </CardHeader>
-                            <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={stats?.topUnits.map(u => ({
-                                            name: u.name,
-                                            displayName: `${u.name} • ${u.mitra}`,
-                                            count: u.count
-                                        }))}
-                                        layout="vertical"
-                                        margin={{ top: 5, right: 30, left: 60, bottom: 5 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                                        <XAxis type="number" hide />
-                                        <YAxis
-                                            dataKey="displayName"
-                                            type="category"
-                                            width={140}
-                                            tick={{ fontSize: 9, fill: '#64748b', fontWeight: 'bold' }}
-                                            axisLine={false}
-                                            tickLine={false}
-                                        />
-                                        <Tooltip
-                                            cursor={{ fill: '#f8fafc' }}
-                                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                            formatter={(value: number, name: string, props: any) => [value, props.payload.displayName]}
-                                        />
-                                        <Bar dataKey="count" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20}>
-                                            <LabelList dataKey="count" position="right" fill="#f97316" fontSize={10} fontWeight="bold" />
-                                        </Bar>
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* NEW CHARTS: Shift & Speed */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Shift Comparison */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Shift Comparison</CardTitle>
-                            </CardHeader>
-                            <CardContent className="h-[250px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={stats?.shiftData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                                        >
-                                            {stats?.shiftData.map((entry: any, index: number) => (
-                                                <Cell key={`cell-${index}`} fill={entry.name.includes('1') ? '#3b82f6' : '#a855f7'} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                        <Legend verticalAlign="bottom" height={36} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        {/* Speed vs Limit */}
-                        <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                            <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Speed vs Speed Limit</CardTitle>
-                            </CardHeader>
-                            <CardContent className="h-[250px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={stats?.speedData} margin={{ top: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                        <XAxis dataKey="name" hide />
-                                        <Tooltip
-                                            content={({ active, payload }) => {
-                                                if (active && payload && payload.length) {
-                                                    const d = payload[0].payload;
-                                                    return (
-                                                        <div className="bg-white p-2 border rounded shadow-md text-xs">
-                                                            <p className="font-bold">{d.name}</p>
-                                                            <p className="text-red-500">Speed: {d.Speed} km/h</p>
-                                                            <p className="text-gray-500">Limit: {d.Limit} km/h</p>
-                                                            <p className="text-blue-500">Deviasi: {d.Deviasi} km/h</p>
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        <Bar dataKey="Speed" fill="#ef4444" radius={[4, 4, 0, 0]} name="Actual Speed" />
-                                        <Bar dataKey="Limit" fill="#e2e8f0" radius={[4, 4, 0, 0]} name="Speed Limit" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
-
-                {/* Right Column (Sidebar) */}
-                <div className="space-y-6">
-                    {/* Insights Panel */}
-                    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl -z-10" />
-                        <CardHeader>
-                            <div className="flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-purple-600" />
-                                <CardTitle className="text-lg font-bold text-gray-800">AI Insights</CardTitle>
-                            </div>
-                            <CardDescription>Automated analysis of violation patterns</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            {isAnalyzing ? (
-                                <div className="space-y-3">
-                                    <Skeleton className="h-4 w-full" />
-                                    <Skeleton className="h-4 w-[90%]" />
-                                    <Skeleton className="h-4 w-[80%]" />
-                                </div>
-                            ) : (
-                                aiInsights.length > 0 ? (
-                                    <ul className="space-y-3">
-                                        {aiInsights.map((text, i) => (
-                                            <li key={i} className="flex gap-3 text-sm text-gray-600 bg-white/50 p-3 rounded-xl border border-gray-100">
-                                                <div className="min-w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5" />
-                                                {text}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div className="text-center py-8 text-gray-400 text-sm">
-                                        <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                                        No sufficient data for AI analysis
-                                    </div>
-                                )
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    {/* Top Employees */}
-                    <Card className="border-none shadow-lg bg-white/80 backdrop-blur-sm rounded-2xl">
-                        <CardHeader className="pb-2 border-b border-gray-100/50">
-                            <CardTitle className="text-sm font-bold text-gray-500 uppercase tracking-wider">Highest Violators</CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-4 space-y-4">
-                            {stats?.topEmployees.map((emp, i) => (
-                                <div
-                                    key={i}
-                                    className="flex items-center justify-between p-3 rounded-xl hover:bg-red-50 transition-colors group cursor-pointer"
-                                    onClick={() => {
-                                        setSelectedEmployee(emp.name);
-                                        setIsDetailOpen(true);
-                                    }}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${i === 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600'}`}>
-                                            {i + 1}
-                                        </div>
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-800 truncate group-hover:text-red-700 transition-colors" title={emp.name}>{emp.name}</p>
-                                            <p className="text-xs text-gray-400">{emp.unit} • {unitMitraMap?.[washKey(emp.unit)] || "-"} • {emp.role}</p>
-                                        </div>
-                                    </div>
-                                    <Badge variant="secondary" className="bg-white group-hover:bg-red-200 text-gray-600 group-hover:text-red-800 transition-colors">
-                                        {emp.count} Cases
-                                    </Badge>
-                                </div>
-                            ))}
-                        </CardContent>
-                    </Card>
-
-                    {/* Employee Detail Dialog */}
-                    <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-                        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
-                            <DialogHeader className="p-6 bg-gradient-to-r from-red-600 to-orange-600 text-white">
-                                <div className="flex items-center gap-4">
-                                    <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md">
-                                        <User className="w-8 h-8" />
-                                    </div>
-                                    <div>
-                                        <DialogTitle className="text-2xl font-black uppercase tracking-tight">
-                                            {selectedEmployee}
-                                        </DialogTitle>
-                                        <DialogDescription className="text-red-50 font-medium">
-                                            Detail Pelanggaran Karyawan
-                                        </DialogDescription>
-                                    </div>
-                                </div>
-                            </DialogHeader>
-
-                            <div className="flex-1 overflow-hidden">
-                                <ScrollArea className="h-full">
-                                    <div className="p-6">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-gray-50/50 hover:bg-gray-50/50 border-gray-100">
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Tanggal</TableHead>
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Jam</TableHead>
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Unit</TableHead>
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Pelanggaran</TableHead>
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Lokasi</TableHead>
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider">Masa Berlaku Sanksi</TableHead>
-                                                    <TableHead className="font-bold text-gray-500 text-xs uppercase tracking-wider text-right">Status</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {filteredData
-                                                    .filter(row => {
-                                                        const name = (row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase();
-                                                        return name === selectedEmployee;
-                                                    })
-                                                    .sort((a, b) => (b._dateObj?.getTime() || 0) - (a._dateObj?.getTime() || 0))
-                                                    .map((row, idx) => (
-                                                        <TableRow key={idx} className="hover:bg-gray-50/50 border-gray-50 transition-colors">
-                                                            <TableCell className="font-medium text-gray-700">{row.Date || row["Date Opr"]}</TableCell>
-                                                            <TableCell className="text-gray-500">{row.Time}</TableCell>
-                                                            <TableCell className="font-bold text-gray-900">{row["Vehicle No"]}</TableCell>
-                                                            <TableCell>
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className={`font-bold transition-all ${row.Violation?.toLowerCase().includes("overspeed")
-                                                                        ? "bg-red-50 text-red-600 border-red-100"
-                                                                        : "bg-orange-50 text-orange-600 border-orange-100"
-                                                                        }`}
-                                                                >
-                                                                    {row.Violation}
-                                                                </Badge>
-                                                            </TableCell>
-                                                            <TableCell className="text-gray-500">{row["Location (KM)"]}</TableCell>
-                                                            <TableCell className="text-gray-500 italic font-medium">{row["Masa Berlaku Sanksi"]}</TableCell>
-                                                            <TableCell className="text-right">
-                                                                <Badge
-                                                                    className={`font-black uppercase tracking-tighter text-[10px] ${row.TicketStatus?.toLowerCase() === "closed"
-                                                                        ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 shadow-none border-none"
-                                                                        : "bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 shadow-none border-none"
-                                                                        }`}
-                                                                >
-                                                                    {row.TicketStatus}
-                                                                </Badge>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </ScrollArea>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gradient-to-br from-orange-50 to-red-50 p-4 rounded-2xl border border-orange-100/50">
-                            <p className="text-xs font-bold text-orange-400 uppercase mb-1">Cigarette Violations</p>
-                            <p className="text-2xl font-black text-orange-600">{stats?.violationMerokok || 0}</p>
-                        </div>
-                        <div className="bg-gradient-to-br from-red-50 to-pink-50 p-4 rounded-2xl border border-red-100/50">
-                            <p className="text-xs font-bold text-red-400 uppercase mb-1">Overspeed</p>
-                            <p className="text-2xl font-black text-red-600">{stats?.violationOverspeed || 0}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Searchable Table Section */}
-            <Card className="border-none shadow-xl bg-white/90 backdrop-blur-md rounded-3xl overflow-hidden mt-6">
-                <CardHeader className="p-8 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div>
-                            <CardTitle className="text-2xl font-black text-gray-900">Detailed Violation Records</CardTitle>
-                            <CardDescription className="text-gray-500 mt-1">Daftar lengkap pelanggaran berdasarkan filter dan pencarian</CardDescription>
-                        </div>
-                        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
-                            {/* Global Search Moved Here */}
-                            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-2xl border border-gray-200 shadow-sm w-full md:w-[300px] focus-within:ring-2 focus-within:ring-red-500/20 transition-all">
-                                <Search className="w-5 h-5 text-gray-400" />
-                                <Input
-                                    placeholder="Cari Nama / NIK Karyawan..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="border-none bg-transparent h-8 text-sm font-bold focus-visible:ring-0 placeholder:text-gray-400 p-0"
-                                />
-                            </div>
-                            <Badge variant="outline" className="px-5 py-2 bg-red-50 text-red-700 border-red-100 font-black rounded-2xl whitespace-nowrap">
-                                {filteredData.filter(r => {
-                                    if (!searchQuery) return true;
-                                    const q = searchQuery.toLowerCase();
-                                    const name = (r["Nama Karyawan"] || r["Nama Eksekutor"] || "").toLowerCase();
-                                    const nik = (r["Vehicle No"] || "").toLowerCase();
-                                    return name.includes(q) || nik.includes(q);
-                                }).length} Results
-                            </Badge>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-gray-50/80 hover:bg-gray-50/80 border-b border-gray-100">
-                                    <TableHead className="w-[200px] py-5 px-8 font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Karyawan</TableHead>
-                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">NIK / Unit</TableHead>
-                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Waktu</TableHead>
-                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Pelanggaran</TableHead>
-                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Lokasi</TableHead>
-                                    <TableHead className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Masa Berlaku Sanksi</TableHead>
-                                    <TableHead className="text-right py-5 px-8 font-black text-gray-400 text-[10px] uppercase tracking-[0.2em]">Status</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredData
-                                    .filter(row => {
-                                        if (!searchQuery) return true;
-                                        const q = searchQuery.toLowerCase();
-                                        const name = (row["Nama Karyawan"] || row["Nama Eksekutor"] || "").toLowerCase();
-                                        const nik = (row["Vehicle No"] || "").toLowerCase();
-                                        return name.includes(q) || nik.includes(q);
-                                    })
-                                    .slice(0, 100) // Limit to 100 for performance
-                                    .map((row, idx) => (
-                                        <TableRow
-                                            key={idx}
-                                            className="hover:bg-gray-50/50 border-gray-50 cursor-pointer transition-all duration-200 group"
-                                            onClick={() => {
-                                                setSelectedEmployee((row["Nama Karyawan"] || row["Nama Eksekutor"])?.trim().toUpperCase());
-                                                setIsDetailOpen(true);
-                                            }}
-                                        >
-                                            <TableCell className="py-5 px-8">
-                                                <p className="font-bold text-gray-900 group-hover:text-red-600 transition-colors uppercase">{row["Nama Karyawan"] || row["Nama Eksekutor"]}</p>
-                                                <p className="text-[10px] text-gray-400 font-medium tracking-tight">Level {row.Level || "-"}</p>
-                                            </TableCell>
-                                            <TableCell>
-                                                <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-600 border border-gray-200">{row["Vehicle No"]}</code>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-gray-700">{row.Date || row["Date Opr"]}</span>
-                                                    <span className="text-[10px] text-gray-400 font-medium">{row.Time}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge
-                                                    className={`font-black tracking-tighter text-[10px] rounded-full px-3 py-1 border-none shadow-sm ${row.Violation?.toLowerCase().includes("overspeed")
-                                                        ? "bg-red-500 text-white shadow-red-500/20"
-                                                        : "bg-orange-500 text-white shadow-orange-500/20"
-                                                        }`}
-                                                >
-                                                    {row.Violation}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                                                    <span className="text-sm font-medium text-gray-600">{row["Location (KM)"]}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="text-xs font-bold text-gray-500 italic bg-gray-50 border border-gray-100 px-2 py-1 rounded-md">
-                                                    {row["Masa Berlaku Sanksi"]}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right py-5 px-8">
-                                                <Badge
-                                                    className={`font-black uppercase tracking-tighter text-[10px] rounded-md px-2.5 py-1 ${row.TicketStatus?.toLowerCase() === "closed"
-                                                        ? "bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-none"
-                                                        : "bg-orange-50 text-orange-600 border border-orange-100 shadow-none"
-                                                        }`}
-                                                >
-                                                    {row.TicketStatus}
-                                                </Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    {filteredData.length > 100 && (
-                        <div className="p-4 text-center border-t border-gray-100 bg-gray-50/50">
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Showing top 100 results • Use filters to refine</p>
-                        </div>
-                    )}
+                    {[
+                        { v: tahun, set: setTahun, opsi: p.tahun ?? [], label: "Semua tahun" },
+                        { v: bulan, set: setBulan, opsi: BULAN.map((_, i) => String(i + 1).padStart(2, "0")), label: "Semua bulan", nama: (x: string) => BULAN[Number(x) - 1] },
+                        { v: jenis, set: setJenis, opsi: p.jenis ?? [], label: "Semua jenis" },
+                    ].map((s, i) => (
+                        <Select key={i} value={s.v} onValueChange={s.set}>
+                            <SelectTrigger className="h-9 w-[150px]"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{s.label}</SelectItem>
+                                {s.opsi.map((o: string) => <SelectItem key={o} value={o}>{s.nama ? s.nama(o) : o}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    ))}
+                    <Select value={status} onValueChange={setStatus}>
+                        <SelectTrigger className="h-9 w-[176px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Semua status</SelectItem>
+                            <SelectItem value="belum">Belum selesai</SelectItem>
+                            {(p.status ?? []).map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
                 </CardContent>
             </Card>
+
+            {/* ── §4 ENAM BAB ───────────────────────────────────────────── */}
+
+            <Bab nomor={1} judul="Tren" pengantar="Arah pergerakan dari waktu ke waktu.">
+                <Kartu judul="Apakah tahun ini lebih baik dari tahun lalu?"
+                    catatan={`${r.kpi?.tahunIni} pekat · ${r.kpi?.tahunLalu} redup · tidak terpengaruh saringan tahun`}>
+                    <DuaDeret label={BULAN} a={r.tren?.bulanIni ?? []} b={r.tren?.bulanLalu ?? []}
+                        namaA={String(r.kpi?.tahunIni ?? "")} namaB={String(r.kpi?.tahunLalu ?? "")}
+                        sampai={r.tren?.bulanBerjalan} />
+                </Kartu>
+                <Kartu judul="Apakah kita di jalur lebih baik?" catatan="akumulasi berjalan sejak Januari">
+                    <DuaDeret label={BULAN} a={r.tren?.kumIni ?? []} b={r.tren?.kumLalu ?? []}
+                        namaA={String(r.kpi?.tahunIni ?? "")} namaB={String(r.kpi?.tahunLalu ?? "")}
+                        sampai={r.tren?.bulanBerjalan} />
+                </Kartu>
+                <Kartu judul="Turun jumlahnya, tapi apakah turun keparahannya?"
+                    catatan="batang: jumlah · garis: rerata deviasi km/jam" lebar>
+                    <BatangGaris label={BULAN} batang={(r.bulanJumlahDev ?? []).map((x: any) => x.jumlah)}
+                        garis={(r.bulanJumlahDev ?? []).map((x: any) => x.rerataDeviasi)}
+                        namaBatang="Jumlah pelanggaran" namaGaris="Rerata deviasi (km/jam)" />
+                </Kartu>
+                <Kartu judul="Minggu keberapa yang paling rawan?" catatan="urut minggu, bukan urut jumlah" lebar>
+                    {Object.keys(r.perMinggu ?? {}).length ? (
+                        <Tegak label={Object.keys(r.perMinggu).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)))}
+                            nilai={Object.keys(r.perMinggu).sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1))).map((x) => r.perMinggu[x])} />
+                    ) : <Kosong />}
+                </Kartu>
+            </Bab>
+
+            <Bab nomor={2} judul="Pola Kelelahan" pengantar="Kapan pengemudi paling rawan melanggar. Hari kerja dihitung mulai pukul 06.00.">
+                <Kartu judul="Kapan gugusan pelanggaran terbentuk?" catatan="hari × jam · makin pekat makin sering" lebar>
+                    <PetaPanas data={r.petaPanas ?? []} />
+                </Kartu>
+                <Kartu judul="Jam berapa pengemudi paling rawan melanggar?" catatan="urut 00–23, bukan urut jumlah">
+                    <Tegak label={Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"))}
+                        nilai={Array.from({ length: 24 }, (_, i) => r.perJam?.[String(i).padStart(2, "0")] ?? 0)} />
+                </Kartu>
+                <Kartu judul="Hari apa yang paling rawan?" catatan="urut Senin–Minggu"
+                    >
+                    <Tegak label={HARI_URUT} nilai={HARI_URUT.map((h) => r.perHari?.[h] ?? 0)}
+                        onKlik={(h) => setCari(h === cari ? "" : h)} aktif={cari} />
+                </Kartu>
+                <Kartu judul="Shift mana yang menyumbang pelanggaran apa?" catatan="bertumpuk per jenis" lebar>
+                    <Bertumpuk data={r.shiftJenis ?? {}} />
+                </Kartu>
+            </Bab>
+
+            <Bab nomor={3} judul="Jenis & Keparahan" pengantar="Apa yang dilanggar dan seberapa jauh melewati batas.">
+                <Kartu judul="Apa yang paling sering dilanggar?" catatan="seluruh jenis ditampilkan">
+                    <Mendatar data={r.perJenisPel ?? {}} batas={8} onKlik={(x) => setJenis(x === jenis ? "all" : x)} aktif={jenis} />
+                </Kartu>
+                <Kartu judul="Seberapa jauh melewati batas kecepatan?" catatan="urut jenjang, bukan urut jumlah">
+                    <Tegak label={RENTANG_DEV} nilai={RENTANG_DEV.map((x) => r.perRentangDeviasi?.[x] ?? 0)} />
+                </Kartu>
+                <Kartu judul="Kategori apa menurut matriks pemilik tambang?" catatan="kalimat lengkap sesuai matriks">
+                    <Mendatar data={r.perKategori ?? {}} batas={8} />
+                </Kartu>
+                <Kartu judul="Berapa kecepatan yang tercatat?" catatan="histogram per 5 km/jam">
+                    {Object.keys(r.sebaranKecepatan ?? {}).length ? (
+                        <Tegak label={Object.keys(r.sebaranKecepatan).sort((a, b) => parseInt(a) - parseInt(b))}
+                            nilai={Object.keys(r.sebaranKecepatan).sort((a, b) => parseInt(a) - parseInt(b)).map((x) => r.sebaranKecepatan[x])} />
+                    ) : <Kosong />}
+                </Kartu>
+                <Kartu judul="Kode pelanggaran mana yang dipakai?" catatan="rujukan matriks sanksi">
+                    <Mendatar data={r.perKode ?? {}} batas={8} />
+                </Kartu>
+                <Kartu judul="Bermuatan atau kosongan yang lebih rawan?" catatan="bertumpuk per jenis">
+                    <Bertumpuk data={r.jalurJenis ?? {}} />
+                </Kartu>
+            </Bab>
+
+            <Bab nomor={4} judul="Pelanggar" pengantar="Siapa yang paling sering dan berulang.">
+                <Kartu judul="Berapa persen pengemudi menyumbang 80% pelanggaran?"
+                    catatan={`${angka(k.pengemudi80 ?? 0)} dari ${angka(k.pelanggar ?? 0)} pengemudi (${angka(k.persenPengemudi80 ?? 0, 1)}%) · 20 teratas`} lebar>
+                    <Pareto data={r.pareto ?? []} />
+                </Kartu>
+                <Kartu judul="Peran apa yang paling sering melanggar?" catatan="jabatan saat melanggar">
+                    <Mendatar data={r.perJabatan ?? {}} batas={8} />
+                </Kartu>
+                <Kartu judul="Unit mana yang paling sering melanggar?" catatan="10 teratas">
+                    <Mendatar data={r.perUnit ?? {}} batas={10} onKlik={(u) => setCari(u === cari ? "" : u)} aktif={cari} />
+                </Kartu>
+                <Kartu judul="Perangkat mana yang mendeteksi?" catatan="sumber pengawasan" lebar>
+                    <Mendatar data={r.perSumber ?? {}} batas={5} />
+                </Kartu>
+            </Bab>
+
+            <Bab nomor={5} judul="Lokasi" pengantar="Titik rawan di jalan hauling.">
+                <Kartu judul="Ruas KM mana yang paling rawan?"
+                    catatan="dikelompokkan per pita 5 km · batang: jumlah · garis: rerata deviasi" lebar>
+                    {(r.km5 ?? []).length ? (
+                        <BatangGaris label={(r.km5 ?? []).map((x: any) => x.pita.replace(" km", ""))}
+                            batang={(r.km5 ?? []).map((x: any) => x.jumlah)}
+                            garis={(r.km5 ?? []).map((x: any) => x.rerataDeviasi)}
+                            namaBatang="Jumlah pelanggaran" namaGaris="Rerata deviasi (km/jam)" />
+                    ) : <Kosong />}
+                </Kartu>
+                <Kartu judul="Zona atau phase mana yang menonjol?" catatan="8 teratas · dari kolom lokasi" lebar>
+                    <Mendatar data={r.perZona ?? {}} batas={8} />
+                </Kartu>
+            </Bab>
+
+            <Bab nomor={6} judul="Penegakan" pengantar="Seberapa cepat dan tuntas ditindaklanjuti. Bab ini mengukur respons organisasi, bukan perilaku pengemudi.">
+                <Kartu judul="Berapa yang sudah ditutup dan berapa yang menggantung?" catatan="status tindak lanjut">
+                    <Mendatar data={r.perStatus ?? {}} batas={6} onKlik={(x) => setStatus(x === status ? "all" : x)} aktif={status} />
+                </Kartu>
+                <Kartu judul="Sanksi apa yang dijatuhkan?" catatan="sesuai matriks pelanggaran">
+                    <Mendatar data={r.perSanksi ?? {}} batas={8} />
+                </Kartu>
+                <Kartu judul="Berapa lama sampai ditutup?" catatan="urut jenjang hari">
+                    <Tegak label={EMBER_DURASI} nilai={EMBER_DURASI.map((x) => r.sebaranDurasi?.[x] ?? 0)} />
+                </Kartu>
+                <Kartu judul="Apakah penutupan mengejar pelanggaran baru?" catatan="batang: total · garis: % ditutup">
+                    {(r.tutupPerBulan ?? []).length ? (
+                        <BatangGaris label={(r.tutupPerBulan ?? []).map((x: any) => x.bulan.slice(2))}
+                            batang={(r.tutupPerBulan ?? []).map((x: any) => x.total)}
+                            garis={(r.tutupPerBulan ?? []).map((x: any) => x.persen)}
+                            namaBatang="Total pelanggaran" namaGaris="% ditutup" />
+                    ) : <Kosong />}
+                </Kartu>
+            </Bab>
+
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3 text-[13px] text-muted-foreground">
+                <span>Halaman ini untuk evaluasi dan analisis. Daftar baris per kejadian ada di Database Violation FMS.</span>
+                <Link href="/workspace/hse/fms-database">
+                    <span className="ml-auto inline-flex cursor-pointer items-center gap-1 font-medium text-foreground hover:underline">
+                        Buka Database Violation <ArrowRight className="h-3.5 w-3.5" />
+                    </span>
+                </Link>
+            </div>
+            <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-[13px] text-muted-foreground">
+                Sumber: Google Sheet FMS, disaring perusahaan GEC dan GECL. Diperiksa otomatis tiap 30 menit;
+                pelanggaran baru muncul di lonceng notifikasi.
+            </div>
         </div>
     );
 }

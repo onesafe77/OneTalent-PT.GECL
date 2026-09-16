@@ -3,77 +3,107 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(222.2 84% 4.9%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222.2 84% 4.9%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222.2 84% 4.9%);
-  --primary: hsl(4 100% 50%);
-  --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(4 30% 96%);
-  --secondary-foreground: hsl(222.2 84% 4.9%);
-  --muted: hsl(4 30% 96%);
-  --muted-foreground: hsl(215.4 16.3% 46.9%);
-  --accent: hsl(4 30% 96%);
-  --accent-foreground: hsl(222.2 84% 4.9%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(0 0% 100%);
-  --border: hsl(4 31.8% 91.4%);
-  --input: hsl(4 31.8% 91.4%);
-  --ring: hsl(4 100% 50%);
-  --chart-1: hsl(4 100% 50%);
-  --chart-2: hsl(142.1 76.2% 36.3%);
-  --chart-3: hsl(45.4 93.4% 47.5%);
-  --chart-4: hsl(142.1 70.6% 45.3%);
-  --chart-5: hsl(340.6 75% 50.7%);
-  --sidebar: hsl(0 0% 100%);
-  --sidebar-foreground: hsl(222.2 84% 4.9%);
-  --sidebar-primary: hsl(4 100% 50%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(4 30% 96%);
-  --sidebar-accent-foreground: hsl(222.2 84% 4.9%);
-  --sidebar-border: hsl(4 31.8% 91.4%);
-  --sidebar-ring: hsl(4 100% 50%);
-  --font-sans: Inter, ui-sans-serif, system-ui;
+  /* Token diambil dari prototipe desain OneTalent (Documents/OneTalent Design Prototype).
+     Dasarnya netral abu — warna hanya dipakai untuk MAKNA (status, bahaya, berhasil),
+     bukan hiasan. Merah GECL dipertahankan sebagai warna merek untuk aksi utama. */
+
+  /* --- permukaan & garis (prototipe: --ground/--surface/--line) --- */
+  --background: 0 0% 100%;          /* #FFFFFF  ground   */
+  --foreground: 0 0% 12%;           /* #1F1F1F  text     */
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 12%;
+
+  /* --- merek: merah GECL dipakai untuk aksi utama & penanda aktif --- */
+  /* #E6212A diambil langsung dari logo perusahaan. Kontras 4,55:1 dengan
+     teks putih — lolos WCAG AA. Hijau tidak lagi dipakai di mana pun:
+     warna hanya untuk MASALAH (kuning = perlu perhatian, merah = bahaya),
+     sedangkan keadaan aman ditampilkan netral. */
+  --primary: 357 80% 52%;
+  --primary-foreground: 0 0% 100%;
+
+  /* --- netral (prototipe: --surface #F4F4F4, --surface-hi #E8E8E8) --- */
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 12%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 46%;     /* #757575  text-muted */
+  --accent: 0 0% 91%;               /* #E8E8E8  surface-hi */
+  --accent-foreground: 0 0% 4%;     /* #0A0A0A  text-hi    */
+
+  /* --- makna --- */
+  /* Merah merek kini untuk aksi utama, jadi merah bahaya dibuat lebih dalam
+     agar "hapus" tidak terlihat sama dengan "simpan". */
+  --destructive: 0 74% 38%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* --- garis (prototipe: --line #E0E0E0) --- */
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
+  --ring: 357 80% 52%;              /* #E6212A  focus — cincin fokus merek */
+
+  --chart-1: 357 80% 52%;           /* merah merek        */
+  --chart-2: 357 74% 34%;           /* merah dalam        */
+  --chart-3: 357 68% 68%;           /* merah muda         */
+  --chart-4: 0 0% 32%;              /* netral gelap       */
+  --chart-5: 38 92% 50%;            /* kuning peringatan  */
+
+  /* --- sidebar: sedikit lebih redup dari kanvas agar isi halaman yang menonjol --- */
+  --sidebar: 0 0% 98%;
+  --sidebar-foreground: 0 0% 12%;
+  --sidebar-primary: 357 80% 52%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 93%;
+  --sidebar-accent-foreground: 0 0% 4%;
+  --sidebar-border: 0 0% 88%;
+  --sidebar-ring: 357 80% 52%;
+
+  --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
-  --radius: 0.5rem;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --radius: 0.625rem;
 }
 
 .dark {
-  --background: hsl(222.2 84% 4.9%);
-  --foreground: hsl(210 40% 98%);
-  --card: hsl(222.2 84% 4.9%);
-  --card-foreground: hsl(210 40% 98%);
-  --popover: hsl(222.2 84% 4.9%);
-  --popover-foreground: hsl(210 40% 98%);
-  --primary: hsl(4 85% 65%);
-  --primary-foreground: hsl(0 0% 100%);
-  --secondary: hsl(4 32.6% 17.5%);
-  --secondary-foreground: hsl(210 40% 98%);
-  --muted: hsl(4 32.6% 17.5%);
-  --muted-foreground: hsl(215 20.2% 65.1%);
-  --accent: hsl(4 32.6% 17.5%);
-  --accent-foreground: hsl(210 40% 98%);
-  --destructive: hsl(0 62.8% 30.6%);
-  --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(4 32.6% 17.5%);
-  --input: hsl(4 32.6% 17.5%);
-  --ring: hsl(4 76.3% 94.1%);
-  --chart-1: hsl(4 70% 50%);
-  --chart-2: hsl(160 60% 45%);
-  --chart-3: hsl(30 80% 55%);
-  --chart-4: hsl(280 65% 60%);
-  --chart-5: hsl(340 75% 55%);
-  --sidebar: hsl(222.2 84% 4.9%);
-  --sidebar-foreground: hsl(210 40% 98%);
-  --sidebar-primary: hsl(4 85% 65%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(4 32.6% 17.5%);
-  --sidebar-accent-foreground: hsl(210 40% 98%);
-  --sidebar-border: hsl(4 32.6% 17.5%);
-  --sidebar-ring: hsl(4 85% 65%);
+  /* Prototipe gelap: --ground #0A0A0A, --surface #141414, --line #2A2A2A */
+  --background: 0 0% 4%;
+  --foreground: 0 0% 93%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 93%;
+  --popover: 0 0% 8%;
+  --popover-foreground: 0 0% 93%;
+
+  --primary: 357 78% 52%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 64%;
+  --accent: 0 0% 16%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 70% 40%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 16%;
+  --input: 0 0% 16%;
+  --ring: 357 78% 52%;
+
+  --chart-1: 357 78% 58%;
+  --chart-2: 357 70% 74%;
+  --chart-3: 357 66% 40%;
+  --chart-4: 0 0% 62%;
+  --chart-5: 38 90% 55%;
+
+  --sidebar: 0 0% 6%;
+  --sidebar-foreground: 0 0% 93%;
+  --sidebar-primary: 357 78% 52%;
+  --sidebar-primary-foreground: 0 0% 100%;  /* teks di atas merah merek */
+  --sidebar-accent: 0 0% 14%;
+  --sidebar-accent-foreground: 0 0% 100%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-ring: 357 78% 52%;
 }
 
 @layer base {
@@ -92,7 +122,7 @@
   }
   
   .nav-item.active {
-    @apply text-primary bg-primary-50 dark:bg-primary-700/20;
+    @apply text-gray-950 dark:text-white bg-gray-100 dark:bg-gray-800;
   }
   
   .section {
@@ -104,7 +134,7 @@
   }
   
   .stats-card {
-    @apply bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200 dark:border-gray-700;
+    @apply bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 border border-gray-200 dark:border-gray-700;
   }
   
   .responsive-table-container {
@@ -185,7 +215,7 @@
   }
   
   .status-present {
-    @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+    @apply bg-muted text-foreground;
   }
   
   .status-absent {
@@ -297,4 +327,43 @@
   .animate-shadow-pulse {
     animation: shadow-pulse 0.6s ease-in-out infinite;
   }
+}
+
+/* Putaran lambang Cakra — dipakai CakraMark saat spin=true (mis. sedang memuat). */
+@keyframes cakra-cw  { to { transform: rotate(360deg); } }
+@keyframes cakra-ccw { to { transform: rotate(-360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  /* Hormati pengaturan sistem: berhenti berputar bagi yang sensitif gerak. */
+  [style*="cakra-cw"], [style*="cakra-ccw"] { animation: none !important; }
+}
+
+
+/* Masuk halus ala prototipe: naik 8px sambil memudar. */
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.animate-fade-up { animation: fade-up 260ms cubic-bezier(.2, 0, 0, 1) both; }
+@media (prefers-reduced-motion: reduce) { .animate-fade-up { animation: none; } }
+
+
+/* --------------------------------------------------------------------------
+   Warna grafik netral (gaya prototipe)
+
+   Grafik di sini menampilkan SATU deret — jumlah karyawan per jabatan, per
+   departemen. Warna-warni di deret tunggal tidak menyampaikan apa pun: ia hanya
+   membuat mata mengira ada kategori yang berbeda. Jadi satu nada tinta, dan
+   tangga abu hanya untuk pie chart yang memang butuh irisan terbedakan.
+   Semua ikut mode gelap karena didefinisikan ulang di :root.dark.
+   -------------------------------------------------------------------------- */
+:root {
+  --grafik-tinta: #2A2A2A;
+  --grafik-garis: #E0E0E0;
+  --grafik-label: #757575;
+  --grafik-1: #731116; --grafik-2: #96161C; --grafik-3: #BA1B23;
+  --grafik-4: #DF2A33; --grafik-5: #E15A61; --grafik-6: #E9858A; --grafik-7: #F1B0B4;
+}
+.dark {
+  --grafik-tinta: #EDEDED;
+  --grafik-garis: #2A2A2A;
+  --grafik-label: #6E6E6E;
+  --grafik-1: #F0A7AA; --grafik-2: #EB8489; --grafik-3: #E56167;
+  --grafik-4: #DF3E46; --grafik-5: #D2222B; --grafik-6: #AF1C23; --grafik-7: #8C161C;
 }

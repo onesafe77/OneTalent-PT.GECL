@@ -22,7 +22,7 @@ interface MappingResponse {
 }
 
 const statusBadge: Record<string, { label: string; cls: string }> = {
-  COVERED: { label: "Covered", cls: "bg-green-100 text-green-700 border-green-300" },
+  COVERED: { label: "Covered", cls: "bg-muted text-foreground border-border" },
   PARTIAL: { label: "Partial", cls: "bg-amber-100 text-amber-700 border-amber-300" },
   GAP: { label: "Gap", cls: "bg-red-100 text-red-700 border-red-300" },
 };
@@ -58,7 +58,7 @@ export default function SmkpMappingPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <Stat icon={CheckCircle} label="Covered" value={summary.covered} color="text-green-600" />
+        <Stat icon={CheckCircle} label="Covered" value={summary.covered} color="text-foreground" />
         <Stat icon={AlertCircle} label="Partial" value={summary.partial} color="text-amber-600" />
         <Stat icon={MinusCircle} label="Gap" value={summary.gap} color="text-red-600" />
         <Stat icon={GitCompare} label="Total Klausul" value={summary.total} color="text-gray-600" />
