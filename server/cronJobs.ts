@@ -15,6 +15,17 @@ async function getRosterByDate(date: string) {
 export function initializeCronJobs() {
   const monitoringService = new LeaveMonitoringService(storage as any);
 
+  // Pengetahuan AI — cocokkan koleksi PPO dengan revisi ACTIVE tiap malam 02:30 WITA.
+  // Jaring pengaman bagi sinkron seketika (lib/pengetahuan/sinkron.ts) yang bisa gagal diam-diam.
+  cron.schedule('30 2 * * *', async () => {
+    try {
+      const { jalankanRekonsiliasiMalam } = await import('./lib/pengetahuan/sinkron');
+      await jalankanRekonsiliasiMalam(db);
+    } catch (e: any) {
+      console.error('[pengetahuan] rekonsiliasi malam gagal:', e?.message || e);
+    }
+  }, { timezone: "Asia/Makassar" });
+
   // Zero Harm — sync Plan Kehadiran dari Google Sheet (tab GECL) tiap pagi 06:00 WITA
   cron.schedule('0 6 * * *', async () => {
     console.log('[zh] Sync Plan Kehadiran dari Google Sheet…');

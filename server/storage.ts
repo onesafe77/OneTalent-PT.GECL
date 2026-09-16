@@ -8168,6 +8168,9 @@ export class DrizzleStorage implements IStorage {
 
     const [baris] = await db.update(documentMasterlist).set(ubah).where(eq(documentMasterlist.id, id)).returning();
     if (!baris) return undefined;
+    if (data.lifecycleStatus !== undefined && !menjadiTerbit) {
+      import("./lib/pengetahuan/sinkron").then((m) => m.sinkronkanDokumen(db, id, `status → ${data.lifecycleStatus}`)).catch(() => {});
+    }
     return menjadiTerbit ? await this.jadikanBerlaku(id) : baris;
   }
 
@@ -8186,7 +8189,7 @@ export class DrizzleStorage implements IStorage {
    */
   // `basisData` hanya diganti oleh uji (scripts/uji-jadikan-berlaku.ts); aplikasi memakai bawaan.
   async jadikanBerlaku(documentId: string, versionId?: string, basisData: any = db): Promise<any> {
-    return await basisData.transaction(async (tx: any) => {
+    const hasil = await basisData.transaction(async (tx: any) => {
       const [dok] = await tx.select().from(documentMasterlist).where(eq(documentMasterlist.id, documentId));
       if (!dok) throw new Error("Dokumen tidak ditemukan");
 
@@ -8228,16 +8231,22 @@ export class DrizzleStorage implements IStorage {
         ubah.nextReviewDate = new Date(hariIni.getFullYear() + 1, hariIni.getMonth(), hariIni.getDate()).toISOString().slice(0, 10);
         if (!dok.effectiveDate) ubah.effectiveDate = hariIni.toISOString().slice(0, 10);
       }
-      const [hasil] = await tx.update(documentMasterlist).set(ubah).where(eq(documentMasterlist.id, documentId)).returning();
-      return hasil;
+      const [terbaru] = await tx.update(documentMasterlist).set(ubah).where(eq(documentMasterlist.id, documentId)).returning();
+      return terbaru;
     });
+    // Pengetahuan AI ikut revisi berlaku. Setelah komit & tanpa ditunggu: gagal embedding tidak
+    // boleh menggagalkan penerbitan. Uji (basisData lain) tidak memicu panggilan jaringan.
+    if (basisData === db) import("./lib/pengetahuan/sinkron").then((m) => m.sinkronkanDokumen(db, documentId, "revisi berlaku")).catch(() => {});
+    return hasil;
   }
 
   async deleteDocumentMasterlist(id: string): Promise<boolean> {
     const result = await db.execute(sql`
       DELETE FROM document_masterlist WHERE id = ${id} RETURNING id
     `);
-    return (result.rows?.length || 0) > 0;
+    const terhapus = (result.rows?.length || 0) > 0;
+    if (terhapus) import("./lib/pengetahuan/sinkron").then((m) => m.sinkronkanDokumen(db, id, "dokumen dihapus")).catch(() => {});
+    return terhapus;
   }
 
   async getDocumentVersions(documentId: string): Promise<any[]> {
@@ -8407,6 +8416,7 @@ export class DrizzleStorage implements IStorage {
         // Reject entire workflow
         await db.update(documentApprovals).set({ status: "REJECTED", completedAt: new Date(), finalDecision: "REJECTED" }).where(eq(documentApprovals.id, approvalId));
         await db.update(documentMasterlist).set({ lifecycleStatus: "DRAFT" }).where(eq(documentMasterlist.id, approval.documentId)); // Revert to Draft
+        import("./lib/pengetahuan/sinkron").then((m) => m.sinkronkanDokumen(db, approval.documentId, "revisi ditolak → DRAFT")).catch(() => {});
         await db.update(documentVersions).set({ status: "DRAFT" }).where(eq(documentVersions.id, approval.versionId));
         return { status: "REJECTED" };
       } else {
