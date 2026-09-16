@@ -8151,26 +8151,86 @@ export class DrizzleStorage implements IStorage {
   }
 
   async updateDocumentMasterlist(id: string, data: any): Promise<any | undefined> {
-    // Build dynamic update - only update provided fields
-    const updates: string[] = [];
-    const values: any[] = [];
+    // Dulu query disusun dengan menempelkan isi permintaan ke teks SQL (sql.raw +
+    // '${data.title}') — SQL injection lewat PATCH /api/document-masterlist/:id, dan
+    // judul bertanda petik (mis. "Pekerja's") membuatnya gagal. Kini lewat Drizzle
+    // yang selalu memakai parameter.
+    const ubah: Record<string, any> = { updatedAt: new Date() };
+    if (data.title !== undefined) ubah.title = data.title;
+    if (data.category !== undefined) ubah.category = data.category;
+    if (data.department !== undefined) ubah.department = data.department;
+    if (data.effectiveDate !== undefined) ubah.effectiveDate = data.effectiveDate;
+    if (data.nextReviewDate !== undefined) ubah.nextReviewDate = data.nextReviewDate;
 
-    if (data.title !== undefined) { updates.push(`title = '${data.title}'`); }
-    if (data.category !== undefined) { updates.push(`category = '${data.category}'`); }
-    if (data.department !== undefined) { updates.push(`department = '${data.department}'`); }
-    if (data.lifecycleStatus !== undefined) { updates.push(`lifecycle_status = '${data.lifecycleStatus}'`); }
-    if (data.effectiveDate !== undefined) { updates.push(`effective_date = '${data.effectiveDate}'`); }
-    if (data.nextReviewDate !== undefined) { updates.push(`next_review_date = '${data.nextReviewDate}'`); }
+    // Menjadi PUBLISHED harus sekaligus mengaktifkan revisinya — lihat jadikanBerlaku.
+    const menjadiTerbit = data.lifecycleStatus === "PUBLISHED";
+    if (data.lifecycleStatus !== undefined && !menjadiTerbit) ubah.lifecycleStatus = data.lifecycleStatus;
 
-    updates.push(`updated_at = NOW()`);
+    const [baris] = await db.update(documentMasterlist).set(ubah).where(eq(documentMasterlist.id, id)).returning();
+    if (!baris) return undefined;
+    return menjadiTerbit ? await this.jadikanBerlaku(id) : baris;
+  }
 
-    const result = await db.execute(sql.raw(`
-      UPDATE document_masterlist 
-      SET ${updates.join(', ')}
-      WHERE id = '${id}'
-      RETURNING *
-    `));
-    return result.rows?.[0];
+  /**
+   * SATU-SATUNYA jalan sebuah revisi dokumen menjadi berlaku.
+   *
+   * Dulu ada dua jalur yang tidak sepakat: persetujuan tanpa tanda tangan mengaktifkan
+   * revisi & menandai revisi lama SUPERSEDED, sedangkan jalur tanda tangan elektronik
+   * (APPROVED → SIGNED → PUBLISHED) tidak pernah melakukan keduanya. Akibatnya revisi
+   * lama tetap ACTIVE — dan segala sesuatu yang membaca "revisi berlaku", termasuk
+   * pengetahuan AI, akan memakai prosedur usang.
+   *
+   * Dalam satu transaksi: revisi terpilih → ACTIVE, revisi berlaku/tersetujui lain →
+   * SUPERSEDED, dokumen → PUBLISHED, current_version/current_revision diselaraskan.
+   * Idempoten: memanggil ulang pada dokumen yang sudah berlaku tidak mengubah apa pun.
+   */
+  // `basisData` hanya diganti oleh uji (scripts/uji-jadikan-berlaku.ts); aplikasi memakai bawaan.
+  async jadikanBerlaku(documentId: string, versionId?: string, basisData: any = db): Promise<any> {
+    return await basisData.transaction(async (tx: any) => {
+      const [dok] = await tx.select().from(documentMasterlist).where(eq(documentMasterlist.id, documentId));
+      if (!dok) throw new Error("Dokumen tidak ditemukan");
+
+      // Revisi yang diaktifkan: yang disebut, atau revisi tersetujui/tertandatangani terbaru.
+      let target = versionId
+        ? (await tx.select().from(documentVersions)
+            .where(and(eq(documentVersions.id, versionId), eq(documentVersions.documentId, documentId))))[0]
+        : (await tx.select().from(documentVersions)
+            .where(and(eq(documentVersions.documentId, documentId), inArray(documentVersions.status, ["APPROVED", "SIGNED"])))
+            .orderBy(desc(documentVersions.versionNumber), desc(documentVersions.revisionNumber), desc(documentVersions.createdAt))
+            .limit(1))[0];
+
+      if (!target) {
+        // Tidak ada revisi baru untuk diaktifkan: sah hanya bila sudah ada yang berlaku.
+        const [aktif] = await tx.select().from(documentVersions)
+          .where(and(eq(documentVersions.documentId, documentId), eq(documentVersions.status, "ACTIVE")));
+        if (!aktif) throw new Error("Tidak ada revisi yang disetujui untuk diterbitkan");
+        target = aktif;
+      }
+
+      await tx.update(documentVersions).set({ status: "ACTIVE" }).where(eq(documentVersions.id, target.id));
+      // Hanya revisi yang pernah/akan berlaku yang digantikan; draft revisi berikutnya dibiarkan.
+      await tx.update(documentVersions).set({ status: "SUPERSEDED" })
+        .where(and(
+          eq(documentVersions.documentId, documentId),
+          not(eq(documentVersions.id, target.id)),
+          inArray(documentVersions.status, ["ACTIVE", "APPROVED", "SIGNED"]),
+        ));
+
+      const hariIni = new Date();
+      const ubah: Record<string, any> = {
+        lifecycleStatus: "PUBLISHED",
+        currentVersion: target.versionNumber,
+        currentRevision: target.revisionNumber,
+        updatedAt: hariIni,
+      };
+      // Semantik lama dipertahankan: tinjau ulang +1 tahun; tanggal berlaku diisi bila kosong.
+      if (dok.lifecycleStatus !== "PUBLISHED" || target.status !== "ACTIVE") {
+        ubah.nextReviewDate = new Date(hariIni.getFullYear() + 1, hariIni.getMonth(), hariIni.getDate()).toISOString().slice(0, 10);
+        if (!dok.effectiveDate) ubah.effectiveDate = hariIni.toISOString().slice(0, 10);
+      }
+      const [hasil] = await tx.update(documentMasterlist).set(ubah).where(eq(documentMasterlist.id, documentId)).returning();
+      return hasil;
+    });
   }
 
   async deleteDocumentMasterlist(id: string): Promise<boolean> {
@@ -8372,29 +8432,11 @@ export class DrizzleStorage implements IStorage {
           const nextDocStatus = docRow?.signRequired === false ? "PUBLISHED" : "APPROVED";
           const nextVersionStatus = docRow?.signRequired === false ? "ACTIVE" : "APPROVED";
 
-          // Compute nextReviewDate = +1 year from today (YYYY-MM-DD)
-          const today = new Date();
-          const reviewDate = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
-          const reviewIso = reviewDate.toISOString().slice(0, 10);
-          const effectiveIso = today.toISOString().slice(0, 10);
-
-          const docUpdate: any = { lifecycleStatus: nextDocStatus, updatedAt: new Date() };
           if (nextDocStatus === "PUBLISHED") {
-            docUpdate.nextReviewDate = reviewIso;
-            if (!docRow?.effectiveDate) docUpdate.effectiveDate = effectiveIso;
-          }
-          await db.update(documentMasterlist).set(docUpdate).where(eq(documentMasterlist.id, approval.documentId));
-          await db.update(documentVersions).set({ status: nextVersionStatus }).where(eq(documentVersions.id, approval.versionId));
-
-          // If published, supersede older versions
-          if (nextDocStatus === "PUBLISHED") {
-            await db.update(documentVersions)
-              .set({ status: "SUPERSEDED" })
-              .where(and(
-                eq(documentVersions.documentId, approval.documentId),
-                not(eq(documentVersions.id, approval.versionId)),
-                not(eq(documentVersions.status, "SUPERSEDED")),
-              ));
+            await this.jadikanBerlaku(approval.documentId, approval.versionId);
+          } else {
+            await db.update(documentMasterlist).set({ lifecycleStatus: nextDocStatus, updatedAt: new Date() }).where(eq(documentMasterlist.id, approval.documentId));
+            await db.update(documentVersions).set({ status: nextVersionStatus }).where(eq(documentVersions.id, approval.versionId));
           }
 
           return { status: "APPROVED" };
@@ -8701,18 +8743,13 @@ export class DrizzleStorage implements IStorage {
   }
 
   async publishDocument(documentId: string): Promise<any> {
-    const result = await db.execute(sql`
-      UPDATE document_masterlist 
-      SET lifecycle_status = 'PUBLISHED', updated_at = NOW()
-      WHERE id = ${documentId} AND lifecycle_status = 'APPROVED'
-      RETURNING *
-    `);
-
-    if (!result.rows?.[0]) {
-      throw new Error("Document not found or not in APPROVED status");
+    // Dulu hanya menerima APPROVED: dokumen yang sudah ditandatangani (SIGNED) justru
+    // tidak bisa diterbitkan lewat tombol ini.
+    const [dok] = await db.select({ status: documentMasterlist.lifecycleStatus }).from(documentMasterlist).where(eq(documentMasterlist.id, documentId));
+    if (!dok || !["APPROVED", "SIGNED", "PUBLISHED"].includes(dok.status)) {
+      throw new Error("Document not found or not in APPROVED/SIGNED status");
     }
-
-    return result.rows[0];
+    return await this.jadikanBerlaku(documentId);
   }
 
   // ============================================

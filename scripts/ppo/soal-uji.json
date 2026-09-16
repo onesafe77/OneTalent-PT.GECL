@@ -1,0 +1,220 @@
+[
+  {
+    "q": "supervisor manggil driver wake up call maksimal berapa kali?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.16"
+    ],
+    "frasa": "maksimal 3 kali"
+  },
+  {
+    "q": "jam berapa periode rawan ngantuk yang wajib wake up call?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.16"
+    ],
+    "frasa": "22.00"
+  },
+  {
+    "q": "driver habis minum obat yang bikin ngantuk boleh kerja?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.16"
+    ],
+    "frasa": "rekomendasi dokter"
+  },
+  {
+    "q": "jarak aman beriringan dump truck di kecepatan 30 km/jam berapa meter?",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.1"
+    ],
+    "frasa": "33 meter"
+  },
+  {
+    "q": "kecepatan maksimal DT waktu keluar area ROM?",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.1"
+    ],
+    "frasa": "20 Km/Jam"
+  },
+  {
+    "q": "jarak minimal antar truk waktu antri dumping",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.7"
+    ],
+    "frasa": "minimal 5 meter"
+  },
+  {
+    "q": "material lengket tidak turun dari vessel harus bagaimana?",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.7",
+      "GECL-HAUL-PPO-4.2.3"
+    ],
+    "frasa": "vessel"
+  },
+  {
+    "q": "temuan vandalisme kamera FMS dilaporkan ke BIB paling lambat kapan?",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.8"
+    ],
+    "frasa": "2 hari"
+  },
+  {
+    "q": "alarm mata tertutup di FMS difilter setiap berapa menit?",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.8"
+    ],
+    "frasa": "5 menit"
+  },
+  {
+    "q": "berapa persen minimal unit on duty di jalan hauling?",
+    "dok": [
+      "GECL-HAUL-PPO-4.2.8"
+    ],
+    "frasa": "90%"
+  },
+  {
+    "q": "pekerjaan las, bahan mudah terbakar harus dijauhkan berapa meter?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.10",
+      "GECL-PLANT-PPO-4.3.15",
+      "GECL-PLANT-PPO-4.3.12"
+    ],
+    "frasa": "11 meter"
+  },
+  {
+    "q": "kadar gas LEL berapa persen pekerjaan panas tidak boleh dimulai?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.10"
+    ],
+    "frasa": "5%"
+  },
+  {
+    "q": "isi kotak P3K dicek seberapa sering?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.25"
+    ],
+    "frasa": "kotak P3K"
+  },
+  {
+    "q": "pola roster driver berapa hari siang berapa hari malam?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.43"
+    ],
+    "frasa": "6 hari kerja"
+  },
+  {
+    "q": "driver DT paling lama berapa hari kerja sebelum wajib cuti?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.43"
+    ],
+    "frasa": "70 hari"
+  },
+  {
+    "q": "kecepatan maksimal saat mengawal unit besar di jalan",
+    "dok": [
+      "GECL-HSE-PPO-4.1.44"
+    ],
+    "frasa": "50km/jam"
+  },
+  {
+    "q": "jarak escort commander dengan unit yang dikawal",
+    "dok": [
+      "GECL-HSE-PPO-4.1.44"
+    ],
+    "frasa": "50 meter"
+  },
+  {
+    "q": "unit rusak di jalan hauling perbaikannya lebih dari sejam harus diapakan?",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.23"
+    ],
+    "frasa": "evakuasi"
+  },
+  {
+    "q": "syarat pengalaman jadi pengawas FMS",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.23",
+      "GECL-HAUL-PPO-4.2.8"
+    ],
+    "frasa": "1 tahun"
+  },
+  {
+    "q": "tekanan angin ban depan tronton minimal berapa psi?",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.16"
+    ],
+    "frasa": "110 Psi"
+  },
+  {
+    "q": "jumper aki mobil tetap tidak mau hidup, tunggu berapa lama sebelum coba lagi?",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.14"
+    ],
+    "frasa": "5 menit"
+  },
+  {
+    "q": "kalau ada perubahan proses kerja atau alat baru, prosedurnya bagaimana?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.21"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "cara melaporkan nearmiss dan bahaya kritikal",
+    "dok": [
+      "GECL-HSE-PPO-4.1.48"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "langkah mengunci sumber energi sebelum perbaikan mesin",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.18"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "oli bekas dan limbah B3 dikelola bagaimana?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.40"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "kecelakaan kerja harus dilaporkan dan diinvestigasi berapa lama?",
+    "dok": [
+      "GECL-HSE-PPO-4.1.39"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "pemeriksaan unit sebelum dioperasikan setiap awal shift",
+    "dok": [
+      "GECL-HSE-PPO-4.1.32",
+      "GECL-HAUL-PPO-4.2.1"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "kerja di ketinggian wajib pakai full body harness?",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.8",
+      "GECL-HSE-PPO-4.1.10"
+    ],
+    "frasa": "",
+    "catatan": "Ijin Kerja Khusus (4.1.10) yang memuat kerja di ketinggian & harness (hal. 5); 4.3.8 tidak menyebut harness"
+  },
+  {
+    "q": "standar gizi makanan dan minuman pekerja tambang",
+    "dok": [
+      "GECL-HSE-PPO-4.1.45",
+      "GECL-HSE-PPO-4.1.52"
+    ],
+    "frasa": ""
+  },
+  {
+    "q": "aturan keselamatan saat isi solar ke unit",
+    "dok": [
+      "GECL-PLANT-PPO-4.3.19"
+    ],
+    "frasa": ""
+  }
+]

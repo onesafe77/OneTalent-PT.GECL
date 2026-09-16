@@ -1,5 +1,5 @@
 ﻿import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, integer, unique, jsonb, index, uniqueIndex, real, date, time, uuid, numeric, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, boolean, integer, unique, jsonb, index, uniqueIndex, real, date, time, uuid, numeric, doublePrecision, vector } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -4952,3 +4952,39 @@ export const insertPicaRecordSchema = createInsertSchema(picaRecords).omit({
 
 export type PicaRecord = typeof picaRecords.$inferSelect;
 export type InsertPicaRecord = z.infer<typeof insertPicaRecordSchema>;
+
+// ============================================================================
+// PENGETAHUAN AI — potongan dokumen untuk pencarian hibrida (makna + kata kunci)
+// ============================================================================
+// Satu tabel untuk semua koleksi (kolom `koleksi`: 'ppo', nanti 'regulasi', dst.).
+// Butuh ekstensi pgvector — dibuat oleh migrations/2026-09-17_pengetahuan_potongan.sql,
+// JANGAN hanya mengandalkan db:push (push tidak membuat ekstensi).
+// Isi tabel dikelola skrip/penyinkron pengetahuan, bukan diedit manual.
+export const pengetahuanPotongan = pgTable("pengetahuan_potongan", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  koleksi: varchar("koleksi", { length: 40 }).notNull(),
+  documentId: varchar("document_id").notNull(),     // document_masterlist.id
+  versionId: varchar("version_id").notNull(),       // document_versions.id (revisi ACTIVE saat dimuat)
+  kodeDokumen: varchar("kode_dokumen", { length: 60 }).notNull(),
+  judul: text("judul").notNull(),
+  revisi: integer("revisi").notNull(),
+  departemen: text("departemen"),
+  kategori: text("kategori"),
+  jenis: varchar("jenis", { length: 20 }).notNull(), // isi | definisi | riwayat_revisi | referensi
+  bagian: text("bagian").notNull(),
+  halamanAwal: integer("halaman_awal").notNull(),
+  halamanAkhir: integer("halaman_akhir").notNull(),
+  urutan: integer("urutan").notNull(),
+  teks: text("teks").notNull(),                     // kutipan bersih untuk ditampilkan
+  teksEmbed: text("teks_embed").notNull(),          // teks yang di-embed & diindeks kata kunci
+  hashTeks: varchar("hash_teks", { length: 16 }).notNull(),
+  modelEmbedding: varchar("model_embedding", { length: 80 }).notNull(),
+  embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+  dimuatPada: timestamp("dimuat_pada").defaultNow().notNull(),
+}, (t) => ({
+  uqUrutan: uniqueIndex("uq_pengetahuan_versi_urutan").on(t.versionId, t.urutan),
+  idxKoleksiDok: index("idx_pengetahuan_koleksi_dok").on(t.koleksi, t.kodeDokumen),
+  idxEmbedding: index("idx_pengetahuan_embedding").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  idxTeks: index("idx_pengetahuan_teks").using("gin", sql`to_tsvector('simple', ${t.teksEmbed})`),
+}));
+export type PengetahuanPotongan = typeof pengetahuanPotongan.$inferSelect;
