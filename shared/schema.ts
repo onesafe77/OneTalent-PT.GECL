@@ -4960,6 +4960,38 @@ export type InsertPicaRecord = z.infer<typeof insertPicaRecordSchema>;
 // Butuh ekstensi pgvector — dibuat oleh migrations/2026-09-17_pengetahuan_potongan.sql,
 // JANGAN hanya mengandalkan db:push (push tidak membuat ekstensi).
 // Isi tabel dikelola skrip/penyinkron pengetahuan, bukan diedit manual.
+// Peraturan perundang-undangan yang diunggah manual (UU, PP, Permen, Kepmen, …).
+// Potongan per pasal disimpan di pengetahuan_potongan koleksi "regulasi" (document_id = regulasi.id).
+// Status disimpan DI SINI, bukan di potongan: mengubah status tidak perlu embedding ulang.
+export const regulasi = pgTable("regulasi", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jenis: varchar("jenis", { length: 40 }).notNull(),          // UU, PP, Perpres, Permen ESDM, Kepmen ESDM, Kepdirjen Minerba, Permenaker, Permen LHK, …
+  nomor: varchar("nomor", { length: 60 }).notNull(),          // "96", "1827 K/30/MEM", "185.K/37.04/DJB"
+  tahun: integer("tahun").notNull(),
+  judul: text("judul").notNull(),
+  instansi: text("instansi"),
+  bidang: varchar("bidang", { length: 30 }).notNull(),        // minerba | k3 | lingkungan | ketenagakerjaan | lainnya
+  status: varchar("status", { length: 20 }).notNull().default("berlaku"),  // berlaku | diubah | dicabut
+  diubahOleh: text("diubah_oleh"),
+  dicabutOleh: text("dicabut_oleh"),
+  tanggalPenetapan: date("tanggal_penetapan"),
+  berkasId: varchar("berkas_id"),                              // uploaded_files.id (sementara; R2 bila tersedia)
+  berkasNama: text("berkas_nama"),
+  ukuranBerkas: integer("ukuran_berkas"),
+  jumlahHalaman: integer("jumlah_halaman"),
+  mutu: jsonb("mutu"),                                         // { halamanTanpaTeks, rasioKataRusak, catatan[], pasalLompat[] }
+  statusMuat: varchar("status_muat", { length: 20 }).notNull().default("draf"),  // draf | terbit | gagal
+  jumlahPotongan: integer("jumlah_potongan").default(0),
+  galatMuat: text("galat_muat"),
+  diunggahOleh: text("diunggah_oleh"),
+  diperiksaPada: timestamp("diperiksa_pada", { withTimezone: true }),
+  dibuat: timestamp("dibuat", { withTimezone: true }).defaultNow(),
+  diperbarui: timestamp("diperbarui", { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  uqIdentitas: uniqueIndex("uq_regulasi_identitas").on(t.jenis, t.nomor, t.tahun),
+}));
+export type Regulasi = typeof regulasi.$inferSelect;
+
 // Kunci baris Google Sheet (FMS; Safe Distance berawalan "sd:") yang sudah
 // dicatat — penjaga agar notifikasi pelanggaran baru tidak terkirim ulang.
 export const fmsSheetTerlihat = pgTable("fms_sheet_terlihat", {

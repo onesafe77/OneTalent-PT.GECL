@@ -15,7 +15,7 @@ export interface SumberSitasi {
   chunkId?: string;
   documentName?: string;
   kode?: string;
-  revisi?: number;
+  revisi?: number | null;
   judul?: string;
   bagian?: string;
   pageNumber?: number;
@@ -144,7 +144,7 @@ export function PanelSumberPdf({ sumber, onTutup }: { sumber: SumberSitasi; onTu
     return () => { batal = true; };
   }, [url, sumber.id, sumber.content]);
 
-  const judul = sumber.kode ? `${sumber.kode} R${String(sumber.revisi ?? 0).padStart(2, "0")}` : sumber.documentName;
+  const judul = sumber.kode ? (sumber.revisi == null ? sumber.kode : `${sumber.kode} R${String(sumber.revisi).padStart(2, "0")}`) : sumber.documentName;
 
   return (
     <aside className="relative flex h-full min-h-0 w-full flex-col border-l border-black/[0.07] bg-[#f7f7f5] dark:border-white/10 dark:bg-gray-900">

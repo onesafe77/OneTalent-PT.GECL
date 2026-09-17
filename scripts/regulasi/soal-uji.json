@@ -1,0 +1,200 @@
+[
+ {
+  "jenis": "bebas",
+  "q": "perusahaan dengan berapa pekerja yang wajib menerapkan SMK3?",
+  "label": "PP 50/2012",
+  "frasa": "paling sedikit 100 (seratus) orang"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apa saja kewajiban tenaga kerja soal keselamatan kerja?",
+  "label": "UU 1/1970",
+  "frasa": "Memakai alat-alat perlindungan diri yang diwajibkan"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apakah pengurus wajib memeriksakan kesehatan pekerja?",
+  "label": "UU 1/1970",
+  "frasa": "memeriksakan kesehatan badan"
+ },
+ {
+  "jenis": "bebas",
+  "q": "kewajiban melaporkan kecelakaan kerja di tempat kerja",
+  "label": "UU 1/1970",
+  "frasa": "melaporkan tiap kecelakaan"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apa yang harus dijelaskan kepada tenaga kerja baru?",
+  "label": "UU 1/1970",
+  "frasa": "tiap tenaga kerja baru"
+ },
+ {
+  "jenis": "bebas",
+  "q": "usaha apa yang wajib punya amdal?",
+  "label": "UU 32/2009",
+  "frasa": "wajib memiliki amdal"
+ },
+ {
+  "jenis": "bebas",
+  "q": "siapa yang wajib mengelola limbah B3 yang dihasilkan?",
+  "label": "UU 32/2009",
+  "frasa": "wajib melakukan pengelolaan limbah B3"
+ },
+ {
+  "jenis": "bebas",
+  "q": "sanksi pidana melanggar baku mutu air limbah",
+  "label": "UU 32/2009",
+  "frasa": "melanggar baku mutu air limbah"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apakah boleh membuang limbah ke lingkungan tanpa izin?",
+  "label": "UU 32/2009",
+  "frasa": "dilarang melakukan dumping"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apa saja jenis baku mutu lingkungan hidup?",
+  "label": "UU 32/2009",
+  "frasa": "baku mutu air limbah"
+ },
+ {
+  "jenis": "bebas",
+  "q": "kapan izin lingkungan diperlukan?",
+  "label": "UU 32/2009",
+  "frasa": "wajib memiliki izin lingkungan"
+ },
+ {
+  "jenis": "bebas",
+  "q": "kewajiban pemegang IUP menempatkan dana jaminan reklamasi",
+  "label": "UU 3/2020",
+  "frasa": "wajib menyediakan dan menempatkan dana jaminan"
+ },
+ {
+  "jenis": "bebas",
+  "q": "target keberhasilan reklamasi setelah izin berakhir",
+  "label": "UU 3/2020",
+  "frasa": "tingkat keberhasilan"
+ },
+ {
+  "jenis": "bebas",
+  "q": "bagaimana pengelolaan lubang bekas tambang",
+  "label": "UU 3/2020",
+  "frasa": "lubang bekas tambang"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apa saja yang wajib dilaksanakan dalam kaidah teknik pertambangan yang baik?",
+  "label": "UU 3/2020",
+  "frasa": "Dalam penerapan kaidah teknik"
+ },
+ {
+  "jenis": "bebas",
+  "q": "rencana reklamasi disusun berdasarkan apa?",
+  "label": "PP 78/2010",
+  "frasa": "rencana reklamasi berdasarkan dokumen lingkungan hidup"
+ },
+ {
+  "jenis": "bebas",
+  "q": "siapa yang bertanggung jawab atas pelaksanaan reklamasi dan pascatambang di lapangan?",
+  "label": "PP 78/2010",
+  "frasa": "Kepala Teknik Tambang"
+ },
+ {
+  "jenis": "bebas",
+  "q": "pengertian KTT kepala teknik tambang",
+  "label": "Permen ESDM 26/2018",
+  "frasa": "Kepala Teknik Tambang yang selanjutnya disingkat KTT"
+ },
+ {
+  "jenis": "bebas",
+  "q": "apa itu RKAB tahunan",
+  "label": "PP 96/2021",
+  "frasa": "RKAB Tahunan adalah",
+  "alt": [
+   {
+    "label": "PP 96/2021",
+    "frasa": "menyampaikan RKAB Tahunan"
+   }
+  ]
+ },
+ {
+  "jenis": "bebas",
+  "q": "siapa yang melakukan audit internal SMK3?",
+  "label": "PP 50/2012",
+  "frasa": "audit internal SMK3 dilakukan oleh sumber daya manusia yang kompeten",
+  "alt": [
+   {
+    "label": "PP 50/2012",
+    "frasa": "personil yang memiliki kompetensi kerja"
+   }
+  ]
+ },
+ {
+  "jenis": "istilah",
+  "q": "pekerja wajib pakai APD nggak menurut UU keselamatan kerja?",
+  "label": "UU 1/1970",
+  "frasa": "alat-alat perlindungan diri"
+ },
+ {
+  "jenis": "istilah",
+  "q": "aturan buang limbah sembarangan ke sungai",
+  "label": "UU 32/2009",
+  "frasa": "dilarang melakukan dumping",
+  "alt": [
+   {
+    "label": "UU 32/2009",
+    "frasa": "mengakibatkan pencemaran dan/atau perusakan lingkungan hidup"
+   }
+  ]
+ },
+ {
+  "jenis": "istilah",
+  "q": "denda kalau limbah cair melebihi standar",
+  "label": "UU 32/2009",
+  "frasa": "melanggar baku mutu air limbah"
+ },
+ {
+  "jenis": "istilah",
+  "q": "kolam bekas galian tambang harus diapakan",
+  "label": "UU 3/2020",
+  "frasa": "lubang bekas tambang"
+ },
+ {
+  "jenis": "eksplisit",
+  "q": "apa isi pasal 12 UU 1/1970",
+  "label": "UU 1/1970",
+  "frasa": "Memakai alat-alat perlindungan diri"
+ },
+ {
+  "jenis": "eksplisit",
+  "q": "pasal 59 UU 32/2009",
+  "label": "UU 32/2009",
+  "frasa": "wajib melakukan pengelolaan limbah B3"
+ },
+ {
+  "jenis": "eksplisit",
+  "q": "jelaskan pasal 5 PP 50 tahun 2012",
+  "label": "PP 50/2012",
+  "frasa": "paling sedikit 100 (seratus) orang"
+ },
+ {
+  "jenis": "eksplisit",
+  "q": "pasal 22 UU nomor 32 tahun 2009 tentang amdal",
+  "label": "UU 32/2009",
+  "frasa": "wajib memiliki amdal"
+ },
+ {
+  "jenis": "eksplisit",
+  "q": "pasal 99 UU 3/2020",
+  "label": "UU 3/2020",
+  "frasa": "lubang bekas tambang"
+ },
+ {
+  "jenis": "eksplisit",
+  "q": "isi pasal 5 PP 78/2010",
+  "label": "PP 78/2010",
+  "frasa": "rencana reklamasi berdasarkan dokumen lingkungan hidup"
+ }
+]

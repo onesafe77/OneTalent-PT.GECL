@@ -127,6 +127,7 @@ import DocumentDetail from "@/pages/hse/k3/document-detail";
 import DocumentsDashboard from "@/pages/hse/k3/documents/index";
 import SmkpMappingPage from "@/pages/hse/k3/documents/smkp-mapping";
 import ChecklistArsipPage from "@/pages/hse/k3/documents/checklist";
+import PeraturanPage from "@/pages/hse/k3/documents/peraturan";
 import K3DocumentDetail from "@/pages/hse/k3/documents/detail";
 import ApprovalsPage from "@/pages/approvals";
 import ExternalRegisterPage from "@/pages/external-register";
@@ -298,6 +299,7 @@ const workspaceRoutes = [
   { path: "/workspace/hse/k3/documents", component: DocumentsDashboard, title: "Dokumen K3 — Dashboard & Masterlist" },
   { path: "/workspace/hse/k3/documents/smkp-mapping", component: SmkpMappingPage, title: "Mapping SMKP" },
   { path: "/workspace/hse/k3/documents/checklist", component: ChecklistArsipPage, title: "Checklist Arsip Bulanan" },
+  { path: "/workspace/hse/k3/documents/peraturan", component: PeraturanPage, title: "Peraturan Pemerintah" },
   { path: "/workspace/approvals", component: ApprovalsPage, title: "Approval Inbox" },
   { path: "/workspace/external-register", component: ExternalRegisterPage, title: "Register Eksternal" },
 ];
@@ -608,6 +610,7 @@ export function Workspace() {
               <Route path="/workspace/hse/k3/documents" component={DocumentsDashboard} />
               <Route path="/workspace/hse/k3/documents/smkp-mapping" component={SmkpMappingPage} />
               <Route path="/workspace/hse/k3/documents/checklist" component={ChecklistArsipPage} />
+              <Route path="/workspace/hse/k3/documents/peraturan" component={PeraturanPage} />
               <Route path="/workspace/hse/k3/documents/:id" component={K3DocumentDetail} />
 
               {/* Approval & External Register dipindah ke level atas sidebar */}

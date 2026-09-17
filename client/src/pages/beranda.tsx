@@ -420,7 +420,7 @@ function jadikanSitasi(isi: string, sumber?: Sumber[]) {
 }
 
 const labelDok = (sb: Sumber) =>
-  sb.kode ? `${sb.kode} R${String(sb.revisi ?? 0).padStart(2, "0")}` : (sb.documentName || "Dokumen").split(" — ")[0];
+  sb.kode ? (sb.revisi == null ? sb.kode : `${sb.kode} R${String(sb.revisi).padStart(2, "0")}`) : (sb.documentName || "Dokumen").split(" — ")[0];
 
 /** Chip angka di dalam kalimat (gaya NotebookLM): hover = pratinjau kutipan, klik = PDF di kanan. */
 function ChipSitasi({ sumber, aktif, onBuka }: { sumber: Sumber; aktif: boolean; onBuka: (s: Sumber) => void }) {
@@ -502,7 +502,7 @@ function DaftarSumber({ sumber, aktif, onBuka }: { sumber: Sumber[]; aktif: Sumb
 /** Kalimat status yang sedang dikerjakan agen, untuk baris "berpikir" yang hidup. */
 function kalimatLangkah(l?: Langkah): string {
   if (!l) return "Memahami pertanyaan";
-  if (l.tipe === "cari") return `Mencari \u201C${l.kueri}\u201D di PPO`;
+  if (l.tipe === "cari") return `Mencari \u201C${l.kueri}\u201D di ${(l as any).sumber === "peraturan" ? "peraturan" : "PPO"}`;
   if (l.tipe === "temu") return l.jumlah ? `Membaca ${l.dokumen?.[0]?.split(" — ")[0] ?? `${l.jumlah} bagian`}` : "Tidak ada yang cocok, mencoba kata lain";
   if (l.tipe === "alat") return l.nama;
   return "Menyusun jawaban";

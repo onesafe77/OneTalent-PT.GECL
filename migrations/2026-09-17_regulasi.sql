@@ -1,0 +1,26 @@
+CREATE TABLE IF NOT EXISTS "regulasi" (
+	"id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"jenis" varchar(40) NOT NULL,
+	"nomor" varchar(60) NOT NULL,
+	"tahun" integer NOT NULL,
+	"judul" text NOT NULL,
+	"instansi" text,
+	"bidang" varchar(30) NOT NULL,
+	"status" varchar(20) DEFAULT 'berlaku' NOT NULL,
+	"diubah_oleh" text,
+	"dicabut_oleh" text,
+	"tanggal_penetapan" date,
+	"berkas_id" varchar,
+	"berkas_nama" text,
+	"ukuran_berkas" integer,
+	"jumlah_halaman" integer,
+	"mutu" jsonb,
+	"status_muat" varchar(20) DEFAULT 'draf' NOT NULL,
+	"jumlah_potongan" integer DEFAULT 0,
+	"galat_muat" text,
+	"diunggah_oleh" text,
+	"diperiksa_pada" timestamp with time zone,
+	"dibuat" timestamp with time zone DEFAULT now(),
+	"diperbarui" timestamp with time zone DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_regulasi_identitas" ON "regulasi" USING btree ("jenis","nomor","tahun");

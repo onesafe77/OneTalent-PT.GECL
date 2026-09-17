@@ -9905,6 +9905,174 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  /* ══ PERATURAN PEMERINTAH (unggah manual) ════════════════════════════════
+   * Lihat: semua yang login. Unggah/terbit/ubah/tarik/hapus: HSE, Legal, Document Control, Environment.
+   * Alur: POST pratinjau (tanpa simpan) → POST simpan (draf + berkas) → POST terbit (potong + embedding).
+   */
+  const uploadRegulasi = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+  const penggunaRegulasi = (req: any) => (req.session as any)?.user;
+  const bolehKelolaRegulasi = (u: any) => !!u && /HSE|LEGAL|DOCUMENT|DOC\.? ?CONTROL|ENVIRO|LINGKUNGAN/i.test(`${u.department || ""} ${u.position || ""}`);
+  const wajibKelolaRegulasi = (req: any, res: any, next: any) => {
+    const u = penggunaRegulasi(req);
+    if (!u) return res.status(401).json({ message: "Harus login" });
+    if (!bolehKelolaRegulasi(u)) {
+      console.warn(`[regulasi] DITOLAK: ${u.name} (${u.department}) -> ${req.method} ${req.originalUrl}`);
+      return res.status(403).json({ message: "Hanya HSE, Legal, Document Control, atau Environment yang dapat mengelola peraturan" });
+    }
+    next();
+  };
+  const bacaMetaRegulasi = (body: any) => {
+    const m = typeof body?.meta === "string" ? JSON.parse(body.meta) : body?.meta ?? body;
+    return { ...m, tahun: Number(m?.tahun), nomor: String(m?.nomor ?? "").trim(), judul: String(m?.judul ?? "").trim() };
+  };
+  const cekPdf = (f: any) => !!f && (f.mimetype === "application/pdf" || /\.pdf$/i.test(f.originalname || "")) && f.buffer?.slice(0, 5).toString() === "%PDF-";
+
+  app.get("/api/regulasi", async (req, res) => {
+    try {
+      const u = penggunaRegulasi(req);
+      if (!u) return res.sendStatus(401);
+      const rows = (await db.execute(sql`select id, jenis, nomor, tahun, judul, instansi, bidang, status, diubah_oleh, dicabut_oleh,
+          tanggal_penetapan, berkas_nama, ukuran_berkas, jumlah_halaman, mutu, status_muat, jumlah_potongan, galat_muat,
+          diunggah_oleh, diperiksa_pada, dibuat, diperbarui
+        from regulasi order by tahun desc, jenis, nomor`)).rows;
+      res.json({ items: rows, bolehKelola: bolehKelolaRegulasi(u) });
+    } catch (e: any) { console.error("GET regulasi:", e); res.status(500).json({ message: "Gagal memuat peraturan" }); }
+  });
+
+  app.get("/api/regulasi/:id", async (req, res) => {
+    try {
+      if (!penggunaRegulasi(req)) return res.sendStatus(401);
+      const r = (await db.execute(sql`select * from regulasi where id = ${req.params.id}`)).rows[0] as any;
+      if (!r) return res.sendStatus(404);
+      const pasal = (await db.execute(sql`select id, jenis, bagian, halaman_awal, halaman_akhir, left(teks, 400) as cuplikan
+        from pengetahuan_potongan where koleksi = 'regulasi' and document_id = ${req.params.id} order by urutan`)).rows;
+      res.json({ ...r, potongan: pasal });
+    } catch (e: any) { console.error("GET regulasi/:id:", e); res.status(500).json({ message: "Gagal memuat peraturan" }); }
+  });
+
+  app.get("/api/regulasi/:id/pdf", async (req, res) => {
+    try {
+      if (!penggunaRegulasi(req)) return res.sendStatus(401);
+      const r = (await db.execute(sql`select r.jenis, r.nomor, r.tahun, f.data from regulasi r join uploaded_files f on f.id = r.berkas_id where r.id = ${req.params.id}`)).rows[0] as any;
+      if (!r?.data) return res.sendStatus(404);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${`${r.jenis}-${r.nomor}-${r.tahun}`.replace(/[^\w.-]+/g, "_")}.pdf"`);
+      res.setHeader("Cache-Control", "private, max-age=600");
+      res.send(Buffer.from(r.data, "base64"));
+    } catch (e: any) { console.error("GET regulasi pdf:", e); res.sendStatus(500); }
+  });
+
+  // Pratinjau: potong PDF tanpa menyimpan apa pun.
+  app.post("/api/regulasi/pratinjau", wajibKelolaRegulasi, uploadRegulasi.single("berkas"), async (req: any, res) => {
+    try {
+      if (!cekPdf(req.file)) return res.status(400).json({ message: "Berkas harus PDF" });
+      const { periksaMeta, pratinjauRegulasi } = await import("./lib/regulasi/muat");
+      const meta = bacaMetaRegulasi(req.body);
+      const galat = periksaMeta(meta);
+      if (galat) return res.status(400).json({ message: galat });
+      const { pratinjau, halaman } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), meta);
+      const ada = (await db.execute(sql`select id, status_muat from regulasi where jenis = ${meta.jenis} and nomor = ${meta.nomor} and tahun = ${meta.tahun}`)).rows[0];
+      res.json({ ...pratinjau, halaman, sudahAda: ada || null });
+    } catch (e: any) { console.error("POST regulasi/pratinjau:", e); res.status(500).json({ message: "Gagal membaca PDF: " + (e?.message || "") }); }
+  });
+
+  // Simpan (draf) lalu langsung terbitkan. Unggah ulang identitas yang sama = ganti berkas.
+  app.post("/api/regulasi", wajibKelolaRegulasi, uploadRegulasi.single("berkas"), async (req: any, res) => {
+    try {
+      if (!cekPdf(req.file)) return res.status(400).json({ message: "Berkas harus PDF" });
+      const { periksaMeta, terbitkanRegulasi } = await import("./lib/regulasi/muat");
+      const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
+      const meta = bacaMetaRegulasi(req.body);
+      const galat = periksaMeta(meta);
+      if (galat) return res.status(400).json({ message: galat });
+      const u = penggunaRegulasi(req);
+
+      const lama = (await db.execute(sql`select id, berkas_id from regulasi where jenis = ${meta.jenis} and nomor = ${meta.nomor} and tahun = ${meta.tahun}`)).rows[0] as any;
+      const berkas = (await db.execute(sql`insert into uploaded_files (data, mime_type, filename)
+        values (${req.file.buffer.toString("base64")}, 'application/pdf', ${req.file.originalname || "peraturan.pdf"}) returning id`)).rows[0] as any;
+      const baris = (await db.execute(sql`
+        insert into regulasi (jenis, nomor, tahun, judul, instansi, bidang, status, diubah_oleh, dicabut_oleh, tanggal_penetapan,
+          berkas_id, berkas_nama, ukuran_berkas, status_muat, diunggah_oleh, diperiksa_pada)
+        values (${meta.jenis}, ${meta.nomor}, ${meta.tahun}, ${meta.judul}, ${meta.instansi || null}, ${meta.bidang}, ${meta.status},
+          ${meta.diubahOleh || null}, ${meta.dicabutOleh || null}, ${meta.tanggalPenetapan || null},
+          ${berkas.id}, ${req.file.originalname || null}, ${req.file.size}, 'draf', ${u.name || u.nik}, now())
+        on conflict (jenis, nomor, tahun) do update set judul = excluded.judul, instansi = excluded.instansi, bidang = excluded.bidang,
+          status = excluded.status, diubah_oleh = excluded.diubah_oleh, dicabut_oleh = excluded.dicabut_oleh,
+          tanggal_penetapan = excluded.tanggal_penetapan, berkas_id = excluded.berkas_id, berkas_nama = excluded.berkas_nama,
+          ukuran_berkas = excluded.ukuran_berkas, diunggah_oleh = excluded.diunggah_oleh, diperiksa_pada = now(), diperbarui = now()
+        returning id`)).rows[0] as any;
+      // Unggah ulang identitas yang sama: berkas lama dibuang agar tidak menumpuk base64 yatim.
+      if (lama?.berkas_id && lama.berkas_id !== berkas.id) await db.execute(sql`delete from uploaded_files where id = ${lama.berkas_id}`);
+      console.log(`[regulasi] ${u.name} ${lama ? "mengganti" : "mengunggah"} ${meta.jenis} ${meta.nomor}/${meta.tahun}`);
+
+      try {
+        const h = await terbitkanRegulasi(db, baris.id, embedderOpenRouter(kunciOpenRouter()));
+        res.json({ id: baris.id, statusMuat: "terbit", potongan: h.potongan });
+      } catch (e: any) {
+        res.status(422).json({ id: baris.id, statusMuat: "gagal", message: e?.message || "Gagal menerbitkan" });
+      }
+    } catch (e: any) { console.error("POST regulasi:", e); res.status(500).json({ message: "Gagal menyimpan peraturan" }); }
+  });
+
+  app.post("/api/regulasi/:id/terbit", wajibKelolaRegulasi, async (req, res) => {
+    try {
+      const { terbitkanRegulasi } = await import("./lib/regulasi/muat");
+      const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
+      const h = await terbitkanRegulasi(db, req.params.id, embedderOpenRouter(kunciOpenRouter()));
+      res.json({ statusMuat: "terbit", potongan: h.potongan });
+    } catch (e: any) { res.status(422).json({ statusMuat: "gagal", message: e?.message || "Gagal menerbitkan" }); }
+  });
+
+  app.post("/api/regulasi/:id/tarik", wajibKelolaRegulasi, async (req, res) => {
+    try {
+      const { tarikRegulasi } = await import("./lib/regulasi/muat");
+      await tarikRegulasi(db, req.params.id);
+      res.json({ statusMuat: "draf" });
+    } catch (e: any) { console.error("POST regulasi tarik:", e); res.status(500).json({ message: "Gagal menarik peraturan" }); }
+  });
+
+  // Ubah metadata/status. Status dibaca saat mencari, jadi TIDAK perlu embedding ulang.
+  app.patch("/api/regulasi/:id", wajibKelolaRegulasi, async (req, res) => {
+    try {
+      const { periksaMeta } = await import("./lib/regulasi/muat");
+      const lama = (await db.execute(sql`select * from regulasi where id = ${req.params.id}`)).rows[0] as any;
+      if (!lama) return res.sendStatus(404);
+      const meta = bacaMetaRegulasi({ meta: { jenis: lama.jenis, nomor: lama.nomor, tahun: lama.tahun, judul: lama.judul, instansi: lama.instansi,
+        bidang: lama.bidang, status: lama.status, diubahOleh: lama.diubah_oleh, dicabutOleh: lama.dicabut_oleh,
+        tanggalPenetapan: lama.tanggal_penetapan ? String(lama.tanggal_penetapan).slice(0, 10) : null, ...req.body } });
+      const galat = periksaMeta(meta);
+      if (galat) return res.status(400).json({ message: galat });
+      const identitasBerubah = meta.jenis !== lama.jenis || meta.nomor !== lama.nomor || meta.tahun !== lama.tahun || meta.judul !== lama.judul;
+      await db.execute(sql`update regulasi set jenis = ${meta.jenis}, nomor = ${meta.nomor}, tahun = ${meta.tahun}, judul = ${meta.judul},
+        instansi = ${meta.instansi || null}, bidang = ${meta.bidang}, status = ${meta.status}, diubah_oleh = ${meta.diubahOleh || null},
+        dicabut_oleh = ${meta.dicabutOleh || null}, tanggal_penetapan = ${meta.tanggalPenetapan || null}, diperiksa_pada = now(), diperbarui = now()
+        where id = ${req.params.id}`);
+      // Label & judul tertanam di potongan (sitasi + teks embed) → terbitkan ulang bila identitas berubah.
+      if (identitasBerubah && lama.status_muat === "terbit") {
+        const { terbitkanRegulasi } = await import("./lib/regulasi/muat");
+        const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
+        await terbitkanRegulasi(db, req.params.id, embedderOpenRouter(kunciOpenRouter()));
+      }
+      res.json({ ok: true, diterbitkanUlang: identitasBerubah && lama.status_muat === "terbit" });
+    } catch (e: any) {
+      if (String(e?.message).includes("uq_regulasi_identitas")) return res.status(409).json({ message: "Peraturan dengan jenis, nomor, dan tahun itu sudah ada" });
+      console.error("PATCH regulasi:", e); res.status(500).json({ message: "Gagal mengubah peraturan" });
+    }
+  });
+
+  app.delete("/api/regulasi/:id", wajibKelolaRegulasi, async (req, res) => {
+    try {
+      const r = (await db.execute(sql`select berkas_id, jenis, nomor, tahun from regulasi where id = ${req.params.id}`)).rows[0] as any;
+      if (!r) return res.sendStatus(404);
+      const { tarikRegulasi } = await import("./lib/regulasi/muat");
+      await tarikRegulasi(db, req.params.id);
+      await db.execute(sql`delete from regulasi where id = ${req.params.id}`);
+      if (r.berkas_id) await db.execute(sql`delete from uploaded_files where id = ${r.berkas_id}`);
+      console.log(`[regulasi] ${penggunaRegulasi(req)?.name} menghapus ${r.jenis} ${r.nomor}/${r.tahun}`);
+      res.json({ ok: true });
+    } catch (e: any) { console.error("DELETE regulasi:", e); res.status(500).json({ message: "Gagal menghapus peraturan" }); }
+  });
+
   // PDF asli di balik sebuah sitasi, untuk panel pencocokan di chat. Wajib login: isi PPO internal.
   // Diambil lewat id POTONGAN (bukan id berkas) supaya hanya dokumen yang memang ada di koleksi
   // pengetahuan yang bisa dibuka dari sini — tidak menjadi pintu unduh berkas sembarang.
@@ -9912,8 +10080,11 @@ Format sebagai bullet points singkat per insight.`;
     try {
       if (!idPenggunaChat(req)) return res.sendStatus(401);
       const r = (await db.execute(sql`
-        select coalesce(v.signed_file_path, v.file_path) as jalur, p.kode_dokumen, p.revisi
-        from pengetahuan_potongan p join document_versions v on v.id = p.version_id
+        select p.kode_dokumen, p.revisi, p.koleksi,
+               case when p.koleksi = 'regulasi' then reg.berkas_id else coalesce(v.signed_file_path, v.file_path) end as jalur
+        from pengetahuan_potongan p
+        left join document_versions v on v.id = p.version_id and p.koleksi <> 'regulasi'
+        left join regulasi reg on reg.id = p.document_id and p.koleksi = 'regulasi'
         where p.id = ${req.params.chunkId}`)).rows[0] as any;
       if (!r) return res.sendStatus(404);
       const idFile = String(r.jalur || "").split("/").pop();
@@ -19077,6 +19248,21 @@ Format sebagai bullet points singkat per insight.`;
       const { DEF_TANYA_PELANGGARAN, DEF_RIWAYAT_LINTAS, tanyaPelanggaran, riwayatPelanggaranOrang } = await import("./lib/pengetahuan/pelanggaran");
       const peminta = { nama: (req.session as any)?.user?.name, departemen: (req.session as any)?.user?.department };
       const tools = [
+        {
+          type: "function",
+          function: {
+            name: "cari_regulasi",
+            description: "Cari isi PERATURAN PERUNDANG-UNDANGAN Indonesia yang diunggah ke OneTalent (UU, PP, Permen/Kepmen ESDM, Permenaker, Permen LHK, dll.) bidang minerba, K3, lingkungan hidup, ketenagakerjaan. Gunakan untuk pertanyaan dasar hukum, kewajiban/larangan menurut peraturan, sanksi pidana/administratif, amdal/limbah/baku mutu, reklamasi, SMK3. Bisa menyebut pasal langsung (mis. 'pasal 9 UU 1/1970').",
+            parameters: {
+              type: "object",
+              properties: {
+                kueri: { type: "string", description: "Pertanyaan atau rujukan pasal dalam Bahasa Indonesia, mis. 'kewajiban pengelolaan limbah B3' atau 'pasal 59 UU 32/2009'" },
+                bidang: { type: "string", enum: ["minerba", "k3", "lingkungan", "ketenagakerjaan"], description: "Opsional: batasi ke satu bidang" }
+              },
+              required: ["kueri"]
+            }
+          }
+        },
         DEF_TANYA_PELANGGARAN,
         DEF_RIWAYAT_LINTAS,
         {
@@ -19197,6 +19383,13 @@ ATURAN DATA PELANGGARAN (wajib):
 - Bila alat mengembalikan "galat" (mis. akses ditolak), sampaikan apa adanya. Jangan pernah menyebut URL sumber data.
 - Untuk menilai kesesuaian sanksi/aturan, gabungkan dengan cari_ppo.
 
+ATURAN PERATURAN PERUNDANG-UNDANGAN (wajib):
+- Pertanyaan dasar hukum, kewajiban/larangan menurut undang-undang/PP/Permen, sanksi, amdal/limbah/baku mutu, reklamasi, SMK3: PANGGIL cari_regulasi. Bila menyebut pasal tertentu, sertakan rujukannya di kueri (mis. "pasal 59 UU 32/2009").
+- Sebut dasar hukum lengkap: "Pasal 59 ayat (1) UU 32/2009" + nomor sitasi [n]. Ambil nomor pasal/ayat dari isi potongan, jangan menebak.
+- Bila status peraturan "dicabut": JANGAN dijadikan dasar; sebut bahwa sudah dicabut (dan penggantinya bila ada). Bila "diubah": sebut perubahannya.
+- Bila pertanyaan juga menyangkut penerapan internal, panggil cari_ppo juga, lalu pisahkan jawaban: "Ketentuan peraturan" dan "Penerapan di GECL (PPO)".
+- Bila tidak ada potongan yang menjawab: katakan peraturannya belum ada di koleksi OneTalent; sarankan diunggah di menu Peraturan Pemerintah.
+
 FORMAT JAWABAN (Markdown):
 - Buka dengan satu kalimat jawaban inti; tebalkan angka/kesimpulan utama (**12 pelanggaran**).
 - Rincian biasa dalam daftar berpoin. Pakai subjudul ### hanya bila jawaban punya beberapa bagian.
@@ -19264,6 +19457,31 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
             } catch (e: any) {
               console.error(`[Mystic] ${functionName} gagal:`, e?.message || e);
               functionResponse = JSON.stringify({ galat: "Data pelanggaran sedang tidak dapat diambil." });
+            }
+          } else if (functionName === "cari_regulasi") {
+            try {
+              const { cariRegulasi } = await import("./lib/regulasi/cari");
+              const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
+              const kueri = String(functionArgs.kueri || message).slice(0, 500);
+              kirimLangkah({ tipe: "cari", kueri, sumber: "peraturan" });
+              const [vek] = await embedderOpenRouter(kunciOpenRouter())([kueri]);
+              const hasil = await cariRegulasi(db, kueri, vek, { bidang: functionArgs.bidang });
+              const potongan = hasil.map((h) => {
+                if (!kunciPpo.has(h.id)) {
+                  kunciPpo.set(h.id, sources.length + 1);
+                  sources.push({ id: sources.length + 1, chunkId: h.id, documentName: `${h.label} — ${h.judul}`,
+                    kode: h.label, revisi: null, judul: h.judul, bagian: h.bagian, jenisSumber: "peraturan", status: h.status,
+                    pageNumber: h.halamanAwal, pageEnd: h.halamanAkhir, content: h.teks, score: h.skor });
+                }
+                return { nomor: kunciPpo.get(h.id), peraturan: h.label, judul: h.judul, bagian: h.bagian, jenis: h.jenisPotongan,
+                  status: h.status, ...(h.status === "dicabut" ? { dicabut_oleh: h.dicabutOleh } : {}), ...(h.status === "diubah" ? { diubah_oleh: h.diubahOleh } : {}),
+                  halaman: h.halamanAwal === h.halamanAkhir ? `${h.halamanAwal}` : `${h.halamanAwal}-${h.halamanAkhir}`, isi: h.teks };
+              });
+              functionResponse = JSON.stringify(potongan.length ? { potongan } : { potongan: [], catatan: "Tidak ada peraturan yang cocok di koleksi OneTalent. Sampaikan terus terang; jangan mengarang nomor pasal." });
+              kirimLangkah({ tipe: "temu", kueri, jumlah: potongan.length, dokumen: Array.from(new Set(potongan.map((x) => `${x.peraturan} — ${x.judul}`))) });
+            } catch (e: any) {
+              console.error("[Mystic] cari_regulasi gagal:", e?.message || e);
+              functionResponse = JSON.stringify({ galat: "Pencarian peraturan sedang tidak tersedia." });
             }
           } else if (functionName === "cari_ppo") {
             try {

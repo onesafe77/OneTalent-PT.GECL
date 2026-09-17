@@ -39,6 +39,7 @@ import {
     LayoutDashboard,
     GitCompare,
     ListChecks,
+    Scale,
     Inbox
 } from "lucide-react";
 
@@ -282,6 +283,7 @@ export const navigationGroups: NavGroup[] = [
                     { name: "Dashboard & Masterlist", href: "/workspace/hse/k3/documents", icon: LayoutDashboard, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
                     { name: "Mapping SMKP", href: "/workspace/hse/k3/documents/smkp-mapping", icon: GitCompare, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
                     { name: "Checklist Arsip", href: "/workspace/hse/k3/documents/checklist", icon: ListChecks, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
+                    { name: "Peraturan Pemerintah", href: "/workspace/hse/k3/documents/peraturan", icon: Scale, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
                     { name: "Approval", href: "/workspace/approvals", icon: Inbox, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
                     { name: "Register Eksternal", href: "/workspace/external-register", icon: BookOpen, requiredPermissions: [Permission.VIEW_DOCUMENTS] },
                 ]
