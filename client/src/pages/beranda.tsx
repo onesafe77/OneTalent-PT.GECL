@@ -274,13 +274,10 @@ export default function Beranda() {
       <div className="flex min-h-full w-full">
         <div className="m-auto flex w-full max-w-[720px] -translate-y-[6vh] flex-col items-center px-6 py-12 text-center">
           <h1 className="flex animate-fade-up items-center justify-center gap-3 text-balance font-serif text-[40px] font-normal leading-[1.15] tracking-[-0.02em] text-foreground">
-            <span className="flex-none text-primary"><CakraMark size={38} /></span>
+            <span className="flex-none text-foreground"><CakraMark size={40} /></span>
             <span>{salam()}{namaDepan && `, ${namaDepan}`}</span>
           </h1>
-          <p className="mt-3 max-w-[65ch] animate-fade-up text-[15px] text-muted-foreground [animation-delay:60ms]">
-            Tanya apa saja soal regulasi, temuan, atau data karyawan.
-          </p>
-          <div className="mt-8 w-full animate-fade-up [animation-delay:120ms]">{kotakKetik}</div>
+          <div className="mt-8 w-full animate-fade-up [animation-delay:80ms]">{kotakKetik}</div>
         </div>
       </div>
     );
