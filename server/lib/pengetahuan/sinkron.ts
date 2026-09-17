@@ -1,3 +1,4 @@
+import { kunciOpenRouter } from "../../ai-config";
 // Sinkronisasi koleksi pengetahuan dengan dokumen yang BERLAKU.
 //
 // Dua lapis, karena satu saja tidak cukup:
@@ -11,7 +12,7 @@ import { muatUlangDokumen, embedderOpenRouter, DIKECUALIKAN, type Embedder, type
 /** Koleksi untuk sebuah kode dokumen; null = dokumen ini tidak masuk pengetahuan AI. */
 export const koleksiUntuk = (kode: string | null | undefined): string | null => (kode && /-PPO-/i.test(kode) ? "ppo" : null);
 
-const kunciApi = () => process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY || "";
+const kunciApi = () => kunciOpenRouter();
 
 /**
  * Dokumen yang isi koleksinya tidak sesuai kenyataan:

@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import bcrypt from 'bcrypt';
 import OpenAI from "openai";
-import { openRouterClient, AI_MODELS } from "./ai-config";
+import { openRouterClient, AI_MODELS, kunciOpenRouter } from "./ai-config";
 import { recomputeWorkbook, isZhComputing } from "./lib/zh-recompute";
 import { applyZhPlanRows } from "./lib/zh-plan-apply";
 import { differenceInDays, parseISO, isValid, format, addDays, addWeeks, addMonths, getWeek, startOfWeek, endOfWeek } from "date-fns";
@@ -966,7 +966,7 @@ Format sebagai bullet points singkat per insight.`;
 
       // Use internal Si Asef logic (simplified version without session management)
 
-      if (!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)) {
+      if (!kunciOpenRouter()) {
         // Fallback response if no API key
         return res.json({
           insights: [
@@ -19138,7 +19138,7 @@ Format sebagai bullet points singkat per insight.`;
       const kunciPpo = new Map<string, number>();   // id potongan → nomor sumber [n]
 
       // 5. Call AI with Tools (via OpenRouter, same client as other AI endpoints)
-      if (!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)) {
+      if (!kunciOpenRouter()) {
         // Mode stream: header sudah terkirim, res.json akan melempar -> pesan kunci hilang.
         if (stream) { kirimLangkah({ tipe: "galat", pesan: "API Key AI (OPENROUTER_API_KEY) belum diatur di server. Hubungi admin." }); return res.end(); }
         return res.json({
@@ -19225,7 +19225,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
               const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
               const kueri = String(functionArgs.kueri || message).slice(0, 500);
               kirimLangkah({ tipe: "cari", kueri });
-              const [vek] = await embedderOpenRouter(String(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY))([kueri]);
+              const [vek] = await embedderOpenRouter(kunciOpenRouter())([kueri]);
               const hasil = await cariDokumen(db, kueri, vek, { k: 6 });
               const potongan = hasil.map((h) => {
                 // Nomor sumber stabil lintas pemanggilan dalam satu jawaban.

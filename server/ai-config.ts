@@ -1,7 +1,14 @@
 import OpenAI from "openai";
 
 // Determine if we have a valid key. If not, fallback to dummy to prevent crash on init.
-const apiKey = process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY;
+// Klien ini menembak OpenRouter, jadi OPENROUTER_API_KEY didahulukan. Dulu OPENAI_API_KEY
+// menang: di Railway variabel itu berisi kunci OpenAI asli -> OpenRouter membalas 401.
+// Nilai dirapikan (spasi, baris baru, tanda kutip) karena sering ikut tertempel di dasbor.
+export const kunciOpenRouter = () =>
+    [process.env.OPENROUTER_API_KEY, process.env.OPENAI_API_KEY]
+        .map((v) => (v || "").trim().replace(/^["']|["']$/g, "").trim())
+        .find(Boolean) || "";
+const apiKey = kunciOpenRouter();
 
 // Base configuration for OpenRouter
 export const openRouterClient = new OpenAI({
