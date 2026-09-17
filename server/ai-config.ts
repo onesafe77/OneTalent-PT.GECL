@@ -27,6 +27,8 @@ export const openRouterClient = new OpenAI({
 export const AI_MODELS = {
     // Use for fast text tasks (replaces gemini-1.5-flash / gemini-2.0-flash)
     FAST_TEXT: "openai/gpt-4o-mini",
+    // Model chat Mystic (agen berpustaka). Bisa diganti tanpa deploy ulang lewat variabel CHAT_MODEL.
+    CHAT: process.env.CHAT_MODEL || "openai/gpt-4o-mini",
 
     // Use for vision tasks (if supported by the specific model on OR)
     VISION: "openai/gpt-4o-mini",

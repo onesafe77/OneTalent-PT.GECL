@@ -134,5 +134,29 @@ export async function cariRegulasi(basisData: any, pertanyaan: string, vektor: n
   }
   for (const x of tertunda) { if (hasil.length >= k) break; hasil.push(bentuk(x.d, x.s, false)); }
   hasil.sort((a, b) => Number(b.langsung) - Number(a.langsung) || b.skor - a.skor);
-  return hasil.slice(0, Math.max(k, hasil.filter((h) => h.langsung).length));
+  const akhir = hasil.slice(0, Math.max(k, hasil.filter((h) => h.langsung).length));
+  return lanjutkanPecahan(basisData, akhir);
+}
+
+/**
+ * Pecahan yang berhenti di tengah daftar/kalimat ("… (bagian 7/27)" tanpa titik di ujung) membawa pecahan
+ * berikutnya. Kasus nyata: tugas KTT di Kepmen 1827K berlanjut dari huruf k ke l–o di bagian 8/27; tanpa ini
+ * semua model berhenti di huruf k. Dibatasi 3 teratas agar konteks tetap ringkas.
+ */
+async function lanjutkanPecahan(basisData: any, hasil: HasilRegulasi[]): Promise<HasilRegulasi[]> {
+  const ada = new Set(hasil.map((h) => h.id));
+  const keluar: HasilRegulasi[] = [];
+  for (let i = 0; i < hasil.length; i++) {
+    const h = hasil[i];
+    keluar.push(h);
+    const m = h.bagian.match(/^(.*) \(bagian (\d+)\/(\d+)\)$/);
+    if (i >= 3 || !m || +m[2] >= +m[3] || /[.;:]\s*$/.test(h.teks.trim()) && !/;\s*$/.test(h.teks.trim())) continue;
+    const bagianLanjut = `${m[1]} (bagian ${+m[2] + 1}/${m[3]})`;
+    const l = (await basisData.execute(sql`select id from pengetahuan_potongan
+      where koleksi = ${KOLEKSI_REGULASI} and document_id = ${h.regulasiId} and bagian = ${bagianLanjut} limit 1`)).rows[0] as any;
+    if (!l || ada.has(l.id)) continue;
+    const d = (await lengkapi(basisData, [l.id])).get(l.id);
+    if (d) { keluar.push(bentuk(d, h.skor * 0.999, h.langsung)); ada.add(l.id); }
+  }
+  return keluar;
 }
