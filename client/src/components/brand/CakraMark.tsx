@@ -14,6 +14,8 @@ interface CakraMarkProps {
     /** putar perlahan — dipakai saat memuat / berpikir */
     spin?: boolean;
     className?: string;
+    /** lapisan dalam lebih pekat — untuk ukuran besar di latar terang (sapaan Beranda) */
+    tegas?: boolean;
 }
 
 /** Ketebalan garis per ukuran, mengikuti tabel --sw di prototipe. */
@@ -30,8 +32,8 @@ function tebalGaris(size: number): number {
 const KELOPAK_BESAR = "M50 36C60 27.9 60 16.56 50 9C40 16.56 40 27.9 50 36Z";
 const KELOPAK_KECIL = "M50 36C56.8 31.2 56.8 24.48 50 20C43.2 24.48 43.2 31.2 50 36Z";
 
-export function CakraMark({ size = 24, spin = false, className }: CakraMarkProps) {
-    const sw = tebalGaris(size);
+export function CakraMark({ size = 24, spin = false, className, tegas = false }: CakraMarkProps) {
+    const sw = tebalGaris(size) * (tegas ? 1.25 : 1);
     return (
         <svg
             width={size} height={size} viewBox="0 0 100 100" aria-hidden="true"
@@ -42,13 +44,13 @@ export function CakraMark({ size = 24, spin = false, className }: CakraMarkProps
                 strokeLinejoin: "round", strokeLinecap: "round", flex: "0 0 auto",
             }}
         >
-            <circle cx={50} cy={50} r={45} opacity={0.4} />
+            <circle cx={50} cy={50} r={45} opacity={tegas ? 0.75 : 0.4} />
             <g style={spin ? { transformOrigin: "50px 50px", animation: "cakra-cw 8s linear infinite" } : undefined}>
                 {[0, 90, 180, 270].map((d) => (
                     <path key={d} d={KELOPAK_BESAR} transform={`rotate(${d} 50 50)`} />
                 ))}
             </g>
-            <g opacity={0.6}
+            <g opacity={tegas ? 0.9 : 0.6}
                 style={spin ? { transformOrigin: "50px 50px", animation: "cakra-ccw 11s linear infinite" } : undefined}>
                 {[45, 135, 225, 315].map((d) => (
                     <path key={d} d={KELOPAK_KECIL} transform={`rotate(${d} 50 50)`} />

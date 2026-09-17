@@ -55,6 +55,27 @@ function salam(): string {
   return "Selamat malam";
 }
 
+// Sapaan berganti tiap kali Beranda dibuka (gaya Claude), bernuansa K3 & SDM.
+// {n} = nama depan. Sapaan waktu tetap ikut di dalam undian supaya terasa wajar.
+const SAPAAN = [
+  () => `${salam()}, {n}`,
+  () => `${salam()}, {n}`,
+  () => "Pulang selamat hari ini, {n}",
+  () => "Keselamatan dulu, {n}",
+  () => "Ada temuan apa hari ini, {n}?",
+  () => "Siap bantu cek PPO, {n}",
+  () => "Zero harm dimulai dari sini, {n}",
+  () => "Mari jaga tim tetap aman, {n}",
+  () => "Data karyawan butuh dicek, {n}?",
+  () => "Kerja aman, produksi mengikuti",
+  () => "Apa yang bisa dibantu, {n}?",
+];
+
+function sapaanAcak(nama: string): string {
+  const t = SAPAAN[Math.floor(Math.random() * SAPAAN.length)]();
+  return nama ? t.replace("{n}", nama) : t.replace(/,? \{n\}/, "");
+}
+
 export default function Beranda() {
   const { user } = useAuth();
   // Percakapan berjalan DI Beranda. Dulu Enter memindahkan ke /workspace/si-asef —
@@ -168,6 +189,8 @@ export default function Beranda() {
 
   const namaDepan = (() => { const w = (user?.name || "").trim().split(/\s+/)[0] || ""; return w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""; })();
   const adaTeks = teks.trim().length > 0;
+  // Diundi sekali per kunjungan; tidak berubah saat mengetik (render ulang).
+  const [sapaan] = useState(() => sapaanAcak(namaDepan));
 
 
   const kotakKetik = (
@@ -274,8 +297,8 @@ export default function Beranda() {
       <div className="flex min-h-full w-full">
         <div className="m-auto flex w-full max-w-[720px] -translate-y-[6vh] flex-col items-center px-6 py-12 text-center">
           <h1 className="flex animate-fade-up items-center justify-center gap-3 text-balance font-serif text-[40px] font-normal leading-[1.15] tracking-[-0.02em] text-foreground">
-            <span className="flex-none text-foreground"><CakraMark size={40} /></span>
-            <span>{salam()}{namaDepan && `, ${namaDepan}`}</span>
+            <span className="flex-none text-foreground"><CakraMark size={40} tegas /></span>
+            <span>{sapaan}</span>
           </h1>
           <div className="mt-8 w-full animate-fade-up [animation-delay:80ms]">{kotakKetik}</div>
         </div>
