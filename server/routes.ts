@@ -9905,6 +9905,31 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // PDF asli di balik sebuah sitasi, untuk panel pencocokan di chat. Wajib login: isi PPO internal.
+  // Diambil lewat id POTONGAN (bukan id berkas) supaya hanya dokumen yang memang ada di koleksi
+  // pengetahuan yang bisa dibuka dari sini — tidak menjadi pintu unduh berkas sembarang.
+  app.get("/api/si-asef/sumber/:chunkId/pdf", async (req, res) => {
+    try {
+      if (!idPenggunaChat(req)) return res.sendStatus(401);
+      const r = (await db.execute(sql`
+        select coalesce(v.signed_file_path, v.file_path) as jalur, p.kode_dokumen, p.revisi
+        from pengetahuan_potongan p join document_versions v on v.id = p.version_id
+        where p.id = ${req.params.chunkId}`)).rows[0] as any;
+      if (!r) return res.sendStatus(404);
+      const idFile = String(r.jalur || "").split("/").pop();
+      const f = (await db.execute(sql`select data from uploaded_files where id = ${idFile}`)).rows[0] as any;
+      if (!f?.data) return res.sendStatus(404);
+      const buf = Buffer.from(f.data, "base64");
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${r.kode_dokumen}-R${String(r.revisi).padStart(2, "0")}.pdf"`);
+      res.setHeader("Cache-Control", "private, max-age=600");
+      res.send(buf);
+    } catch (e: any) {
+      console.error("GET sumber pdf:", e?.message || e);
+      res.sendStatus(500);
+    }
+  });
+
   app.delete("/api/si-asef/sessions/:id", async (req, res) => {
     try {
       if (!idPenggunaChat(req)) return res.sendStatus(401);
@@ -19231,7 +19256,9 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
                 // Nomor sumber stabil lintas pemanggilan dalam satu jawaban.
                 if (!kunciPpo.has(h.id)) {
                   kunciPpo.set(h.id, sources.length + 1);
-                  sources.push({ id: sources.length + 1, chunkId: h.id, documentName: `${h.kodeDokumen} R${String(h.revisi).padStart(2, "0")} — ${h.judul}`, pageNumber: h.halamanAwal, content: h.teks, score: h.skor });
+                  sources.push({ id: sources.length + 1, chunkId: h.id, documentName: `${h.kodeDokumen} R${String(h.revisi).padStart(2, "0")} — ${h.judul}`,
+                    kode: h.kodeDokumen, revisi: h.revisi, judul: h.judul, bagian: h.bagian,
+                    pageNumber: h.halamanAwal, pageEnd: h.halamanAkhir, content: h.teks, score: h.skor });
                 }
                 return { nomor: kunciPpo.get(h.id), kode: h.kodeDokumen, revisi: h.revisi, judul: h.judul, bagian: h.bagian, halaman: h.halamanAwal === h.halamanAkhir ? `${h.halamanAwal}` : `${h.halamanAwal}-${h.halamanAkhir}`, isi: h.teks };
               });

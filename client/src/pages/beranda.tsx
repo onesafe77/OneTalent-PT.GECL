@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowUp, Plus, Send, ChevronDown, Mic, Square, Search, FileText, Check, Wrench, PenLine } from "lucide-react";
+import { ArrowUp, Plus, Send, ChevronDown, ChevronRight, Mic, Square, Search, FileText, BookOpen, Wrench, PenLine } from "lucide-react";
+import { PanelSumberPdf, type SumberSitasi } from "@/components/si-asef/PanelSumberPdf";
 import { queryClient } from "@/lib/queryClient";
 import { CakraMark } from "@/components/brand/CakraMark";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
-type Sumber = { id: number; documentName?: string; pageNumber?: number };
+type Sumber = SumberSitasi;
 /** Satu langkah agen yang dikirim server (SSE) selama menyusun jawaban. */
 type Langkah =
   | { tipe: "cari"; kueri: string }
@@ -103,6 +104,13 @@ export default function Beranda() {
     })();
   }, []);
   const [menunggu, setMenunggu] = useState(false);
+  // Sitasi yang sedang dicocokkan di panel PDF kanan (null = panel tertutup).
+  const [sumberAktif, setSumberAktif] = useState<Sumber | null>(null);
+  useEffect(() => {
+    const tutup = (e: KeyboardEvent) => { if (e.key === "Escape") setSumberAktif(null); };
+    window.addEventListener("keydown", tutup);
+    return () => window.removeEventListener("keydown", tutup);
+  }, []);
   const bawah = useRef<HTMLDivElement>(null);
   useEffect(() => { bawah.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [pesan, menunggu]);
   const [teks, setTeks] = useState("");
@@ -300,7 +308,8 @@ export default function Beranda() {
 
   // ---------- Tampilan percakapan: pesan di atas, kotak ketik menempel di bawah ----------
   return (
-    <div className="flex h-full min-h-0 w-full flex-col">
+    <div className="flex h-full min-h-0 w-full">
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 px-6 pb-6 pt-4">
@@ -310,7 +319,7 @@ export default function Beranda() {
             </div>
           ) : (
             <div key={i} className="flex gap-3">
-              <span className="mt-1 flex-none text-foreground"><CakraMark size={22} spin={m.berpikir} /></span>
+              <span className="mt-[3px] flex-none text-foreground"><CakraMark size={22} /></span>
               <div className="min-w-0 flex-1">
               {(m.berpikir || !!m.langkah?.length) && <PanelBerpikir m={m} />}
               <div className="min-w-0 flex-1 text-[15px] leading-7 text-foreground
@@ -318,15 +327,23 @@ export default function Beranda() {
                 [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6
                 [&_p]:my-2 [&_table]:my-3 [&_table]:w-full [&_table]:text-sm [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1
                 [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6">
-                {m.isi && <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.isi.replace(/\{\{ref:(\d+)\}\}/g, "[$1]")}</ReactMarkdown>}
-                {!!m.sumber?.length && (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {m.sumber.map((sb) => (
-                      <span key={sb.id} className="rounded-full border border-border px-2.5 py-0.5 text-[12px] text-muted-foreground">
-                        [{sb.id}] {sb.documentName}{sb.pageNumber ? ` · hal. ${sb.pageNumber}` : ""}
-                      </span>
-                    ))}
-                  </div>
+                {m.isi && (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({ href, children, ...rest }) => {
+                        const n = href?.startsWith("#sitasi-") ? Number(href.slice(8)) : NaN;
+                        const sb = m.sumber?.find((x) => x.id === n);
+                        if (!sb) return href?.startsWith("#sitasi-") ? <>{children}</> : <a href={href} {...rest}>{children}</a>;
+                        return <ChipSitasi sumber={sb} aktif={sumberAktif?.id === sb.id && sumberAktif?.chunkId === sb.chunkId} onBuka={setSumberAktif} />;
+                      },
+                    }}
+                  >
+                    {jadikanSitasi(m.isi, m.sumber)}
+                  </ReactMarkdown>
+                )}
+                {!!m.sumber?.length && !m.berpikir && (
+                  <DaftarSumber sumber={m.sumber} aktif={sumberAktif} onBuka={setSumberAktif} />
                 )}
               </div>
               </div>
@@ -343,67 +360,169 @@ export default function Beranda() {
         </div>
       </div>
     </div>
+      {sumberAktif && (
+        <div className="fixed inset-0 z-40 lg:static lg:inset-auto lg:z-auto lg:h-full lg:w-[46%] lg:max-w-[680px] lg:flex-none animate-in fade-in slide-in-from-right-4 duration-200">
+          <PanelSumberPdf sumber={sumberAktif} onTutup={() => setSumberAktif(null)} />
+        </div>
+      )}
+    </div>
   );
 }
 
+/** "[1]" / "[1][2]" / "{{ref:1}}" -> tautan #sitasi-n yang dirender sebagai chip. Hanya nomor yang punya sumber. */
+function jadikanSitasi(isi: string, sumber?: Sumber[]) {
+  const ada = new Set((sumber || []).map((x) => x.id));
+  return isi
+    .replace(/\{\{ref:(\d+)\}\}/g, "[$1]")
+    .replace(/\[(\d{1,2})\](?!\()/g, (t, n) => (ada.has(+n) ? `[${n}](#sitasi-${n})` : t));
+}
+
+const labelDok = (sb: Sumber) =>
+  sb.kode ? `${sb.kode} R${String(sb.revisi ?? 0).padStart(2, "0")}` : (sb.documentName || "Dokumen").split(" — ")[0];
+
+/** Chip angka di dalam kalimat (gaya NotebookLM): hover = pratinjau kutipan, klik = PDF di kanan. */
+function ChipSitasi({ sumber, aktif, onBuka }: { sumber: Sumber; aktif: boolean; onBuka: (s: Sumber) => void }) {
+  return (
+    <span className="group/sitasi relative mx-[2px] inline-block align-[1px]">
+      <button
+        type="button"
+        onClick={() => onBuka(sumber)}
+        aria-label={`Sumber ${sumber.id}: ${labelDok(sumber)}`}
+        className={cn(
+          "inline-grid h-[18px] min-w-[18px] place-items-center rounded-full px-[5px] text-[11px] font-semibold leading-none tabular-nums transition-colors duration-150",
+          aktif ? "bg-primary text-primary-foreground" : "bg-black/[0.07] text-foreground/70 hover:bg-primary hover:text-primary-foreground dark:bg-white/10",
+        )}
+      >
+        {sumber.id}
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute bottom-[calc(100%+8px)] left-1/2 z-30 w-[320px] -translate-x-1/2 translate-y-1 rounded-xl border border-black/[0.08] bg-card p-3 text-left opacity-0 shadow-[0_12px_32px_-8px_rgba(0,0,0,0.2)] transition-[opacity,transform] duration-150 group-hover/sitasi:visible group-hover/sitasi:translate-y-0 group-hover/sitasi:opacity-100 group-hover/sitasi:delay-200 dark:border-white/10"
+      >
+        <span className="flex items-center gap-1.5 text-[12px] font-semibold text-foreground">
+          <FileText className="h-3.5 w-3.5 flex-none text-primary" />
+          <span className="truncate">{labelDok(sumber)}</span>
+          {sumber.pageNumber && <span className="ml-auto flex-none font-normal text-muted-foreground">hal. {sumber.pageNumber}</span>}
+        </span>
+        {sumber.judul && <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">{sumber.judul}{sumber.bagian ? ` · ${sumber.bagian}` : ""}</span>}
+        {sumber.content && (
+          <span className="mt-2 line-clamp-4 block border-l-2 border-amber-400 bg-amber-50/70 py-1 pl-2 text-[12.5px] font-normal leading-snug text-foreground/85 dark:bg-amber-400/10">
+            {sumber.content}
+          </span>
+        )}
+        <span className="mt-2 block text-[11px] text-muted-foreground">Klik untuk mencocokkan di PDF</span>
+      </span>
+    </span>
+  );
+}
+
+/** Baris sumber di bawah jawaban: ringkas "N sumber", dibuka jadi daftar kartu. */
+function DaftarSumber({ sumber, aktif, onBuka }: { sumber: Sumber[]; aktif: Sumber | null; onBuka: (s: Sumber) => void }) {
+  const [buka, setBuka] = useState(false);
+  const dokumen = Array.from(new Set(sumber.map(labelDok)));
+  return (
+    <div className="mt-4">
+      <button type="button" onClick={() => setBuka((v) => !v)}
+        className="flex items-center gap-2 rounded-full border border-black/[0.08] bg-card py-1 pl-1 pr-3 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground dark:border-white/10">
+        <span className="flex -space-x-1">
+          {sumber.slice(0, 3).map((sb) => (
+            <span key={sb.id} className="grid h-5 w-5 place-items-center rounded-full bg-black/[0.07] text-[10px] font-semibold text-foreground/70 ring-2 ring-card dark:bg-white/10">{sb.id}</span>
+          ))}
+        </span>
+        {sumber.length} sumber · {dokumen.length} dokumen
+        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", buka && "rotate-180")} />
+      </button>
+      {buka && (
+        <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+          {sumber.map((sb) => (
+            <button key={sb.id} type="button" onClick={() => onBuka(sb)}
+              className={cn("flex min-w-0 items-start gap-2.5 rounded-xl border bg-card p-2.5 text-left transition-colors",
+                aktif?.id === sb.id && aktif?.chunkId === sb.chunkId ? "border-primary/50" : "border-black/[0.08] hover:border-black/20 dark:border-white/10")}>
+              <span className="grid h-5 min-w-5 flex-none place-items-center rounded-full bg-black/[0.07] px-1 text-[10px] font-semibold text-foreground/70 dark:bg-white/10">{sb.id}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-[12.5px] font-medium text-foreground">{labelDok(sb)}{sb.pageNumber ? <span className="font-normal text-muted-foreground"> · hal. {sb.pageNumber}</span> : null}</span>
+                <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-muted-foreground">{sb.content || sb.judul}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Kalimat status yang sedang dikerjakan agen, untuk baris "berpikir" yang hidup. */
+function kalimatLangkah(l?: Langkah): string {
+  if (!l) return "Memahami pertanyaan";
+  if (l.tipe === "cari") return `Mencari \u201C${l.kueri}\u201D di PPO`;
+  if (l.tipe === "temu") return l.jumlah ? `Membaca ${l.dokumen?.[0]?.split(" — ")[0] ?? `${l.jumlah} bagian`}` : "Tidak ada yang cocok, mencoba kata lain";
+  if (l.tipe === "alat") return l.nama;
+  return "Menyusun jawaban";
+}
+
 /**
- * Panel "berpikir": langkah agen tampil langsung selagi bekerja, lalu dilipat menjadi satu baris
- * ("Berpikir 6 dtk · 2 pencarian") yang bisa dibuka kembali.
+ * Tampilan "berpikir": satu baris berkilau yang kalimatnya berganti mengikuti langkah agen.
+ * Selesai -> ringkas ("Menelusuri 2 dokumen · 8 dtk"), bisa dibuka jadi garis waktu.
  */
 function PanelBerpikir({ m }: { m: Pesan }) {
   const [buka, setBuka] = useState(false);
   const langkah = m.langkah || [];
-  const pencarian = langkah.filter((l) => l.tipe === "cari").length;
-  const terbuka = m.berpikir || buka;
+  const dokumen = Array.from(new Set(langkah.flatMap((l) => (l.tipe === "temu" ? l.dokumen || [] : []))));
 
-  const baris = (l: Langkah, i: number, aktif: boolean) => {
-    const ikon = l.tipe === "cari" ? Search : l.tipe === "temu" ? FileText : l.tipe === "alat" ? Wrench : PenLine;
-    const Ikon = aktif ? null : ikon;
+  if (m.berpikir) {
+    const kini = kalimatLangkah(langkah[langkah.length - 1]);
     return (
-      <li key={i} className="flex gap-2.5">
-        <span className="mt-[3px] grid h-4 w-4 flex-none place-items-center">
-          {aktif ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /> : Ikon && <Ikon className="h-3.5 w-3.5" />}
-        </span>
-        <div className="min-w-0">
-          {l.tipe === "cari" && <span>Mencari di PPO: <span className="text-foreground">“{l.kueri}”</span></span>}
-          {l.tipe === "temu" && (
-            <div>
-              <span>{l.jumlah ? `Menemukan ${l.jumlah} bagian relevan` : "Tidak menemukan bagian yang cocok"}</span>
-              {!!l.dokumen?.length && (
-                <ul className="mt-1 space-y-0.5">
-                  {l.dokumen.slice(0, 4).map((d) => <li key={d} className="truncate text-[12px] text-muted-foreground/80">{d}</li>)}
-                </ul>
-              )}
-            </div>
-          )}
-          {l.tipe === "alat" && <span>{l.nama}</span>}
-          {l.tipe === "menyusun" && <span>Menyusun jawaban</span>}
-        </div>
-      </li>
+      <div className="mb-2 flex h-6 items-center">
+        <span key={kini} className="kilau-teks animate-in fade-in slide-in-from-bottom-1 text-[14px] duration-300">{kini}…</span>
+        <style>{`.kilau-teks{background:linear-gradient(90deg,hsl(var(--muted-foreground)) 0%,hsl(var(--muted-foreground)) 40%,hsl(var(--foreground)) 50%,hsl(var(--muted-foreground)) 60%,hsl(var(--muted-foreground)) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:kilau 2s linear infinite}@keyframes kilau{from{background-position:125% 0}to{background-position:-125% 0}}@media (prefers-reduced-motion:reduce){.kilau-teks{animation:none;color:hsl(var(--muted-foreground))}}`}</style>
+      </div>
     );
-  };
+  }
+
+  const ringkas = [dokumen.length ? `Menelusuri ${dokumen.length} dokumen` : langkah.length ? `${langkah.length} langkah` : "Berpikir", `${m.detikBerpikir ?? 0} dtk`].join(" · ");
+  const ikon = (l: Langkah) => (l.tipe === "cari" ? Search : l.tipe === "temu" ? BookOpen : l.tipe === "alat" ? Wrench : PenLine);
 
   return (
     <div className="mb-2">
-      <button type="button" onClick={() => !m.berpikir && setBuka((v) => !v)}
-        className={cn("flex items-center gap-1.5 text-[13px] text-muted-foreground", !m.berpikir && "hover:text-foreground")}>
-        {m.berpikir
-          ? <span className="bg-gradient-to-r from-muted-foreground via-foreground to-muted-foreground bg-[length:200%_100%] bg-clip-text text-transparent [animation:kilau-berpikir_1.6s_linear_infinite]">Berpikir…</span>
-          : <span>Berpikir {m.detikBerpikir ?? 0} dtk{pencarian ? ` · ${pencarian} pencarian` : ""}</span>}
-        {!m.berpikir && <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", buka && "rotate-180")} />}
+      <button type="button" onClick={() => setBuka((v) => !v)}
+        className="group flex h-6 items-center gap-1 text-[13.5px] text-muted-foreground transition-colors hover:text-foreground">
+        {ringkas}
+        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200", buka && "rotate-90")} />
       </button>
-      {terbuka && (
-        <ul className="mt-2 space-y-2 border-l border-border pl-3 text-[13px] leading-5 text-muted-foreground">
-          {langkah.length === 0 && m.berpikir && (
-            <li className="flex gap-2.5"><span className="mt-[3px] grid h-4 w-4 place-items-center"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" /></span>Memahami pertanyaan</li>
-          )}
-          {langkah.map((l, i) => baris(l, i, !!m.berpikir && i === langkah.length - 1))}
-          {!m.berpikir && langkah.length > 0 && (
-            <li className="flex gap-2.5"><span className="mt-[3px] grid h-4 w-4 place-items-center"><Check className="h-3.5 w-3.5" /></span>Selesai</li>
-          )}
-        </ul>
+      {buka && (
+        <ol className="relative mb-3 mt-2 space-y-3 pl-1 animate-in fade-in slide-in-from-top-1 duration-200">
+          <span aria-hidden className="absolute bottom-2 left-[10px] top-2 w-px bg-black/[0.08] dark:bg-white/10" />
+          {langkah.map((l, i) => {
+            const Ikon = ikon(l);
+            return (
+              <li key={i} className="relative flex gap-3">
+                <span className="relative grid h-5 w-5 flex-none place-items-center rounded-full bg-background text-muted-foreground">
+                  <Ikon className="h-3.5 w-3.5" strokeWidth={1.8} />
+                </span>
+                <div className="min-w-0 pt-px text-[13px] leading-5 text-muted-foreground">
+                  {l.tipe === "temu" ? (
+                    <>
+                      <p>{l.jumlah ? `Membaca ${l.jumlah} bagian relevan` : "Tidak menemukan bagian yang cocok"}</p>
+                      {!!l.dokumen?.length && (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {l.dokumen.slice(0, 4).map((d) => (
+                            <span key={d} className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-black/[0.08] bg-card px-2 py-0.5 text-[12px] text-foreground/80 dark:border-white/10">
+                              <FileText className="h-3 w-3 flex-none text-primary" />
+                              <span className="truncate">{d}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p>{kalimatLangkah(l)}</p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
       )}
-      <style>{`@keyframes kilau-berpikir{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
     </div>
   );
 }
