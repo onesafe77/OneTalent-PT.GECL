@@ -217,6 +217,13 @@ export default function Beranda() {
               : "border-black/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_24px_-10px_rgba(0,0,0,0.08)] hover:border-black/15 dark:border-white/10"
           )}
         >
+          {/* Garis cahaya tipis di tepi atas (hitam) & bawah (merah), seperti kilau pada bingkai. */}
+          <span aria-hidden className={cn("pointer-events-none absolute -top-px left-[38%] right-[12%] h-px transition-opacity duration-300",
+            fokus ? "opacity-100" : "opacity-70")}
+            style={{ background: "linear-gradient(90deg, transparent, rgba(10,10,10,0.85) 50%, transparent)" }} />
+          <span aria-hidden className={cn("pointer-events-none absolute -bottom-px left-[12%] right-[42%] h-px transition-opacity duration-300",
+            fokus ? "opacity-100" : "opacity-80")}
+            style={{ background: "linear-gradient(90deg, transparent, hsl(var(--primary)) 50%, transparent)" }} />
           <textarea
             ref={ta}
             rows={1}
