@@ -9923,7 +9923,10 @@ Format sebagai bullet points singkat per insight.`;
   };
   const bacaMetaRegulasi = (body: any) => {
     const m = typeof body?.meta === "string" ? JSON.parse(body.meta) : body?.meta ?? body;
-    return { ...m, tahun: Number(m?.tahun), nomor: String(m?.nomor ?? "").trim(), judul: String(m?.judul ?? "").trim() };
+    const hasil: any = { ...m };
+    if (m?.tahun !== undefined && m?.tahun !== "") hasil.tahun = Number(m.tahun);
+    for (const k of ["nomor", "judul"]) if (typeof m?.[k] === "string") hasil[k] = m[k].trim();
+    return hasil;
   };
   const cekPdf = (f: any) => !!f && (f.mimetype === "application/pdf" || /\.pdf$/i.test(f.originalname || "")) && f.buffer?.slice(0, 5).toString() === "%PDF-";
 
@@ -9966,12 +9969,12 @@ Format sebagai bullet points singkat per insight.`;
   app.post("/api/regulasi/pratinjau", wajibKelolaRegulasi, uploadRegulasi.single("berkas"), async (req: any, res) => {
     try {
       if (!cekPdf(req.file)) return res.status(400).json({ message: "Berkas harus PDF" });
-      const { periksaMeta, pratinjauRegulasi } = await import("./lib/regulasi/muat");
-      const meta = bacaMetaRegulasi(req.body);
-      const galat = periksaMeta(meta);
-      if (galat) return res.status(400).json({ message: galat });
-      const { pratinjau, halaman } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), meta);
-      const ada = (await db.execute(sql`select id, status_muat from regulasi where jenis = ${meta.jenis} and nomor = ${meta.nomor} and tahun = ${meta.tahun}`)).rows[0];
+      // Identitas dibaca dari PDF; field yang dikirim pengguna (koreksi) menimpanya.
+      const { pratinjauRegulasi } = await import("./lib/regulasi/muat");
+      const koreksi = req.body?.meta ? bacaMetaRegulasi(req.body) : {};
+      const { pratinjau, halaman } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), koreksi);
+      const meta = pratinjau.meta;
+      const ada = meta.nomor && meta.tahun ? (await db.execute(sql`select id, status_muat from regulasi where jenis = ${meta.jenis} and nomor = ${meta.nomor} and tahun = ${meta.tahun}`)).rows[0] : null;
       res.json({ ...pratinjau, halaman, sudahAda: ada || null });
     } catch (e: any) { console.error("POST regulasi/pratinjau:", e); res.status(500).json({ message: "Gagal membaca PDF: " + (e?.message || "") }); }
   });
@@ -9980,11 +9983,11 @@ Format sebagai bullet points singkat per insight.`;
   app.post("/api/regulasi", wajibKelolaRegulasi, uploadRegulasi.single("berkas"), async (req: any, res) => {
     try {
       if (!cekPdf(req.file)) return res.status(400).json({ message: "Berkas harus PDF" });
-      const { periksaMeta, terbitkanRegulasi } = await import("./lib/regulasi/muat");
+      const { terbitkanRegulasi, pratinjauRegulasi } = await import("./lib/regulasi/muat");
       const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
-      const meta = bacaMetaRegulasi(req.body);
-      const galat = periksaMeta(meta);
-      if (galat) return res.status(400).json({ message: galat });
+      const { pratinjau } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), req.body?.meta ? bacaMetaRegulasi(req.body) : {});
+      const meta = pratinjau.meta;
+      if (pratinjau.galatMeta) return res.status(400).json({ message: pratinjau.galatMeta });
       const u = penggunaRegulasi(req);
 
       const lama = (await db.execute(sql`select id, berkas_id from regulasi where jenis = ${meta.jenis} and nomor = ${meta.nomor} and tahun = ${meta.tahun}`)).rows[0] as any;

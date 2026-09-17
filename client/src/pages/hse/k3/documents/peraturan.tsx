@@ -249,82 +249,145 @@ function DetailPeraturan({ id, bolehKelola, onTutup, onBerubah }: { id: string; 
 
 // ------------------------------------------------------------------ unggah
 
+type MetaForm = { jenis: string; nomor: string; tahun: string; judul: string; instansi: string; bidang: string; status: string; diubahOleh: string; dicabutOleh: string; tanggalPenetapan: string };
+const LABEL_KOLOM: Record<string, string> = { jenis: "Jenis", nomor: "Nomor", tahun: "Tahun", judul: "Judul", bidang: "Bidang", tanggalPenetapan: "Tanggal penetapan" };
+const tglIndo = (iso: string) => { try { return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }); } catch { return iso; } };
+
+/**
+ * Unggah tanpa mengetik: PDF langsung dibaca server (jenis, nomor, tahun, judul, tanggal, bidang),
+ * pengguna cukup memeriksa kartu identitas lalu Terbitkan. Formulir hanya untuk koreksi.
+ */
 function DialogUnggah({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: (id: string) => void }) {
   const { toast } = useToast();
   const [berkas, setBerkas] = useState<File | null>(null);
-  const [meta, setMeta] = useState({ jenis: "PP", nomor: "", tahun: "", judul: "", instansi: "", bidang: "minerba", status: "berlaku", diubahOleh: "", dicabutOleh: "", tanggalPenetapan: "" });
+  const [seret, setSeret] = useState(false);
+  const [meta, setMeta] = useState<MetaForm | null>(null);
   const [pratinjau, setPratinjau] = useState<any>(null);
-  const [sibuk, setSibuk] = useState<"" | "pratinjau" | "terbit">("");
-  const set = (k: string, v: string) => { setMeta((m) => ({ ...m, [k]: v })); setPratinjau(null); };
+  const [ubah, setUbah] = useState(false);
+  const [sibuk, setSibuk] = useState<"" | "baca" | "terbit">("");
+  const set = (k: keyof MetaForm, v: string) => setMeta((m) => (m ? { ...m, [k]: v } : m));
 
-  const kirim = async (url: string) => {
+  const kirim = async (url: string, f: File, m?: MetaForm | null) => {
     const fd = new FormData();
-    fd.append("berkas", berkas!);
-    fd.append("meta", JSON.stringify({ ...meta, tahun: Number(meta.tahun) }));
+    fd.append("berkas", f);
+    if (m) fd.append("meta", JSON.stringify({ ...m, tahun: m.tahun ? Number(m.tahun) : "" }));
     const r = await fetch(url, { method: "POST", body: fd, credentials: "include" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok && !(url === "/api/regulasi" && r.status === 422)) throw new Error(j.message || `Galat ${r.status}`);
     return { ok: r.ok, ...j };
   };
-  const lihat = async () => {
-    if (!berkas) return toast({ title: "Pilih berkas PDF dulu", variant: "destructive" });
-    setSibuk("pratinjau");
-    try { setPratinjau(await kirim("/api/regulasi/pratinjau")); }
-    catch (e: any) { toast({ title: "Tidak bisa dipratinjau", description: e.message, variant: "destructive" }); }
-    finally { setSibuk(""); }
+
+  const pilihBerkas = async (f: File | null | undefined) => {
+    if (!f) return;
+    if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") return toast({ title: "Berkas harus PDF", variant: "destructive" });
+    if (f.size > 25 * 1024 * 1024) return toast({ title: "Berkas terlalu besar", description: "Maksimal 25 MB.", variant: "destructive" });
+    setBerkas(f); setPratinjau(null); setMeta(null); setUbah(false); setSibuk("baca");
+    try {
+      const p = await kirim("/api/regulasi/pratinjau", f);
+      const m = p.meta;
+      setMeta({ jenis: m.jenis || "Lainnya", nomor: m.nomor || "", tahun: m.tahun ? String(m.tahun) : "", judul: m.judul || "", instansi: m.instansi || "",
+        bidang: m.bidang || "lainnya", status: m.status || "berlaku", diubahOleh: m.diubahOleh || "", dicabutOleh: m.dicabutOleh || "", tanggalPenetapan: m.tanggalPenetapan || "" });
+      setPratinjau(p);
+      if (p.galatMeta || p.terdeteksi?.kosong?.some((k: string) => k !== "tanggalPenetapan")) setUbah(true);
+    } catch (e: any) {
+      toast({ title: "PDF tidak dapat dibaca", description: e.message, variant: "destructive" });
+      setBerkas(null);
+    } finally { setSibuk(""); }
   };
+
   const terbit = async () => {
+    if (!berkas || !meta) return;
+    if (meta.status === "dicabut" && !meta.dicabutOleh.trim()) { setUbah(true); return toast({ title: "Isi 'dicabut oleh'", variant: "destructive" }); }
     setSibuk("terbit");
     try {
-      const h = await kirim("/api/regulasi");
+      const h = await kirim("/api/regulasi", berkas, meta);
       if (h.ok) toast({ title: "Peraturan diterbitkan", description: `${h.potongan} potongan pasal kini dapat dicari Mystic AI.` });
       else toast({ title: "Tersimpan, tetapi gagal diterbitkan", description: h.message, variant: "destructive" });
       onSelesai(h.id);
-    } catch (e: any) { toast({ title: "Gagal menyimpan", description: e.message, variant: "destructive" }); }
+    } catch (e: any) { setUbah(true); toast({ title: "Belum bisa diterbitkan", description: e.message, variant: "destructive" }); }
     finally { setSibuk(""); }
   };
 
+  const kosong: string[] = pratinjau?.terdeteksi?.kosong ?? [];
+  const tandai = (k: string) => kosong.includes(k) && !(meta as any)?.[k] ? "border-amber-400 bg-amber-50/60" : "";
   const lbl = "mb-1 block text-[12.5px] font-medium text-foreground/80";
+
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4 animate-in fade-in duration-150" onClick={onTutup}>
-      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[92vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl animate-in zoom-in-95 duration-200">
+      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[92vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-card shadow-2xl animate-in zoom-in-95 duration-200">
         <header className="flex flex-none items-center justify-between border-b border-black/[0.07] px-5 py-3.5 dark:border-white/10">
           <h2 className="text-[16px] font-semibold">Unggah peraturan</h2>
           <button type="button" onClick={onTutup} aria-label="Tutup" className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground hover:bg-black/5"><X className="h-4 w-4" /></button>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <label className={cn("flex cursor-pointer items-center gap-3 rounded-xl border border-dashed px-4 py-4 transition-colors",
-            berkas ? "border-black/15 bg-black/[0.02]" : "border-black/15 hover:bg-black/[0.02] dark:border-white/15")}>
-            <FileText className="h-6 w-6 flex-none text-muted-foreground" strokeWidth={1.5} />
+          {/* 1. Berkas */}
+          <label
+            onDragOver={(e) => { e.preventDefault(); setSeret(true); }}
+            onDragLeave={() => setSeret(false)}
+            onDrop={(e) => { e.preventDefault(); setSeret(false); pilihBerkas(e.dataTransfer.files?.[0]); }}
+            className={cn("flex cursor-pointer items-center gap-3 rounded-xl border border-dashed px-4 transition-colors",
+              berkas ? "py-3" : "flex-col justify-center py-10 text-center",
+              seret ? "border-foreground/40 bg-black/[0.03]" : "border-black/15 hover:bg-black/[0.02] dark:border-white/15")}>
+            {sibuk === "baca" ? <Loader2 className="h-6 w-6 flex-none animate-spin text-muted-foreground" /> : <FileText className={cn("flex-none text-muted-foreground", berkas ? "h-6 w-6" : "h-8 w-8")} strokeWidth={1.5} />}
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-medium">{berkas ? berkas.name : "Pilih PDF peraturan"}</span>
-              <span className="block text-[12px] text-muted-foreground">{berkas ? `${(berkas.size / 1048576).toFixed(1)} MB` : "Maksimal 25 MB · PDF dengan lapisan teks (bukan hasil pindai)"}</span>
+              <span className="block truncate text-[14px] font-medium">{sibuk === "baca" ? "Membaca PDF…" : berkas ? berkas.name : "Seret PDF ke sini, atau klik untuk memilih"}</span>
+              <span className="block text-[12px] text-muted-foreground">
+                {berkas ? `${(berkas.size / 1048576).toFixed(1)} MB${pratinjau ? ` · ${pratinjau.halaman} halaman` : ""} · klik untuk ganti` : "Jenis, nomor, tahun, dan judul dibaca otomatis · maks 25 MB"}
+              </span>
             </span>
-            <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => { setBerkas(e.target.files?.[0] || null); setPratinjau(null); }} />
+            <input type="file" accept="application/pdf,.pdf" className="hidden" onChange={(e) => { pilihBerkas(e.target.files?.[0]); e.target.value = ""; }} />
           </label>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="col-span-2 sm:col-span-1"><span className={lbl}>Jenis</span>
-              <select value={meta.jenis} onChange={(e) => set("jenis", e.target.value)} className={kolom}>{JENIS.map((j) => <option key={j}>{j}</option>)}</select></div>
-            <div><span className={lbl}>Nomor</span><input value={meta.nomor} onChange={(e) => set("nomor", e.target.value)} placeholder="96 / 1827 K/30/MEM" className={kolom} /></div>
-            <div><span className={lbl}>Tahun</span><input value={meta.tahun} onChange={(e) => set("tahun", e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="2021" inputMode="numeric" className={kolom} /></div>
-            <div className="col-span-2 sm:col-span-1"><span className={lbl}>Bidang</span>
-              <select value={meta.bidang} onChange={(e) => set("bidang", e.target.value)} className={kolom}>{Object.entries(BIDANG).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
-            <div className="col-span-2 sm:col-span-4"><span className={lbl}>Judul (tentang)</span><input value={meta.judul} onChange={(e) => set("judul", e.target.value)} placeholder="Pelaksanaan Kegiatan Usaha Pertambangan Mineral dan Batubara" className={kolom} /></div>
-            <div className="col-span-2"><span className={lbl}>Instansi <span className="font-normal text-muted-foreground">(opsional)</span></span><input value={meta.instansi} onChange={(e) => set("instansi", e.target.value)} placeholder="Kementerian ESDM" className={kolom} /></div>
-            <div><span className={lbl}>Tgl penetapan</span><input type="date" value={meta.tanggalPenetapan} onChange={(e) => set("tanggalPenetapan", e.target.value)} className={kolom} /></div>
-            <div><span className={lbl}>Status</span>
-              <select value={meta.status} onChange={(e) => set("status", e.target.value)} className={kolom}>{Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select></div>
-            {meta.status === "diubah" && <div className="col-span-2 sm:col-span-4"><span className={lbl}>Diubah oleh</span><input value={meta.diubahOleh} onChange={(e) => set("diubahOleh", e.target.value)} placeholder="UU 6/2023" className={kolom} /></div>}
-            {meta.status === "dicabut" && <div className="col-span-2 sm:col-span-4"><span className={lbl}>Dicabut oleh</span><input value={meta.dicabutOleh} onChange={(e) => set("dicabutOleh", e.target.value)} placeholder="PP 22/2021" className={kolom} /></div>}
-          </div>
-
-          {pratinjau && (
-            <div className="mt-5 space-y-3">
+          {/* 2. Identitas terbaca */}
+          {pratinjau && meta && (
+            <div className="mt-4 space-y-3">
               {pratinjau.sudahAda && (
-                <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />Peraturan dengan jenis, nomor, dan tahun ini sudah ada. Menerbitkan akan MENGGANTI PDF & potongan lamanya.</p>
+                <p className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 flex-none" />Peraturan ini sudah ada. Menerbitkan akan MENGGANTI PDF & potongan lamanya.</p>
               )}
+
+              <div className="rounded-xl border border-black/[0.08] p-4 dark:border-white/10">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11.5px] font-medium uppercase tracking-wide text-muted-foreground">Terbaca dari PDF</p>
+                    <p className="mt-1 text-[17px] font-semibold text-foreground">{meta.nomor && meta.tahun ? `${meta.jenis} ${meta.nomor}/${meta.tahun}` : "Identitas belum lengkap"}</p>
+                    <p className="mt-0.5 text-[13.5px] text-foreground/80">{meta.judul || <span className="text-amber-700">Judul tidak terbaca</span>}</p>
+                    <p className="mt-1.5 text-[12.5px] text-muted-foreground">
+                      {BIDANG[meta.bidang] ?? "Bidang ?"}{meta.tanggalPenetapan ? ` · ditetapkan ${tglIndo(meta.tanggalPenetapan)}` : ""}{meta.instansi ? ` · ${meta.instansi}` : ""}
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setUbah((v) => !v)} className="flex-none rounded-lg px-2.5 py-1 text-[13px] text-muted-foreground hover:bg-black/5 hover:text-foreground">{ubah ? "Tutup" : "Ubah"}</button>
+                </div>
+                {kosong.length > 0 && (
+                  <p className="mt-2 text-[12px] text-amber-700">Tidak terbaca: {kosong.map((k) => LABEL_KOLOM[k] ?? k).join(", ")}{ubah ? " — lengkapi di bawah" : ""}.</p>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/[0.06] pt-3 dark:border-white/10">
+                  <span className="text-[12.5px] text-muted-foreground">Status</span>
+                  {Object.entries(STATUS).map(([k, v]) => (
+                    <button key={k} type="button" onClick={() => set("status", k)}
+                      className={cn("rounded-full px-2.5 py-0.5 text-[12px] font-medium ring-1 ring-inset transition-colors",
+                        meta.status === k ? v.kelas : "text-muted-foreground ring-black/10 hover:text-foreground dark:ring-white/15")}>{v.label}</button>
+                  ))}
+                </div>
+                {meta.status === "diubah" && <input value={meta.diubahOleh} onChange={(e) => set("diubahOleh", e.target.value)} placeholder="Diubah oleh, mis. UU 6/2023" className={cn(kolom, "mt-2")} />}
+                {meta.status === "dicabut" && <input value={meta.dicabutOleh} onChange={(e) => set("dicabutOleh", e.target.value)} placeholder="Dicabut oleh, mis. PP 22/2021" className={cn(kolom, "mt-2")} />}
+
+                {ubah && (
+                  <div className="mt-3 grid grid-cols-2 gap-3 border-t border-black/[0.06] pt-3 sm:grid-cols-4 dark:border-white/10">
+                    <div className="col-span-2 sm:col-span-1"><span className={lbl}>Jenis</span>
+                      <select value={meta.jenis} onChange={(e) => set("jenis", e.target.value)} className={cn(kolom, tandai("jenis"))}>{JENIS.map((j) => <option key={j}>{j}</option>)}</select></div>
+                    <div><span className={lbl}>Nomor</span><input value={meta.nomor} onChange={(e) => set("nomor", e.target.value)} className={cn(kolom, tandai("nomor"))} /></div>
+                    <div><span className={lbl}>Tahun</span><input value={meta.tahun} onChange={(e) => set("tahun", e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" className={cn(kolom, tandai("tahun"))} /></div>
+                    <div className="col-span-2 sm:col-span-1"><span className={lbl}>Bidang</span>
+                      <select value={meta.bidang} onChange={(e) => set("bidang", e.target.value)} className={cn(kolom, tandai("bidang"))}>{Object.entries(BIDANG).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
+                    <div className="col-span-2 sm:col-span-4"><span className={lbl}>Judul (tentang)</span><input value={meta.judul} onChange={(e) => set("judul", e.target.value)} className={cn(kolom, tandai("judul"))} /></div>
+                    <div className="col-span-2"><span className={lbl}>Instansi</span><input value={meta.instansi} onChange={(e) => set("instansi", e.target.value)} className={kolom} /></div>
+                    <div className="col-span-2"><span className={lbl}>Tanggal penetapan</span><input type="date" value={meta.tanggalPenetapan} onChange={(e) => set("tanggalPenetapan", e.target.value)} className={cn(kolom, tandai("tanggalPenetapan"))} /></div>
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-4 gap-2 text-center">
                 {[["Halaman", pratinjau.halaman], ["Pasal", pratinjau.ringkasan.pasal], ["Penjelasan", pratinjau.ringkasan.penjelasan], ["Lampiran", pratinjau.ringkasan.lampiran]].map(([k, v]) => (
                   <div key={k as string} className="rounded-lg bg-black/[0.03] py-2 dark:bg-white/5"><p className="text-[17px] font-semibold tabular-nums">{v}</p><p className="text-[11.5px] text-muted-foreground">{k}</p></div>
@@ -337,9 +400,11 @@ function DialogUnggah({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: 
               ) : (
                 <p className="flex items-center gap-1.5 text-[12.5px] text-emerald-700"><CheckCircle2 className="h-4 w-4" />Teks terbaca baik, tidak ada nomor pasal yang terlewat.</p>
               )}
-              <div>
-                <p className="mb-1.5 text-[12.5px] font-medium text-foreground/80">Contoh potongan — periksa pasal tidak terpotong di tengah</p>
-                <ul className="space-y-1.5">
+              <details className="group">
+                <summary className="cursor-pointer list-none text-[12.5px] font-medium text-foreground/80 hover:text-foreground">
+                  <ChevronRight className="mr-1 inline h-3.5 w-3.5 transition-transform group-open:rotate-90" />Lihat contoh potongan pasal
+                </summary>
+                <ul className="mt-2 space-y-1.5">
                   {pratinjau.contoh.map((c: any, i: number) => (
                     <li key={i} className="rounded-lg border border-black/[0.07] px-3 py-2 dark:border-white/10">
                       <p className="flex justify-between gap-2 text-[12px] font-medium"><span className="truncate">{c.bagian}</span><span className="flex-none font-normal text-muted-foreground">hal. {c.halamanAwal}</span></p>
@@ -347,24 +412,17 @@ function DialogUnggah({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: 
                     </li>
                   ))}
                 </ul>
-              </div>
+              </details>
             </div>
           )}
         </div>
 
         <footer className="flex flex-none items-center justify-end gap-2 border-t border-black/[0.07] px-5 py-3 dark:border-white/10">
           <button type="button" onClick={onTutup} className="h-9 rounded-full border border-black/10 px-4 text-[14px] hover:bg-muted dark:border-white/15">Batal</button>
-          {!pratinjau ? (
-            <button type="button" onClick={lihat} disabled={!!sibuk || !berkas}
-              className="flex h-9 items-center gap-2 rounded-full bg-foreground px-4 text-[14px] font-medium text-background hover:opacity-90 disabled:opacity-40">
-              {sibuk === "pratinjau" && <Loader2 className="h-4 w-4 animate-spin" />}Pratinjau
-            </button>
-          ) : (
-            <button type="button" onClick={terbit} disabled={!!sibuk || !pratinjau.bisaDiterbitkan}
-              className="flex h-9 items-center gap-2 rounded-full bg-foreground px-4 text-[14px] font-medium text-background hover:opacity-90 disabled:opacity-40">
-              {sibuk === "terbit" && <Loader2 className="h-4 w-4 animate-spin" />}{sibuk === "terbit" ? "Memproses pasal…" : "Terbitkan"}
-            </button>
-          )}
+          <button type="button" onClick={terbit} disabled={!!sibuk || !pratinjau?.bisaDiterbitkan}
+            className="flex h-9 items-center gap-2 rounded-full bg-foreground px-4 text-[14px] font-medium text-background hover:opacity-90 disabled:opacity-40">
+            {sibuk === "terbit" && <Loader2 className="h-4 w-4 animate-spin" />}{sibuk === "terbit" ? "Memproses pasal…" : "Terbitkan"}
+          </button>
         </footer>
       </div>
     </div>

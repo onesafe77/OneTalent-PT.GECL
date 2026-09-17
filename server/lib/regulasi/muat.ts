@@ -2,6 +2,7 @@
 // Potongan masuk pengetahuan_potongan koleksi "regulasi"; status berlaku dibaca dari tabel regulasi saat mencari.
 import { sql } from "drizzle-orm";
 import { ekstrakHalamanReg, nilaiMutu, potongRegulasi, type PotonganRegulasi } from "./potong";
+import { deteksiMeta, type MetaTerdeteksi } from "./meta";
 import { MODEL_EMBEDDING, type Embedder } from "../pengetahuan/muat";
 import { lupakanIndeks } from "../pengetahuan/cari";
 
@@ -36,17 +37,32 @@ export function periksaMeta(m: any): string | null {
 }
 
 export interface Pratinjau {
+  meta: MetaRegulasi;                 // hasil baca PDF, ditimpa isian pengguna bila ada
+  terdeteksi: MetaTerdeteksi;
+  galatMeta: string | null;           // null = siap terbit tanpa koreksi
   mutu: ReturnType<typeof nilaiMutu> & { pasalLompat: string[] };
   ringkasan: { potongan: number; pasal: number; penjelasan: number; lampiran: number; pembukaan: number };
   contoh: Pick<PotonganRegulasi, "jenis" | "bagian" | "halamanAwal" | "halamanAkhir" | "teks">[];
   bisaDiterbitkan: boolean;
 }
 
-/** Potong PDF tanpa menyimpan apa pun — untuk layar pratinjau sebelum terbit. */
-export async function pratinjauRegulasi(pdf: Uint8Array, meta: MetaRegulasi): Promise<{ pratinjau: Pratinjau; potongan: PotonganRegulasi[]; halaman: number }> {
+/**
+ * Potong PDF tanpa menyimpan apa pun — untuk layar pratinjau sebelum terbit.
+ * Identitas dibaca dari PDF; isian pengguna (`koreksi`) hanya menimpa kolom yang diisi.
+ */
+export async function pratinjauRegulasi(pdf: Uint8Array, koreksi: Partial<MetaRegulasi> = {}): Promise<{ pratinjau: Pratinjau; potongan: PotonganRegulasi[]; halaman: number }> {
   const hal = await ekstrakHalamanReg(pdf);
+  const terdeteksi = deteksiMeta(hal);
+  const isi = (v: any) => v !== undefined && v !== null && String(v).trim() !== "" && !(typeof v === "number" && Number.isNaN(v));
+  const pilih = <K extends keyof MetaRegulasi>(k: K, cadangan: any) => (isi(koreksi[k]) ? koreksi[k] : isi((terdeteksi as any)[k]) ? (terdeteksi as any)[k] : cadangan);
+  const meta: MetaRegulasi = {
+    jenis: pilih("jenis", "Lainnya"), nomor: pilih("nomor", ""), tahun: Number(pilih("tahun", NaN)), judul: pilih("judul", ""),
+    instansi: pilih("instansi", null), bidang: pilih("bidang", "lainnya"), status: pilih("status", "berlaku"),
+    diubahOleh: pilih("diubahOleh", null), dicabutOleh: pilih("dicabutOleh", null), tanggalPenetapan: pilih("tanggalPenetapan", null),
+  };
   const mutu = nilaiMutu(hal);
   const potongan = mutu.halamanTanpaTeks === hal.length ? [] : potongRegulasi(hal, { label: labelRegulasi(meta), judul: meta.judul, status: meta.status });
+  const galatMeta = periksaMeta(meta);
 
   const nomor = Array.from(new Set(potongan.filter((p) => p.jenis === "pasal" && /^\d+$/.test(p.pasal || "")).map((p) => +p.pasal!))).sort((a, b) => a - b);
   const pasalLompat = nomor.length && !/perubahan/i.test(meta.judul)
@@ -59,6 +75,7 @@ export async function pratinjauRegulasi(pdf: Uint8Array, meta: MetaRegulasi): Pr
     .map(({ jenis, bagian, halamanAwal, halamanAkhir, teks }) => ({ jenis, bagian, halamanAwal, halamanAkhir, teks: teks.slice(0, 600) }));
   return {
     pratinjau: {
+      meta, terdeteksi, galatMeta,
       mutu: { ...mutu, pasalLompat },
       ringkasan: { potongan: potongan.length, pasal: hitung("pasal"), penjelasan: hitung("penjelasan"), lampiran: hitung("lampiran"), pembukaan: hitung("pembukaan") },
       contoh,
@@ -79,6 +96,7 @@ export async function terbitkanRegulasi(basisData: any, id: string, embed: Embed
   const meta: MetaRegulasi = { jenis: r.jenis, nomor: r.nomor, tahun: r.tahun, judul: r.judul, bidang: r.bidang, status: r.status };
   try {
     const { pratinjau, potongan } = await pratinjauRegulasi(new Uint8Array(Buffer.from(r.data, "base64")), meta);
+    if (pratinjau.galatMeta) throw new Error(pratinjau.galatMeta);
     if (!pratinjau.bisaDiterbitkan) throw new Error(pratinjau.mutu.catatan[0] || "Tidak ada pasal yang terbaca dari PDF");
     const vektor = await embed(potongan.map((p) => p.teksEmbed));
     const label = labelRegulasi(meta);
