@@ -162,7 +162,6 @@ import SPIPInstalasi from "@/pages/hse/ko/spip/instalasi-list";
 import { InstalasiFormPage, InstalasiViewPage } from "@/pages/hse/ko/spip/instalasi-detail-page";
 import SPIPPeralatanTidakBergerak from "@/pages/hse/ko/spip/peralatan-tidak-bergerak-list";
 import { BottomNav } from "@/components/layout/bottom-nav";
-import { MysticWidget } from "@/components/mystic/MysticWidget";
 import InvestorEvaluationPage from "@/pages/hse/investor-evaluation";
 
 
@@ -686,10 +685,6 @@ export function Workspace() {
         </div>
       </div>
 
-      {/* Floating Mystic Assistant Widget (Desktop Only by default logic, but can be responsive) */}
-      <div className="hidden lg:block">
-        <MysticWidget />
-      </div>
       </>}
     </div>
   );
