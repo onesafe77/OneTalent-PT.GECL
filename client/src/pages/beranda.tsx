@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowUp, Plus, ChevronDown, Mic, Square, Search, FileText, Check, Wrench, PenLine } from "lucide-react";
+import { ArrowUp, Plus, Send, ChevronDown, Mic, Square, Search, FileText, Check, Wrench, PenLine } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { CakraMark } from "@/components/brand/CakraMark";
 import { useAuth } from "@/lib/auth-context";
@@ -71,9 +71,13 @@ const SAPAAN = [
   () => "Apa yang bisa dibantu, {n}?",
 ];
 
-function sapaanAcak(nama: string): string {
+/** Hasil dipecah [sebelum, sesudah] nama supaya nama bisa diberi warna sendiri. */
+function sapaanAcak(nama: string): [string, string, boolean] {
   const t = SAPAAN[Math.floor(Math.random() * SAPAAN.length)]();
-  return nama ? t.replace("{n}", nama) : t.replace(/,? \{n\}/, "");
+  if (!nama) return [t.replace(/,? \{n\}/, ""), "", false];
+  if (!t.includes("{n}")) return [t, "", false];
+  const [a, b] = t.split("{n}");
+  return [a, b, true];
 }
 
 export default function Beranda() {
@@ -258,18 +262,6 @@ export default function Beranda() {
               )}
             </div>
             <div className="flex flex-none items-center gap-2">
-              {PengenalSuara && (
-                <button
-                  type="button"
-                  onClick={mulaiDikte}
-                  aria-label={merekam ? "Hentikan dikte" : "Dikte dengan suara"}
-                  title={merekam ? "Hentikan dikte" : "Dikte dengan suara"}
-                  className={cn("grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-muted",
-                    merekam ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground")}
-                >
-                  {merekam ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-[18px] w-[18px]" />}
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => kirim(teks)}
@@ -280,7 +272,7 @@ export default function Beranda() {
                   adaTeks ? "bg-primary text-primary-foreground hover:bg-primary/90" : "cursor-not-allowed bg-primary/40 text-primary-foreground"
                 )}
               >
-                <ArrowUp className="h-4 w-4" />
+                <Send className="h-4 w-4 -translate-x-[1px] translate-y-[1px]" />
               </button>
             </div>
           </div>
@@ -298,7 +290,7 @@ export default function Beranda() {
         <div className="m-auto flex w-full max-w-[720px] -translate-y-[6vh] flex-col items-center px-6 py-12 text-center">
           <h1 className="flex animate-fade-up items-center justify-center gap-3 text-balance font-serif text-[40px] font-normal leading-[1.15] tracking-[-0.02em] text-foreground">
             <span className="flex-none text-foreground"><CakraMark size={40} tegas /></span>
-            <span>{sapaan}</span>
+            <span>{sapaan[0]}{namaDepan && sapaan[2] && <span className="text-primary">{namaDepan}</span>}{sapaan[1]}</span>
           </h1>
           <div className="mt-8 w-full animate-fade-up [animation-delay:80ms]">{kotakKetik}</div>
         </div>
