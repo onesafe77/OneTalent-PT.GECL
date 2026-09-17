@@ -217,13 +217,25 @@ export default function Beranda() {
               : "border-black/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_24px_-10px_rgba(0,0,0,0.08)] hover:border-black/15 dark:border-white/10"
           )}
         >
-          {/* Garis cahaya tipis di tepi atas (hitam) & bawah (merah), seperti kilau pada bingkai. */}
-          <span aria-hidden className={cn("pointer-events-none absolute -top-px left-[38%] right-[12%] h-px transition-opacity duration-300",
-            fokus ? "opacity-100" : "opacity-70")}
-            style={{ background: "linear-gradient(90deg, transparent, rgba(10,10,10,0.85) 50%, transparent)" }} />
-          <span aria-hidden className={cn("pointer-events-none absolute -bottom-px left-[12%] right-[42%] h-px transition-opacity duration-300",
-            fokus ? "opacity-100" : "opacity-80")}
-            style={{ background: "linear-gradient(90deg, transparent, hsl(var(--primary)) 50%, transparent)" }} />
+          {/* Cahaya yang berjalan mengelilingi bingkai: satu kilau hitam & satu merah berseberangan.
+              conic-gradient diputar lewat @property --sudut, ditampilkan hanya di garis tepi (mask). */}
+          <span aria-hidden className={cn("bingkai-cahaya pointer-events-none absolute -inset-px rounded-[21px] transition-opacity duration-300",
+            fokus ? "opacity-100" : "opacity-75")} />
+          <style>{`
+            @property --sudut { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+            .bingkai-cahaya {
+              padding: 1.5px;
+              background: conic-gradient(from var(--sudut),
+                transparent 0deg, rgba(10,10,10,.9) 40deg, transparent 90deg,
+                transparent 180deg, hsl(var(--primary)) 220deg, transparent 270deg, transparent 360deg);
+              -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+              -webkit-mask-composite: xor;
+              mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+              animation: putar-cahaya 6s linear infinite;
+            }
+            @keyframes putar-cahaya { to { --sudut: 360deg; } }
+            @media (prefers-reduced-motion: reduce) { .bingkai-cahaya { animation: none; --sudut: 300deg; } }
+          `}</style>
           <textarea
             ref={ta}
             rows={1}
