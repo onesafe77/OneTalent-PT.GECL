@@ -10,6 +10,8 @@ const HARAP: Record<string, any> = {
   "PP_50_2012.pdf": { jenis: "PP", nomor: "50", tahun: 2012, judul: "Penerapan Sistem Manajemen Keselamatan dan Kesehatan Kerja", bidang: "k3", tanggalPenetapan: "2012-04-12" },
   "PP_78_2010.pdf": { jenis: "PP", nomor: "78", tahun: 2010, judul: "Reklamasi dan Pascatambang", bidang: "minerba", tanggalPenetapan: "2010-12-20" },
   "PP_96_2021.pdf": { jenis: "PP", nomor: "96", tahun: 2021, judul: "Pelaksanaan Kegiatan Usaha Pertambangan Mineral dan Batubara", bidang: "minerba", tanggalPenetapan: "2021-09-09" },
+  // Sampul (hal. 1) berupa pindaian: identitas harus dari blok "Menetapkan" & kepala lampiran, BUKAN daftar Mengingat.
+  "KEPMEN_1827_LENGKAP.pdf": { jenis: "Kepmen ESDM", nomor: "1827 K/30/MEM", tahun: 2018, judul: "Pedoman Pelaksanaan Kaidah Teknik Pertambangan yang Baik", bidang: "minerba", tanggalPenetapan: "2018-05-07" },
   "PERMEN_ESDM_26_2018.pdf": { jenis: "Permen ESDM", nomor: "26", tahun: 2018, bidang: "minerba", tanggalPenetapan: null },
 };
 (async () => {

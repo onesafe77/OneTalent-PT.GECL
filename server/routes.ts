@@ -9972,7 +9972,7 @@ Format sebagai bullet points singkat per insight.`;
       // Identitas dibaca dari PDF; field yang dikirim pengguna (koreksi) menimpanya.
       const { pratinjauRegulasi } = await import("./lib/regulasi/muat");
       const koreksi = req.body?.meta ? bacaMetaRegulasi(req.body) : {};
-      const { pratinjau, halaman } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), koreksi);
+      const { pratinjau, halaman } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), koreksi, req.file.originalname || "");
       const meta = pratinjau.meta;
       const ada = meta.nomor && meta.tahun ? (await db.execute(sql`select id, status_muat from regulasi where jenis = ${meta.jenis} and nomor = ${meta.nomor} and tahun = ${meta.tahun}`)).rows[0] : null;
       res.json({ ...pratinjau, halaman, sudahAda: ada || null });
@@ -9985,7 +9985,7 @@ Format sebagai bullet points singkat per insight.`;
       if (!cekPdf(req.file)) return res.status(400).json({ message: "Berkas harus PDF" });
       const { terbitkanRegulasi, pratinjauRegulasi } = await import("./lib/regulasi/muat");
       const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
-      const { pratinjau } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), req.body?.meta ? bacaMetaRegulasi(req.body) : {});
+      const { pratinjau } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), req.body?.meta ? bacaMetaRegulasi(req.body) : {}, req.file.originalname || "");
       const meta = pratinjau.meta;
       if (pratinjau.galatMeta) return res.status(400).json({ message: pratinjau.galatMeta });
       const u = penggunaRegulasi(req);

@@ -149,7 +149,7 @@ export function potongRegulasi(halamanMentah: HalamanReg[], id: IdentitasRegulas
   const potongan: Omit<PotonganRegulasi, "urutan" | "teksEmbed" | "hash">[] = [];
 
   let bagianDok: "pembukaan" | "tubuh" | "penjelasan" | "lampiran" = "pembukaan";
-  let bab = "", subBagian = "", paragraf = "", pasalLuar = "", pasalTerakhir: string | null = null;
+  let bab = "", subBagian = "", paragraf = "", pasalLuar = "", lampiran = "", pasalTerakhir: string | null = null;
   // Baris judul struktur (BAB/Bagian/Paragraf + judulnya) DITAHAN lalu ditempel di awal pasal berikutnya.
   // Tanpa ini judul menempel di ekor pasal sebelumnya dan pasal pertama bab kehilangan sinyal topiknya.
   let tahan: { teks: string; hal: number }[] = [];
@@ -171,7 +171,10 @@ export function potongRegulasi(halamanMentah: HalamanReg[], id: IdentitasRegulas
     const x = baris[j]?.teks;
     return x && x.length < 120 && !RE_PASAL.test(x) && !RE_BAB.test(x) && !RE_BAGIAN.test(x) && !/^\(?\d/.test(x) && !/[.;:]$/.test(x) ? x : null;
   };
-  const rapikan = (x: string) => (/^[A-Z0-9 ,&/()-]+$/.test(x) ? x.replace(/\b\w+/g, (w) => w[0] + w.slice(1).toLowerCase()) : x);
+  // "BAB II RENCANA PEMBUKAAN" -> "BAB II Rencana Pembukaan"; romawi & kata sambung dijaga.
+  const rapikan = (x: string) => (/^[A-Z0-9 ,.&/()'-]+$/.test(x)
+    ? x.replace(/\b[\w']+/g, (w, i) => (/^(BAB|[IVXL]+|[A-H])$/.test(w) ? w : i > 0 && /^(DAN|ATAU|YANG|DI|KE|DARI|PADA|SERTA|TENTANG|DALAM)$/.test(w) ? w.toLowerCase() : w[0] + w.slice(1).toLowerCase()))
+    : x);
 
   buka("pembukaan", "Pembukaan (Menimbang & Mengingat)", null);
 
@@ -183,8 +186,24 @@ export function potongRegulasi(halamanMentah: HalamanReg[], id: IdentitasRegulas
     if (bagianDok === "pembukaan" && RE_MEMUTUSKAN.test(t)) { kini!.baris.push(b); bagianDok = "tubuh"; continue; }
     if (bagianDok !== "lampiran" && RE_PENJELASAN.test(t)) { bagianDok = "penjelasan"; bab = ""; subBagian = ""; pasalLuar = ""; pasalTerakhir = null; buka("penjelasan", "Penjelasan › Umum", null); kini!.baris.push(b); continue; }
     if (RE_LAMPIRAN.test(t) && bagianDok !== "pembukaan" && (i === 0 || baris[i - 1].hal !== b.hal || /^LAMPIRAN\s*(I|\d)?\s*$/.test(t))) {
-      bagianDok = "lampiran"; buka("lampiran", "Lampiran", null); kini!.baris.push(b); continue;
+      // Label lampiran: nomor romawi + judul kapital sesudah baris NOMOR/TANGGAL (mis. "Lampiran III Pedoman Pelaksanaan Keselamatan…").
+      const rom = t.match(/^LAMPIRAN\s+([IVXL]+|\d+)\b/)?.[1];
+      let j = i + 1;
+      while (j < baris.length && j < i + 8 && /^(REPUBLIK INDONESIA|NOMOR|TANGGAL|TENTANG|KEPUTUSAN|PERATURAN|MENTERI|DIREKTUR)\b|:\s*\d/.test(baris[j].teks)) j++;
+      const judulL: string[] = [];
+      while (j < baris.length && judulL.length < 4 && /^[A-Z0-9 ,/&()'.-]{6,}$/.test(baris[j].teks) && !/^[A-Z]\.\s|^BAB\s/.test(baris[j].teks)) judulL.push(baris[j++].teks);
+      lampiran = `Lampiran${rom ? " " + rom : ""}${judulL.length ? " " + rapikan(judulL.join(" ")).slice(0, 90) : ""}`;
+      bagianDok = "lampiran"; buka("lampiran", lampiran, null); kini!.baris.push(b); continue;
     }
+
+    // Di dalam lampiran: judul bagian ("A. RUANG LINGKUP", "BAB II RENCANA PEMBUKAAN LAHAN") membuka potongan baru.
+    if (bagianDok === "lampiran" && lampiran && (/^[A-H]\.\s+[A-Z][A-Z ,/&()-]{3,}$/.test(t) || /^BAB\s+[IVXL]+\b/.test(t)) && kini!.baris.length >= 3) {
+      buka("lampiran", `${lampiran} › ${rapikan(t.replace(/\s+berisikan.*$/i, "")).slice(0, 80)}`, null); kini!.baris.push(b); continue;
+    }
+
+    // Keputusan (Kepmen/Kepdirjen) tidak berpasal: diktum KESATU, KEDUA, … adalah satuannya.
+    const mDiktum = bagianDok === "tubuh" ? t.match(/^(KESATU|KEDUA|KETIGA|KEEMPAT|KELIMA|KEENAM|KETUJUH|KEDELAPAN|KESEMBILAN|KESEPULUH|KESEBELAS|KEDUA BELAS)\s*:/) : null;
+    if (mDiktum) { buka("pasal", `Diktum ${mDiktum[1]}`, mDiktum[1]); kini!.baris.push(b); continue; }
 
     if (bagianDok === "tubuh" || bagianDok === "penjelasan") {
       const mBab = t.match(RE_BAB);

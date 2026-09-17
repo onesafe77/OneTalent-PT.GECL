@@ -36,7 +36,7 @@ const angkaOcr = (s: string) => s.replace(/[0-9OoIlSi]{2,}/g, (t) => (/\d/.test(
 
 const rapikanJudul = (s: string) => {
   const kecil = new Set(["dan", "atau", "yang", "di", "ke", "dari", "untuk", "pada", "dalam", "atas", "serta", "tentang", "dengan", "oleh", "bagi"]);
-  const singkatan = /^(K3|SMK3|SMKP|B3|IUP|IUPK|RKAB|PNBP|AMDAL|UKL-UPL|NIB|OSS|KTT|APD|PKP2B)$/i;
+  const singkatan = /^(K3|SMK3|SMKP|B3|IUP|IUPK|RKAB|PNBP|AMDAL|UKL-UPL|NIB|OSS|KTT|APD|PKP2B|PPLH|ESDM|LHK|BPJS|SNI)$/i;
   return s.toLowerCase().split(/\s+/).map((w, i) => (singkatan.test(w) ? w.toUpperCase() : i > 0 && kecil.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
 };
 
@@ -52,7 +52,29 @@ export function tebakBidang(teks: string): string | null {
   return skor[0][1] > 0 ? skor[0][0] : null;
 }
 
-export function deteksiMeta(halaman: HalamanReg[]): MetaTerdeteksi {
+const JENIS_DARI_NAMA: [RegExp, string][] = [
+  [/\bperppu\b/i, "Perppu"], [/\b(uu|undang[\s-]*undang)\b/i, "UU"], [/\b(pp|peraturan pemerintah)\b/i, "PP"],
+  [/\bperpres\b/i, "Perpres"], [/\bkeppres\b/i, "Keppres"],
+  [/\bpermen\s*esdm\b|\bperaturan menteri esdm\b/i, "Permen ESDM"], [/\bkepmen\s*esdm\b|\bkeputusan menteri esdm\b/i, "Kepmen ESDM"],
+  [/\bkepdirjen\b/i, "Kepdirjen Minerba"], [/\bpermenaker\b/i, "Permenaker"], [/\bkepmenaker\b/i, "Kepmenaker"],
+  [/\bpermen\s*lhk\b/i, "Permen LHK"], [/\bkepmen\s*lhk\b/i, "Kepmen LHK"], [/\bpermenkes\b/i, "Permenkes"], [/\bsni\b/i, "SNI"],
+];
+
+/** Cadangan terakhir: nama berkas ("05. KEPMEN ESDM NOMOR 1827 TAHUN 2018 TENTANG PEDOMAN…"). */
+export function metaDariNamaBerkas(nama: string): Partial<MetaTerdeteksi> {
+  const t = nama.replace(/\.pdf$/i, "").replace(/^\s*\d+[.)]\s*/, "").replace(/[_]+|(?<=\w)-(?=\w)/g, " ").replace(/\s+/g, " ");
+  const jenis = JENIS_DARI_NAMA.find(([re]) => re.test(t))?.[1] ?? null;
+  const m = t.match(/(?:nomor|no\.?)\s*([0-9]{1,4}(?:[\s.]*K)?(?:[\s/]+[0-9A-Z.]+)*?)\s*(?:tahun|\/|\s)\s*((?:19|20)\d{2})\b/i)
+    || t.match(/\b([0-9]{1,4})\s*(?:tahun|th\.?|\/|\s)\s*((?:19|20)\d{2})\b/i);
+  const j = t.match(/\btentang\b\s+(.+)$/i) || t.match(/\s[-–]\s+(.+)$/);
+  return {
+    // "1827 K 30 MEM" -> "1827 K/30/MEM"
+    jenis, nomor: m ? m[1].replace(/\s+/g, " ").trim().replace(/^(\d+(?:\s*\.?\s*K)?)[\s/]+(\d+)[\s/]+([A-Z.]+)$/i, (_, a, b, c) => `${a}/${b}/${c}`.replace(/\s*\/\s*/g, "/").replace(/(\d)\/?K\//i, "$1 K/")) : null, tahun: m ? +m[2] : null,
+    judul: j ? rapikanJudul(j[1].replace(/\.+$/, "").trim()) : null,
+  };
+}
+
+export function deteksiMeta(halaman: HalamanReg[], namaBerkas = ""): MetaTerdeteksi {
   // Kepala naskah: 2 halaman pertama cukup (halaman 1 kadang sampul Berita Negara).
   const awal = angkaOcr(halaman.slice(0, 2).flatMap((h) => h.baris).join("\n"));
   const datar = awal.replace(/\s+/g, " ");
@@ -65,16 +87,32 @@ export function deteksiMeta(halaman: HalamanReg[]): MetaTerdeteksi {
   const setelahKepala = posKepala >= 0 ? datar.slice(posKepala) : datar;
 
   let nomor: string | null = null, tahun: number | null = null;
-  // "NOMOR 1827 K/30/MEM/2018" (keputusan) lebih dulu, lalu "NOMOR 96 TAHUN 2021".
-  const mKep = setelahKepala.match(/NOMOR\s*:?\s*([0-9]{1,4}(?:\s*\.?\s*K)?(?:\s*\/\s*[0-9A-Z.]+)+)\s*\/\s*((?:19|20)\d{2})\b/i);
-  const mBiasa = setelahKepala.match(/NOMOR\s*:?\s*([0-9]{1,4}[A-Z]?)\s+TAHUN\s+((?:19|20)\d{2})\b/i);
+  // Nomor HANYA dari dekat kepala naskah. Tanpa kepala, "Nomor 23 Tahun 2014" di daftar Mengingat
+  // ikut terbaca (uji: Kepmen 1827K yang halaman sampulnya pindaian).
+  const dekatKepala = posKepala >= 0 ? setelahKepala.slice(0, 260) : "";
+  const mKep = dekatKepala.match(/NOMOR\s*:?\s*([0-9]{1,4}(?:\s*\.?\s*K)?(?:\s*\/\s*[0-9A-Z.]+)+)\s*\/\s*((?:19|20)\d{2})\b/i);
+  const mBiasa = dekatKepala.match(/NOMOR\s*:?\s*([0-9]{1,4}[A-Z]?)\s+TAHUN\s+((?:19|20)\d{2})\b/i);
   if (mKep && (!mBiasa || (mKep.index ?? 0) <= (mBiasa.index ?? 0))) { nomor = mKep[1].replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim(); tahun = +mKep[2]; }
   else if (mBiasa) { nomor = mBiasa[1]; tahun = +mBiasa[2]; }
 
   // Judul: sesudah "TENTANG" pertama setelah nomor, sampai "DENGAN RAHMAT" / nama pejabat / "Menimbang".
   let judul: string | null = null;
-  const mJudul = setelahKepala.match(/\bTENTANG\b\s+(.+?)\s+(?:DENGAN RAHMAT|PRESIDEN REPUBLIK|MENTERI [A-Z ]+ REPUBLIK|DIREKTUR JENDERAL|Menimbang)/);
+  const mJudul = posKepala >= 0 ? setelahKepala.match(/\bTENTANG\b\s+(.+?)\s+(?:DENGAN RAHMAT|PRESIDEN REPUBLIK|MENTERI [A-Z ]+ REPUBLIK|DIREKTUR JENDERAL|Menimbang)/) : null;
   if (mJudul) judul = rapikanJudul(mJudul[1].replace(/[,;.]+$/, "").trim()).slice(0, 300);
+
+  // Cadangan 1 — blok penetapan: "Menetapkan : KEPUTUSAN MENTERI … TENTANG <JUDUL>."
+  const awal10 = angkaOcr(halaman.slice(0, 10).flatMap((h) => h.baris).join(" ")).replace(/\s+/g, " ");
+  const mTetap = awal10.match(/Menetapkan\s*:?\s*((?:PERATURAN|KEPUTUSAN|UNDANG)[A-Z\s-]+?)\s+TENTANG\s+([A-Z0-9][A-Z0-9 ,/&()'-]+?)\s*\.(?:\s|$)/);
+  if (mTetap) {
+    if (!jenis) { const k = KEPALA.find(([re]) => re.test(mTetap[1] + " REPUBLIK")); if (k) { jenis = k[1]; instansi ??= k[2]; } }
+    if (!judul) judul = rapikanJudul(mTetap[2].trim()).slice(0, 300);
+  }
+  // Cadangan 2 — kepala lampiran: "LAMPIRAN I KEPUTUSAN MENTERI … NOMOR : 1827 K/30/MEM/2018 TANGGAL : 7 Mei 2018".
+  const mLamp = awal10.match(/LAMPIRAN\s+[IVX\d]*\s*((?:PERATURAN|KEPUTUSAN)[A-Z\s]+?)\s+(?:REPUBLIK INDONESIA\s+)?NOMOR\s*:?\s*([0-9]{1,4}(?:\s*\.?\s*K)?(?:\s*\/\s*[0-9A-Z.]+)*?)\s*(?:\/|\s+TAHUN\s+)((?:19|20)\d{2})(?:\s+TANGGAL\s*:?\s*(\d{1,2})\s+([A-Za-z]+)\s+((?:19|20)\d{2}))?/i);
+  if (mLamp) {
+    if (!jenis) { const k = KEPALA.find(([re]) => re.test(mLamp[1] + " REPUBLIK")); if (k) { jenis = k[1]; instansi ??= k[2]; } }
+    if (!nomor) { nomor = mLamp[2].replace(/\s*\/\s*/g, "/").replace(/\s+/g, " ").trim(); tahun = +mLamp[3]; }
+  }
 
   // Tanggal penetapan: "Ditetapkan di … pada tanggal 9 September 2021" (ambil yang pertama setelah "Ditetapkan").
   let tanggalPenetapan: string | null = null;
@@ -82,6 +120,16 @@ export function deteksiMeta(halaman: HalamanReg[]): MetaTerdeteksi {
   const iTetap = semua.search(/Ditetapkan\s+di/i);
   const mTgl = (iTetap >= 0 ? semua.slice(iTetap, iTetap + 200) : semua).match(/pada tanggal\s+(\d{1,2})\s+([A-Za-z]+)\s+((?:19|20)\d{2})/i);
   if (mTgl && BULAN[mTgl[2].toLowerCase()]) tanggalPenetapan = `${mTgl[3]}-${BULAN[mTgl[2].toLowerCase()]}-${mTgl[1].padStart(2, "0")}`;
+  if (!tanggalPenetapan && mLamp?.[4] && BULAN[mLamp[5].toLowerCase()]) tanggalPenetapan = `${mLamp[6]}-${BULAN[mLamp[5].toLowerCase()]}-${mLamp[4].padStart(2, "0")}`;
+
+  // Cadangan 3 — nama berkas, hanya untuk kolom yang masih kosong.
+  if (namaBerkas && (!jenis || !nomor || !tahun || !judul)) {
+    const n = metaDariNamaBerkas(namaBerkas);
+    jenis ??= n.jenis ?? null;
+    if (!nomor && n.nomor && n.tahun) { nomor = n.nomor; tahun = n.tahun; }
+    judul ??= n.judul ?? null;
+    if (jenis && !instansi) instansi = KEPALA.find(([, j]) => j === jenis)?.[2] ?? null;
+  }
 
   // Tanggal yang tahunnya tidak sejalan dengan tahun peraturan lebih mungkin salah ketik/OCR (uji: Permen ESDM 26/2018
   // tertulis "2 Mei 2016") — dikosongkan agar diisi pengguna, bukan disimpan keliru.

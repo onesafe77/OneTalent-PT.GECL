@@ -50,9 +50,9 @@ export interface Pratinjau {
  * Potong PDF tanpa menyimpan apa pun — untuk layar pratinjau sebelum terbit.
  * Identitas dibaca dari PDF; isian pengguna (`koreksi`) hanya menimpa kolom yang diisi.
  */
-export async function pratinjauRegulasi(pdf: Uint8Array, koreksi: Partial<MetaRegulasi> = {}): Promise<{ pratinjau: Pratinjau; potongan: PotonganRegulasi[]; halaman: number }> {
+export async function pratinjauRegulasi(pdf: Uint8Array, koreksi: Partial<MetaRegulasi> = {}, namaBerkas = ""): Promise<{ pratinjau: Pratinjau; potongan: PotonganRegulasi[]; halaman: number }> {
   const hal = await ekstrakHalamanReg(pdf);
-  const terdeteksi = deteksiMeta(hal);
+  const terdeteksi = deteksiMeta(hal, namaBerkas);
   const isi = (v: any) => v !== undefined && v !== null && String(v).trim() !== "" && !(typeof v === "number" && Number.isNaN(v));
   const pilih = <K extends keyof MetaRegulasi>(k: K, cadangan: any) => (isi(koreksi[k]) ? koreksi[k] : isi((terdeteksi as any)[k]) ? (terdeteksi as any)[k] : cadangan);
   const meta: MetaRegulasi = {
