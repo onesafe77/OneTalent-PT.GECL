@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ArrowUp, ChevronDown, Mic, Square, Search, FileText, Check, Wrench, PenLine } from "lucide-react";
+import { ArrowUp, Plus, ChevronDown, Mic, Square, Search, FileText, Check, Wrench, PenLine } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import { CakraMark } from "@/components/brand/CakraMark";
 import { useAuth } from "@/lib/auth-context";
@@ -166,7 +166,7 @@ export default function Beranda() {
     return () => window.removeEventListener("chat-baru", kosongkan);
   }, []);
 
-  const namaDepan = (user?.name || "").trim().split(/\s+/)[0] || "";
+  const namaDepan = (() => { const w = (user?.name || "").trim().split(/\s+/)[0] || ""; return w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""; })();
   const adaTeks = teks.trim().length > 0;
 
 
@@ -175,8 +175,11 @@ export default function Beranda() {
         {/* Kotak ketik — gaya prototipe: kartu putih membulat, baris bawah berisi chip & aksi */}
         <div
           className={cn(
-            "relative w-full rounded-[26px] border bg-card px-3.5 pb-2.5 pt-3.5 text-left transition-[border-color,box-shadow] duration-150",
-            fokus ? "border-gray-400 shadow-[0_0_24px_-8px_rgba(0,0,0,0.18)] dark:border-gray-600" : "border-border"
+            // Gaya Claude: kartu 20px, bayangan lembut berlapis, tanpa cincin fokus mencolok.
+            "relative w-full rounded-[20px] border bg-card px-4 pb-3 pt-4 text-left transition-[border-color,box-shadow] duration-200",
+            fokus
+              ? "border-black/15 shadow-[0_2px_4px_rgba(0,0,0,0.04),0_12px_32px_-8px_rgba(0,0,0,0.12)] dark:border-white/20"
+              : "border-black/[0.08] shadow-[0_1px_2px_rgba(0,0,0,0.03),0_8px_24px_-10px_rgba(0,0,0,0.08)] hover:border-black/15 dark:border-white/10"
           )}
         >
           <textarea
@@ -191,18 +194,21 @@ export default function Beranda() {
             }}
             placeholder={pesan.length ? "Balas Mystic AI" : "Tanyakan apa pun ke Mystic AI"}
             aria-label="Tulis pertanyaan"
-            className="block max-h-[200px] min-h-6 w-full resize-none border-0 bg-transparent p-0 text-[15px] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+            className="block max-h-[240px] min-h-12 w-full resize-none border-0 bg-transparent px-1 py-0 text-[16px] leading-6 text-foreground outline-none placeholder:text-muted-foreground"
           />
-          <div className="mt-2.5 flex items-center justify-between gap-2">
+          <div className="mt-3 flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setAlatBuka((v) => !v)}
                   aria-expanded={alatBuka}
-                  className="flex h-7 items-center gap-1 rounded-full border border-border px-2.5 text-[12.5px] text-muted-foreground transition-colors hover:border-gray-400 hover:text-foreground"
+                  aria-label="Alat"
+                  title="Alat"
+                  className={cn("grid h-8 w-8 place-items-center rounded-lg border border-black/[0.08] text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-muted hover:text-foreground active:scale-[0.96] dark:border-white/10",
+                    alatBuka && "bg-muted text-foreground")}
                 >
-                  Alat <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", alatBuka && "rotate-180")} />
+                  <Plus className={cn("h-4 w-4 transition-transform duration-200", alatBuka && "rotate-45")} />
                 </button>
                 {alatBuka && (
                   <>
@@ -223,8 +229,8 @@ export default function Beranda() {
                 )}
               </div>
               {user?.department && (
-                <span className="flex h-7 items-center truncate rounded-full border border-border px-2.5 text-[12.5px] text-muted-foreground">
-                  Departemen: {user.department}
+                <span className="flex h-8 items-center truncate rounded-lg px-2 text-[13px] text-muted-foreground">
+                  {user.department}
                 </span>
               )}
             </div>
@@ -235,7 +241,7 @@ export default function Beranda() {
                   onClick={mulaiDikte}
                   aria-label={merekam ? "Hentikan dikte" : "Dikte dengan suara"}
                   title={merekam ? "Hentikan dikte" : "Dikte dengan suara"}
-                  className={cn("grid h-8 w-8 place-items-center rounded-full transition-colors",
+                  className={cn("grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-muted",
                     merekam ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground")}
                 >
                   {merekam ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-[18px] w-[18px]" />}
@@ -247,8 +253,8 @@ export default function Beranda() {
                 disabled={!adaTeks || menunggu}
                 aria-label="Kirim"
                 className={cn(
-                  "grid h-8 w-8 place-items-center rounded-full transition-colors duration-150",
-                  adaTeks ? "bg-foreground text-background" : "cursor-not-allowed bg-border text-muted-foreground"
+                  "grid h-8 w-8 place-items-center rounded-lg transition-[background-color,transform] duration-150 active:scale-[0.96]",
+                  adaTeks ? "bg-primary text-primary-foreground hover:bg-primary/90" : "cursor-not-allowed bg-primary/40 text-primary-foreground"
                 )}
               >
                 <ArrowUp className="h-4 w-4" />
@@ -267,8 +273,9 @@ export default function Beranda() {
     return (
       <div className="flex min-h-full w-full">
         <div className="m-auto flex w-full max-w-[720px] -translate-y-[6vh] flex-col items-center px-6 py-12 text-center">
-          <h1 className="animate-fade-up text-balance text-[40px] font-semibold leading-[1.15] tracking-[-0.035em] text-foreground">
-            {salam()}{namaDepan && `, ${namaDepan}`}
+          <h1 className="flex animate-fade-up items-center justify-center gap-3 text-balance font-serif text-[40px] font-normal leading-[1.15] tracking-[-0.02em] text-foreground">
+            <span className="flex-none text-primary"><CakraMark size={38} /></span>
+            <span>{salam()}{namaDepan && `, ${namaDepan}`}</span>
           </h1>
           <p className="mt-3 max-w-[65ch] animate-fade-up text-[15px] text-muted-foreground [animation-delay:60ms]">
             Tanya apa saja soal regulasi, temuan, atau data karyawan.
