@@ -237,7 +237,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     }
 
     // Gaya ChatGPT: satu baris setinggi 32px, ikon kecil tanpa kotak, tanpa animasi.
-    // Kedalaman ditandai indentasi saja — tidak ada garis penghubung atau kartu.
+    // Kedalaman ditandai indentasi + garis pandu tipis di bawah ikon induk.
     const indent = { paddingLeft: `${0.5 + depth * 0.875}rem` };
 
     if (hasChildren) {
@@ -269,7 +269,10 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
                 className="overflow-hidden"
               >
-                <div className="flex flex-col gap-px pb-1">
+                <div className="relative flex flex-col gap-px pb-1">
+                  {/* Garis pandu: turun dari tengah ikon induk, menandai anggota grup. */}
+                  <span aria-hidden className="pointer-events-none absolute bottom-2 top-0 w-px bg-gray-200 dark:bg-gray-800"
+                    style={{ left: `calc(${0.5 + depth * 0.875}rem + 8.5px)` }} />
                   {item.children!.map((child) => (
                     <Fragment key={child.name}>{SidebarItemRenderer({ item: child, depth: depth + 1 })}</Fragment>
                   ))}
