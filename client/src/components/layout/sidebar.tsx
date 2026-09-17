@@ -238,7 +238,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
     // Gaya ChatGPT: satu baris setinggi 32px, ikon kecil tanpa kotak, tanpa animasi.
     // Kedalaman ditandai indentasi + garis pandu tipis di bawah ikon induk.
-    const indent = { paddingLeft: `${0.5 + depth * 0.875}rem` };
+    const indent = { paddingLeft: `${0.5 + depth * 1.125}rem` };
+    // Posisi garis pandu grup pada kedalaman d = tengah ikon induknya.
+    const garisX = (d: number) => `${0.5 + d * 1.125}rem + 8.5px`;
 
     if (hasChildren) {
       return (
@@ -271,8 +273,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               >
                 <div className="relative flex flex-col gap-px pb-1">
                   {/* Garis pandu: turun dari tengah ikon induk, menandai anggota grup. */}
-                  <span aria-hidden className="pointer-events-none absolute bottom-2 top-0 w-px bg-gray-200 dark:bg-gray-800"
-                    style={{ left: `calc(${0.5 + depth * 0.875}rem + 8.5px)` }} />
+                  <span aria-hidden className="pointer-events-none absolute bottom-3 top-1 w-px rounded-full bg-gray-200/80 dark:bg-gray-800"
+                    style={{ left: `calc(${garisX(depth)})` }} />
                   {item.children!.map((child) => (
                     <Fragment key={child.name}>{SidebarItemRenderer({ item: child, depth: depth + 1 })}</Fragment>
                   ))}
@@ -305,10 +307,16 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               layoutId="sidebar-aktif"
               // Durasi tetap & singkat: selesai sebelum halaman baru selesai dipasang.
               transition={{ type: "tween", duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
-              className="absolute inset-0 rounded-lg bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)] dark:bg-gray-800"
+              style={depth > 0 ? { left: `calc(${garisX(depth - 1)} + 7px)` } : undefined}
+              className="absolute inset-y-0 left-0 right-0 rounded-lg bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06),0_0_0_1px_rgba(0,0,0,0.04)] dark:bg-gray-800"
             >
-              <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />
+              {depth === 0 && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-primary" />}
             </motion.span>
+          )}
+          {/* Anak aktif: ruas garis pandu menyala merah, menyambung ke grupnya. */}
+          {isActiveLink && depth > 0 && (
+            <span aria-hidden className="absolute inset-y-1 w-[2px] -translate-x-[0.5px] rounded-full bg-primary"
+              style={{ left: `calc(${garisX(depth - 1)})` }} />
           )}
           {IconComponent && (
             <IconComponent strokeWidth={1.6} className={cn("relative h-[18px] w-[18px] flex-none transition-colors duration-150",
