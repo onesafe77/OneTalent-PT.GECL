@@ -19139,6 +19139,8 @@ Format sebagai bullet points singkat per insight.`;
 
       // 5. Call AI with Tools (via OpenRouter, same client as other AI endpoints)
       if (!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY)) {
+        // Mode stream: header sudah terkirim, res.json akan melempar -> pesan kunci hilang.
+        if (stream) { kirimLangkah({ tipe: "galat", pesan: "API Key AI (OPENROUTER_API_KEY) belum diatur di server. Hubungi admin." }); return res.end(); }
         return res.json({
           message: "Maaf, API Key AI tidak ditemukan. Hubungi admin.",
           sessionId: currentSessionId
@@ -19389,7 +19391,7 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
 
     } catch (error: any) {
       console.error("Si Asef Chat Error (Full Trace):", error);
-      if (res.headersSent) { res.write(`data: ${JSON.stringify({ tipe: "galat", pesan: "Gagal memproses pertanyaan." })}\n\n`); return res.end(); }
+      if (res.headersSent) { res.write(`data: ${JSON.stringify({ tipe: "galat", pesan: `Gagal memproses pertanyaan: ${String(error?.status ? `${error.status} ` : "")}${String(error?.message || error).replace(/sk-[\w-]+/g, "sk-***").slice(0, 200)}` })}\n\n`); return res.end(); }
       res.status(500).json({ message: error.message });
     }
   });
