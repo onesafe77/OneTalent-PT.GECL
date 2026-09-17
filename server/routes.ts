@@ -3319,6 +3319,86 @@ Format sebagai bullet points singkat per insight.`;
     }
   });
 
+  // === Dokumen pribadi karyawan (KTP, SIM, form cuti) ===
+  // Data pribadi: kelola (unggah/hapus) hanya HSE, HRGA, PJO — sama dengan aturan data kesehatan.
+  // Karyawan yang bersangkutan boleh melihat & mengunduh miliknya sendiri. Setiap akses berkas dicatat.
+  const JENIS_DOKUMEN = ["ktp", "sim", "cuti"];
+  const MIME_DOKUMEN = /^(application\/pdf|image\/(jpeg|png|webp))$/;
+  const unggahDokumen = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+  const aksesDokumen = (req: any, employeeId: string): "kelola" | "lihat" | null => {
+    const u = (req.session as any)?.user;
+    if (!u) return null;
+    if (canAccessHealthProfile(u.position, u.department)) return "kelola";
+    return String(u.id) === String(employeeId) ? "lihat" : null;
+  };
+
+  app.get("/api/employees/:id/dokumen", async (req, res) => {
+    try {
+      const akses = aksesDokumen(req, req.params.id);
+      if (!akses) return res.status((req.session as any)?.user ? 403 : 401).json({ message: "Tidak berhak melihat dokumen karyawan ini" });
+      const rows = (await db.execute(sql`select id, jenis, keterangan, nama_berkas, mime_type, ukuran, diunggah_oleh, dibuat
+        from employee_documents where employee_id = ${req.params.id} order by jenis, dibuat desc`)).rows;
+      res.json({ items: rows, bolehKelola: akses === "kelola" });
+    } catch (e: any) { console.error("GET dokumen karyawan:", e); res.status(500).json({ message: "Gagal memuat dokumen" }); }
+  });
+
+  app.post("/api/employees/:id/dokumen", (req: any, res) => {
+    unggahDokumen.single("berkas")(req, res, async (err: any) => {
+      if (err) return res.status(400).json({ message: err.code === "LIMIT_FILE_SIZE" ? "Ukuran berkas melebihi 10 MB" : "Berkas ditolak" });
+      try {
+        if (aksesDokumen(req, req.params.id) !== "kelola") return res.status(403).json({ message: "Hanya HSE, HRGA, atau PJO yang dapat mengunggah dokumen" });
+        const jenis = String(req.body?.jenis || "");
+        if (!JENIS_DOKUMEN.includes(jenis)) return res.status(400).json({ message: "Jenis dokumen tidak dikenal" });
+        const f = req.file;
+        if (!f) return res.status(400).json({ message: "Pilih berkas dulu" });
+        // Tanda tangan berkas, bukan hanya mimetype kiriman browser.
+        const sig = f.buffer.subarray(0, 4).toString("hex");
+        const cocok = (f.mimetype === "application/pdf" && sig === "25504446") || (f.mimetype === "image/jpeg" && sig.startsWith("ffd8")) ||
+          (f.mimetype === "image/png" && sig === "89504e47") || (f.mimetype === "image/webp" && f.buffer.subarray(8, 12).toString() === "WEBP");
+        if (!MIME_DOKUMEN.test(f.mimetype) || !cocok) return res.status(400).json({ message: "Berkas harus PDF, JPG, PNG, atau WEBP" });
+        const ada = (await db.execute(sql`select 1 from employees where id = ${req.params.id}`)).rows.length;
+        if (!ada) return res.status(404).json({ message: "Karyawan tidak ditemukan" });
+
+        const u = (req.session as any).user;
+        const berkas = (await db.execute(sql`insert into uploaded_files (data, mime_type, filename)
+          values (${f.buffer.toString("base64")}, ${f.mimetype}, ${f.originalname}) returning id`)).rows[0] as any;
+        const baris = (await db.execute(sql`insert into employee_documents (employee_id, jenis, keterangan, berkas_id, nama_berkas, mime_type, ukuran, diunggah_oleh)
+          values (${req.params.id}, ${jenis}, ${String(req.body?.keterangan || "").trim().slice(0, 200) || null}, ${berkas.id}, ${f.originalname}, ${f.mimetype}, ${f.size}, ${u.name})
+          returning id, jenis, keterangan, nama_berkas, mime_type, ukuran, diunggah_oleh, dibuat`)).rows[0];
+        console.log(`[dokumen-karyawan] ${u.name} mengunggah ${jenis} untuk ${req.params.id}`);
+        res.status(201).json(baris);
+      } catch (e: any) { console.error("POST dokumen karyawan:", e); res.status(500).json({ message: "Gagal menyimpan dokumen" }); }
+    });
+  });
+
+  app.get("/api/employees/:id/dokumen/:docId/berkas", async (req, res) => {
+    try {
+      if (!aksesDokumen(req, req.params.id)) return res.sendStatus((req.session as any)?.user ? 403 : 401);
+      const d = (await db.execute(sql`select d.jenis, d.nama_berkas, d.mime_type, f.data from employee_documents d
+        join uploaded_files f on f.id = d.berkas_id where d.id = ${req.params.docId} and d.employee_id = ${req.params.id}`)).rows[0] as any;
+      if (!d?.data) return res.sendStatus(404);
+      const unduh = req.query.unduh === "1";
+      const u = (req.session as any).user;
+      console.log(`[dokumen-karyawan] ${u.name} ${unduh ? "mengunduh" : "melihat"} ${d.jenis} milik ${req.params.id}`);
+      res.setHeader("Content-Type", d.mime_type);
+      res.setHeader("Content-Disposition", `${unduh ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(d.nama_berkas)}`);
+      res.setHeader("Cache-Control", "private, no-store");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.send(Buffer.from(d.data, "base64"));
+    } catch (e: any) { console.error("GET berkas dokumen karyawan:", e); res.sendStatus(500); }
+  });
+
+  app.delete("/api/employees/:id/dokumen/:docId", async (req, res) => {
+    try {
+      if (aksesDokumen(req, req.params.id) !== "kelola") return res.status(403).json({ message: "Tidak berhak menghapus dokumen" });
+      const d = (await db.execute(sql`delete from employee_documents where id = ${req.params.docId} and employee_id = ${req.params.id} returning berkas_id, jenis`)).rows[0] as any;
+      if (!d) return res.sendStatus(404);
+      await db.execute(sql`delete from uploaded_files where id = ${d.berkas_id}`);
+      console.log(`[dokumen-karyawan] ${(req.session as any).user.name} menghapus ${d.jenis} milik ${req.params.id}`);
+      res.json({ ok: true });
+    } catch (e: any) { console.error("DELETE dokumen karyawan:", e); res.status(500).json({ message: "Gagal menghapus dokumen" }); }
+  });
+
   // === Employee Family Members ===
   app.get("/api/employees/:id/family-members", async (req, res) => {
     try {

@@ -115,6 +115,24 @@ export const employees = pgTable("employees", {
   index("IDX_employees_department").on(table.department),
 ]);
 
+// Dokumen pribadi karyawan (KTP, SIM, form cuti). Berkas disimpan di uploaded_files tetapi TIDAK
+// disajikan lewat /api/uploads (tanpa login) — hanya lewat endpoint bergerbang di /api/employees/:id/dokumen.
+export const employeeDocuments = pgTable("employee_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  jenis: varchar("jenis", { length: 20 }).notNull(),          // ktp | sim | cuti
+  keterangan: text("keterangan"),                              // mis. "SIM B2 Umum" / "Cuti 1–14 Okt 2026"
+  berkasId: varchar("berkas_id").notNull(),                    // uploaded_files.id
+  namaBerkas: text("nama_berkas").notNull(),
+  mimeType: varchar("mime_type", { length: 100 }).notNull(),
+  ukuran: integer("ukuran").notNull(),
+  diunggahOleh: text("diunggah_oleh"),
+  dibuat: timestamp("dibuat", { withTimezone: true }).defaultNow(),
+}, (t) => ({
+  idxKaryawan: index("idx_employee_documents_karyawan").on(t.employeeId, t.jenis),
+}));
+export type EmployeeDocument = typeof employeeDocuments.$inferSelect;
+
 export const employeeFamilyMembers = pgTable("employee_family_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   employeeId: varchar("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),

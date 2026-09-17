@@ -22,6 +22,7 @@ import { z } from "zod";
 import { Separator } from "@/components/ui/separator";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { getExpiryStatus } from "@/lib/expiry-utils";
+import { DokumenKaryawan } from "@/components/employee/DokumenKaryawan";
 
 const formSchema = z.object({
     id: z.string().min(1, "ID Karyawan harus diisi"),
@@ -685,6 +686,9 @@ export default function EmployeeDetail() {
                     )}
 
                     </fieldset>
+
+                    {/* Di LUAR fieldset: mode "hanya lihat" tetap bisa membuka & mengunduh dokumen. */}
+                    {!isNew && employeeId && <DokumenKaryawan employeeId={employeeId} />}
                 </form>
             </Form>
 
