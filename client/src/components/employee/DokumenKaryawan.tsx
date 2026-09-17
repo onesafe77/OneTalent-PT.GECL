@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, IdCard, Car, CalendarDays, Upload, Eye, Download, Trash2, Loader2, X, Lock } from "lucide-react";
+import { FileText, IdCard, Car, CalendarDays, Upload, Eye, Download, Trash2, Loader2, X, Lock, ChevronRight } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { konfirmasi } from "@/components/ui/konfirmasi";
@@ -39,6 +39,28 @@ export function DokumenKaryawan({ employeeId }: { employeeId: string }) {
   const [ket, setKet] = useState<Record<string, string>>({});
   const input = useRef<HTMLInputElement>(null);
   const jenisAktif = useRef<string>("");
+
+  const [riwayatBuka, setRiwayatBuka] = useState(false);
+
+  // Satu baris berkas. `terbaru` menandai form cuti yang berlaku; yang lebih lama tampil di Riwayat.
+  const baris = (d: Dokumen, terbaru: boolean) => (
+    <li key={d.id} className="group flex items-center gap-2 px-3 py-2.5">
+      <button type="button" onClick={() => setLihat(d)} className="min-w-0 flex-1 rounded-md px-1 text-left">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate text-[13px] font-medium text-foreground group-hover:underline">{d.keterangan || d.nama_berkas}</span>
+          {terbaru && <span className="flex-none rounded-full bg-emerald-50 px-1.5 py-px text-[10.5px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/15 dark:bg-emerald-500/10 dark:text-emerald-300">Terbaru</span>}
+        </span>
+        <span className="block truncate text-[11.5px] text-muted-foreground">
+          {d.mime_type === "application/pdf" ? "PDF" : "Gambar"} · {ukuranTeks(d.ukuran)} · {tanggalTeks(d.dibuat)}{d.diunggah_oleh ? ` · ${d.diunggah_oleh}` : ""}
+        </span>
+      </button>
+      <button type="button" onClick={() => setLihat(d)} title="Lihat" className="grid h-7 w-7 flex-none place-items-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground"><Eye className="h-4 w-4" /></button>
+      <a href={urlBerkas(d, true)} title="Unduh" className="grid h-7 w-7 flex-none place-items-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground"><Download className="h-4 w-4" /></a>
+      {data?.bolehKelola && (
+        <button type="button" onClick={() => hapus(d)} title="Hapus" className="grid h-7 w-7 flex-none place-items-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+      )}
+    </li>
+  );
 
   const urlBerkas = (d: Dokumen, unduh = false) => `/api/employees/${employeeId}/dokumen/${d.id}/berkas${unduh ? "?unduh=1" : ""}`;
 
@@ -110,7 +132,7 @@ export function DokumenKaryawan({ employeeId }: { employeeId: string }) {
                   <span className="grid h-8 w-8 place-items-center rounded-lg bg-black/[0.04] text-foreground/70 dark:bg-white/5"><Ikon className="h-4 w-4" strokeWidth={1.7} /></span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[14px] font-medium text-foreground">{label}</p>
-                    <p className="truncate text-[12px] text-muted-foreground">{daftar.length ? `${daftar.length} berkas` : petunjuk}</p>
+                    <p className="truncate text-[12px] text-muted-foreground">{key === "cuti" && daftar.length ? `Terbaru ${tanggalTeks(daftar[0].dibuat)}${daftar.length > 1 ? ` · ${daftar.length - 1} riwayat` : ""}` : daftar.length ? `${daftar.length} berkas` : petunjuk}</p>
                   </div>
                 </div>
 
@@ -118,21 +140,21 @@ export function DokumenKaryawan({ employeeId }: { employeeId: string }) {
                   {daftar.length === 0 && (
                     <li className="px-4 py-5 text-center text-[12.5px] text-muted-foreground">Belum ada berkas</li>
                   )}
-                  {daftar.map((d) => (
-                    <li key={d.id} className="group flex items-center gap-2 px-3 py-2.5">
-                      <button type="button" onClick={() => setLihat(d)} className="min-w-0 flex-1 rounded-md px-1 text-left">
-                        <span className="block truncate text-[13px] font-medium text-foreground group-hover:underline">{d.keterangan || d.nama_berkas}</span>
-                        <span className="block truncate text-[11.5px] text-muted-foreground">
-                          {d.mime_type === "application/pdf" ? "PDF" : "Gambar"} · {ukuranTeks(d.ukuran)} · {tanggalTeks(d.dibuat)}
-                        </span>
+                  {(key === "cuti" ? daftar.slice(0, 1) : daftar).map((d) => baris(d, key === "cuti"))}
+                  {key === "cuti" && daftar.length > 1 && (
+                    <li>
+                      <button type="button" onClick={() => setRiwayatBuka((v) => !v)}
+                        className="flex w-full items-center gap-1.5 px-4 py-2 text-left text-[12px] font-medium text-muted-foreground hover:text-foreground">
+                        <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200", riwayatBuka && "rotate-90")} />
+                        Riwayat form cuti ({daftar.length - 1})
                       </button>
-                      <button type="button" onClick={() => setLihat(d)} title="Lihat" className="grid h-7 w-7 flex-none place-items-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground"><Eye className="h-4 w-4" /></button>
-                      <a href={urlBerkas(d, true)} title="Unduh" className="grid h-7 w-7 flex-none place-items-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground"><Download className="h-4 w-4" /></a>
-                      {data?.bolehKelola && (
-                        <button type="button" onClick={() => hapus(d)} title="Hapus" className="grid h-7 w-7 flex-none place-items-center rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+                      {riwayatBuka && (
+                        <ul className="ml-4 border-l border-black/[0.07] pb-1 dark:border-white/10">
+                          {daftar.slice(1).map((d) => baris(d, false))}
+                        </ul>
                       )}
                     </li>
-                  ))}
+                  )}
                 </ul>
 
                 {bisaTambah && (
@@ -144,7 +166,7 @@ export function DokumenKaryawan({ employeeId }: { employeeId: string }) {
                     <button type="button" onClick={() => pilih(key)} disabled={unggah === key}
                       className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-black/15 text-[12.5px] text-foreground/80 transition-colors hover:bg-black/[0.03] disabled:opacity-50 dark:border-white/15">
                       {unggah === key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                      {unggah === key ? "Mengunggah…" : `Unggah ${label}`}
+                      {unggah === key ? "Mengunggah…" : key === "cuti" && daftar.length ? "Unggah form cuti baru" : `Unggah ${label}`}
                     </button>
                   </div>
                 )}
