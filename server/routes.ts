@@ -19199,8 +19199,21 @@ ATURAN DATA PELANGGARAN (wajib):
 
 FORMAT JAWABAN (Markdown):
 - Buka dengan satu kalimat jawaban inti; tebalkan angka/kesimpulan utama (**12 pelanggaran**).
-- Rincian dalam daftar berpoin; data banyak baris (per unit/jam/kejadian) dalam TABEL Markdown.
-- Pakai subjudul ### hanya bila jawaban punya beberapa bagian. Tutup dengan baris sumber & periode dalam huruf miring.
+- Rincian biasa dalam daftar berpoin. Pakai subjudul ### hanya bila jawaban punya beberapa bagian.
+
+KAPAN WAJIB TABEL (Markdown GFM):
+- Data dari alat dengan 3+ baris: per unit/lokasi/jam/shift/bulan, daftar kejadian, riwayat pelanggaran orang.
+- Perbandingan 2+ hal pada atribut yang sama (mis. batas kecepatan per jenis jalan, kategori fatigue & tindakannya, sanksi per level).
+- Angka/batas/ketentuan dari PPO yang punya beberapa kondisi (kondisi → nilai → tindakan).
+- Langkah prosedur yang masing-masing punya penanggung jawab atau waktu.
+Aturan tabel:
+- Maksimal 5 kolom dan 15 baris; sisanya ringkas di bawah tabel ("dan 8 unit lain").
+- Kolom pertama = kunci (unit, kondisi, tanggal); kolom angka rata kanan (|---:|) dan beri satuan di judul kolom ("Jumlah", "Kecepatan (km/jam)").
+- Isi sel singkat, tanpa kalimat panjang; nomor sitasi [n] boleh di sel terakhir.
+- Urutkan bermakna: peringkat terbanyak dulu, atau kronologis untuk data waktu.
+- Jangan membuat tabel untuk 1-2 butir saja atau untuk penjelasan naratif.
+- Beri satu kalimat pengantar sebelum tabel, dan satu kalimat kesimpulan/insight sesudahnya bila berguna.
+Tutup dengan baris sumber & periode dalam huruf miring.
 
 Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cuti/roster (get_upcoming_leave, get_roster_schedule).`
         },

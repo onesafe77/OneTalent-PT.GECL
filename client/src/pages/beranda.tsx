@@ -323,14 +323,27 @@ export default function Beranda() {
               <div className="min-w-0 flex-1">
               {(m.berpikir || !!m.langkah?.length) && <PanelBerpikir m={m} />}
               <div className="min-w-0 flex-1 text-[15px] leading-7 text-foreground
-                [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline [&_table]:border-collapse [&_th]:text-left [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&>div>:first-child]:mt-0 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold
+                [&_strong]:font-semibold [&_a]:text-primary [&_a]:underline [&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&>div>:first-child]:mt-0 [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-lg [&_h1]:font-semibold
                 [&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-6
-                [&_p]:my-2 [&_table]:my-3 [&_table]:w-full [&_table]:text-sm [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1
-                [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6">
+                [&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-6">
                 {m.isi && (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
+                      // Tabel: kartu bergaris halus, kepala abu, bisa digeser di layar sempit.
+                      table: ({ children }) => (
+                        <div className="my-4 overflow-x-auto rounded-xl border border-black/[0.08] bg-card dark:border-white/10">
+                          <table className="w-full border-collapse text-[13.5px] leading-snug tabular-nums">{children}</table>
+                        </div>
+                      ),
+                      thead: ({ children }) => <thead className="bg-black/[0.03] dark:bg-white/5">{children}</thead>,
+                      th: ({ children, style }) => (
+                        <th style={style} className="whitespace-nowrap border-b border-black/[0.08] px-3 py-2 text-left text-[12px] font-semibold uppercase tracking-wide text-muted-foreground dark:border-white/10">{children}</th>
+                      ),
+                      td: ({ children, style }) => (
+                        <td style={style} className="border-b border-black/[0.05] px-3 py-2 align-top text-foreground [tr:last-child_&]:border-b-0 dark:border-white/5">{children}</td>
+                      ),
+                      tr: ({ children }) => <tr className="transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03]">{children}</tr>,
                       a: ({ href, children, ...rest }) => {
                         const n = href?.startsWith("#sitasi-") ? Number(href.slice(8)) : NaN;
                         const sb = m.sumber?.find((x) => x.id === n);
@@ -389,7 +402,7 @@ function ChipSitasi({ sumber, aktif, onBuka }: { sumber: Sumber; aktif: boolean;
         onClick={() => onBuka(sumber)}
         aria-label={`Sumber ${sumber.id}: ${labelDok(sumber)}`}
         className={cn(
-          "inline-grid h-[18px] min-w-[18px] place-items-center rounded-full px-[5px] text-[11px] font-semibold leading-none tabular-nums transition-colors duration-150",
+          "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px] text-[11px] font-semibold leading-none tabular-nums transition-colors duration-150",
           aktif ? "bg-primary text-primary-foreground" : "bg-black/[0.07] text-foreground/70 hover:bg-primary hover:text-primary-foreground dark:bg-white/10",
         )}
       >
@@ -423,13 +436,19 @@ function DaftarSumber({ sumber, aktif, onBuka }: { sumber: Sumber[]; aktif: Sumb
   return (
     <div className="mt-4">
       <button type="button" onClick={() => setBuka((v) => !v)}
-        className="flex items-center gap-2 rounded-full border border-black/[0.08] bg-card py-1 pl-1 pr-3 text-[12.5px] text-muted-foreground transition-colors hover:text-foreground dark:border-white/10">
-        <span className="flex -space-x-1">
-          {sumber.slice(0, 3).map((sb) => (
-            <span key={sb.id} className="grid h-5 w-5 place-items-center rounded-full bg-black/[0.07] text-[10px] font-semibold text-foreground/70 ring-2 ring-card dark:bg-white/10">{sb.id}</span>
+        className="inline-flex h-8 items-center gap-2 rounded-full border border-black/[0.08] bg-card pl-1.5 pr-2.5 text-[13px] text-muted-foreground transition-colors hover:border-black/15 hover:text-foreground dark:border-white/10">
+        <span className="flex items-center">
+          {sumber.slice(0, 3).map((sb, i) => (
+            <span key={sb.id} style={{ zIndex: 3 - i }}
+              className={cn("relative flex h-[22px] w-[22px] items-center justify-center rounded-full bg-[#ececec] text-[10.5px] font-semibold leading-none text-foreground/75 ring-2 ring-card dark:bg-gray-700", i > 0 && "-ml-1.5")}>
+              {sb.id}
+            </span>
           ))}
         </span>
-        {sumber.length} sumber · {dokumen.length} dokumen
+        <FileText className="h-3.5 w-3.5 flex-none" />
+        <span>{sumber.length} sumber</span>
+        <span className="text-black/20 dark:text-white/20">·</span>
+        <span>{dokumen.length} dokumen</span>
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", buka && "rotate-180")} />
       </button>
       {buka && (
@@ -438,7 +457,7 @@ function DaftarSumber({ sumber, aktif, onBuka }: { sumber: Sumber[]; aktif: Sumb
             <button key={sb.id} type="button" onClick={() => onBuka(sb)}
               className={cn("flex min-w-0 items-start gap-2.5 rounded-xl border bg-card p-2.5 text-left transition-colors",
                 aktif?.id === sb.id && aktif?.chunkId === sb.chunkId ? "border-primary/50" : "border-black/[0.08] hover:border-black/20 dark:border-white/10")}>
-              <span className="grid h-5 min-w-5 flex-none place-items-center rounded-full bg-black/[0.07] px-1 text-[10px] font-semibold text-foreground/70 dark:bg-white/10">{sb.id}</span>
+              <span className="flex h-5 min-w-5 flex-none items-center justify-center rounded-full bg-[#ececec] px-1 text-[10.5px] font-semibold leading-none text-foreground/75 dark:bg-gray-700">{sb.id}</span>
               <span className="min-w-0">
                 <span className="block truncate text-[12.5px] font-medium text-foreground">{labelDok(sb)}{sb.pageNumber ? <span className="font-normal text-muted-foreground"> · hal. {sb.pageNumber}</span> : null}</span>
                 <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-muted-foreground">{sb.content || sb.judul}</span>
