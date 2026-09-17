@@ -13,6 +13,8 @@
     "verify-data": "tsx scripts/verify-data.ts"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "^2.2.2",
     "@google-cloud/storage": "^7.17.0",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",

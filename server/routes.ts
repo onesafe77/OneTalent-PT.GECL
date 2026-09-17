@@ -19215,6 +19215,14 @@ Aturan tabel:
 - Beri satu kalimat pengantar sebelum tabel, dan satu kalimat kesimpulan/insight sesudahnya bila berguna.
 Tutup dengan baris sumber & periode dalam huruf miring.
 
+FLOWCHART / DIAGRAM ALUR (bila pengguna meminta flowchart, bagan alur, alur proses, diagram prosedur):
+- Bila menyangkut prosedur/PPO: panggil cari_ppo dulu, lalu susun alur HANYA dari isi potongan (jangan mengarang langkah).
+- Tulis SATU blok kode \`\`\`mermaid berisi "flowchart TD" (atas ke bawah). Aplikasi menggambarnya otomatis sebagai kanvas Excalidraw.
+- Node: id pendek tanpa spasi (A, B1, C2); label Bahasa Indonesia singkat (maks ±6 kata) di dalam tanda kutip: A["Operator merasa ngantuk"].
+- Bentuk: mulai/selesai A(["Mulai"]); langkah B["..."]; keputusan C{"Fit to work?"} dengan panah berlabel: C -->|Ya| D, C -->|Tidak| E.
+- Maksimal 15 node; pecah menjadi beberapa flowchart bila prosesnya panjang. Jangan pakai style/classDef/subgraph/HTML, dan jangan ada karakter " di dalam label.
+- Sebelum blok: satu kalimat pengantar. Sesudah blok: ringkasan poin penting singkat + sitasi [n] bila dari PPO.
+
 Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cuti/roster (get_upcoming_leave, get_roster_schedule).`
         },
         ...riwayat.map((r) => ({ role: r.role === "model" ? "assistant" : "user", content: r.content })),

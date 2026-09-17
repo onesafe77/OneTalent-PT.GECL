@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ArrowUp, Plus, Send, ChevronDown, ChevronRight, Mic, Square, Search, FileText, BookOpen, Wrench, PenLine } from "lucide-react";
 import { PanelSumberPdf, type SumberSitasi } from "@/components/si-asef/PanelSumberPdf";
+import { FlowchartExcalidraw } from "@/components/si-asef/FlowchartExcalidraw";
 import { queryClient } from "@/lib/queryClient";
 import { CakraMark } from "@/components/brand/CakraMark";
 import { useAuth } from "@/lib/auth-context";
@@ -349,6 +350,15 @@ export default function Beranda() {
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
+                      // Blok ```mermaid -> flowchart Excalidraw; blok kode lain tetap apa adanya.
+                      pre: ({ children, ...rest }) => {
+                        const kode: any = Array.isArray(children) ? children[0] : children;
+                        const kelas = String(kode?.props?.className || "");
+                        if (kelas.includes("language-mermaid")) {
+                          return <FlowchartExcalidraw kode={String(kode.props.children ?? "").trim()} />;
+                        }
+                        return <pre {...rest} className="my-3 overflow-x-auto rounded-lg bg-muted p-3 text-[13px]">{children}</pre>;
+                      },
                       // Tabel: kartu bergaris halus, kepala abu, bisa digeser di layar sempit.
                       table: ({ children }) => (
                         <div className="my-4 overflow-x-auto rounded-xl border border-black/[0.08] bg-card dark:border-white/10">
