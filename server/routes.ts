@@ -19376,6 +19376,17 @@ ATURAN PROSEDUR (wajib):
 - Jawab HANYA berdasarkan potongan yang dikembalikan. Sebutkan sumbernya dengan nomor [n] sesuai hasil, dan sebut kode PPO + revisinya (mis. GECL-HSE-PPO-4.1.16 R10).
 - Bila tidak ada potongan yang menjawab, katakan terus terang bahwa tidak ditemukan di PPO yang berlaku. Jangan mengarang angka atau aturan.
 
+ATURAN KETEPATAN SUBJEK (wajib, berlaku untuk PPO & peraturan):
+- Sebelum memakai sebuah potongan, periksa JUDUL BAGIAN & SUBJEK kalimatnya sama dengan yang ditanya.
+  Contoh: potongan "Tugas Tanggung Jawab Pengawas Teknis ... bertanggung jawab kepada KTT" adalah tugas PENGAWAS TEKNIS, BUKAN tugas KTT. Jangan dipindahkan ke jabatan lain.
+- Bila tidak ada potongan yang subjeknya tepat, cari lagi (kata kunci lain / alat lain) atau katakan tidak ditemukan — jangan menyimpulkan dari potongan yang subjeknya berbeda.
+
+ATURAN JABATAN & KEWAJIBAN TAMBANG (wajib):
+- Pertanyaan tentang tugas, wewenang, kewajiban, syarat, atau pengesahan jabatan tambang (KTT, PTL, PJO, Pengawas Operasional, Pengawas Teknis, KTBT, tenaga teknis), SMKP, kaidah teknik pertambangan: panggil cari_regulasi DAN cari_ppo.
+  Jawab ketentuan peraturan (Kepmen/Permen) lebih dulu, lalu penerapan internal GECL dari PPO bila ada.
+- Jangan menerjemahkan atau mengarang kepanjangan singkatan. Kepanjangan resmi: KTT = Kepala Teknik Tambang; PTL = Penanggung Jawab Teknik dan Lingkungan; PJO = Penanggung Jawab Operasional; KTBT = Kepala Tambang Bawah Tanah; KaIT = Kepala Inspektur Tambang; IUJP = Izin Usaha Jasa Pertambangan; SMKP = Sistem Manajemen Keselamatan Pertambangan.
+- Daftar dari peraturan disalin sesuai urutan & huruf aslinya (a, b, c …), tanpa menambah atau menghapus butir.
+
 ATURAN DATA PELANGGARAN (wajib):
 - Pertanyaan jumlah/tren/peringkat/daftar pelanggaran FMS atau Safe Distance: PANGGIL tanya_pelanggaran. Jangan menghitung atau menebak angka sendiri; pakai angka "total" dan hasil per_… apa adanya.
 - Terjemahkan waktu relatif ke tanggal pasti (mis. "minggu ini", "bulan lalu") berdasarkan waktu sekarang, dan sebutkan rentang tanggal serta sumbernya di jawaban.
@@ -19502,7 +19513,16 @@ Kamu juga bisa mengelola jadwal (create_activity, get_activities) dan melihat cu
                 }
                 return { nomor: kunciPpo.get(h.id), kode: h.kodeDokumen, revisi: h.revisi, judul: h.judul, bagian: h.bagian, halaman: h.halamanAwal === h.halamanAkhir ? `${h.halamanAwal}` : `${h.halamanAwal}-${h.halamanAkhir}`, isi: h.teks };
               });
-              functionResponse = JSON.stringify(potongan.length ? { potongan } : { potongan: [], catatan: "Tidak ada potongan PPO yang cocok." });
+              // Isyarat silang: bila koleksi peraturan punya kecocokan kuat, beri tahu agen agar tidak menjawab dari PPO saja.
+              let isyarat: string | undefined;
+              try {
+                const { cariRegulasi } = await import("./lib/regulasi/cari");
+                const reg = await cariRegulasi(db, kueri, vek, { k: 3 });
+                if (reg.length && (reg[0].langsung || reg[0].skor >= 0.028)) {
+                  isyarat = `Koleksi PERATURAN juga punya potongan relevan (mis. ${reg[0].label} — ${reg[0].bagian.split(" › ").slice(-1)[0]}). Panggil cari_regulasi bila pertanyaan menyangkut kewajiban/ketentuan hukum.`;
+                }
+              } catch { /* isyarat opsional */ }
+              functionResponse = JSON.stringify(potongan.length ? { potongan, ...(isyarat ? { isyarat } : {}) } : { potongan: [], catatan: "Tidak ada potongan PPO yang cocok.", ...(isyarat ? { isyarat } : {}) });
               kirimLangkah({ tipe: "temu", kueri, jumlah: potongan.length,
                 dokumen: Array.from(new Set(potongan.map((x) => `${x.kode} R${String(x.revisi).padStart(2, "0")} — ${x.judul}`))) });
             } catch (e: any) {
