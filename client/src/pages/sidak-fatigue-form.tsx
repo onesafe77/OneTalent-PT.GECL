@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useLocation } from "wouter";
 import { MobileSidakLayout } from "@/components/sidak/mobile-sidak-layout";
 import { cn } from "@/lib/utils";
@@ -739,7 +740,7 @@ export default function SidakFatigueForm() {
 
   const deleteEmployeeRecord = async (emp: any) => {
     if (!emp.backendRecordId) { setEmployees(prev => prev.filter(e => e !== emp)); return; }
-    if (!confirm(`Hapus data karyawan ${emp.nama}?`)) return;
+    if (!(await konfirmasi(`Hapus data karyawan ${emp.nama}?`))) return;
     try {
       await apiRequest(`/api/sidak-fatigue/records/${emp.backendRecordId}`, "DELETE");
       setEmployees(prev => prev.filter(e => (e as any).backendRecordId !== emp.backendRecordId));
@@ -780,7 +781,7 @@ export default function SidakFatigueForm() {
 
   const deleteObserver = async (idx: number) => {
     const obs: any = observers[idx];
-    if (!confirm(`Hapus observer ${obs?.nama}?`)) return;
+    if (!(await konfirmasi(`Hapus observer ${obs?.nama}?`))) return;
     try {
       if (obs?.backendObserverId) await apiRequest(`/api/sidak-fatigue/observers/${obs.backendObserverId}`, "DELETE");
       setObservers(prev => prev.filter((_, i) => i !== idx));

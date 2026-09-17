@@ -1,4 +1,5 @@
 import { Link, useLocation, useSearch } from "wouter";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { cn } from "@/lib/utils";
 import { X, ChevronDown, ChevronRight, Search, LogOut, PanelLeftClose, Sun, Moon } from "lucide-react";
 import { useState, useEffect, useMemo, Fragment } from "react";
@@ -569,7 +570,7 @@ function RiwayatChat({ onPilih }: { onPilih: () => void }) {
   const aktif = location === "/workspace/dashboard" ? new URLSearchParams(search).get("sesi") : null;
 
   const hapus = async (s: SesiChat) => {
-    if (!confirm(`Hapus percakapan "${s.title}"?`)) return;
+    if (!(await konfirmasi(`Hapus percakapan "${s.title}"?`))) return;
     const r = await fetch(`/api/si-asef/sessions/${s.id}`, { method: "DELETE", credentials: "include" });
     if (!r.ok) { alert("Gagal menghapus percakapan."); return; }
     queryClient.setQueryData<SesiChat[]>(["/api/si-asef/sessions"], (lama) => (lama || []).filter((x) => x.id !== s.id));

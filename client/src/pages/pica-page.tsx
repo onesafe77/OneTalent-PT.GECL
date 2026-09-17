@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import {
     AlertTriangle,
     CheckCircle2,
@@ -91,7 +92,7 @@ export default function PicaPage() {
     // Delete All Mutation
     const deleteAllMutation = useMutation({
         mutationFn: async () => {
-            if (!confirm("Apakah Anda yakin ingin menghapus semua data temuan PICA? Tindakan ini tidak dapat dibatalkan.")) {
+            if (!(await konfirmasi("Apakah Anda yakin ingin menghapus semua data temuan PICA? Tindakan ini tidak dapat dibatalkan."))) {
                 throw new Error("Dibatalkan");
             }
             return await apiRequest("/api/pica", "DELETE");

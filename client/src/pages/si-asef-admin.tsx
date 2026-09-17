@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { UploadCloud, FileText, Trash2, Search, CheckCircle2, Database, AlertCircle, FolderOpen, ChevronDown, ChevronRight, FileType, HardDrive, Loader2, Link, FileSpreadsheet, Settings, Link2 } from 'lucide-react';
 import { Link as RouterLink } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +102,7 @@ export default function SiAsefAdminPage() {
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm("Yakin ingin menghapus dokumen ini secara permanen?")) return;
+        if (!(await konfirmasi("Yakin ingin menghapus dokumen ini secara permanen?"))) return;
         setDeletingId(id);
         try {
             const res = await fetch(`/api/si-asef/documents/${id}`, {

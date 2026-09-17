@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -561,8 +562,8 @@ export default function Announcements() {
                         <Button 
                           variant="destructive" 
                           size="sm"
-                          onClick={() => {
-                            if (confirm("Apakah Anda yakin ingin menghapus pengumuman ini?")) {
+                          onClick={async () => {
+                            if ((await konfirmasi("Apakah Anda yakin ingin menghapus pengumuman ini?"))) {
                               deleteMutation.mutate(announcement.id);
                             }
                           }}

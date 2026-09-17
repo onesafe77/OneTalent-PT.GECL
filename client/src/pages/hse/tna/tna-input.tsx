@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -634,13 +635,13 @@ export default function TnaInput() {
                                                                 <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => startEditing(row)}>
                                                                     <Edit className="w-4 h-4" />
                                                                 </Button>
-                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => {
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={async () => {
                                                                     console.log("DEBUG: Row Data:", row);
                                                                     if (!row || !row.id) {
                                                                         alert("Error: Cannot delete. ID is missing.");
                                                                         return;
                                                                     }
-                                                                    if (window.confirm(`Are you sure you want to delete entry ID: ${row.id}?`)) {
+                                                                    if ((await konfirmasi(`Are you sure you want to delete entry ID: ${row.id}?`))) {
                                                                         apiRequest("/api/hse/tna/delete-entry", "POST", { id: row.id }).then(() => {
                                                                             toast({ title: "Deleted", description: "Entry deleted successfully" });
                                                                             queryClient.invalidateQueries({ queryKey: ["/api/hse/tna/all-raw-entries"] });

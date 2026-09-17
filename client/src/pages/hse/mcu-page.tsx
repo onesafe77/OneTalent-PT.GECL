@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,8 +87,8 @@ export default function McuPage() {
         }
     });
 
-    const handleDelete = (id: string) => {
-        if (confirm("Apakah anda yakin ingin menghapus data ini?")) {
+    const handleDelete = async (id: string) => {
+        if ((await konfirmasi("Apakah anda yakin ingin menghapus data ini?"))) {
             deleteMutation.mutate(id);
         }
     };

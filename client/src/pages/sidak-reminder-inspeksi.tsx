@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -266,8 +267,8 @@ export default function SidakReminderInspeksi() {
                                         size="sm"
                                         className="text-xs h-7 px-2 border-orange-300 text-orange-700 hover:bg-orange-50"
                                         disabled={seedMutation.isPending}
-                                        onClick={() => {
-                                            if (window.confirm("Ini akan menambahkan data seed untuk Jan–Apr 2026 (semua 24 jenis sidak). Lanjutkan?")) {
+                                        onClick={async () => {
+                                            if ((await konfirmasi("Ini akan menambahkan data seed untuk Jan–Apr 2026 (semua 24 jenis sidak). Lanjutkan?"))) {
                                                 seedMutation.mutate(["2026-01", "2026-02", "2026-03", "2026-04"]);
                                             }
                                         }}

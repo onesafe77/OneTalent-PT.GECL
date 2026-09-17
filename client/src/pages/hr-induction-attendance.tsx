@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -163,8 +164,8 @@ export default function HrInductionAttendance() {
                     <Button
  variant="outline"
  className="bg-blue-50 hover:bg-blue-100 border-blue-300 text-blue-700"
- onClick={() => {
- if (confirm("Update nomor telepon karyawan dari data absensi induksi? Hanya nomor yang kosong atau berbeda yang akan diperbarui."))
+ onClick={async () => {
+ if ((await konfirmasi("Update nomor telepon karyawan dari data absensi induksi? Hanya nomor yang kosong atau berbeda yang akan diperbarui.")))
  syncPhonesMutation.mutate();
                         }}
  disabled={syncPhonesMutation.isPending}

@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Calendar, momentLocalizer, Views, ToolbarProps } from "react-big-calendar";
 import moment from "moment";
@@ -229,9 +230,9 @@ export default function ActivityCalendar() {
                 </div>
                 {/* Delete button for non-agenda views (hover only) */}
                 <button
-                    onClick={(e) => {
+                    onClick={async (e) => {
                         e.stopPropagation();
-                        if (confirm(`Hapus jadwal "${event.title}"?`)) deleteMutation.mutate(event.id);
+                        if ((await konfirmasi(`Hapus jadwal "${event.title}"?`))) deleteMutation.mutate(event.id);
                     }}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-red-500 transition-opacity"
                     title="Hapus"
@@ -256,10 +257,10 @@ export default function ActivityCalendar() {
                     className="text-gray-600 hover:text-gray-900 hover:bg-muted z-50 relative"
                     onMouseDown={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
-                    onClick={(e) => {
+                    onClick={async (e) => {
                         e.stopPropagation();
                         e.preventDefault();
-                        if (confirm(`Hapus agenda "${event.title}"?`)) deleteMutation.mutate(event.id);
+                        if ((await konfirmasi(`Hapus agenda "${event.title}"?`))) deleteMutation.mutate(event.id);
                     }}
                 >
                     <Trash2 className="w-4 h-4 mr-1" /> Hapus
@@ -459,8 +460,8 @@ export default function ActivityCalendar() {
                                     calendarEvents
                                         .filter(e => moment(e.start).isSame(new Date(), 'day'))
                                         .map(e => (
-                                            <div key={e.id} className="group flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all cursor-pointer" onClick={() => {
-                                                if (confirm(`Hapus jadwal "${e.title}"?`)) deleteMutation.mutate(e.id);
+                                            <div key={e.id} className="group flex items-start gap-3 p-3 rounded-xl bg-white dark:bg-gray-900 border border-slate-100 dark:border-slate-800 hover:shadow-md transition-all cursor-pointer" onClick={async () => {
+                                                if ((await konfirmasi(`Hapus jadwal "${e.title}"?`))) deleteMutation.mutate(e.id);
                                             }}>
                                                 <div className="mt-1 w-2 h-2 rounded-full bg-indigo-500" />
                                                 <div>

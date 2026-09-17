@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Card,
@@ -139,8 +140,8 @@ export default function PushNotificationInduction() {
                         Sinkron Roster
                     </Button>
                     <Button
-                        onClick={() => {
-                            if (confirm(`Sinkron roster H-1 dan langsung kirim WA ke semua driver yang besok kerja setelah cuti?`))
+                        onClick={async () => {
+                            if ((await konfirmasi(`Sinkron roster H-1 dan langsung kirim WA ke semua driver yang besok kerja setelah cuti?`)))
                                 syncAndSendMutation.mutate();
                         }}
                         disabled={isAnyLoading}
@@ -151,8 +152,8 @@ export default function PushNotificationInduction() {
                     </Button>
                     {belumDikirim > 0 && (
                         <Button
-                            onClick={() => {
-                                if (confirm(`Kirim WA reminder ke ${belumDikirim} driver yang belum menerima notifikasi?`))
+                            onClick={async () => {
+                                if ((await konfirmasi(`Kirim WA reminder ke ${belumDikirim} driver yang belum menerima notifikasi?`)))
                                     sendAllMutation.mutate();
                             }}
                             disabled={isAnyLoading}

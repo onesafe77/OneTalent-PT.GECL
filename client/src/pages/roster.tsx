@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { StatTile } from "@/components/ui/stat-tile";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -414,8 +415,8 @@ export default function Roster() {
  setIsEditDialogOpen(true);
   };
 
- const handleDelete = (rosterId: string) => {
- if (confirm("Apakah Anda yakin ingin menghapus roster ini?")) {
+ const handleDelete = async (rosterId: string) => {
+ if ((await konfirmasi("Apakah Anda yakin ingin menghapus roster ini?"))) {
  deleteMutation.mutate(rosterId);
     }
   };

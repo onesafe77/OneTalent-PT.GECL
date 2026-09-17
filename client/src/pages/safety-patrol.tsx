@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -542,7 +543,7 @@ export default function SafetyPatrol() {
                       {reParseAllMutation.isPending ? "Memproses..." : `Re-parse Semua (${emptyCount})`}
                     </Button>
                     <Button size="sm" variant="destructive" className="h-8 text-xs"
-                      onClick={() => confirm("Hapus semua laporan yang hampir semua fieldnya kosong?") && cleanupJunkMutation.mutate()}
+                      onClick={async () => (await konfirmasi("Hapus semua laporan yang hampir semua fieldnya kosong?")) && cleanupJunkMutation.mutate()}
                       disabled={cleanupJunkMutation.isPending}>
                       <Trash2 className={`h-3.5 w-3.5 mr-1.5 ${cleanupJunkMutation.isPending ? 'animate-spin' : ''}`} />
                       Hapus Non-Laporan
@@ -674,7 +675,7 @@ export default function SafetyPatrol() {
                                   <ChevronRight className="h-4 w-4 text-gray-500" />
                                 </Button>
                                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0 hover:bg-red-100"
-                                  onClick={e => { e.stopPropagation(); if (confirm("Hapus laporan ini?")) deleteMutation.mutate(report.id); }}>
+                                  onClick={async e => { e.stopPropagation(); if ((await konfirmasi("Hapus laporan ini?"))) deleteMutation.mutate(report.id); }}>
                                   <Trash2 className="h-4 w-4 text-gray-400 hover:text-red-500" />
                                 </Button>
                               </div>

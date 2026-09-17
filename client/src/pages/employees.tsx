@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { StatTile } from "@/components/ui/stat-tile";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -324,8 +325,8 @@ export default function Employees() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm("Apakah Anda yakin ingin menghapus karyawan ini?")) {
+  const handleDelete = async (id: string) => {
+    if ((await konfirmasi("Apakah Anda yakin ingin menghapus karyawan ini?"))) {
       deleteMutation.mutate(id);
     }
   };

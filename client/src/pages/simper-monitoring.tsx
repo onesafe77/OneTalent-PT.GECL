@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -325,14 +326,14 @@ export default function SimperMonitoring() {
  setIsEditDialogOpen(true);
   };
 
- const handleDelete = (id: string) => {
- if (confirm("Apakah Anda yakin ingin menghapus data SIMPER ini?")) {
+ const handleDelete = async (id: string) => {
+ if ((await konfirmasi("Apakah Anda yakin ingin menghapus data SIMPER ini?"))) {
  deleteMutation.mutate(id);
     }
   };
 
- const handleDeleteAll = () => {
- if (confirm("Apakah Anda yakin ingin menghapus SEMUA data SIMPER? Tindakan ini tidak dapat dibatalkan!")) {
+ const handleDeleteAll = async () => {
+ if ((await konfirmasi("Apakah Anda yakin ingin menghapus SEMUA data SIMPER? Tindakan ini tidak dapat dibatalkan!"))) {
  deleteAllMutation.mutate();
     }
   };

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { Link } from "wouter";
 import { Download, Calendar, Clock, ArrowLeft, ChevronDown, Camera, FileText, Image, Shield, Trash2 } from "lucide-react";
 import { PhotoThumbnail } from "@/components/ui/image-with-fallback";
@@ -318,8 +319,8 @@ export default function SidakPemenuhanTyreHistory() {
                                                     </div>
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
-                                                    onClick={() => {
-                                                        if (confirm("Apakah Anda yakin ingin menghapus sesi ini?")) {
+                                                    onClick={async () => {
+                                                        if ((await konfirmasi("Apakah Anda yakin ingin menghapus sesi ini?"))) {
                                                             deleteSessionMutation.mutate(session.id);
                                                         }
                                                     }}

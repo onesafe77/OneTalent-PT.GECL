@@ -1,5 +1,6 @@
 
 import { useState, useRef, useEffect, useMemo } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -910,8 +911,8 @@ export default function MonitoringSimperEvAdmin() {
                                                         <Button variant="ghost" size="icon" onClick={() => handleEdit(record)} title="Edit">
                                                             <Edit className="h-4 w-4 text-orange-600" />
                                                         </Button>
-                                                        <Button variant="ghost" size="icon" onClick={() => {
- if (confirm("Apakah anda yakin ingin menghapus data ini?")) {
+                                                        <Button variant="ghost" size="icon" onClick={async () => {
+ if ((await konfirmasi("Apakah anda yakin ingin menghapus data ini?"))) {
  deleteMutation.mutate(record.id);
                                                             }
                                                         }} title="Hapus">
@@ -1062,8 +1063,8 @@ export default function MonitoringSimperEvAdmin() {
                                                                 <Button
  variant="ghost"
  size="icon"
- onClick={() => {
- if (confirm(`Kirim notifikasi WhatsApp ke Mitra ${selectedHistoryEmployee?.asalMitra}?`)) {
+ onClick={async () => {
+ if ((await konfirmasi(`Kirim notifikasi WhatsApp ke Mitra ${selectedHistoryEmployee?.asalMitra}?`))) {
  sendNotificationMutation.mutate(log.id);
                                                                         }
                                                                     }}
@@ -1092,8 +1093,8 @@ export default function MonitoringSimperEvAdmin() {
                                                                 </Button>
 
                                                                 {/* Delete Button */}
-                                                                <Button variant="ghost" size="icon" onClick={() => {
- if (confirm("Hapus riwayat ini?")) {
+                                                                <Button variant="ghost" size="icon" onClick={async () => {
+ if ((await konfirmasi("Hapus riwayat ini?"))) {
  deleteHistoryMutation.mutate(log.id);
                                                                     }
                                                                 }}>

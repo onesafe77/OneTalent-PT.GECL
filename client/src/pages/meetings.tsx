@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -398,8 +399,8 @@ export default function Meetings() {
  createMeetingMutation.mutate(formData);
   };
 
- const handleDelete = (meeting: Meeting) => {
- if (confirm(`Yakin ingin menghapus meeting "${meeting.title}"?`)) {
+ const handleDelete = async (meeting: Meeting) => {
+ if ((await konfirmasi(`Yakin ingin menghapus meeting "${meeting.title}"?`))) {
  deleteMeetingMutation.mutate(meeting.id);
     }
   };
@@ -1178,9 +1179,9 @@ export default function Meetings() {
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-lg">
                           <ZoomIn className="w-8 h-8 text-white" />
                           <button
- onClick={(e) => {
+ onClick={async (e) => {
  e.stopPropagation();
- if (confirm("Hapus foto ini?")) {
+ if ((await konfirmasi("Hapus foto ini?"))) {
  deletePhotoMutation.mutate({ meetingId: selectedMeeting.id, photoIndex: index });
                               }
                             }}
@@ -1539,7 +1540,7 @@ export default function Meetings() {
                           </Button>
                           {/* Delete */}
                           <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-muted"
- onClick={() => { if (confirm("Hapus file ini?")) deleteMateriMutation.mutate({ meetingId: selectedMeeting!.id, fileIndex: idx }); }}
+ onClick={async () => { if ((await konfirmasi("Hapus file ini?"))) deleteMateriMutation.mutate({ meetingId: selectedMeeting!.id, fileIndex: idx }); }}
  title="Hapus file">
                             <Trash2 className="w-3 h-3" />
                           </Button>
@@ -1634,7 +1635,7 @@ export default function Meetings() {
                           </Button>
                           {/* Delete */}
                           <Button size="sm" variant="ghost" className="h-7 px-2 text-red-500 hover:text-red-700 hover:bg-muted"
- onClick={() => { if (confirm("Hapus file ini?")) deleteMomMutation.mutate({ meetingId: selectedMeeting!.id, fileIndex: idx }); }}
+ onClick={async () => { if ((await konfirmasi("Hapus file ini?"))) deleteMomMutation.mutate({ meetingId: selectedMeeting!.id, fileIndex: idx }); }}
  title="Hapus file">
                             <Trash2 className="w-3 h-3" />
                           </Button>

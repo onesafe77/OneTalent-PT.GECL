@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -171,7 +172,7 @@ export default function ZeroHarmWorkbook() {
   }
 
   async function clearWorkbook() {
-    if (!confirm("Hapus SEMUA sheet di workbook? Tindakan ini mengosongkan workbook (bisa upload ulang).")) return;
+    if (!(await konfirmasi("Hapus SEMUA sheet di workbook? Tindakan ini mengosongkan workbook (bisa upload ulang)."))) return;
     setBusy(true);
     try {
       await apiRequest("/api/zero-harm/workbook", "DELETE");

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -261,8 +262,8 @@ export default function MonitoringSimperPerpanjangan() {
     };
 
     // Handle delete
- const handleDelete = (id: string) => {
- if (confirm("Apakah Anda yakin ingin menghapus data ini?")) {
+ const handleDelete = async (id: string) => {
+ if ((await konfirmasi("Apakah Anda yakin ingin menghapus data ini?"))) {
  deleteMutation.mutate(id);
         }
     };

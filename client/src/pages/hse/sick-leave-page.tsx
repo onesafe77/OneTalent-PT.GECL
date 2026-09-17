@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { format, subMonths, startOfMonth } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -518,9 +519,9 @@ export default function SickLeavePage() {
                                                     size="sm"
                                                     variant="ghost"
                                                     className="text-red-500"
-                                                    onClick={(e) => {
+                                                    onClick={async (e) => {
                                                         e.stopPropagation();
-                                                        if (confirm("Hapus data ini?")) {
+                                                        if ((await konfirmasi("Hapus data ini?"))) {
                                                             deleteMutation.mutate(leave.id);
                                                         }
                                                     }}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { konfirmasi } from "@/components/ui/konfirmasi";
 import { useLocation } from 'wouter';
 import { Message, Role, ChatSession, Source } from '../components/si-asef/types';
 import ChatBubble from '../components/si-asef/ChatBubble';
@@ -244,7 +245,7 @@ export default function SiAsefChatPage() {
                             <button
                                 onClick={async (e) => {
                                     e.stopPropagation();
-                                    if (!confirm('Hapus chat ini?')) return;
+                                    if (!(await konfirmasi('Hapus chat ini?'))) return;
                                     try {
                                         const res = await fetch(`/api/si-asef/sessions/${session.id}`, { method: 'DELETE' });
                                         if (res.ok) {
