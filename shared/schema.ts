@@ -4980,7 +4980,8 @@ export const regulasi = pgTable("regulasi", {
   ukuranBerkas: integer("ukuran_berkas"),
   jumlahHalaman: integer("jumlah_halaman"),
   mutu: jsonb("mutu"),                                         // { halamanTanpaTeks, rasioKataRusak, catatan[], pasalLompat[] }
-  statusMuat: varchar("status_muat", { length: 20 }).notNull().default("draf"),  // draf | terbit | gagal
+  statusMuat: varchar("status_muat", { length: 20 }).notNull().default("draf"),  // draf | proses | terbit | gagal
+  progres: integer("progres").default(0),                      // 0–100 selama status_muat = proses
   jumlahPotongan: integer("jumlah_potongan").default(0),
   galatMuat: text("galat_muat"),
   diunggahOleh: text("diunggah_oleh"),

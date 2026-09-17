@@ -21,13 +21,14 @@ const STATUS: Record<string, { label: string; kelas: string }> = {
 const MUAT: Record<string, { label: string; kelas: string }> = {
   terbit: { label: "Dapat dicari AI", kelas: "text-emerald-700 dark:text-emerald-300" },
   draf: { label: "Belum terbit", kelas: "text-muted-foreground" },
+  proses: { label: "Memproses…", kelas: "text-foreground/70" },
   gagal: { label: "Gagal diproses", kelas: "text-red-600" },
 };
 
 interface Regulasi {
   id: string; jenis: string; nomor: string; tahun: number; judul: string; instansi: string | null; bidang: string; status: string;
   diubah_oleh: string | null; dicabut_oleh: string | null; tanggal_penetapan: string | null; berkas_nama: string | null;
-  ukuran_berkas: number | null; mutu: any; status_muat: string; jumlah_potongan: number; galat_muat: string | null;
+  ukuran_berkas: number | null; mutu: any; status_muat: string; progres: number | null; jumlah_potongan: number; galat_muat: string | null;
   diunggah_oleh: string | null; diperiksa_pada: string | null;
 }
 
@@ -39,6 +40,8 @@ export default function PeraturanPage() {
   const { data, isLoading } = useQuery<{ items: Regulasi[]; bolehKelola: boolean }>({
     queryKey: ["/api/regulasi"],
     queryFn: () => apiRequest("/api/regulasi", "GET"),
+    // Pantau selama ada peraturan yang sedang diproses di latar.
+    refetchInterval: (q) => ((q.state.data as any)?.items?.some((r: Regulasi) => r.status_muat === "proses") ? 2000 : false),
   });
   const [cari, setCari] = useState("");
   const [bidang, setBidang] = useState("");
@@ -118,9 +121,18 @@ export default function PeraturanPage() {
                     </span>
                     <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{r.judul}</span>
                   </span>
-                  <span className={cn("hidden flex-none text-[12px] sm:block", MUAT[r.status_muat]?.kelas)}>
-                    {r.status_muat === "terbit" ? `${r.jumlah_potongan} pasal` : MUAT[r.status_muat]?.label}
-                  </span>
+                  {r.status_muat === "proses" ? (
+                    <span className="flex w-28 flex-none flex-col items-end gap-1">
+                      <span className="text-[12px] tabular-nums text-foreground/70">Memproses {r.progres ?? 0}%</span>
+                      <span className="h-1 w-full overflow-hidden rounded-full bg-black/[0.07] dark:bg-white/10">
+                        <span className="block h-full rounded-full bg-foreground/70 transition-[width] duration-500" style={{ width: `${r.progres ?? 0}%` }} />
+                      </span>
+                    </span>
+                  ) : (
+                    <span className={cn("hidden flex-none text-[12px] sm:block", MUAT[r.status_muat]?.kelas)}>
+                      {r.status_muat === "terbit" ? `${r.jumlah_potongan} potongan` : MUAT[r.status_muat]?.label}
+                    </span>
+                  )}
                   <ChevronRight className="h-4 w-4 flex-none text-muted-foreground/60" />
                 </button>
               </li>
@@ -143,7 +155,9 @@ function DetailPeraturan({ id, bolehKelola, onTutup, onBerubah }: { id: string; 
   const { data: r, isLoading } = useQuery<Regulasi & { potongan: { id: string; jenis: string; bagian: string; halaman_awal: number; cuplikan: string }[] }>({
     queryKey: ["/api/regulasi", id],
     queryFn: () => apiRequest(`/api/regulasi/${id}`, "GET"),
+    refetchInterval: (q) => ((q.state.data as any)?.status_muat === "proses" ? 2000 : false),
   });
+  const [grupBuka, setGrupBuka] = useState<string | null>(null);
   const [halaman, setHalaman] = useState(1);
   const [sibuk, setSibuk] = useState(false);
 
@@ -161,7 +175,18 @@ function DetailPeraturan({ id, bolehKelola, onTutup, onBerubah }: { id: string; 
     await aksi(() => apiRequest(`/api/regulasi/${id}`, "PATCH", { status, dicabutOleh, diubahOleh }), "Status diperbarui");
   };
 
-  const pasal = (r?.potongan || []).filter((p) => p.jenis === "pasal");
+  // Semua potongan (pasal/diktum, penjelasan, lampiran) dikelompokkan per bagian teratas agar ratusan butir tetap terbaca.
+  const grup = useMemo(() => {
+    const m = new Map<string, { judul: string; butir: NonNullable<typeof r>["potongan"] }>();
+    for (const p of r?.potongan || []) {
+      if (p.jenis === "pembukaan") continue;
+      const kepala = p.jenis === "pasal" ? "Batang tubuh" : p.jenis === "penjelasan" ? "Penjelasan" : p.bagian.split(" › ")[0];
+      if (!m.has(kepala)) m.set(kepala, { judul: kepala, butir: [] });
+      m.get(kepala)!.butir.push(p);
+    }
+    return Array.from(m.values());
+  }, [r?.potongan]);
+  const totalPotongan = grup.reduce((a, g) => a + g.butir.length, 0);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30 animate-in fade-in duration-150" onClick={onTutup}>
@@ -208,7 +233,7 @@ function DetailPeraturan({ id, bolehKelola, onTutup, onBerubah }: { id: string; 
                 <select value={r.status} disabled={sibuk} onChange={(e) => ubahStatus(e.target.value)} className={cn(kolom, "h-8 w-auto text-[13px]")}>
                   {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>Status: {v.label}</option>)}
                 </select>
-                {r.status_muat === "terbit" ? (
+                {r.status_muat === "proses" ? null : r.status_muat === "terbit" ? (
                   <button type="button" disabled={sibuk} onClick={async () => { if (await konfirmasi({ judul: "Tarik dari pencarian AI?", pesan: "Potongan pasal dihapus dari pencarian Mystic AI. Metadata & PDF tetap tersimpan dan bisa diterbitkan lagi.", tombol: "Tarik", bahaya: false })) aksi(() => apiRequest(`/api/regulasi/${id}/tarik`, "POST"), "Ditarik dari pencarian"); }}
                     className="flex h-8 items-center gap-1.5 rounded-lg border border-black/10 px-2.5 text-[13px] hover:bg-muted dark:border-white/15">Tarik</button>
                 ) : (
@@ -221,24 +246,50 @@ function DetailPeraturan({ id, bolehKelola, onTutup, onBerubah }: { id: string; 
               </div>
             )}
 
+            {r?.status_muat === "proses" && (
+              <div className="flex-none border-b border-black/[0.07] px-4 py-3 dark:border-white/10">
+                <p className="flex justify-between text-[12.5px] text-foreground/80"><span>Memproses pasal & OCR halaman pindaian…</span><span className="tabular-nums">{r.progres ?? 0}%</span></p>
+                <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-black/[0.07] dark:bg-white/10">
+                  <span className="block h-full rounded-full bg-foreground/70 transition-[width] duration-500" style={{ width: `${r.progres ?? 0}%` }} />
+                </span>
+              </div>
+            )}
+
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <p className="sticky top-0 bg-background/95 px-4 py-2 text-[12px] font-medium text-muted-foreground backdrop-blur">
-                {isLoading ? "Memuat pasal…" : `${pasal.length} potongan pasal · klik untuk membuka halamannya`}
+              <p className="sticky top-0 z-10 bg-background/95 px-4 py-2 text-[12px] font-medium text-muted-foreground backdrop-blur">
+                {isLoading ? "Memuat…" : `${totalPotongan} potongan · klik untuk membuka halamannya`}
               </p>
-              <ul className="px-2 pb-4">
-                {pasal.map((p) => (
-                  <li key={p.id}>
-                    <button type="button" onClick={() => setHalaman(p.halaman_awal)}
-                      className={cn("w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/5", halaman === p.halaman_awal && "bg-black/[0.04] dark:bg-white/5")}>
-                      <span className="flex items-baseline gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">{p.bagian.split(" › ").slice(-1)[0]}</span>
-                        <span className="flex-none text-[11px] text-muted-foreground">hal. {p.halaman_awal}</span>
-                      </span>
-                      <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-muted-foreground">{p.cuplikan.replace(/\s+/g, " ").replace(/^Pasal \S+\s*/, "")}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <div className="px-2 pb-4">
+                {grup.map((g) => {
+                  const terbuka = grupBuka === g.judul || grup.length === 1;
+                  return (
+                    <div key={g.judul} className="mb-1">
+                      <button type="button" onClick={() => setGrupBuka(terbuka && grup.length > 1 ? null : g.judul)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left hover:bg-black/[0.04] dark:hover:bg-white/5">
+                        <ChevronRight className={cn("h-3.5 w-3.5 flex-none text-muted-foreground transition-transform duration-200", terbuka && "rotate-90")} />
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground" title={g.judul}>{g.judul}</span>
+                        <span className="flex-none text-[11.5px] tabular-nums text-muted-foreground">{g.butir.length}</span>
+                      </button>
+                      {terbuka && (
+                        <ul className="ml-4 border-l border-black/[0.07] pl-1.5 dark:border-white/10">
+                          {g.butir.map((p) => (
+                            <li key={p.id}>
+                              <button type="button" onClick={() => setHalaman(p.halaman_awal)}
+                                className={cn("w-full rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-black/[0.04] dark:hover:bg-white/5", halaman === p.halaman_awal && "bg-black/[0.04] dark:bg-white/5")}>
+                                <span className="flex items-baseline gap-2">
+                                  <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-foreground/90">{p.bagian.split(" › ").slice(1).join(" › ") || p.bagian.split(" › ").slice(-1)[0]}</span>
+                                  <span className="flex-none text-[11px] text-muted-foreground">hal. {p.halaman_awal}</span>
+                                </span>
+                                <span className="mt-0.5 line-clamp-2 block text-[12px] leading-snug text-muted-foreground">{p.cuplikan.replace(/\s+/g, " ").replace(/^Pasal \S+\s*/, "")}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -273,8 +324,8 @@ function DialogUnggah({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: 
     if (m) fd.append("meta", JSON.stringify({ ...m, tahun: m.tahun ? Number(m.tahun) : "" }));
     const r = await fetch(url, { method: "POST", body: fd, credentials: "include" });
     const j = await r.json().catch(() => ({}));
-    if (!r.ok && !(url === "/api/regulasi" && r.status === 422)) throw new Error(j.message || `Galat ${r.status}`);
-    return { ok: r.ok, ...j };
+    if (!r.ok) throw new Error(j.message || `Galat ${r.status}`);
+    return j;
   };
 
   const pilihBerkas = async (f: File | null | undefined) => {
@@ -301,8 +352,7 @@ function DialogUnggah({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: 
     setSibuk("terbit");
     try {
       const h = await kirim("/api/regulasi", berkas, meta);
-      if (h.ok) toast({ title: "Peraturan diterbitkan", description: `${h.potongan} potongan pasal kini dapat dicari Mystic AI.` });
-      else toast({ title: "Tersimpan, tetapi gagal diterbitkan", description: h.message, variant: "destructive" });
+      toast({ title: "Sedang diproses", description: "Pasal dipotong & di-embed di latar. Anda bisa lanjut bekerja; status tampil di daftar." });
       onSelesai(h.id);
     } catch (e: any) { setUbah(true); toast({ title: "Belum bisa diterbitkan", description: e.message, variant: "destructive" }); }
     finally { setSibuk(""); }
@@ -421,7 +471,7 @@ function DialogUnggah({ onTutup, onSelesai }: { onTutup: () => void; onSelesai: 
           <button type="button" onClick={onTutup} className="h-9 rounded-full border border-black/10 px-4 text-[14px] hover:bg-muted dark:border-white/15">Batal</button>
           <button type="button" onClick={terbit} disabled={!!sibuk || !pratinjau?.bisaDiterbitkan}
             className="flex h-9 items-center gap-2 rounded-full bg-foreground px-4 text-[14px] font-medium text-background hover:opacity-90 disabled:opacity-40">
-            {sibuk === "terbit" && <Loader2 className="h-4 w-4 animate-spin" />}{sibuk === "terbit" ? "Memproses pasal…" : "Terbitkan"}
+            {sibuk === "terbit" && <Loader2 className="h-4 w-4 animate-spin" />}{sibuk === "terbit" ? "Mengunggah…" : "Terbitkan"}
           </button>
         </footer>
       </div>

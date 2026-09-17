@@ -23,6 +23,7 @@ const pgl = new PGlite({ extensions: { vector } });
 await pgl.exec(`CREATE TABLE uploaded_files (id varchar primary key, data text, mime_type text, filename text, created_at timestamp);`);
 await pgl.exec(fs.readFileSync("migrations/2026-09-17_pengetahuan_potongan.sql", "utf8"));
 await pgl.exec(fs.readFileSync("migrations/2026-09-17_regulasi.sql", "utf8"));
+await pgl.exec(fs.readFileSync("migrations/2026-09-17b_regulasi_progres.sql", "utf8"));
 const db = drizzle(pgl, { schema: skema });
 
 const DAFTAR = [
@@ -49,7 +50,7 @@ for (const [f, jenis, nomor, tahun, judul, bidang, status] of DAFTAR) {
   } catch (e: any) {
     const s = (await pgl.query<any>(`select status_muat, galat_muat from regulasi where id=$1`, [id])).rows[0];
     console.log(`• ${id} tidak terbit (${s.status_muat}): ${s.galat_muat}`);
-    assert.equal(s.status_muat, "gagal");
+    assert.equal(s.status_muat, "gagal", `${id}: galat harus tercatat (${e?.message})`);
   }
 }
 console.log(`waktu muat: ${((Date.now() - t0) / 1000).toFixed(0)} dtk`);

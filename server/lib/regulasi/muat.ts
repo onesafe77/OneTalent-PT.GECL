@@ -1,7 +1,7 @@
 // Siklus hidup peraturan unggahan: pratinjau (tanpa simpan) → draf (berkas + metadata) → terbit (potong + embedding).
 // Potongan masuk pengetahuan_potongan koleksi "regulasi"; status berlaku dibaca dari tabel regulasi saat mencari.
 import { sql } from "drizzle-orm";
-import { ekstrakHalamanReg, nilaiMutu, potongRegulasi, type PotonganRegulasi } from "./potong";
+import { ekstrakHalamanReg, nilaiMutu, potongRegulasi, type PotonganRegulasi, type HalamanReg } from "./potong";
 import { deteksiMeta, type MetaTerdeteksi } from "./meta";
 import { MODEL_EMBEDDING, type Embedder } from "../pengetahuan/muat";
 import { lupakanIndeks } from "../pengetahuan/cari";
@@ -50,8 +50,9 @@ export interface Pratinjau {
  * Potong PDF tanpa menyimpan apa pun — untuk layar pratinjau sebelum terbit.
  * Identitas dibaca dari PDF; isian pengguna (`koreksi`) hanya menimpa kolom yang diisi.
  */
-export async function pratinjauRegulasi(pdf: Uint8Array, koreksi: Partial<MetaRegulasi> = {}, namaBerkas = ""): Promise<{ pratinjau: Pratinjau; potongan: PotonganRegulasi[]; halaman: number }> {
-  const hal = await ekstrakHalamanReg(pdf);
+export async function pratinjauRegulasi(pdf: Uint8Array | HalamanReg[], koreksi: Partial<MetaRegulasi> = {}, namaBerkas = ""): Promise<{ pratinjau: Pratinjau; potongan: PotonganRegulasi[]; halaman: number }> {
+  // Pratinjau harus cepat: OCR hanya 2 halaman pertama (sampul → identitas). OCR penuh saat terbit.
+  const hal = Array.isArray(pdf) ? pdf : await ekstrakHalamanReg(pdf, { ocr: 2 });
   const terdeteksi = deteksiMeta(hal, namaBerkas);
   const isi = (v: any) => v !== undefined && v !== null && String(v).trim() !== "" && !(typeof v === "number" && Number.isNaN(v));
   const pilih = <K extends keyof MetaRegulasi>(k: K, cadangan: any) => (isi(koreksi[k]) ? koreksi[k] : isi((terdeteksi as any)[k]) ? (terdeteksi as any)[k] : cadangan);
@@ -79,47 +80,86 @@ export async function pratinjauRegulasi(pdf: Uint8Array, koreksi: Partial<MetaRe
       mutu: { ...mutu, pasalLompat },
       ringkasan: { potongan: potongan.length, pasal: hitung("pasal"), penjelasan: hitung("penjelasan"), lampiran: hitung("lampiran"), pembukaan: hitung("pembukaan") },
       contoh,
-      bisaDiterbitkan: potongan.some((p) => p.jenis === "pasal" || p.jenis === "lampiran"),
+      // Halaman pindaian di luar 2 halaman pertama belum di-OCR saat pratinjau; tetap boleh terbit.
+      bisaDiterbitkan: potongan.some((p) => p.jenis === "pasal" || p.jenis === "lampiran") || mutu.halamanTanpaTeks > 0,
     },
     potongan, halaman: hal.length,
   };
 }
 
 /**
- * Terbitkan: potong ulang dari berkas tersimpan, embedding SEMUA potongan dulu, lalu ganti isi koleksi
- * untuk peraturan ini dalam satu transaksi (tidak ada keadaan setengah jadi yang bisa dicari).
+ * Terbitkan: baca PDF SEKALI (dengan OCR penuh), potong, embedding SEMUA potongan dulu, lalu ganti isi
+ * koleksi dalam satu transaksi (tidak ada keadaan setengah jadi yang bisa dicari). Progres ditulis ke
+ * regulasi.progres agar halaman bisa menampilkan "Memproses… N%".
+ * Batch tulis kecil (25 baris ≈ 0,8 MB): batch 100 baris ≈ 3,2 MB per perintah terbukti lambat lewat jaringan jauh.
  */
 export async function terbitkanRegulasi(basisData: any, id: string, embed: Embedder): Promise<{ potongan: number }> {
   const r = (await basisData.execute(sql`select r.*, f.data from regulasi r left join uploaded_files f on f.id = r.berkas_id where r.id = ${id}`)).rows[0] as any;
   if (!r) throw new Error("Peraturan tidak ditemukan");
   if (!r.data) throw new Error("Berkas PDF tidak ditemukan");
   const meta: MetaRegulasi = { jenis: r.jenis, nomor: r.nomor, tahun: r.tahun, judul: r.judul, bidang: r.bidang, status: r.status };
+  let terakhir = -1;
+  const progres = async (n: number) => {
+    const v = Math.max(0, Math.min(99, Math.round(n)));
+    if (v === terakhir) return;
+    terakhir = v;
+    await basisData.execute(sql`update regulasi set status_muat = 'proses', progres = ${v}, diperbarui = now() where id = ${id}`);
+  };
   try {
-    const { pratinjau, potongan } = await pratinjauRegulasi(new Uint8Array(Buffer.from(r.data, "base64")), meta);
+    await progres(1);
+    let tunda = Promise.resolve();
+    const hal = await ekstrakHalamanReg(new Uint8Array(Buffer.from(r.data, "base64")), {
+      ocr: true,
+      // Membaca + OCR = 0–35%; progres ditulis paling sering tiap 5%.
+      onProgres: (i, n) => { const v = Math.floor((i / n) * 35 / 5) * 5; if (v !== terakhir) tunda = tunda.then(() => progres(v)); },
+    });
+    await tunda;
+    const { pratinjau, potongan } = await pratinjauRegulasi(hal, meta);
     if (pratinjau.galatMeta) throw new Error(pratinjau.galatMeta);
-    if (!pratinjau.bisaDiterbitkan) throw new Error(pratinjau.mutu.catatan[0] || "Tidak ada pasal yang terbaca dari PDF");
-    const vektor = await embed(potongan.map((p) => p.teksEmbed));
+    if (!potongan.some((p) => p.jenis === "pasal" || p.jenis === "lampiran"))
+      throw new Error(`Tidak ada pasal, diktum, atau lampiran yang terbaca dari ${hal.length} halaman PDF${pratinjau.mutu.halamanOcr ? ` (${pratinjau.mutu.halamanOcr} halaman di-OCR)` : ""}. Pastikan PDF berisi naskah lengkap, bukan hanya sampul/lembar pengesahan.`);
+
+    const vektor: number[][] = [];
+    for (let i = 0; i < potongan.length; i += 96) {                 // embedding = 35–75%
+      vektor.push(...(await embed(potongan.slice(i, i + 96).map((p) => p.teksEmbed))));
+      await progres(35 + (Math.min(i + 96, potongan.length) / potongan.length) * 40);
+    }
     const label = labelRegulasi(meta);
 
-    await basisData.transaction(async (tx: any) => {
+    await basisData.transaction(async (tx: any) => {                  // tulis = 75–99%
       await tx.execute(sql`delete from pengetahuan_potongan where koleksi = ${KOLEKSI_REGULASI} and document_id = ${id}`);
-      for (let i = 0; i < potongan.length; i += 100) {
-        const nilai = potongan.slice(i, i + 100).map((p, k) => sql`(${KOLEKSI_REGULASI}, ${id}, ${id}, ${label}, ${r.judul}, 0,
+      for (let i = 0; i < potongan.length; i += 25) {
+        const nilai = potongan.slice(i, i + 25).map((p, k) => sql`(${KOLEKSI_REGULASI}, ${id}, ${id}, ${label}, ${r.judul}, 0,
           ${r.bidang}, ${r.jenis}, ${p.jenis}, ${p.bagian}, ${p.halamanAwal}, ${p.halamanAkhir}, ${p.urutan}, ${p.teks},
           ${p.teksEmbed}, ${p.hash}, ${MODEL_EMBEDDING}, ${JSON.stringify(vektor[i + k])}::vector)`);
         await tx.execute(sql`insert into pengetahuan_potongan (koleksi, document_id, version_id, kode_dokumen, judul, revisi,
           departemen, kategori, jenis, bagian, halaman_awal, halaman_akhir, urutan, teks, teks_embed, hash_teks, model_embedding, embedding)
           values ${sql.join(nilai, sql`, `)}`);
       }
-      await tx.execute(sql`update regulasi set status_muat = 'terbit', jumlah_potongan = ${potongan.length}, galat_muat = null,
-        mutu = ${JSON.stringify(pratinjau.mutu)}::jsonb, diperbarui = now() where id = ${id}`);
+      await tx.execute(sql`update regulasi set status_muat = 'terbit', progres = 100, jumlah_potongan = ${potongan.length}, galat_muat = null,
+        jumlah_halaman = ${hal.length}, mutu = ${JSON.stringify(pratinjau.mutu)}::jsonb, diperbarui = now() where id = ${id}`);
     });
     lupakanIndeks(KOLEKSI_REGULASI);
     return { potongan: potongan.length };
   } catch (e: any) {
-    await basisData.execute(sql`update regulasi set status_muat = 'gagal', galat_muat = ${String(e?.message || e).slice(0, 500)}, diperbarui = now() where id = ${id}`);
+    await basisData.execute(sql`update regulasi set status_muat = 'gagal', progres = 0, galat_muat = ${String(e?.message || e).slice(0, 500)}, diperbarui = now() where id = ${id}`);
     throw e;
   }
+}
+
+/** Jalankan terbit tanpa menahan permintaan HTTP. Satu antrean: peraturan diproses bergiliran. */
+let antrean: Promise<unknown> = Promise.resolve();
+export function terbitkanDiLatar(basisData: any, id: string, embed: Embedder): void {
+  basisData.execute(sql`update regulasi set status_muat = 'proses', progres = 0, galat_muat = null, diperbarui = now() where id = ${id}`)
+    .then(() => { antrean = antrean.then(() => terbitkanRegulasi(basisData, id, embed)).catch((e) => console.error(`[regulasi] terbit ${id} gagal:`, e?.message || e)); })
+    .catch((e: any) => console.error("[regulasi] antre gagal:", e?.message || e));
+}
+
+/** Saat server hidup ulang, proses yang terputus ditandai gagal agar bisa diterbitkan ulang (bukan menggantung selamanya). */
+export async function pulihkanProsesTerputus(basisData: any) {
+  const r = await basisData.execute(sql`update regulasi set status_muat = 'gagal', progres = 0,
+    galat_muat = 'Proses terputus karena server dimulai ulang — klik Terbitkan untuk mengulang.' where status_muat = 'proses' returning id`);
+  if (r.rows?.length) console.warn(`[regulasi] ${r.rows.length} proses terbit terputus ditandai gagal`);
 }
 
 /** Keluarkan dari pencarian (potongan dihapus), metadata & berkas tetap. */

@@ -9909,6 +9909,7 @@ Format sebagai bullet points singkat per insight.`;
    * Lihat: semua yang login. Unggah/terbit/ubah/tarik/hapus: HSE, Legal, Document Control, Environment.
    * Alur: POST pratinjau (tanpa simpan) → POST simpan (draf + berkas) → POST terbit (potong + embedding).
    */
+  import("./lib/regulasi/muat").then((m) => m.pulihkanProsesTerputus(db)).catch((e) => console.error("[regulasi] pulihkan:", e?.message || e));
   const uploadRegulasi = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
   const penggunaRegulasi = (req: any) => (req.session as any)?.user;
   const bolehKelolaRegulasi = (u: any) => !!u && /HSE|LEGAL|DOCUMENT|DOC\.? ?CONTROL|ENVIRO|LINGKUNGAN/i.test(`${u.department || ""} ${u.position || ""}`);
@@ -9935,7 +9936,7 @@ Format sebagai bullet points singkat per insight.`;
       const u = penggunaRegulasi(req);
       if (!u) return res.sendStatus(401);
       const rows = (await db.execute(sql`select id, jenis, nomor, tahun, judul, instansi, bidang, status, diubah_oleh, dicabut_oleh,
-          tanggal_penetapan, berkas_nama, ukuran_berkas, jumlah_halaman, mutu, status_muat, jumlah_potongan, galat_muat,
+          tanggal_penetapan, berkas_nama, ukuran_berkas, jumlah_halaman, mutu, status_muat, progres, jumlah_potongan, galat_muat,
           diunggah_oleh, diperiksa_pada, dibuat, diperbarui
         from regulasi order by tahun desc, jenis, nomor`)).rows;
       res.json({ items: rows, bolehKelola: bolehKelolaRegulasi(u) });
@@ -9983,7 +9984,7 @@ Format sebagai bullet points singkat per insight.`;
   app.post("/api/regulasi", wajibKelolaRegulasi, uploadRegulasi.single("berkas"), async (req: any, res) => {
     try {
       if (!cekPdf(req.file)) return res.status(400).json({ message: "Berkas harus PDF" });
-      const { terbitkanRegulasi, pratinjauRegulasi } = await import("./lib/regulasi/muat");
+      const { terbitkanDiLatar, pratinjauRegulasi } = await import("./lib/regulasi/muat");
       const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
       const { pratinjau } = await pratinjauRegulasi(new Uint8Array(req.file.buffer), req.body?.meta ? bacaMetaRegulasi(req.body) : {}, req.file.originalname || "");
       const meta = pratinjau.meta;
@@ -10008,22 +10009,19 @@ Format sebagai bullet points singkat per insight.`;
       if (lama?.berkas_id && lama.berkas_id !== berkas.id) await db.execute(sql`delete from uploaded_files where id = ${lama.berkas_id}`);
       console.log(`[regulasi] ${u.name} ${lama ? "mengganti" : "mengunggah"} ${meta.jenis} ${meta.nomor}/${meta.tahun}`);
 
-      try {
-        const h = await terbitkanRegulasi(db, baris.id, embedderOpenRouter(kunciOpenRouter()));
-        res.json({ id: baris.id, statusMuat: "terbit", potongan: h.potongan });
-      } catch (e: any) {
-        res.status(422).json({ id: baris.id, statusMuat: "gagal", message: e?.message || "Gagal menerbitkan" });
-      }
+      // Terbit (OCR + embedding) berjalan di latar; halaman memantau progresnya.
+      terbitkanDiLatar(db, baris.id, embedderOpenRouter(kunciOpenRouter()));
+      res.json({ id: baris.id, statusMuat: "proses" });
     } catch (e: any) { console.error("POST regulasi:", e); res.status(500).json({ message: "Gagal menyimpan peraturan" }); }
   });
 
   app.post("/api/regulasi/:id/terbit", wajibKelolaRegulasi, async (req, res) => {
     try {
-      const { terbitkanRegulasi } = await import("./lib/regulasi/muat");
+      const { terbitkanDiLatar } = await import("./lib/regulasi/muat");
       const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
-      const h = await terbitkanRegulasi(db, req.params.id, embedderOpenRouter(kunciOpenRouter()));
-      res.json({ statusMuat: "terbit", potongan: h.potongan });
-    } catch (e: any) { res.status(422).json({ statusMuat: "gagal", message: e?.message || "Gagal menerbitkan" }); }
+      terbitkanDiLatar(db, req.params.id, embedderOpenRouter(kunciOpenRouter()));
+      res.json({ statusMuat: "proses" });
+    } catch (e: any) { res.status(500).json({ message: e?.message || "Gagal memulai terbit" }); }
   });
 
   app.post("/api/regulasi/:id/tarik", wajibKelolaRegulasi, async (req, res) => {
@@ -10052,9 +10050,9 @@ Format sebagai bullet points singkat per insight.`;
         where id = ${req.params.id}`);
       // Label & judul tertanam di potongan (sitasi + teks embed) → terbitkan ulang bila identitas berubah.
       if (identitasBerubah && lama.status_muat === "terbit") {
-        const { terbitkanRegulasi } = await import("./lib/regulasi/muat");
+        const { terbitkanDiLatar } = await import("./lib/regulasi/muat");
         const { embedderOpenRouter } = await import("./lib/pengetahuan/muat");
-        await terbitkanRegulasi(db, req.params.id, embedderOpenRouter(kunciOpenRouter()));
+        terbitkanDiLatar(db, req.params.id, embedderOpenRouter(kunciOpenRouter()));
       }
       res.json({ ok: true, diterbitkanUlang: identitasBerubah && lama.status_muat === "terbit" });
     } catch (e: any) {

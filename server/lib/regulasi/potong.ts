@@ -13,7 +13,7 @@ import { hashTeks, pecahKalimat, UKURAN } from "../ppo/potong";
 
 export type JenisPotonganRegulasi = "pasal" | "penjelasan" | "lampiran" | "pembukaan";
 
-export interface HalamanReg { no: number; baris: string[] }
+export interface HalamanReg { no: number; baris: string[]; ocr?: boolean }
 
 export interface PotonganRegulasi {
   urutan: number;
@@ -29,20 +29,61 @@ export interface PotonganRegulasi {
 
 export interface IdentitasRegulasi { label: string; judul: string; status?: string }
 
-export interface MutuTeks { halaman: number; halamanTanpaTeks: number; rasioKataRusak: number; catatan: string[] }
+export interface MutuTeks { halaman: number; halamanTanpaTeks: number; halamanOcr: number; rasioKataRusak: number; catatan: string[] }
 
 // ------------------------------------------------------------------ ekstraksi
 
-/** Baris per halaman dalam urutan baca asli pdf.js. */
-export async function ekstrakHalamanReg(pdfBytes: Uint8Array): Promise<HalamanReg[]> {
+/** Baris OCR yang hanya derau (lambang Garuda, garis tepi pindaian): terlalu sedikit huruf. */
+const barisOcrBersih = (b: string) => {
+  const t = b.replace(/\s+/g, " ").trim();
+  const huruf = (t.match(/[A-Za-z0-9]/g) || []).length;
+  return t.length >= 3 && huruf / t.length >= 0.6 && /[A-Za-z]{3,}/.test(t);
+};
+
+export interface OpsiEkstrak {
+  /** OCR halaman yang tidak punya lapisan teks. `true` = semua; angka = hanya N halaman pertama. */
+  ocr?: boolean | number;
+  onProgres?: (selesai: number, total: number) => void;
+}
+
+/**
+ * Baris per halaman dalam urutan baca asli pdf.js. Halaman tanpa lapisan teks (pindaian) di-OCR
+ * dengan tesseract (bahasa Indonesia) bila diminta; halaman itu ditandai `ocr: true`.
+ * Kanvas diambil dari canvasFactory milik pdf.js — mengimpor @napi-rs/canvas sendiri terbukti crash (segfault).
+ */
+export async function ekstrakHalamanReg(pdfBytes: Uint8Array, opsi: OpsiEkstrak = {}): Promise<HalamanReg[]> {
   const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const pdf = await pdfjs.getDocument({ data: pdfBytes, verbosity: 0 }).promise;
   const hasil: HalamanReg[] = [];
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const isi = await (await pdf.getPage(i)).getTextContent();
-    let teks = "";
-    for (const it of isi.items as any[]) teks += (it.str ?? "") + (it.hasEOL ? "\n" : "");
-    hasil.push({ no: i, baris: teks.split("\n").map((b) => b.replace(/\s+/g, " ").trim()).filter(Boolean) });
+  let pekerja: any = null;
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const hal = await pdf.getPage(i);
+      const isi = await hal.getTextContent();
+      let teks = "";
+      for (const it of isi.items as any[]) teks += (it.str ?? "") + (it.hasEOL ? "\n" : "");
+      let baris = teks.split("\n").map((b) => b.replace(/\s+/g, " ").trim()).filter(Boolean);
+      let ocr = false;
+
+      const bolehOcr = opsi.ocr === true || (typeof opsi.ocr === "number" && i <= opsi.ocr);
+      if (bolehOcr && baris.join(" ").length < 80) {
+        const Tesseract: any = (await import("tesseract.js")).default;
+        pekerja ??= await Tesseract.createWorker("ind");
+        const vp = hal.getViewport({ scale: 2 });
+        const kanvas = pdf.canvasFactory.create(Math.ceil(vp.width), Math.ceil(vp.height));
+        await hal.render({ canvasContext: kanvas.context, viewport: vp }).promise;
+        const { data } = await pekerja.recognize(kanvas.canvas.toBuffer("image/png"));
+        pdf.canvasFactory.destroy(kanvas);
+        const hasilOcr = String(data.text || "").split("\n").map((b) => b.replace(/\s+/g, " ").trim()).filter(barisOcrBersih);
+        if (hasilOcr.join(" ").length >= 40) { baris = hasilOcr; ocr = true; }
+      }
+      hasil.push({ no: i, baris, ocr });
+      hal.cleanup();
+      opsi.onProgres?.(i, pdf.numPages);
+    }
+  } finally {
+    await pekerja?.terminate();
+    await pdf.destroy();
   }
   return hasil;
 }
@@ -53,14 +94,16 @@ export async function ekstrakHalamanReg(pdfBytes: Uint8Array): Promise<HalamanRe
  */
 export function nilaiMutu(halaman: HalamanReg[]): MutuTeks {
   const tanpaTeks = halaman.filter((h) => h.baris.join(" ").length < 80).length;
+  const hasilOcr = halaman.filter((h) => h.ocr).length;
   const kata = halaman.flatMap((h) => h.baris.join(" ").split(/\s+/)).filter((k) => k.length >= 3);
   const rusak = kata.filter((k) => /[a-z][0-9]|[0-9][a-zA-Z]|^[lI][0-9]|[0-9][lIO]\b|[!|]/.test(k) && !/^\d+[A-Z]?$/.test(k) && !/^\(\d+\)$/.test(k)).length;
   const rasio = kata.length ? rusak / kata.length : 0;
   const catatan: string[] = [];
-  if (halaman.length && tanpaTeks === halaman.length) catatan.push("PDF tidak punya lapisan teks (pindaian) — perlu OCR sebelum bisa dicari.");
-  else if (tanpaTeks > 0) catatan.push(`${tanpaTeks} dari ${halaman.length} halaman tanpa teks (kemungkinan lampiran pindaian).`);
+  if (halaman.length && tanpaTeks === halaman.length) catatan.push("PDF tidak punya lapisan teks (pindaian) dan OCR tidak berhasil membacanya.");
+  else if (tanpaTeks > 0) catatan.push(`${tanpaTeks} dari ${halaman.length} halaman tidak terbaca, termasuk dengan OCR (mungkin halaman kosong/gambar).`);
+  if (hasilOcr > 0) catatan.push(`${hasilOcr} halaman pindaian dibaca dengan OCR — periksa kutipannya bila janggal.`);
   if (rasio > 0.006) catatan.push(`Teks tampak hasil OCR dengan salah baca (±${(rasio * 100).toFixed(1)}% kata janggal). Kutipan mungkin berbeda dari cetakan.`);
-  return { halaman: halaman.length, halamanTanpaTeks: tanpaTeks, rasioKataRusak: +rasio.toFixed(4), catatan };
+  return { halaman: halaman.length, halamanTanpaTeks: tanpaTeks, halamanOcr: hasilOcr, rasioKataRusak: +rasio.toFixed(4), catatan };
 }
 
 // ------------------------------------------------------------------ pembersihan
@@ -259,11 +302,21 @@ export function potongRegulasi(halamanMentah: HalamanReg[], id: IdentitasRegulas
     if (teks.replace(/\s/g, "").length < 20) continue;
 
     const bagianTeks = teks.length <= UKURAN.maksimum ? [teks] : pecahDiAyat(teks);
+    // Halaman per pecahan: petakan posisi huruf (tanpa spasi — pemecah lossless atas huruf) ke baris asal.
+    // Tanpa ini semua pecahan bagian panjang tercatat di halaman awal bagian (uji: Lampiran I Kepmen 1827K "hal 7" semua).
+    const awalBaris: number[] = []; let jalan = 0;
+    for (const x of p.baris) { awalBaris.push(jalan); jalan += x.teks.replace(/\s/g, "").length; }
+    const halPada = (pos: number) => { let j = 0; while (j + 1 < awalBaris.length && awalBaris[j + 1] <= pos) j++; return p.baris[j].hal; };
+    let posisi = 0;
     bagianTeks.forEach((isi, k) => {
+      const panjang = isi.replace(/\s/g, "").length;
+      const halAwal = bagianTeks.length > 1 ? halPada(posisi) : p.halamanAwal;
+      const halAkhir = bagianTeks.length > 1 ? halPada(Math.max(posisi, posisi + panjang - 1)) : p.halamanAkhir;
+      posisi += panjang;
       const bagian = bagianTeks.length > 1 ? `${p.bagian} (bagian ${k + 1}/${bagianTeks.length})` : p.bagian;
       final.push({
         urutan: final.length + 1, jenis: p.jenis, bagian, pasal: p.pasal,
-        halamanAwal: p.halamanAwal, halamanAkhir: p.halamanAkhir, teks: isi,
+        halamanAwal: halAwal, halamanAkhir: halAkhir, teks: isi,
         // Awalan identitas dibuat pendek: judul peraturan panjang di SETIAP potongan membuat semua pasal
         // satu peraturan tampak mirip secara makna (uji soal emas). Judul tetap dicari lewat kata kunci (bagian/label).
         teksEmbed: `${id.label} · ${bagian}\n${isi}`,
