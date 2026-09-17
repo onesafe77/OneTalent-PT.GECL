@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, IdCard, Car, CalendarDays, Upload, Eye, Download, Trash2, Loader2, X, Lock } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
@@ -158,7 +158,7 @@ export function DokumenKaryawan({ employeeId }: { employeeId: string }) {
       )}
 
       {lihat && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/70 p-4 animate-in fade-in duration-150" onClick={() => setLihat(null)}>
+        <div className="fixed inset-0 z-[120] flex flex-col bg-black/70 p-2 animate-in fade-in duration-150 sm:p-4" onClick={() => setLihat(null)}>
           <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-xl bg-card" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-none items-center gap-3 border-b px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -170,12 +170,54 @@ export function DokumenKaryawan({ employeeId }: { employeeId: string }) {
             </div>
             <div className={cn("min-h-0 flex-1", lihat.mime_type === "application/pdf" ? "" : "grid place-items-center overflow-auto bg-[#f4f4f2] p-4 dark:bg-gray-900")}>
               {lihat.mime_type === "application/pdf"
-                ? <iframe title={lihat.nama_berkas} src={urlBerkas(lihat)} className="h-full w-full" />
+                ? <PratinjauPdf url={urlBerkas(lihat)} />
                 : <img src={urlBerkas(lihat)} alt={lihat.nama_berkas} className="max-h-full max-w-full rounded-md object-contain shadow" />}
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * PDF dirender pdf.js ke kanvas, bukan <iframe>: penampil PDF bawaan tidak tersedia di semua browser
+ * (uji: panel aplikasi & banyak browser HP menampilkan bingkai kosong).
+ */
+function PratinjauPdf({ url }: { url: string }) {
+  const wadah = useRef<HTMLDivElement>(null);
+  const [galat, setGalat] = useState("");
+  useEffect(() => {
+    let batal = false;
+    const el = wadah.current;
+    if (!el) return;
+    el.innerHTML = "";
+    (async () => {
+      try {
+        const pdfjs: any = await import("pdfjs-dist");
+        const worker = await import("pdfjs-dist/build/pdf.worker.min.mjs?url");
+        pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+        const doc = await pdfjs.getDocument({ url, withCredentials: true }).promise;
+        const lebar = Math.min(el.clientWidth - 24, 1000);
+        const rasio = window.devicePixelRatio || 1;
+        for (let n = 1; n <= doc.numPages && !batal; n++) {
+          const hal = await doc.getPage(n);
+          const vp = hal.getViewport({ scale: lebar / hal.getViewport({ scale: 1 }).width });
+          const k = document.createElement("canvas");
+          k.width = Math.floor(vp.width * rasio); k.height = Math.floor(vp.height * rasio);
+          k.style.width = `${vp.width}px`; k.style.height = `${vp.height}px`;
+          k.className = "mx-auto mb-3 block rounded-sm bg-white shadow";
+          el.appendChild(k);
+          await hal.render({ canvasContext: k.getContext("2d")!, viewport: vp, transform: rasio !== 1 ? [rasio, 0, 0, rasio, 0, 0] : undefined }).promise;
+        }
+      } catch (e: any) { if (!batal) setGalat(e?.message || "PDF tidak dapat ditampilkan"); }
+    })();
+    return () => { batal = true; };
+  }, [url]);
+  return (
+    <div className="h-full overflow-auto bg-[#f4f4f2] p-3 dark:bg-gray-900">
+      {galat && <p className="p-6 text-center text-[13px] text-muted-foreground">PDF tidak dapat ditampilkan di sini ({galat}). Gunakan tombol Unduh.</p>}
+      <div ref={wadah} />
     </div>
   );
 }
